@@ -22,7 +22,6 @@ from data_classifier.core.types import (
     ClassificationFinding,
     ClassificationProfile,
     ColumnInput,
-    SampleAnalysis,
 )
 from data_classifier.engines.interface import ClassificationEngine
 
@@ -168,13 +167,13 @@ class HeuristicEngine(ClassificationEngine):
     character class ratios.
     """
 
-    name: str = "heuristic_stats"
-    order: int = 3
-    min_confidence: float = 0.0
-    supported_modes: set[str] = frozenset({"structured"})
+    name = "heuristic_stats"
+    order = 3
+    min_confidence = 0.0
+    supported_modes = frozenset({"structured"})
 
     def __init__(self) -> None:
-        self._config: dict = {}
+        self._config: dict | None = None
 
     def startup(self) -> None:
         """Load engine configuration from engine_defaults.yaml."""
@@ -183,7 +182,7 @@ class HeuristicEngine(ClassificationEngine):
 
     def _ensure_config(self) -> None:
         """Lazily load config if startup() was not called."""
-        if not self._config:
+        if self._config is None:
             self.startup()
 
     def classify_column(
@@ -202,17 +201,18 @@ class HeuristicEngine(ClassificationEngine):
         """
         self._ensure_config()
 
-        min_samples = self._config.get("min_samples", 10)
-        signals_config = self._config.get("signals", {})
-        cardinality_config = signals_config.get("cardinality", {})
-        entropy_config = signals_config.get("entropy", {})
-        length_config = signals_config.get("length", {})
+        min_samples = self._config["min_samples"]
+        signals_config = self._config["signals"]
+        cardinality_config = signals_config["cardinality"]
+        entropy_config = signals_config["entropy"]
+        char_class_config = signals_config["char_class"]
 
-        # Thresholds from config
-        low_cardinality = cardinality_config.get("low_threshold", 0.05)
-        high_cardinality = cardinality_config.get("high_threshold", 0.80)
-        high_entropy = entropy_config.get("high_threshold", 4.0)
-        length_consistency = length_config.get("consistency_threshold", 0.95)
+        # Thresholds from config — no hardcoded fallbacks
+        low_cardinality = cardinality_config["low_threshold"]
+        high_cardinality = cardinality_config["high_threshold"]
+        high_entropy = entropy_config["high_threshold"]
+        digit_purity = char_class_config["digit_purity_threshold"]
+        mixed_char_threshold = char_class_config["mixed_char_threshold"]
 
         values = column.sample_values
 
@@ -235,7 +235,7 @@ class HeuristicEngine(ClassificationEngine):
         # ── Rule: High cardinality + all-digits + uniform length 9 → SSN ──
         if (
             cardinality >= high_cardinality
-            and char_ratios["digit_ratio"] >= length_consistency
+            and char_ratios["digit_ratio"] >= digit_purity
             and length_stats["uniform"]
             and length_stats["mean"] == 9
         ):
@@ -255,20 +255,13 @@ class HeuristicEngine(ClassificationEngine):
                             f"Heuristic: cardinality={cardinality:.2f} (high), "
                             f"uniform length=9, digit_ratio={char_ratios['digit_ratio']:.2f}"
                         ),
-                        sample_analysis=SampleAnalysis(
-                            samples_scanned=len(values),
-                            samples_matched=len(values),
-                            samples_validated=0,
-                            match_ratio=1.0,
-                            sample_matches=[],
-                        ),
                     )
                 )
 
         # ── Rule: Low cardinality + all-digits + uniform length 9 → ABA_ROUTING ──
         if (
             cardinality <= low_cardinality
-            and char_ratios["digit_ratio"] >= length_consistency
+            and char_ratios["digit_ratio"] >= digit_purity
             and length_stats["uniform"]
             and length_stats["mean"] == 9
         ):
@@ -288,18 +281,14 @@ class HeuristicEngine(ClassificationEngine):
                             f"Heuristic: cardinality={cardinality:.2f} (low), "
                             f"uniform length=9, digit_ratio={char_ratios['digit_ratio']:.2f}"
                         ),
-                        sample_analysis=SampleAnalysis(
-                            samples_scanned=len(values),
-                            samples_matched=len(values),
-                            samples_validated=0,
-                            match_ratio=1.0,
-                            sample_matches=[],
-                        ),
                     )
                 )
 
         # ── Rule: High entropy + mixed chars → CREDENTIAL ──
-        if avg_entropy >= high_entropy and char_ratios["special_ratio"] + char_ratios["alnum_ratio"] >= 0.5:
+        if (
+            avg_entropy >= high_entropy
+            and char_ratios["special_ratio"] + char_ratios["alnum_ratio"] >= mixed_char_threshold
+        ):
             confidence = 0.60 + 0.08 * (avg_entropy - high_entropy)
             confidence = min(confidence, 0.90)
             if confidence >= min_confidence:
@@ -316,13 +305,6 @@ class HeuristicEngine(ClassificationEngine):
                             f"Heuristic: avg_entropy={avg_entropy:.2f} bits/char (high), "
                             f"mixed chars (alnum={char_ratios['alnum_ratio']:.2f}, "
                             f"special={char_ratios['special_ratio']:.2f})"
-                        ),
-                        sample_analysis=SampleAnalysis(
-                            samples_scanned=len(values),
-                            samples_matched=len(values),
-                            samples_validated=0,
-                            match_ratio=1.0,
-                            sample_matches=[],
                         ),
                     )
                 )

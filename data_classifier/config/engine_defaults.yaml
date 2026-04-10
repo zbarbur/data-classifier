@@ -8,6 +8,9 @@ heuristic_engine:
       high_threshold: 4.0    # bits/char → possible secrets/hashes
     length:
       consistency_threshold: 0.95  # fraction with same length → formatted ID
+    char_class:
+      digit_purity_threshold: 0.95  # fraction of values that are all-digits
+      mixed_char_threshold: 0.50    # fraction of values that are alnum+special (for credential detection)
 
 secret_scanner:
   # placeholder for Task 6
