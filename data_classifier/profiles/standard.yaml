@@ -1,0 +1,150 @@
+# Classification profiles for structured column classification.
+#
+# Each profile contains rules ordered by specificity (most specific first).
+# Column matching is case-insensitive; first matching rule wins.
+#
+# Pattern format: regex matched against the full lowercased column name.
+# Anchors (^, $) are optional — patterns use word-boundary style matching.
+#
+# Categories group entity types by kind of sensitive data:
+#   PII        — Personal identity data
+#   Financial  — Financial/payment data
+#   Credential — Authentication secrets
+#   Health     — Protected health information
+
+profiles:
+  standard:
+    name: standard
+    description: >
+      Standard classification profile.
+      Covers 15 entity types across 4 categories and 4 sensitivity levels.
+
+    rules:
+
+      # ── CRITICAL ──────────────────────────────────────────────────────────
+
+      - entity_type: SSN
+        category: PII
+        sensitivity: CRITICAL
+        regulatory: [PII, HIPAA, SOX, GDPR]
+        confidence: 0.95
+        patterns:
+          - "(^|_)(ssn|social_security|social_security_number|taxpayer_id)(_|$)"
+
+      - entity_type: CREDENTIAL
+        category: Credential
+        sensitivity: CRITICAL
+        regulatory: [PCI_DSS, SOC2]
+        confidence: 0.95
+        patterns:
+          - "(^|_)(password|passwd|passcode|secret|api_key|apikey|auth_token|access_token|private_key|client_secret)(_|$)"
+
+      - entity_type: CREDIT_CARD
+        category: Financial
+        sensitivity: CRITICAL
+        regulatory: [PCI_DSS, PII]
+        confidence: 0.95
+        patterns:
+          - "(^|_)(credit_card|creditcard|card_number|cardnumber|cc_number|ccnumber|pan|payment_card)(_|$)"
+
+      # ── HIGH ──────────────────────────────────────────────────────────────
+
+      - entity_type: EMAIL
+        category: PII
+        sensitivity: HIGH
+        regulatory: [PII, GDPR, CAN_SPAM]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(email|email_address|emailaddress|mail|e_mail)(_|$)"
+
+      - entity_type: PHONE
+        category: PII
+        sensitivity: HIGH
+        regulatory: [PII, GDPR, TCPA]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(phone|phone_number|phonenumber|telephone|tel|mobile|cell|fax)(_|$)"
+
+      - entity_type: DATE_OF_BIRTH
+        category: PII
+        sensitivity: HIGH
+        regulatory: [PII, HIPAA, GDPR, COPPA]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(dob|date_of_birth|dateofbirth|birth_date|birthdate|birthday|birth_year)(_|$)"
+
+      - entity_type: FINANCIAL
+        category: Financial
+        sensitivity: HIGH
+        regulatory: [PII, SOX, GDPR]
+        confidence: 0.85
+        patterns:
+          - "(^|_)(salary|income|wage|compensation|revenue|earnings|net_worth|tax_amount|annual_income|gross_pay|net_pay)(_|$)"
+
+      - entity_type: NATIONAL_ID
+        category: PII
+        sensitivity: HIGH
+        regulatory: [PII, GDPR]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(national_id|nationalid|passport|passport_number|drivers_license|driver_license|dl_number|id_number|govt_id|government_id|national_insurance)(_|$)"
+
+      - entity_type: HEALTH
+        category: Health
+        sensitivity: HIGH
+        regulatory: [PII, HIPAA, GDPR]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(diagnosis|icd_code|medical_record|mrn|patient_id|health_condition|prescription|medication|drug_name|lab_result|blood_type|medical_history)(_|$)"
+
+      - entity_type: BANK_ACCOUNT
+        category: Financial
+        sensitivity: HIGH
+        regulatory: [PCI_DSS, PII, GDPR]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(bank_account|bankaccount|account_number|accountnumber|iban|routing_number|sort_code|swift_code|bsb_number)(_|$)"
+
+      # ── MEDIUM ────────────────────────────────────────────────────────────
+
+      - entity_type: ADDRESS
+        category: PII
+        sensitivity: MEDIUM
+        regulatory: [PII, GDPR]
+        confidence: 0.80
+        patterns:
+          - "(^|_)(address|street|street_address|city|state|province|zip|zipcode|postal_code|postalcode|country|region|municipality)(_|$)"
+
+      - entity_type: PERSON_NAME
+        category: PII
+        sensitivity: MEDIUM
+        regulatory: [PII, GDPR]
+        confidence: 0.75
+        patterns:
+          - "(^|_)(first_name|firstname|last_name|lastname|full_name|fullname|given_name|surname|middle_name|legal_name)(_|$)"
+
+      - entity_type: IP_ADDRESS
+        category: PII
+        sensitivity: MEDIUM
+        regulatory: [PII, GDPR]
+        confidence: 0.85
+        patterns:
+          - "(^|_)(ip_address|ipaddress|ip_addr|ipaddr|client_ip|source_ip|remote_ip|user_ip)(_|$)"
+
+      # ── LOW ───────────────────────────────────────────────────────────────
+
+      - entity_type: DEMOGRAPHIC
+        category: PII
+        sensitivity: LOW
+        regulatory: [PII, EEOC]
+        confidence: 0.70
+        patterns:
+          - "(^|_)(gender|sex|ethnicity|race|nationality|religion|marital_status|education_level|occupation)(_|$)"
+
+      - entity_type: AGE
+        category: PII
+        sensitivity: LOW
+        regulatory: [PII, COPPA]
+        confidence: 0.75
+        patterns:
+          - "(^|_)(age|age_group|age_range|age_band|age_at_enrollment)(_|$)"

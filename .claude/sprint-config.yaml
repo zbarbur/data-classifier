@@ -1,0 +1,44 @@
+project_name: data_classifier
+language: python
+
+current_sprint: 1
+
+# Commands — Python toolchain
+test_command: "pytest tests/ -v"
+lint_command: "ruff check . --exclude .claude/worktrees && ruff format --check . --exclude .claude/worktrees"
+format_command: "ruff check --fix . && ruff format ."
+ci_command: "ruff check . --exclude .claude/worktrees && ruff format --check . --exclude .claude/worktrees && pytest tests/ -v"
+
+# Backlog tool (Python package: pip install agile-backlog)
+backlog_tool: agile-backlog
+backlog_commands:
+  list: "agile-backlog list"
+  list_doing: "agile-backlog list --status doing"
+  list_done: "agile-backlog list --status done"
+  list_backlog: "agile-backlog list --status backlog"
+  list_bugs: "agile-backlog list --category bug --status backlog"
+  show: "agile-backlog show {id}"
+  add: "agile-backlog add \"{title}\" --category {category} --priority {priority}"
+  move: "agile-backlog move {id} --status {status}"
+  edit: "agile-backlog edit {id}"
+  flagged: "agile-backlog flagged"
+  sprint_status: "agile-backlog sprint-status"
+  set_sprint: "agile-backlog set-sprint {N}"
+
+# Documentation paths
+docs:
+  handover_dir: "docs/sprints/"
+  specs_dir: "docs/specs/"
+  plans_dir: "docs/plans/"
+  project_context: "docs/process/PROJECT_CONTEXT.md"
+  definition_of_done: "docs/process/DEFINITION_OF_DONE.md"
+
+# Branch conventions
+branch_pattern: "sprint{N}/main"
+commit_style: conventional
+
+# Sprint settings
+default_sprint_capacity:
+  small: 3-4
+  medium: 2-3
+  large: 1-2
