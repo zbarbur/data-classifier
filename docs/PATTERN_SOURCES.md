@@ -3,6 +3,25 @@
 > Living document. Tracks where our patterns come from, what gaps remain, and when we plan to close them.
 > Last updated: 2026-04-10
 
+## License & IP Position
+
+All patterns in this library are **original implementations**. We did NOT copy regex strings, code, or configuration from any source. Our process:
+
+1. **Referenced public documentation** from each service (Stripe, Slack, AWS, etc.) for their token format specifications (prefixes, lengths, character sets). Token formats are factual, not copyrightable.
+2. **Referenced open-source projects** (Presidio, gitleaks, detect-secrets) as coverage benchmarks — "what entity types exist?" — not as code sources.
+3. **Wrote all regex patterns, validators, and scoring logic from scratch** based on the format specifications.
+
+| Source | License | Our Use | IP Risk |
+|---|---|---|---|
+| Presidio | MIT | Coverage benchmark + validator approach | None |
+| gitleaks | MIT | Coverage benchmark | None |
+| trufflehog | **AGPL-3.0** | Detector list reference ONLY — no code or regex copied | None (no derived work) |
+| detect-secrets | Apache 2.0 | Entropy detection concept reference | None |
+| Cloud DLP | Proprietary | Public API docs reference | None |
+| AWS Macie | Proprietary | Public docs reference | None |
+
+**Rule:** When adding new patterns, always write regex from the **service's own public documentation**, never copy from AGPL-licensed sources (trufflehog). MIT-licensed sources (Presidio, gitleaks) allow copying but we prefer original implementations for consistency.
+
 ## Source Inventory
 
 ### 1. Microsoft Presidio (~60 regex recognizers)
