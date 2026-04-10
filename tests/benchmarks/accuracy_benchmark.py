@@ -288,10 +288,84 @@ def print_report(
     print(f"  Avg samples/column: {avg_samples:.0f}")  # noqa: T201
     print()  # noqa: T201
 
-    # ── Per-entity metrics ────────────────────────────────────────────────
+    # ── Sample-level aggregate ─────────────────────────────────────────────
     w = 70
+    profile = load_profile("standard")
+    total_samples_matched = 0
+    total_samples_scanned = 0
+    total_samples_validated = 0
+    sample_rows: list[tuple[str, int, int, int, float, str]] = []
+
+    for cr in column_results:
+        if cr.expected_entity_type is None:
+            continue
+        col = next(c for c, _ in corpus if c.column_id == cr.column_id)
+        col_findings = {f.entity_type: f for f in classify_columns([col], profile, min_confidence=0.0)}
+        expected_f = col_findings.get(cr.expected_entity_type)
+        n_samples = len(col.sample_values)
+
+        if expected_f and expected_f.sample_analysis:
+            sa = expected_f.sample_analysis
+            total_samples_scanned += sa.samples_scanned
+            total_samples_matched += sa.samples_matched
+            total_samples_validated += sa.samples_validated
+            sample_rows.append(
+                (
+                    cr.expected_entity_type,
+                    sa.samples_matched,
+                    sa.samples_scanned,
+                    sa.samples_validated,
+                    expected_f.confidence,
+                    "regex",
+                )
+            )
+        elif expected_f:
+            # Detected via column name only — all samples "covered" by name match
+            total_samples_scanned += n_samples
+            total_samples_matched += n_samples
+            total_samples_validated += n_samples
+            sample_rows.append(
+                (
+                    cr.expected_entity_type,
+                    n_samples,
+                    n_samples,
+                    n_samples,
+                    expected_f.confidence,
+                    "column_name",
+                )
+            )
+        else:
+            total_samples_scanned += n_samples
+            sample_rows.append((cr.expected_entity_type, 0, n_samples, 0, 0.0, "MISSED"))
+
+    positive_samples = sum(len(c.sample_values) for c, e in corpus if e is not None)
+    negative_samples = total_samples - positive_samples
+    sample_match_rate = total_samples_matched / total_samples_scanned if total_samples_scanned > 0 else 0
+    sample_valid_rate = total_samples_validated / total_samples_matched if total_samples_matched > 0 else 0
+
+    print("SAMPLE-LEVEL SUMMARY")  # noqa: T201
+    print("-" * w)  # noqa: T201
+    print(f"  Positive samples:     {positive_samples:,}")  # noqa: T201
+    print(f"  Negative samples:     {negative_samples:,}")  # noqa: T201
+    print(f"  Samples scanned:      {total_samples_scanned:,}")  # noqa: T201
+    print(f"  Samples matched:      {total_samples_matched:,} ({sample_match_rate:.1%})")  # noqa: T201
+    print(f"  Samples validated:    {total_samples_validated:,} ({sample_valid_rate:.1%} of matched)")  # noqa: T201
+    print()  # noqa: T201
+
+    print(
+        f"  {'Entity Type':<22} {'Matched':>10} {'Scanned':>10} {'Valid':>10} {'Conf':>8} {'Via':>12}"  # noqa: T201
+    )
+    print(f"  {'-' * 22} {'-' * 10} {'-' * 10} {'-' * 10} {'-' * 8} {'-' * 12}")  # noqa: T201
+    for entity_type, matched, scanned, validated, conf, via in sample_rows:
+        pct = f"({matched / scanned:.0%})" if scanned > 0 else ""
+        print(  # noqa: T201
+            f"  {entity_type:<22} {matched:>7}{pct:>3} {scanned:>10} {validated:>10} {conf:>8.3f} {via:>12}"
+        )
+    print()  # noqa: T201
+
+    # ── Per-column detection accuracy ─────────────────────────────────────
     header = f"{'Entity Type':<22} {'TP':>4} {'FP':>4} {'FN':>4} {'Prec':>8} {'Recall':>8} {'F1':>8}"
-    print("DETECTION ACCURACY")  # noqa: T201
+    print("COLUMN-LEVEL ACCURACY (did the column get the correct entity label?)")  # noqa: T201
     print("-" * w)  # noqa: T201
     print(header)  # noqa: T201
     print("-" * w)  # noqa: T201
