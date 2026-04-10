@@ -211,7 +211,7 @@
     {
       "name": "iban",
       "regex": "\\b[A-Z]{2}\\d{2}[A-Z0-9]{4,30}\\b",
-      "entity_type": "BANK_ACCOUNT",
+      "entity_type": "IBAN",
       "category": "Financial",
       "sensitivity": "HIGH",
       "confidence": 0.8,
@@ -407,7 +407,7 @@
     {
       "name": "mac_address",
       "regex": "\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b",
-      "entity_type": "DEVICE_ID",
+      "entity_type": "MAC_ADDRESS",
       "category": "PII",
       "sensitivity": "MEDIUM",
       "confidence": 0.9,

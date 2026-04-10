@@ -129,13 +129,21 @@ profiles:
         patterns:
           - "(^|_)(sin|social_insurance|social_insurance_number)(_|$)"
 
+      - entity_type: IBAN
+        category: Financial
+        sensitivity: HIGH
+        regulatory: [PCI_DSS, PII, GDPR]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(iban|iban_code|iban_number)(_|$)"
+
       - entity_type: BANK_ACCOUNT
         category: Financial
         sensitivity: HIGH
         regulatory: [PCI_DSS, PII, GDPR]
         confidence: 0.90
         patterns:
-          - "(^|_)(bank_account|bankaccount|account_number|accountnumber|iban|routing_number|sort_code|bsb_number)(_|$)"
+          - "(^|_)(bank_account|bankaccount|account_number|accountnumber|sort_code|bsb_number)(_|$)"
 
       - entity_type: SWIFT_BIC
         category: Financial
@@ -178,7 +186,15 @@ profiles:
           - "(^|_)(ein|employer_id|employer_identification|tax_id|fein|federal_ein)(_|$)"
 
       # ── MEDIUM ────────────────────────────────────────────────────────────
-      # NOTE: IP_ADDRESS must come before ADDRESS (more specific match first)
+      # NOTE: MAC_ADDRESS and IP_ADDRESS must come before ADDRESS (more specific match first)
+
+      - entity_type: MAC_ADDRESS
+        category: PII
+        sensitivity: MEDIUM
+        regulatory: [PII]
+        confidence: 0.85
+        patterns:
+          - "(^|_)(mac_address|macaddress|mac_addr|hardware_address|physical_address|device_mac)(_|$)"
 
       - entity_type: VIN
         category: PII
