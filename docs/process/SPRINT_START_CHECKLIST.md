@@ -1,4 +1,4 @@
-# Sprint Start Checklist — {{PROJECT_NAME}}
+# Sprint Start Checklist — data_classifier
 
 Follow this checklist at the beginning of every sprint. Do not skip steps.
 
@@ -10,21 +10,21 @@ Follow this checklist at the beginning of every sprint. Do not skip steps.
 
 - [ ] On `main` branch: `git branch --show-current` shows `main`
 - [ ] Working tree clean: `git status` shows no uncommitted changes
-- [ ] CI passes: `npm run ci` (lint + typecheck + test) exits 0
-- [ ] No stale branches from previous sprint (delete merged branches)
+- [ ] CI passes: `ruff check . && ruff format --check . && pytest tests/ -v`
+- [ ] No stale branches from previous sprint
 
 ```bash
 git checkout main
 git pull origin main
-npm run ci
+ruff check . && ruff format --check . && pytest tests/ -v
 ```
 
 ### 2. Review Previous Sprint
 
 - [ ] Read the latest sprint handover: `docs/sprints/SPRINT{N-1}_HANDOVER.md`
-- [ ] Check KANBAN.md — previous sprint's "Doing" section should be empty
-- [ ] Check MEMORY.md — verify lessons from last sprint are captured
-- [ ] Note any carryover items or unresolved tech debt
+- [ ] Check backlog — previous sprint items are marked done: `agile-backlog list --status done`
+- [ ] Check `.claude/MEMORY.md` — verify lessons from last sprint are captured
+- [ ] Note any carryover items or unresolved issues
 
 ---
 
@@ -32,107 +32,79 @@ npm run ci
 
 ### 3. Bug Triage
 
-- [ ] Read `.claude/project.json` for tracker config
-- [ ] **GitHub mode**: `gh issue list --label "bug" --state open` — review open bugs by severity
-- [ ] **No tracker**: check KANBAN.md for `[BUG]` entries
+- [ ] Review open bugs: `agile-backlog list --category bug --status backlog`
 - [ ] Select bugs to include in sprint scope (if any)
-- [ ] Selected bugs will become task specs in step 4
 
-### 4. Select Scope from KANBAN
+### 4. Select Scope from Backlog
 
-- [ ] Open `docs/process/KANBAN.md`
-- [ ] Review **Backlog** section — prioritize by impact and dependencies
-- [ ] Review **Tech Debt** section — include at least one debt item if list is growing
-- [ ] Select items for the sprint (be realistic about capacity)
-- [ ] Consider dependencies between selected items — order matters
+- [ ] Review backlog: `agile-backlog list --status backlog`
+- [ ] Prioritize by impact, dependencies, and roadmap alignment
+- [ ] Select items for the sprint
 
 **Capacity guideline:**
 - Small (S) tasks: 3-4 per sprint
 - Medium (M) tasks: 2-3 per sprint
 - Large (L) tasks: 1-2 per sprint
-- Mix recommended: 1L + 2M + 1S, or 3M + 2S
+- Mix recommended: 1L + 2M + 1S
 
-### 5. Write Task Specs in TODO.md
+### 5. Assign Sprint to Backlog Items
 
-- [ ] Clear TODO.md of previous sprint content (archive if needed)
-- [ ] Write sprint header: `## Sprint {N} — {Theme}`
-- [ ] For each selected item, create a full task spec using `TASK_TEMPLATE.md`
-- [ ] Number tasks sequentially: T{N}.1, T{N}.2, T{N}.3, ...
-- [ ] Assign specialists from `SQUAD_PLANNING.md`
-- [ ] Set complexity (S/M/L) for each task
+```bash
+agile-backlog edit {id} --sprint {N}
+agile-backlog move {id} --status doing
+```
 
-### 6. Validate Completeness
+- [ ] Selected items tagged with sprint number
+- [ ] Status moved to `doing`
 
-For every task in TODO.md, verify:
+### 6. Validate Task Specs
 
-- [ ] **Goal** is a clear, one-sentence description of what and why
-- [ ] **Specialist** is assigned (from SQUAD_PLANNING.md)
-- [ ] **Complexity** is set (S/M/L)
-- [ ] **Dependencies** are declared (or "None")
-- [ ] **DoD** has verifiable checkboxes (see DEFINITION_OF_DONE.md)
-- [ ] **Technical Specs** include concrete file paths, endpoints, schemas
-- [ ] **Test Plan** describes what tests to write
-- [ ] **Demo Data Impact** is assessed
+For every sprint task, verify:
 
-### 7. Dependency Validation
-
-- [ ] No circular dependencies between tasks
-- [ ] Dependencies reference valid task IDs
-- [ ] Execution order is feasible (dependent tasks come after their prerequisites)
+- [ ] Goal is clear (what + why)
+- [ ] Complexity is set (S/M/L)
+- [ ] Dependencies declared
+- [ ] DoD has verifiable checkboxes (see DEFINITION_OF_DONE.md)
+- [ ] Technical specs include file paths, models, patterns
 
 ---
 
 ## Sprint Initialization
 
-### 8. Update KANBAN Doing Section
-
-- [ ] Move selected items from **Backlog** to **Doing** in KANBAN.md
-- [ ] Keep items in **Backlog** that were not selected
-
-### 9. Create Sprint Branch
+### 7. Create Sprint Branch
 
 ```bash
 git checkout -b sprint{N}/main
 ```
 
 - [ ] Sprint branch created from latest `main`
-- [ ] Branch name follows convention: `sprint{N}/main`
 
-### 10. Commit Planning Artifacts
+### 8. Commit Planning Artifacts
 
 ```bash
-git add TODO.md docs/process/KANBAN.md
-git commit -m "Sprint {N}: planning — {theme description}"
+git add backlog/
+git commit -m "Sprint {N}: planning — {theme}"
 ```
-
-- [ ] TODO.md with full task specs committed
-- [ ] Updated KANBAN.md committed
 
 ---
 
 ## Ready Confirmation
 
-Before beginning work, confirm:
-
 - [ ] `main` is clean and CI passes
-- [ ] TODO.md has all task specs with full DoD
-- [ ] KANBAN.md Doing section matches TODO.md tasks
+- [ ] Sprint items selected and tagged in backlog
 - [ ] Sprint branch created
-- [ ] Planning artifacts committed
-- [ ] Team (you + agents) knows the execution order
-
-**Sprint {N} is ready. Begin with the first task that has no dependencies.**
+- [ ] Planning committed
+- [ ] Begin with the first task that has no dependencies
 
 ---
 
 ## Quick Reference
 
-```
+```bash
 git checkout main && git pull origin main
-npm run ci
-# Edit TODO.md and KANBAN.md
+ruff check . && ruff format --check . && pytest tests/ -v
+agile-backlog list --status backlog
+# Select and tag items
 git checkout -b sprint{N}/main
-git add TODO.md docs/process/KANBAN.md
-git commit -m "Sprint {N}: planning — {theme}"
-# Start working on T{N}.1
+git add backlog/ && git commit -m "Sprint {N}: planning — {theme}"
 ```
