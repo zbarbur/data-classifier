@@ -186,17 +186,19 @@ class SecretScannerEngine(ClassificationEngine):
         min_value_length = self._config.get("min_value_length", 8)
         anti_indicators = self._config.get("anti_indicators", [])
 
-        matched_samples: list[str] = []
+        matched_evidence: list[str] = []
+        matched_sample_indices: set[int] = set()
         best_confidence = 0.0
         best_evidence = ""
         samples_scanned = 0
 
-        for sample in column.sample_values:
+        for idx, sample in enumerate(column.sample_values):
             if not sample:
                 continue
             samples_scanned += 1
 
-            kv_pairs = parse_key_values(sample)
+            # Deduplicate KV pairs (env + code parsers can overlap)
+            kv_pairs = list(dict.fromkeys(parse_key_values(sample)))
             if not kv_pairs:
                 continue
 
@@ -226,6 +228,7 @@ class SecretScannerEngine(ClassificationEngine):
                 # Composite score
                 composite = key_score * entropy_score
                 if composite >= min_confidence:
+                    matched_sample_indices.add(idx)
                     if composite > best_confidence:
                         best_confidence = composite
                         entropy = compute_shannon_entropy(value)
@@ -235,19 +238,20 @@ class SecretScannerEngine(ClassificationEngine):
                             f"with {charset} entropy={entropy:.2f} bits/char "
                             f"(score={entropy_score:.2f}), composite={composite:.2f}"
                         )
-                    if len(matched_samples) < max_evidence_samples:
+                    if len(matched_evidence) < max_evidence_samples:
                         display_value = _mask_value(value) if mask_samples else value
-                        matched_samples.append(f"{key}={display_value}")
+                        matched_evidence.append(f"{key}={display_value}")
 
         if best_confidence < min_confidence:
             return []
 
+        samples_matched = len(matched_sample_indices)
         sample_analysis = SampleAnalysis(
             samples_scanned=samples_scanned,
-            samples_matched=len(matched_samples),
-            samples_validated=len(matched_samples),
-            match_ratio=len(matched_samples) / max(samples_scanned, 1),
-            sample_matches=matched_samples,
+            samples_matched=samples_matched,
+            samples_validated=samples_matched,
+            match_ratio=samples_matched / max(samples_scanned, 1),
+            sample_matches=matched_evidence,
         )
 
         return [
@@ -304,7 +308,15 @@ def _load_key_names() -> list[dict]:
 
     Returns:
         List of dicts with ``pattern``, ``score``, and ``category`` keys.
+
+    Raises:
+        FileNotFoundError: If the key-name dictionary file is missing.
+        ValueError: If the file is malformed or missing the ``key_names`` key.
     """
+    if not _SECRET_KEY_NAMES_FILE.exists():
+        raise FileNotFoundError(f"Secret key-name dictionary not found: {_SECRET_KEY_NAMES_FILE}")
     with open(_SECRET_KEY_NAMES_FILE) as fh:
         raw = json.load(fh)
+    if "key_names" not in raw:
+        raise ValueError(f"Missing 'key_names' key in {_SECRET_KEY_NAMES_FILE}")
     return raw["key_names"]
