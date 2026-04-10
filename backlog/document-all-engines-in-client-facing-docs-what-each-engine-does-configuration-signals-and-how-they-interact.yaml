@@ -1,9 +1,10 @@
-title: Consumer-injectable custom patterns (compile into RE2 Set)
+title: "Document all engines in client-facing docs \u2014 what each engine does, configuration,\
+  \ signals, and how they interact"
 status: backlog
 priority: P2
-category: feature
+category: docs
 sprint_target: null
-created: 2026-04-10
+created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
 tags:

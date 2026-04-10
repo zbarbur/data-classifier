@@ -12,31 +12,12 @@ goal: "Add a heuristic statistics engine that analyzes column sample distributio
   \ from other engines \u2014 primary lever for SSN\u2194ABA disambiguation"
 complexity: L
 technical_specs:
-- "File: data_classifier/engines/heuristic_engine.py \u2014 new engine implementing\
-  \ ClassificationEngine"
-- "File: data_classifier/engines/interface.py \u2014 verify base class supports confidence\
-  \ modifier pattern"
-- "File: data_classifier/orchestrator/orchestrator.py \u2014 register heuristic engine\
-  \ in cascade at order=3"
-- "File: data_classifier/profiles/standard.yaml \u2014 add heuristic_stats to profile\
-  \ engine list"
-- 'Signal table: cardinality ratio, entropy (Shannon per-value + column-level), length
-  consistency, char class ratios, format detection'
-- 'Confidence modifier pattern: engine returns adjustments that orchestrator applies
-  to existing findings, not standalone classifications'
+- "File: data_classifier/config/engine_defaults.yaml \u2014 all heuristic thresholds\
+  \ (cardinality, entropy, length) in config, not hardcoded"
 description: ''
 acceptance_criteria:
-- Engine implements ClassificationEngine interface with order=3 (after column_name=1,
-  regex=2)
-- Computes cardinality ratio (unique/total), Shannon entropy, length distribution
-  (mean/stddev/min/max), character class ratios
-- "Returns confidence modifiers (boost/suppress) based on signal table from spec:\
-  \ high cardinality+string\u21920.6, same-length digits\u21920.7, high entropy\u2192\
-  0.65"
-- Registered in orchestrator engine cascade, runs on structured mode only
-- Minimum 10 samples required for meaningful statistics, graceful no-op below threshold
-- Tests pass (pytest tests/ -v)
-- Lint clean (ruff check . && ruff format --check .)
+- All thresholds and magic numbers loaded from engine_defaults.yaml, not hardcoded
+  in engine code
 test_plan:
 - 'tests/test_heuristic_engine.py: unit tests for each signal computation (cardinality,
   entropy, length, char class)'
