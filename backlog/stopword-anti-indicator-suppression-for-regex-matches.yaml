@@ -1,5 +1,5 @@
 title: Stopword / anti-indicator suppression for regex matches
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 2

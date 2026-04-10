@@ -1,5 +1,5 @@
 title: Column name semantics engine (400+ variants, fuzzy matching)
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 2

@@ -1,5 +1,5 @@
 title: Discord, npm, Hashicorp Vault, Pulumi token patterns (gitleaks)
-status: doing
+status: done
 priority: P2
 category: feature
 sprint_target: 2

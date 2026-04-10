@@ -1,5 +1,5 @@
 title: Canadian SIN pattern + Luhn validator
-status: doing
+status: done
 priority: P2
 category: feature
 sprint_target: 2
