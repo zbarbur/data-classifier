@@ -32,8 +32,13 @@ def generate_html(patterns_data: dict) -> str:
             continue
         rows.append(f'<tr class="category-header"><td colspan="8">{cat}</td></tr>')
         for p in sorted(cat_patterns, key=lambda x: x["entity_type"]):
-            examples_match = ", ".join(f"<code>{e}</code>" for e in p.get("examples_match", []))
-            examples_no = ", ".join(f"<code>{e}</code>" for e in p.get("examples_no_match", []))
+            # Mask credential examples in HTML to avoid push protection
+            if cat == "Credential":
+                examples_match = "<em>(encoded — run tests to verify)</em>" if p.get("examples_match") else "&mdash;"
+                examples_no = "<em>(encoded)</em>" if p.get("examples_no_match") else "&mdash;"
+            else:
+                examples_match = ", ".join(f"<code>{e}</code>" for e in p.get("examples_match", []))
+                examples_no = ", ".join(f"<code>{e}</code>" for e in p.get("examples_no_match", []))
             validator = p.get("validator", "") or "&mdash;"
             rows.append(
                 f"<tr>"

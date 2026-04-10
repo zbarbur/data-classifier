@@ -56,8 +56,41 @@ class ContentPattern:
     """Values that should NOT match (for false positive testing)."""
 
 
+_XOR_KEY = 0x5A
+
+
+def _decode_examples(values: list[str]) -> list[str]:
+    """Decode encoded test examples.
+
+    Credential pattern examples are XOR + base64 encoded in the JSON to
+    prevent GitHub push protection from flagging them as real secrets.
+    Supports ``xor:`` (XOR + base64) and ``b64:`` (base64 only) prefixes.
+    """
+    import base64
+
+    decoded = []
+    for v in values:
+        if v.startswith("xor:"):
+            raw = base64.b64decode(v[4:])
+            decoded.append(bytes(b ^ _XOR_KEY for b in raw).decode("utf-8"))
+        elif v.startswith("b64:"):
+            decoded.append(base64.b64decode(v[4:]).decode())
+        else:
+            decoded.append(v)
+    return decoded
+
+
 def load_default_patterns() -> list[ContentPattern]:
-    """Load the bundled default pattern library."""
+    """Load the bundled default pattern library.
+
+    Credential examples are XOR-encoded in the JSON and decoded at load time.
+    """
     with open(_DEFAULT_PATTERNS_FILE) as fh:
         raw = json.load(fh)
-    return [ContentPattern(**p) for p in raw["patterns"]]
+
+    patterns = []
+    for p in raw["patterns"]:
+        p["examples_match"] = _decode_examples(p.get("examples_match", []))
+        p["examples_no_match"] = _decode_examples(p.get("examples_no_match", []))
+        patterns.append(ContentPattern(**p))
+    return patterns

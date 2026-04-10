@@ -21,6 +21,13 @@ Functions::
     compute_rollups()              — aggregate findings to parent level
     rollup_from_rollups()          — aggregate rollups to grandparent level
 
+Introspection::
+
+    get_supported_categories()     — list data categories
+    get_supported_entity_types()   — list entity types with metadata
+    get_supported_sensitivity_levels() — list sensitivity levels in order
+    get_pattern_library()          — list content patterns with metadata
+
 Constants::
 
     SENSITIVITY_ORDER              — maps sensitivity names to sort order
@@ -63,6 +70,11 @@ __all__ = [
     "load_profile_from_dict",
     "compute_rollups",
     "rollup_from_rollups",
+    # Introspection
+    "get_supported_categories",
+    "get_supported_entity_types",
+    "get_supported_sensitivity_levels",
+    "get_pattern_library",
     # Constants
     "SENSITIVITY_ORDER",
 ]
@@ -78,6 +90,7 @@ def classify_columns(
     profile: ClassificationProfile,
     *,
     min_confidence: float = 0.5,
+    categories: list[str] | None = None,
     budget_ms: float | None = None,
     run_id: str | None = None,
     config: dict | None = None,
@@ -97,6 +110,10 @@ def classify_columns(
         profile: Classification profile (rules + patterns).
         min_confidence: Findings below this threshold are not returned.
             Default ``0.5``.
+        categories: Filter findings to only these categories.
+            ``None`` = all categories.  Example: ``["PII", "Credential"]``
+            to skip Financial and Health findings.
+            Valid values: ``PII``, ``Financial``, ``Credential``, ``Health``.
         budget_ms: Latency budget in ms.  ``None`` = no budget, full cascade.
         run_id: Associates findings with a run for telemetry event tagging.
         config: Per-request overrides (custom patterns, dictionaries).
@@ -117,6 +134,11 @@ def classify_columns(
         emitter=event_emitter,
     )
 
+    # Normalize category filter to a set for O(1) lookup
+    category_filter: set[str] | None = None
+    if categories is not None:
+        category_filter = {c for c in categories}
+
     findings: list[ClassificationFinding] = []
     for column in columns:
         column_findings = orchestrator.classify_column(
@@ -128,6 +150,8 @@ def classify_columns(
             mask_samples=mask_samples,
             max_evidence_samples=max_evidence_samples,
         )
+        if category_filter is not None:
+            column_findings = [f for f in column_findings if f.category in category_filter]
         findings.extend(column_findings)
 
     return findings
@@ -218,3 +242,94 @@ def rollup_from_rollups(
         )
 
     return result
+
+
+# ── Introspection ────────────────────────────────────────────────────────────
+
+
+def get_supported_categories() -> list[str]:
+    """Return all data categories the library can detect.
+
+    Categories group entity types by the kind of sensitive data::
+
+        PII        — Personal identity data (SSN, email, phone, name, address, ...)
+        Financial  — Financial/payment data (credit card, bank account, salary, ...)
+        Credential — Authentication secrets (passwords, API keys, tokens, ...)
+        Health     — Protected health information (diagnosis, MRN, medication, ...)
+
+    Returns:
+        Sorted list of category names.
+    """
+    profile = load_profile("standard")
+    return sorted({r.category for r in profile.rules if r.category})
+
+
+def get_supported_entity_types() -> list[dict]:
+    """Return all entity types the library can detect, with metadata.
+
+    Each entry contains:
+    - ``entity_type``: type name (e.g. ``SSN``, ``EMAIL``)
+    - ``category``: data category (e.g. ``PII``, ``Financial``)
+    - ``sensitivity``: default sensitivity level
+    - ``regulatory``: applicable compliance frameworks
+    - ``source``: ``profile`` (column name rules) or ``pattern`` (content regex)
+
+    Combines entity types from both the profile rules (column name matching)
+    and the content pattern library (sample value matching).
+    """
+    from data_classifier.patterns import load_default_patterns
+
+    seen: dict[str, dict] = {}
+
+    # From profile rules (column name matching)
+    profile = load_profile("standard")
+    for r in profile.rules:
+        if r.entity_type not in seen:
+            seen[r.entity_type] = {
+                "entity_type": r.entity_type,
+                "category": r.category,
+                "sensitivity": r.sensitivity,
+                "regulatory": list(r.regulatory),
+                "source": "profile",
+            }
+
+    # From content patterns (sample value matching)
+    for p in load_default_patterns():
+        if p.entity_type not in seen:
+            seen[p.entity_type] = {
+                "entity_type": p.entity_type,
+                "category": p.category,
+                "sensitivity": p.sensitivity,
+                "regulatory": [],
+                "source": "pattern",
+            }
+
+    return sorted(seen.values(), key=lambda x: (x["category"], x["entity_type"]))
+
+
+def get_supported_sensitivity_levels() -> list[str]:
+    """Return sensitivity levels in ascending order.
+
+    Returns:
+        ``["LOW", "MEDIUM", "HIGH", "CRITICAL"]``
+    """
+    return sorted(SENSITIVITY_ORDER.keys(), key=lambda s: SENSITIVITY_ORDER[s])
+
+
+def get_pattern_library() -> list[dict]:
+    """Return all content-matching patterns with their metadata.
+
+    Each entry contains: ``name``, ``regex``, ``entity_type``, ``category``,
+    ``sensitivity``, ``confidence``, ``description``, ``validator``,
+    ``examples_match``, ``examples_no_match``.
+
+    Useful for:
+    - UI display (show what the library can detect)
+    - Pattern curation and review
+    - Documentation generation
+    """
+    from dataclasses import asdict
+
+    from data_classifier.patterns import load_default_patterns
+
+    return [asdict(p) for p in load_default_patterns()]
