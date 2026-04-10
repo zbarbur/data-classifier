@@ -12,6 +12,7 @@ requires-python = ">=3.11"
 dependencies = [
     "pyyaml>=6.0",
     "pydantic>=2.0",
+    "google-re2>=1.1",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
 ]
@@ -29,7 +30,7 @@ dev = [
 include = ["data_classifier*"]
 
 [tool.setuptools.package-data]
-data_classifier = ["profiles/*.yaml"]
+data_classifier = ["profiles/*.yaml", "patterns/*.json"]
 
 [tool.ruff]
 target-version = "py311"
@@ -38,6 +39,9 @@ line-length = 120
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 ignore = ["N815"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

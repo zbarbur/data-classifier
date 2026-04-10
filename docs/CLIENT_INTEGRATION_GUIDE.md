@@ -200,6 +200,14 @@ class ClassificationFinding:
     # Detected entity type: "SSN", "EMAIL", "CREDENTIAL", "CREDIT_CARD",
     # "PHONE", "DATE_OF_BIRTH", "PERSON_NAME", "ADDRESS", etc.
 
+    category: str
+    # Data category grouping: "PII", "Financial", "Credential", "Health"
+    # Groups entity types by kind of sensitive data:
+    #   PII        → SSN, EMAIL, PHONE, PERSON_NAME, ADDRESS, DATE_OF_BIRTH, etc.
+    #   Financial  → CREDIT_CARD, BANK_ACCOUNT, FINANCIAL
+    #   Credential → CREDENTIAL
+    #   Health     → HEALTH
+
     sensitivity: str
     # Sensitivity level: "CRITICAL", "HIGH", "MEDIUM", "LOW"
 
@@ -239,6 +247,7 @@ class ClassificationProfile:
 class ClassificationRule:
     """A single classification rule within a profile."""
     entity_type: str              # "SSN", "EMAIL", etc.
+    category: str                 # "PII", "Financial", "Credential", "Health"
     sensitivity: str              # "CRITICAL", "HIGH", "MEDIUM", "LOW"
     regulatory: list[str]         # ["PII", "HIPAA"]
     confidence: float             # Base confidence for this rule (0.0-1.0)
@@ -441,6 +450,7 @@ def findings_to_db_rows(findings: list[ClassificationFinding]) -> list[dict]:
         {
             "column_node_id": f.column_id,
             "entity_type": f.entity_type,
+            "category": f.category,
             "confidence": f.confidence,
             "engine": f.engine,
             "sensitivity": f.sensitivity,
@@ -601,7 +611,7 @@ Implement `TABLESAMPLE` in the BQ collector to populate `sample_values` on colum
 - `findings_to_dicts()` — stays, maps findings to BQ connector's DB schema
 - `write_rollups()` — stays, writes to `classification_rollups` table
 - Rollup logic (`compute_rollups`, `rollup_from_rollups`) — same API, just imported from new package
-- Profile YAML format — identical, backward compatible
+- Profile YAML format — backward compatible (new `category` field added to each rule)
 
 ---
 
@@ -644,7 +654,7 @@ assert findings[0].sensitivity == "HIGH"
 
 2. **Profile YAML storage** — does the BQ connector want to continue storing profiles in the config DB table, or switch to bundled YAML from the library? The library supports both patterns.
 
-3. **New DB columns** — the `classification_findings` table may want new columns for `evidence` (text) and `match_ratio` (float). Plan the migration.
+3. **New DB columns** — the `classification_findings` table will need new columns: `category` (TEXT), `evidence` (TEXT), and `match_ratio` (FLOAT). Plan the migration.
 
 4. **Confidence threshold** — the library defaults to `min_confidence=0.5`. Does the BQ connector want to use a different default, or make it configurable via `enrichment_config`?
 
