@@ -1,20 +1,47 @@
 title: 'SSN vs ABA routing 9-digit collision: structural overlap resolution strategy'
-status: backlog
+status: doing
 priority: P1
 category: feature
-sprint_target: null
+sprint_target: 3
 created: 2026-04-10
-updated: 2026-04-10
-depends_on: []
+updated: 2026-04-11
+depends_on:
+- heuristic-statistics-engine-cardinality-entropy-length
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: "Resolve the 524-sample SSN\u2194ABA collision using cardinality signals from\
+  \ the heuristic engine \u2014 SSNs have high cardinality (~900M valid), ABAs have\
+  \ low (~28K valid)"
+complexity: M
+technical_specs:
+- "File: data_classifier/engines/heuristic_engine.py \u2014 SSN/ABA-specific cardinality\
+  \ thresholds"
+- "File: data_classifier/engines/validators.py \u2014 verify aba_checksum validator\
+  \ is applied correctly"
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 ensure heuristic modifier\
+  \ applied to regex findings before final ranking"
+- "Thresholds: cardinality ratio < 0.05 \u2192 likely ABA, > 0.8 \u2192 likely SSN\
+  \ (tune against benchmark)"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- When heuristic engine detects low cardinality (few unique 9-digit values), ABA confidence
+  boosted and SSN suppressed
+- When heuristic engine detects high cardinality (most values unique), SSN confidence
+  boosted and ABA suppressed
+- ABA checksum validator applied as secondary filter (3-7-1 weighted mod-10)
+- Benchmark collision count reduced from 524 to under 100
+- Pattern-level SSN precision improved from 0.436
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_heuristic_engine.py: test SSN column (500 samples, 490 unique) \u2192\
+  \ SSN wins over ABA"
+- "tests/test_heuristic_engine.py: test ABA column (500 samples, 8 unique) \u2192\
+  \ ABA wins over SSN"
+- "tests/test_heuristic_engine.py: test mixed column (ambiguous cardinality) \u2192\
+  \ both reported with appropriate confidence"
+- "Benchmark: run pattern_benchmark, verify SSN\u2194ABA collisions < 100"
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

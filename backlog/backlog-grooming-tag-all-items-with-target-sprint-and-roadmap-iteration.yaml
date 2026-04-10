@@ -1,0 +1,31 @@
+title: 'Backlog grooming: tag all items with target sprint and roadmap iteration'
+status: doing
+priority: P2
+category: chore
+sprint_target: 3
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags: []
+goal: Tag all 56 backlog items with target roadmap iteration (1-4+) and planned sprint
+  numbers where known, so the backlog is organized for future planning
+complexity: S
+technical_specs:
+- Use agile-backlog edit --tags and --sprint to tag items in bulk
+- Reference docs/ROADMAP.md for iteration mapping
+- Reference docs/sprints/SPRINT2_HANDOVER.md deferred section for near-term items
+description: ''
+acceptance_criteria:
+- Every backlog item has a tag for roadmap iteration (iter1/iter2/iter3/iter4/future)
+- P1 items have sprint_target assigned where dependencies are clear
+- Items that depend on other items have depends-on set
+- "No orphaned items \u2014 every item maps to a roadmap iteration"
+test_plan:
+- "agile-backlog list \u2014 verify all items have tags"
+- 'Spot-check: P1 items have sprint targets, iteration tags match roadmap'
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
