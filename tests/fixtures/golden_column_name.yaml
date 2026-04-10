@@ -1,0 +1,126 @@
+# Golden fixture: column name matching
+# Ported from BigQuery-connector/tests/test_classification_runner.py
+# These are the behavioral contract for Sprint 27 migration.
+#
+# Each entry: column_name → expected entity_type + sensitivity
+# null entity_type means no finding expected.
+
+profile: standard
+
+cases:
+  # Direct matches
+  - column_name: email
+    expected_entity_type: EMAIL
+    expected_sensitivity: HIGH
+    expected_category: PII
+
+  - column_name: ssn
+    expected_entity_type: SSN
+    expected_sensitivity: CRITICAL
+    expected_category: PII
+
+  - column_name: phone_number
+    expected_entity_type: PHONE
+    expected_sensitivity: HIGH
+    expected_category: PII
+
+  - column_name: date_of_birth
+    expected_entity_type: DATE_OF_BIRTH
+    expected_sensitivity: HIGH
+    expected_category: PII
+
+  - column_name: credit_card_number
+    expected_entity_type: CREDIT_CARD
+    expected_sensitivity: CRITICAL
+    expected_category: Financial
+
+  - column_name: password
+    expected_entity_type: CREDENTIAL
+    expected_sensitivity: CRITICAL
+    expected_category: Credential
+
+  - column_name: salary
+    expected_entity_type: FINANCIAL
+    expected_sensitivity: HIGH
+    expected_category: Financial
+
+  - column_name: diagnosis
+    expected_entity_type: HEALTH
+    expected_sensitivity: HIGH
+    expected_category: Health
+
+  - column_name: bank_account
+    expected_entity_type: BANK_ACCOUNT
+    expected_sensitivity: HIGH
+    expected_category: Financial
+
+  - column_name: first_name
+    expected_entity_type: PERSON_NAME
+    expected_sensitivity: MEDIUM
+    expected_category: PII
+
+  - column_name: ip_address
+    expected_entity_type: IP_ADDRESS
+    expected_sensitivity: MEDIUM
+    expected_category: PII
+
+  - column_name: gender
+    expected_entity_type: DEMOGRAPHIC
+    expected_sensitivity: LOW
+    expected_category: PII
+
+  - column_name: age
+    expected_entity_type: AGE
+    expected_sensitivity: LOW
+    expected_category: PII
+
+  - column_name: passport_number
+    expected_entity_type: NATIONAL_ID
+    expected_sensitivity: HIGH
+    expected_category: PII
+
+  - column_name: street_address
+    expected_entity_type: ADDRESS
+    expected_sensitivity: MEDIUM
+    expected_category: PII
+
+  # Case insensitive
+  - column_name: EMAIL_ADDRESS
+    expected_entity_type: EMAIL
+    expected_sensitivity: HIGH
+    expected_category: PII
+
+  # Compound names
+  - column_name: user_email
+    expected_entity_type: EMAIL
+    expected_sensitivity: HIGH
+    expected_category: PII
+
+  - column_name: ssn_number
+    expected_entity_type: SSN
+    expected_sensitivity: CRITICAL
+    expected_category: PII
+
+  - column_name: customer_ssn
+    expected_entity_type: SSN
+    expected_sensitivity: CRITICAL
+    expected_category: PII
+
+  # No match — generic names
+  - column_name: id
+    expected_entity_type: null
+
+  - column_name: record_id
+    expected_entity_type: null
+
+  - column_name: created_at
+    expected_entity_type: null
+
+  - column_name: status
+    expected_entity_type: null
+
+  - column_name: data
+    expected_entity_type: null
+
+  - column_name: value
+    expected_entity_type: null

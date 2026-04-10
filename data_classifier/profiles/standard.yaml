@@ -106,6 +106,15 @@ profiles:
           - "(^|_)(bank_account|bankaccount|account_number|accountnumber|iban|routing_number|sort_code|swift_code|bsb_number)(_|$)"
 
       # ── MEDIUM ────────────────────────────────────────────────────────────
+      # NOTE: IP_ADDRESS must come before ADDRESS (more specific match first)
+
+      - entity_type: IP_ADDRESS
+        category: PII
+        sensitivity: MEDIUM
+        regulatory: [PII, GDPR]
+        confidence: 0.85
+        patterns:
+          - "(^|_)(ip_address|ipaddress|ip_addr|ipaddr|client_ip|source_ip|remote_ip|user_ip)(_|$)"
 
       - entity_type: ADDRESS
         category: PII
@@ -122,14 +131,6 @@ profiles:
         confidence: 0.75
         patterns:
           - "(^|_)(first_name|firstname|last_name|lastname|full_name|fullname|given_name|surname|middle_name|legal_name)(_|$)"
-
-      - entity_type: IP_ADDRESS
-        category: PII
-        sensitivity: MEDIUM
-        regulatory: [PII, GDPR]
-        confidence: 0.85
-        patterns:
-          - "(^|_)(ip_address|ipaddress|ip_addr|ipaddr|client_ip|source_ip|remote_ip|user_ip)(_|$)"
 
       # ── LOW ───────────────────────────────────────────────────────────────
 

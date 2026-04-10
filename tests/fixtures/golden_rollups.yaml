@@ -1,0 +1,98 @@
+# Golden fixture: rollup computation
+# Ported from BigQuery-connector/tests/test_classification_runner.py
+
+cases:
+  - name: table_rollup_from_column_findings
+    findings:
+      - column_id: "table1:email"
+        entity_type: EMAIL
+        category: PII
+        sensitivity: HIGH
+        confidence: 0.9
+        regulatory: [PII]
+      - column_id: "table1:age"
+        entity_type: AGE
+        category: PII
+        sensitivity: LOW
+        confidence: 0.7
+        regulatory: [PII]
+    parent_map:
+      "table1:email": table1
+      "table1:age": table1
+    expected:
+      table1:
+        sensitivity: HIGH
+        classifications: [AGE, EMAIL]
+        findings_count: 2
+
+  - name: dataset_rollup_via_two_pass
+    findings:
+      - column_id: "t1:ssn"
+        entity_type: SSN
+        category: PII
+        sensitivity: CRITICAL
+        confidence: 0.95
+        regulatory: [PII]
+      - column_id: "t2:city"
+        entity_type: ADDRESS
+        category: PII
+        sensitivity: MEDIUM
+        confidence: 0.75
+        regulatory: [PII]
+    col_to_table:
+      "t1:ssn": t1
+      "t2:city": t2
+    table_to_dataset:
+      t1: ds1
+      t2: ds1
+    expected_dataset:
+      ds1:
+        sensitivity: CRITICAL
+        findings_count: 2
+
+  - name: multiple_datasets
+    findings:
+      - column_id: "t1:email"
+        entity_type: EMAIL
+        category: PII
+        sensitivity: HIGH
+        confidence: 0.9
+        regulatory: [PII]
+      - column_id: "t2:age"
+        entity_type: AGE
+        category: PII
+        sensitivity: LOW
+        confidence: 0.7
+        regulatory: [PII]
+    col_to_table:
+      "t1:email": t1
+      "t2:age": t2
+    table_to_dataset:
+      t1: ds1
+      t2: ds2
+    expected_dataset:
+      ds1:
+        sensitivity: HIGH
+      ds2:
+        sensitivity: LOW
+
+  - name: rollup_collects_frameworks
+    findings:
+      - column_id: "t:ssn"
+        entity_type: SSN
+        category: PII
+        sensitivity: CRITICAL
+        confidence: 0.95
+        regulatory: [PII, GDPR]
+      - column_id: "t:mrn"
+        entity_type: HEALTH
+        category: Health
+        sensitivity: HIGH
+        confidence: 0.85
+        regulatory: [PHI, HIPAA]
+    parent_map:
+      "t:ssn": t
+      "t:mrn": t
+    expected:
+      t:
+        frameworks: [GDPR, HIPAA, PHI, PII]
