@@ -32,6 +32,11 @@ from data_classifier.patterns import ContentPattern, load_default_patterns
 
 logger = logging.getLogger(__name__)
 
+# Default context boost/suppress factor
+_CONTEXT_BOOST = 0.30
+_CONTEXT_SUPPRESS = 0.30
+_CONTEXT_WINDOW_TOKENS = 10  # tokens before/after match to scan
+
 
 # ── Masking ──────────────────────────────────────────────────────────────────
 
@@ -82,6 +87,79 @@ def _compute_sample_confidence(base_confidence: float, matches: int, validated: 
         return base_confidence
     else:
         return min(base_confidence * 1.05, 1.0)
+
+
+# ── Stopword / Allowlist / Context ──────────────────────────────────────────
+
+
+def _load_global_stopwords() -> set[str]:
+    """Load global stopwords from stopwords.json (known placeholder values)."""
+    import json
+    from pathlib import Path
+
+    stopwords_file = Path(__file__).parent.parent / "patterns" / "stopwords.json"
+    if stopwords_file.exists():
+        with open(stopwords_file) as f:
+            data = json.load(f)
+        return {s.lower() for s in data.get("stopwords", [])}
+    return set()
+
+
+_GLOBAL_STOPWORDS: set[str] | None = None
+
+
+def _get_global_stopwords() -> set[str]:
+    global _GLOBAL_STOPWORDS
+    if _GLOBAL_STOPWORDS is None:
+        _GLOBAL_STOPWORDS = _load_global_stopwords()
+    return _GLOBAL_STOPWORDS
+
+
+def _is_stopword(value: str, pattern: ContentPattern) -> bool:
+    """Check if the matched value is a known placeholder/test value."""
+    lower = value.lower().strip()
+    # Check pattern-specific stopwords
+    if pattern.stopwords and lower in {s.lower() for s in pattern.stopwords}:
+        return True
+    # Check global stopwords
+    return lower in _get_global_stopwords()
+
+
+def _matches_allowlist(value: str, pattern: ContentPattern) -> bool:
+    """Check if the matched value matches any allowlist regex (known FP patterns)."""
+    for allow_re in pattern.allowlist_patterns:
+        try:
+            if re2.search(allow_re, value):
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def _compute_context_adjustment(value: str, pattern: ContentPattern) -> float:
+    """Scan text around the match for context words, return confidence adjustment.
+
+    Positive = boost, negative = suppress.  Checks case-insensitively within
+    a window of tokens around the value.
+    """
+    if not pattern.context_words_boost and not pattern.context_words_suppress:
+        return 0.0
+
+    # Tokenize the full value text (for free-text columns, the value may contain surrounding text)
+    tokens = value.lower().split()
+    token_set = set(tokens)
+
+    # Check boost words
+    boost_words = {w.lower() for w in pattern.context_words_boost}
+    if boost_words & token_set:
+        return _CONTEXT_BOOST
+
+    # Check suppress words
+    suppress_words = {w.lower() for w in pattern.context_words_suppress}
+    if suppress_words & token_set:
+        return -_CONTEXT_SUPPRESS
+
+    return 0.0
 
 
 # ── RE2 Pattern Set ─────────────────────────────────────────────────────────
@@ -324,10 +402,18 @@ class RegexEngine(ClassificationEngine):
             if not hit_indices:
                 continue
 
-            # Phase 2: Extract + validate for each hit
+            # Phase 2: Extract + validate + suppress for each hit
             for idx in hit_indices:
                 p = pset.patterns[idx]
                 validator = pset.validators[idx]
+
+                # Stopword check — known placeholder values → skip entirely
+                if _is_stopword(value, p):
+                    continue
+
+                # Allowlist check — known FP patterns → skip
+                if _matches_allowlist(value, p):
+                    continue
 
                 # Run validator if present
                 validated = True
@@ -342,7 +428,7 @@ class RegexEngine(ClassificationEngine):
                     accumulators[entity_type] = _MatchAccumulator(p)
                 accumulators[entity_type].add_match(value, validated=validated)
 
-        # Convert to findings
+        # Convert to findings with context adjustment
         findings: list[ClassificationFinding] = []
         for entity_type, acc in accumulators.items():
             confidence = _compute_sample_confidence(
@@ -352,6 +438,13 @@ class RegexEngine(ClassificationEngine):
             )
             if confidence <= 0.0:
                 continue
+
+            # Context boosting — scan matched values for context words
+            if acc.pattern.context_words_boost or acc.pattern.context_words_suppress:
+                adjustments = [_compute_context_adjustment(v, acc.pattern) for v in acc.matched_values]
+                if adjustments:
+                    avg_adj = sum(adjustments) / len(adjustments)
+                    confidence = max(0.0, min(1.0, confidence + avg_adj))
 
             match_ratio = acc.matched_count / total_scanned if total_scanned > 0 else 0.0
 

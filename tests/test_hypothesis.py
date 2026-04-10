@@ -97,10 +97,15 @@ class TestEmailProperty:
 class TestCreditCardProperty:
     """Property-based tests for credit card detection."""
 
+    # Known test card numbers that are intentionally suppressed by stopwords
+    _STOPWORD_CARDS = {"4111111111111111", "5500000000000004", "340000000000009"}
+
     @given(card=luhn_valid_cards())
     @settings(max_examples=50, deadline=None)
     def test_luhn_valid_cards_detected(self, card: str, standard_profile: ClassificationProfile) -> None:
-        """Luhn-valid card numbers should be detected."""
+        """Luhn-valid card numbers should be detected (unless they're known test cards)."""
+        if card in self._STOPWORD_CARDS:
+            return  # Stopwords are intentionally suppressed — correct behavior
         findings = _classify_single_sample(card, "data_column", standard_profile)
         entity_types = {f.entity_type for f in findings}
         assert "CREDIT_CARD" in entity_types, f"CREDIT_CARD not detected for Luhn-valid card: {card}"

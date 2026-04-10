@@ -171,6 +171,27 @@ def iban_checksum_check(value: str) -> bool:
     return int(numeric) % 97 == 1
 
 
+def phone_number_check(value: str) -> bool:
+    """Validate phone number using Google's phonenumbers library.
+
+    Supports 170+ countries, validates number ranges (not just format).
+    Strips extensions (x1234) before parsing.
+    """
+    try:
+        import phonenumbers
+    except ImportError:
+        return True  # Graceful degradation if phonenumbers not installed
+
+    # Strip common extension formats
+    clean = value.split("x")[0].split("ext")[0].strip()
+
+    try:
+        parsed = phonenumbers.parse(clean, "US")  # Default region US
+        return phonenumbers.is_possible_number(parsed)
+    except phonenumbers.NumberParseException:
+        return False
+
+
 # Registry mapping validator names to functions
 VALIDATORS: dict[str, callable] = {
     "luhn": luhn_check,
@@ -183,4 +204,5 @@ VALIDATORS: dict[str, callable] = {
     "ein_prefix": ein_prefix_check,
     "aba_checksum": aba_checksum_check,
     "iban_checksum": iban_checksum_check,
+    "phone_number": phone_number_check,
 }

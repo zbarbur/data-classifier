@@ -1,0 +1,24 @@
+{
+  "description": "Global stopwords — known placeholder/test values. Case-insensitive. Must be specific enough to avoid suppressing real data. Single common words (test, example) are too broad for global — use per-pattern stopwords instead.",
+  "stopwords": [
+    "AKIAIOSFODNN7EXAMPLE",
+    "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    "4111111111111111",
+    "5500000000000004",
+    "340000000000009",
+    "000-00-0000",
+    "999-99-9999",
+    "000000000",
+    "00-0000000",
+    "0000000000000000",
+    "your_api_key_here",
+    "your-api-key",
+    "insert_key_here",
+    "sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "REDACTED",
+    "XXXX-XX-XXXX",
+    "XXX-XX-XXXX",
+    "XXXXXXXXXXXXXXXX"
+  ]
+}

@@ -24,6 +24,23 @@
         "12-345-6789",
         "1234-5-6789",
         "abc-de-fghi"
+      ],
+      "context_words_boost": [
+        "ssn",
+        "social security",
+        "social_security",
+        "tax id",
+        "taxpayer"
+      ],
+      "context_words_suppress": [
+        "order",
+        "invoice",
+        "tracking",
+        "reference",
+        "ref",
+        "routing",
+        "aba",
+        "transit"
       ]
     },
     {
@@ -42,6 +59,24 @@
         "12345678",
         "1234567890",
         "abcdefghi"
+      ],
+      "context_words_boost": [
+        "ssn",
+        "social security",
+        "social_security",
+        "tax id",
+        "taxpayer"
+      ],
+      "context_words_suppress": [
+        "order",
+        "invoice",
+        "tracking",
+        "reference",
+        "routing",
+        "aba",
+        "transit",
+        "phone",
+        "tel"
       ]
     },
     {
@@ -142,7 +177,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.8,
       "description": "US phone number in common formats",
-      "validator": "",
+      "validator": "phone_number",
       "examples_match": [
         "555-867-5309",
         "(555) 867-5309",
@@ -152,6 +187,22 @@
       "examples_no_match": [
         "123-456",
         "55-867-5309"
+      ],
+      "context_words_boost": [
+        "phone",
+        "tel",
+        "telephone",
+        "call",
+        "mobile",
+        "cell",
+        "fax",
+        "contact"
+      ],
+      "context_words_suppress": [
+        "npi",
+        "provider",
+        "ssn",
+        "social security"
       ]
     },
     {
@@ -162,7 +213,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.7,
       "description": "International phone number with country code",
-      "validator": "",
+      "validator": "phone_number",
       "examples_match": [
         "+44207946095",
         "+813123456789"
@@ -170,6 +221,21 @@
       "examples_no_match": [
         "+1",
         "442079460958"
+      ],
+      "context_words_boost": [
+        "phone",
+        "tel",
+        "telephone",
+        "call",
+        "mobile",
+        "cell",
+        "fax",
+        "contact"
+      ],
+      "context_words_suppress": [
+        "npi",
+        "provider",
+        "ssn"
       ]
     },
     {
@@ -236,7 +302,19 @@
       "description": "AWS Access Key ID (AKIA prefix + 16 alphanumeric)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "aws_secret_key",
@@ -248,7 +326,19 @@
       "description": "Potential AWS Secret Key (40 chars base64). Low confidence alone \u2014 usually paired with access key context.",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "jwt_token",
@@ -260,7 +350,19 @@
       "description": "JSON Web Token (three base64url segments starting with eyJ)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "private_key_pem",
@@ -272,7 +374,19 @@
       "description": "PEM-encoded private key header",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "generic_api_key",
@@ -284,7 +398,19 @@
       "description": "Generic API key assignment pattern (api_key=... or api-key: ...)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "connection_string",
@@ -296,7 +422,19 @@
       "description": "Database connection string with protocol prefix",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "us_passport",
@@ -348,6 +486,24 @@
       "examples_no_match": [
         "13/01/2000",
         "00/15/1985"
+      ],
+      "context_words_boost": [
+        "dob",
+        "birth",
+        "born",
+        "birthday",
+        "age",
+        "birthdate"
+      ],
+      "context_words_suppress": [
+        "transaction",
+        "created",
+        "updated",
+        "modified",
+        "invoice",
+        "order",
+        "due",
+        "payment"
       ]
     },
     {
@@ -431,7 +587,19 @@
       "description": "GitHub personal access token or OAuth token",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "stripe_secret_key",
@@ -443,7 +611,19 @@
       "description": "Stripe secret or restricted key (sk_live_*, rk_live_*, sk_test_*)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "stripe_publishable_key",
@@ -455,7 +635,19 @@
       "description": "Stripe publishable key (less sensitive than secret, but still a credential)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "slack_bot_token",
@@ -467,7 +659,19 @@
       "description": "Slack bot token (xoxb- prefix)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "slack_user_token",
@@ -479,7 +683,19 @@
       "description": "Slack user token (xoxp- prefix)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "slack_webhook_url",
@@ -491,7 +707,19 @@
       "description": "Slack incoming webhook URL",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "sendgrid_api_key",
@@ -503,7 +731,19 @@
       "description": "SendGrid API key (SG. prefix with two base64 segments)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "twilio_api_key",
@@ -515,7 +755,19 @@
       "description": "Twilio API key (SK prefix + 32 hex chars)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "mailgun_api_key",
@@ -527,7 +779,19 @@
       "description": "Mailgun API key (key- prefix + 32 hex chars)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "google_api_key",
@@ -539,7 +803,19 @@
       "description": "Google API key (AIza prefix + 35 chars)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "openai_api_key",
@@ -551,7 +827,19 @@
       "description": "OpenAI project API key (sk-proj- prefix, 80+ chars)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "gitlab_pat",
@@ -563,7 +851,19 @@
       "description": "GitLab personal access token (glpat- prefix)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "shopify_access_token",
@@ -575,7 +875,19 @@
       "description": "Shopify access token (shpat_, shpca_, shppa_, shpss_ prefix + 32 hex)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "databricks_token",
@@ -587,7 +899,19 @@
       "description": "Databricks personal access token (dapi prefix + 32 hex-like chars)",
       "validator": "",
       "examples_match": [],
-      "examples_no_match": []
+      "examples_no_match": [],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
     },
     {
       "name": "us_itin",
@@ -677,6 +1001,23 @@
       "examples_no_match": [
         "0123456789",
         "12345678"
+      ],
+      "context_words_boost": [
+        "npi",
+        "provider",
+        "national provider",
+        "physician",
+        "doctor",
+        "prescriber",
+        "clinician"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "mobile",
+        "call",
+        "fax",
+        "cell"
       ]
     },
     {
@@ -731,7 +1072,16 @@
       "examples_no_match": [
         "1HGBH41JXMN10918",
         "ABCDEFGHIJKLMNOPQ"
-      ]
+      ],
+      "context_words_boost": [
+        "vin",
+        "vehicle",
+        "car",
+        "automobile",
+        "chassis",
+        "registration"
+      ],
+      "context_words_suppress": []
     },
     {
       "name": "us_ein",
@@ -749,6 +1099,19 @@
       "examples_no_match": [
         "1234567890",
         "12345678"
+      ],
+      "context_words_boost": [
+        "ein",
+        "employer",
+        "tax",
+        "fein",
+        "federal",
+        "irs"
+      ],
+      "context_words_suppress": [
+        "ssn",
+        "social security",
+        "phone"
       ]
     },
     {
@@ -767,6 +1130,23 @@
       "examples_no_match": [
         "32/13/2000",
         "2024-01-15"
+      ],
+      "context_words_boost": [
+        "dob",
+        "birth",
+        "born",
+        "birthday",
+        "birthdate",
+        "date de naissance"
+      ],
+      "context_words_suppress": [
+        "transaction",
+        "created",
+        "updated",
+        "invoice",
+        "order",
+        "due",
+        "payment"
       ]
     },
     {
@@ -785,6 +1165,21 @@
       "examples_no_match": [
         "Marchx 15, 1985",
         "2024-01-15"
+      ],
+      "context_words_boost": [
+        "dob",
+        "birth",
+        "born",
+        "birthday",
+        "birthdate"
+      ],
+      "context_words_suppress": [
+        "transaction",
+        "created",
+        "updated",
+        "invoice",
+        "order",
+        "due"
       ]
     },
     {
@@ -857,6 +1252,23 @@
       "examples_no_match": [
         "12345678",
         "1234567890"
+      ],
+      "context_words_boost": [
+        "routing",
+        "aba",
+        "transit",
+        "bank",
+        "wire",
+        "transfer"
+      ],
+      "context_words_suppress": [
+        "ssn",
+        "social security",
+        "phone",
+        "tel",
+        "order",
+        "invoice",
+        "zip"
       ]
     },
     {
@@ -875,6 +1287,21 @@
       "examples_no_match": [
         "12345678",
         "1234567890"
+      ],
+      "context_words_boost": [
+        "sin",
+        "social insurance",
+        "canada",
+        "canadian",
+        "cra"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "order",
+        "invoice",
+        "ssn",
+        "routing"
       ]
     },
     {
@@ -891,6 +1318,18 @@
       ],
       "examples_no_match": [
         "xor:FDUuGw41MT80dCkyNSgudDs4OQ=="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
       ]
     },
     {
@@ -907,6 +1346,18 @@
       ],
       "examples_no_match": [
         "xor:NCo3BSkyNSgu"
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
       ]
     },
     {
@@ -923,6 +1374,18 @@
       ],
       "examples_no_match": [
         "xor:MiwpdCkyNSgu"
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
       ]
     },
     {
@@ -939,6 +1402,18 @@
       ],
       "examples_no_match": [
         "xor:Ki82dykyNSgu"
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
       ]
     }
   ]
