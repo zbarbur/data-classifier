@@ -1,0 +1,1 @@
+Project inception and strategic planning. Use the plan skill to create project charters, define MVP scope, review roadmaps, and balance sprint allocation across features, maintenance, and security. Arguments: $ARGUMENTS
