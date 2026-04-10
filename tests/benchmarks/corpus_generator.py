@@ -1,19 +1,22 @@
-"""Synthetic corpus generator for accuracy benchmarking.
+"""Synthetic corpus generator for accuracy and performance benchmarking.
 
-Generates labeled ColumnInput objects with known entity types as ground truth.
-Uses Faker for realistic synthetic data generation, plus custom generators
-for entity types that require valid check digits (NPI, DEA, VIN, ABA, etc.).
+Generates labeled data at two levels:
+1. Column-level: ColumnInput objects for testing classify_columns()
+2. Sample-level: raw (value, entity_type) pairs for testing pattern matching directly
+
+Includes format variations (formatted/unformatted, embedded in text, partial),
+adversarial near-misses, and negative data.
 
 Usage:
-    from tests.benchmarks.corpus_generator import generate_corpus
-    corpus = generate_corpus(samples_per_type=50, locale="en_US")
-    for column_input, expected_entity_type in corpus:
-        ...
+    from tests.benchmarks.corpus_generator import generate_corpus, generate_raw_samples
+    corpus = generate_corpus(samples_per_type=200, locale="en_US")
+    raw = generate_raw_samples(count_per_type=500)
 """
 
 from __future__ import annotations
 
 import random
+import string
 import uuid
 
 from faker import Faker
@@ -23,23 +26,26 @@ from data_classifier.core.types import ColumnInput
 # ── Custom generators for check-digit-validated patterns ─────────────────────
 
 
+def _luhn_check_digit(partial: str) -> str:
+    """Compute Luhn check digit for a partial number string."""
+    digits = [int(d) for d in partial]
+    checksum = 0
+    for i, d in enumerate(reversed(digits)):
+        if i % 2 == 0:
+            d *= 2
+            if d > 9:
+                d -= 9
+        checksum += d
+    return str((10 - (checksum % 10)) % 10)
+
+
 def _generate_valid_npi(n: int) -> list[str]:
     """Generate Luhn-valid NPI numbers (prefix 80840 + 10 digits)."""
     results = []
     for _ in range(n):
         base = f"{random.randint(1, 2)}{random.randint(0, 99999999):08d}"
-        # Compute Luhn check digit with 80840 prefix
-        full = "80840" + base
-        digits = [int(d) for d in full]
-        checksum = 0
-        for i, d in enumerate(reversed(digits)):
-            if i % 2 == 0:
-                d *= 2
-                if d > 9:
-                    d -= 9
-            checksum += d
-        check = (10 - (checksum % 10)) % 10
-        results.append(base + str(check))
+        check = _luhn_check_digit("80840" + base)
+        results.append(base + check)
     return results
 
 
@@ -69,7 +75,7 @@ def _generate_valid_aba(n: int) -> list[str]:
 
 
 def _generate_valid_sin(n: int) -> list[str]:
-    """Generate Luhn-valid Canadian SIN numbers."""
+    """Generate Luhn-valid Canadian SIN numbers in various formats."""
     results = []
     for _ in range(n):
         digits = [random.randint(0, 9) for _ in range(8)]
@@ -81,9 +87,15 @@ def _generate_valid_sin(n: int) -> list[str]:
                     d -= 9
             checksum += d
         check = (10 - (checksum % 10)) % 10
-        all_digits = digits + [check]
-        d = all_digits
-        results.append(f"{d[0]}{d[1]}{d[2]} {d[3]}{d[4]}{d[5]} {d[6]}{d[7]}{d[8]}")
+        d = digits + [check]
+        # Vary format: spaces, dashes, or no separator
+        fmt = random.choice(["space", "dash", "none"])
+        if fmt == "space":
+            results.append(f"{d[0]}{d[1]}{d[2]} {d[3]}{d[4]}{d[5]} {d[6]}{d[7]}{d[8]}")
+        elif fmt == "dash":
+            results.append(f"{d[0]}{d[1]}{d[2]}-{d[3]}{d[4]}{d[5]}-{d[6]}{d[7]}{d[8]}")
+        else:
+            results.append("".join(str(x) for x in d))
     return results
 
 
@@ -93,26 +105,75 @@ def _generate_mbi(n: int) -> list[str]:
     alphanum = alpha + "0123456789"
     results = []
     for _ in range(n):
-        c1 = str(random.randint(1, 9))
-        c2 = random.choice(alpha)
-        c3 = random.choice(alphanum)
-        c4 = str(random.randint(0, 9))
-        c5 = random.choice(alpha)
-        c6 = random.choice(alphanum)
-        c7 = str(random.randint(0, 9))
-        c8 = random.choice(alpha)
-        c9 = random.choice(alpha)
-        c10 = str(random.randint(0, 9))
-        c11 = str(random.randint(0, 9))
-        results.append(c1 + c2 + c3 + c4 + c5 + c6 + c7 + c8 + c9 + c10 + c11)
+        chars = [
+            str(random.randint(1, 9)),
+            random.choice(alpha),
+            random.choice(alphanum),
+            str(random.randint(0, 9)),
+            random.choice(alpha),
+            random.choice(alphanum),
+            str(random.randint(0, 9)),
+            random.choice(alpha),
+            random.choice(alpha),
+            str(random.randint(0, 9)),
+            str(random.randint(0, 9)),
+        ]
+        results.append("".join(chars))
     return results
 
 
-# Entity type generators: each returns a list of sample values from Faker
+def _generate_valid_cc(fake: Faker, n: int) -> list[str]:
+    """Generate credit card numbers in various formats (with/without separators)."""
+    results = []
+    for _ in range(n):
+        cc = fake.credit_card_number()
+        fmt = random.choice(["plain", "spaced", "dashed"])
+        if fmt == "spaced" and len(cc) == 16:
+            cc = f"{cc[:4]} {cc[4:8]} {cc[8:12]} {cc[12:]}"
+        elif fmt == "dashed" and len(cc) == 16:
+            cc = f"{cc[:4]}-{cc[4:8]}-{cc[8:12]}-{cc[12:]}"
+        results.append(cc)
+    return results
+
+
+def _generate_ssn_variants(fake: Faker, n: int) -> list[str]:
+    """Generate SSNs in both formatted (XXX-XX-XXXX) and unformatted (XXXXXXXXX) styles."""
+    results = []
+    for _ in range(n):
+        ssn = fake.ssn()  # Returns XXX-XX-XXXX
+        if random.random() < 0.3:
+            ssn = ssn.replace("-", "")  # 30% unformatted
+        results.append(ssn)
+    return results
+
+
+def _generate_embedded_values(values: list[str], entity_type: str) -> list[str]:
+    """Wrap some values in surrounding text to simulate free-text columns."""
+    templates = {
+        "SSN": ["SSN: {v}", "Social Security Number is {v}", "my ssn {v}"],
+        "EMAIL": ["contact: {v}", "send to {v} please", "{v}"],
+        "PHONE": ["call {v}", "phone: {v}", "reach me at {v}"],
+        "CREDIT_CARD": ["card ending {v}", "payment via {v}", "{v}"],
+        "NPI": ["provider NPI: {v}", "NPI {v}", "{v}"],
+        "DEFAULT": ["value: {v}", "{v}", "data {v} here"],
+    }
+    tmpl_list = templates.get(entity_type, templates["DEFAULT"])
+    results = []
+    for v in values:
+        if random.random() < 0.2:  # 20% embedded in text
+            tmpl = random.choice(tmpl_list)
+            results.append(tmpl.format(v=v))
+        else:
+            results.append(v)
+    return results
+
+
+# ── Entity type generators ───────────────────────────────────────────────────
+
 _ENTITY_GENERATORS: dict[str, dict] = {
     "SSN": {
         "column_name": "test_ssn_column",
-        "generator": lambda fake, n: [fake.ssn() for _ in range(n)],
+        "generator": lambda fake, n: _generate_ssn_variants(fake, n),
     },
     "EMAIL": {
         "column_name": "test_email_column",
@@ -124,7 +185,7 @@ _ENTITY_GENERATORS: dict[str, dict] = {
     },
     "CREDIT_CARD": {
         "column_name": "test_credit_card_column",
-        "generator": lambda fake, n: [fake.credit_card_number() for _ in range(n)],
+        "generator": lambda fake, n: _generate_valid_cc(fake, n),
     },
     "DATE_OF_BIRTH": {
         "column_name": "test_dob_column",
@@ -162,16 +223,19 @@ _ENTITY_GENERATORS: dict[str, dict] = {
     },
     "VIN": {
         "column_name": "test_vin_column",
-        "generator": lambda _fake, n: ["1HGBH41JXMN109186", "5YJSA1DG9DFP14705"] * (n // 2 + 1),
+        "generator": lambda _fake, n: random.choices(
+            ["1HGBH41JXMN109186", "5YJSA1DG9DFP14705", "WVWZZZ3CZWE123456"], k=n
+        ),
     },
     "BITCOIN_ADDRESS": {
         "column_name": "test_bitcoin_column",
-        "generator": lambda _fake, n: (
+        "generator": lambda _fake, n: random.choices(
             [
                 "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
                 "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy",
-            ]
-            * (n // 2 + 1)
+                "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+            ],
+            k=n,
         ),
     },
     "ETHEREUM_ADDRESS": {
@@ -230,21 +294,43 @@ _NONE_GENERATORS: dict[str, dict] = {
         "column_name": "test_random_word_column",
         "generator": lambda fake, n: [fake.word() for _ in range(n)],
     },
+    "sentences": {
+        "column_name": "test_sentence_column",
+        "generator": lambda fake, n: [fake.sentence() for _ in range(n)],
+    },
+    "paragraphs": {
+        "column_name": "test_paragraph_column",
+        "generator": lambda fake, n: [fake.paragraph() for _ in range(n)],
+    },
+    "file_paths": {
+        "column_name": "test_filepath_column",
+        "generator": lambda fake, n: [fake.file_path() for _ in range(n)],
+    },
+    "hex_strings": {
+        "column_name": "test_hex_column",
+        "generator": lambda _fake, n: [
+            "".join(random.choices("0123456789abcdef", k=random.randint(16, 64))) for _ in range(n)
+        ],
+    },
+    "numeric_ids": {
+        "column_name": "test_numeric_id_column",
+        "generator": lambda _fake, n: [str(random.randint(100000, 999999999)) for _ in range(n)],
+    },
 }
 
 
 def generate_corpus(
-    samples_per_type: int = 20,
+    samples_per_type: int = 200,
     locale: str = "en_US",
+    *,
+    include_embedded: bool = True,
 ) -> list[tuple[ColumnInput, str | None]]:
     """Generate a labeled corpus of ColumnInput objects for accuracy benchmarking.
-
-    Each tuple contains a ColumnInput with Faker-generated sample values and the
-    expected entity type (or None for columns that should not match anything).
 
     Args:
         samples_per_type: Number of sample values per column.
         locale: Faker locale for data generation.
+        include_embedded: If True, add extra columns with values embedded in text.
 
     Returns:
         List of (ColumnInput, expected_entity_type) tuples.
@@ -254,13 +340,25 @@ def generate_corpus(
 
     # Generate positive cases (known entity types)
     for entity_type, config in _ENTITY_GENERATORS.items():
+        samples = config["generator"](fake, samples_per_type)[:samples_per_type]
         column = ColumnInput(
             column_name=config["column_name"],
             column_id=f"corpus_{entity_type}_0",
             data_type="STRING",
-            sample_values=config["generator"](fake, samples_per_type),
+            sample_values=samples,
         )
         corpus.append((column, entity_type))
+
+        # Also generate a column with embedded-in-text values
+        if include_embedded and entity_type in ("SSN", "EMAIL", "PHONE", "CREDIT_CARD", "NPI"):
+            embedded = _generate_embedded_values(samples, entity_type)
+            emb_col = ColumnInput(
+                column_name=f"test_{entity_type.lower()}_notes",
+                column_id=f"corpus_{entity_type}_embedded",
+                data_type="STRING",
+                sample_values=embedded,
+            )
+            corpus.append((emb_col, entity_type))
 
     # Generate negative cases (should not match anything)
     for none_key, config in _NONE_GENERATORS.items():
@@ -268,8 +366,62 @@ def generate_corpus(
             column_name=config["column_name"],
             column_id=f"corpus_none_{none_key}_0",
             data_type="STRING",
-            sample_values=config["generator"](fake, samples_per_type),
+            sample_values=config["generator"](fake, samples_per_type)[:samples_per_type],
         )
         corpus.append((column, None))
 
     return corpus
+
+
+# ── Raw sample generator for direct pattern testing ──────────────────────────
+
+
+def generate_raw_samples(
+    count_per_type: int = 500,
+    locale: str = "en_US",
+) -> list[tuple[str, str | None]]:
+    """Generate raw (value, entity_type) pairs for direct pattern matching tests.
+
+    Unlike generate_corpus() which wraps values in ColumnInputs, this returns
+    individual values for testing regex patterns directly. Useful for:
+    - Pattern-level precision/recall
+    - String-length performance scaling
+    - Cross-pattern collision detection
+
+    Returns:
+        List of (value_string, expected_entity_type_or_None) tuples.
+    """
+    fake = Faker(locale)
+    samples: list[tuple[str, str | None]] = []
+
+    for entity_type, config in _ENTITY_GENERATORS.items():
+        values = config["generator"](fake, count_per_type)[:count_per_type]
+        for v in values:
+            samples.append((v, entity_type))
+
+    # Add negative samples
+    for _ in range(count_per_type):
+        samples.append((fake.word(), None))
+        samples.append((str(random.randint(1, 99999)), None))
+        samples.append(("".join(random.choices(string.ascii_letters, k=random.randint(5, 30))), None))
+
+    return samples
+
+
+def generate_length_scaling_data() -> list[tuple[str, int]]:
+    """Generate strings of varying lengths for RE2 performance scaling tests.
+
+    Returns:
+        List of (text, length_bytes) sorted by length. Each text contains
+        a known pattern (SSN) buried at a random position, surrounded by
+        padding text. Tests how RE2 scales with input length.
+    """
+    ssn = "123-45-6789"
+    results: list[tuple[str, int]] = []
+    for target_len in [50, 100, 500, 1000, 5000, 10000, 50000]:
+        padding_len = max(0, target_len - len(ssn) - 1)
+        padding = "".join(random.choices(string.ascii_lowercase + " ", k=padding_len))
+        insert_pos = random.randint(0, len(padding))
+        text = padding[:insert_pos] + " " + ssn + " " + padding[insert_pos:]
+        results.append((text, len(text)))
+    return results

@@ -18,6 +18,9 @@ from __future__ import annotations
 import argparse
 import statistics
 import time
+import uuid
+
+from faker import Faker
 
 from data_classifier import classify_columns, load_profile
 from data_classifier.core.types import ColumnInput
@@ -154,7 +157,80 @@ def run_perf_benchmark(
             }
         )
 
-    results["scaling"] = scaling
+    results["scaling_samples"] = scaling
+
+    # ── 6. String-length scaling — does RE2 scale linearly with input size? ──
+    from tests.benchmarks.corpus_generator import generate_length_scaling_data
+
+    length_data = generate_length_scaling_data()
+    engine = RegexEngine()
+    length_scaling: list[dict] = []
+
+    for text, text_len in length_data:
+        test_col = ColumnInput(
+            column_name="__length_test__",
+            column_id=f"__len_{text_len}__",
+            data_type="STRING",
+            sample_values=[text],
+        )
+        timings = []
+        for _ in range(100):
+            t0 = time.perf_counter()
+            engine.classify_column(test_col, profile=profile, min_confidence=0.0)
+            timings.append((time.perf_counter() - t0) * 1_000_000)  # microseconds
+        timings.sort()
+        length_scaling.append(
+            {
+                "input_bytes": text_len,
+                "p50_us": timings[len(timings) // 2],
+                "p99_us": timings[int(len(timings) * 0.99)],
+            }
+        )
+
+    results["scaling_length"] = length_scaling
+
+    # ── 7. Direct pattern matching — per-pattern performance ─────────────
+    from data_classifier.patterns import load_default_patterns
+
+    patterns = load_default_patterns()
+
+    # Generate a mixed text with many potential matches
+    fake = Faker()
+    mixed_text = " ".join(
+        [
+            fake.ssn(),
+            fake.email(),
+            fake.ipv4(),
+            fake.credit_card_number(),
+            fake.iban(),
+            fake.swift(),
+            "just some random padding text here",
+            fake.name(),
+            fake.address(),
+            str(uuid.uuid4()),
+        ]
+    )
+
+    test_col = ColumnInput(
+        column_name="__pattern_test__",
+        column_id="__pattern_perf__",
+        data_type="STRING",
+        sample_values=[mixed_text] * 100,
+    )
+
+    t0 = time.perf_counter()
+    findings = engine.classify_column(test_col, profile=profile, min_confidence=0.0)
+    pattern_match_ms = (time.perf_counter() - t0) * 1000
+
+    results["pattern_matching"] = {
+        "input_samples": 100,
+        "input_avg_length": len(mixed_text),
+        "total_ms": pattern_match_ms,
+        "per_sample_us": pattern_match_ms * 1000 / 100,
+        "patterns_compiled": len(patterns),
+        "findings_returned": len(findings),
+        "findings_types": [f.entity_type for f in findings],
+    }
 
     return results
 
@@ -215,11 +291,37 @@ def print_report(results: dict) -> None:
         )
 
     print()  # noqa: T201
-    print("SCALING (per-column latency vs sample count)")  # noqa: T201
+    print("SCALING: SAMPLE COUNT (per-column latency vs samples/column)")  # noqa: T201
     print("-" * w)  # noqa: T201
-    for s in results.get("scaling", []):
-        bar = "#" * int(s["per_column_p50_ms"] * 100)
+    for s in results.get("scaling_samples", []):
+        bar = "#" * min(int(s["per_column_p50_ms"] * 100), 40)
         print(f"  {s['samples_per_col']:>5} samples → {s['per_column_p50_ms']:.3f} ms/col  {bar}")  # noqa: T201
+
+    print()  # noqa: T201
+    print("SCALING: INPUT LENGTH (RE2 time vs string length, single sample)")  # noqa: T201
+    print("-" * w)  # noqa: T201
+    length_data = results.get("scaling_length", [])
+    if length_data:
+        base_us = length_data[0]["p50_us"]
+        for s in length_data:
+            ratio = s["p50_us"] / base_us if base_us > 0 else 0
+            bar = "#" * min(int(ratio * 3), 40)
+            print(  # noqa: T201
+                f"  {s['input_bytes']:>6} bytes → p50={s['p50_us']:.1f} us"
+                f"  p99={s['p99_us']:.1f} us"
+                f"  ({ratio:.1f}x)  {bar}"
+            )
+
+    pm = results.get("pattern_matching", {})
+    if pm:
+        print()  # noqa: T201
+        print("DIRECT PATTERN MATCHING (regex engine on mixed-PII text)")  # noqa: T201
+        print("-" * w)  # noqa: T201
+        print(f"  Patterns compiled:   {pm['patterns_compiled']}")  # noqa: T201
+        print(f"  Input:               {pm['input_samples']} samples × {pm['input_avg_length']} chars")  # noqa: T201
+        print(f"  Total time:          {pm['total_ms']:.2f} ms")  # noqa: T201
+        print(f"  Per sample:          {pm['per_sample_us']:.1f} us")  # noqa: T201
+        print(f"  Findings:            {pm['findings_returned']} ({', '.join(pm['findings_types'])})")  # noqa: T201
 
     print()  # noqa: T201
     print("=" * w)  # noqa: T201
