@@ -1,5 +1,5 @@
-title: Accuracy benchmark suite with labeled dataset
-status: done
+title: 'External corpus integration: Presidio cross-validation comparison tests'
+status: backlog
 priority: P3
 category: feature
 sprint_target: null

@@ -1,0 +1,40 @@
+title: Auto-generated client-facing documentation (mkdocs + mkdocstrings + GitHub
+  Pages)
+status: doing
+priority: P2
+category: feature
+sprint_target: 2
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: Set up auto-generated client-facing docs site with mkdocs + mkdocstrings
+complexity: M
+technical_specs:
+- "File: mkdocs.yml \u2014 site config, theme, plugins, nav"
+- "File: docs-public/ \u2014 markdown source pages"
+- "File: scripts/generate_catalog.py \u2014 generates catalog markdown from library\
+  \ introspection"
+- "File: pyproject.toml \u2014 add docs dependencies"
+- "File: .gitignore \u2014 add site/"
+description: ''
+acceptance_criteria:
+- mkdocs.yml configured with Material theme
+- docs-public/ directory with index, getting-started, api-reference, catalog, guides
+- API reference auto-generated from docstrings via mkdocstrings
+- Pattern catalog auto-generated via scripts/generate_catalog.py
+- Entity type catalog auto-generated
+- Profile reference auto-generated from standard.yaml
+- mkdocs serve works locally with hot reload
+- mkdocs build produces site/ (gitignored)
+- Integration guide moved from docs/CLIENT_INTEGRATION_GUIDE.md to docs-public/guides/
+- mkdocs, mkdocs-material, mkdocstrings[python] added to dev dependencies
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'Manual: mkdocs serve renders correctly, mkdocs build succeeds'
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

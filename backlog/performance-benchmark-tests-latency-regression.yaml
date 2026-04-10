@@ -1,20 +1,29 @@
 title: Performance benchmark tests (latency regression)
-status: backlog
+status: doing
 priority: P2
 category: feature
-sprint_target: null
+sprint_target: 2
 created: 2026-04-10
 updated: 2026-04-10
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Establish latency baseline and regression detection for classification performance
+complexity: S
+technical_specs:
+- "File: tests/benchmarks/perf_benchmark.py \u2014 latency measurement harness"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Benchmark measures classify_columns() latency per column
+- Measures RE2 Set compilation time separately
+- Measures per-pattern extraction time
+- Reports p50, p95, p99 latencies
+- Baseline captured for current 43-pattern library
+- 'Runnable as CLI: python -m tests.benchmarks.perf_benchmark'
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/benchmarks/perf_benchmark.py: not in CI, manual benchmark command'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

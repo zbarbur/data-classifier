@@ -1,20 +1,31 @@
 title: Property-based testing with Hypothesis
-status: backlog
+status: doing
 priority: P2
 category: feature
-sprint_target: null
+sprint_target: 2
 created: 2026-04-10
 updated: 2026-04-10
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Add Hypothesis property-based tests for pattern matching edge cases
+complexity: S
+technical_specs:
+- "File: tests/test_hypothesis.py \u2014 property-based tests"
+- "File: pyproject.toml \u2014 add hypothesis to dev dependencies"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Hypothesis strategies for generating valid SSNs, emails, credit cards, phone numbers
+- 'Property: valid generated values are always detected by the regex engine'
+- 'Property: random ASCII strings rarely trigger false positives'
+- 'Property: Luhn-valid card numbers are detected, Luhn-invalid are rejected'
+- hypothesis added to dev dependencies in pyproject.toml
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_hypothesis.py: runs as part of pytest suite with default Hypothesis
+  settings'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

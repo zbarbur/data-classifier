@@ -1,0 +1,33 @@
+title: FP test corpus (negative lookalikes + synthetic near-misses)
+status: doing
+priority: P2
+category: feature
+sprint_target: 2
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: Build a false positive test corpus of values that look like sensitive data but
+  aren't
+complexity: S
+technical_specs:
+- "File: tests/benchmarks/fp_corpus.py \u2014 negative lookalike generator and static\
+  \ corpus"
+- "File: tests/fixtures/fp_corpus.yaml \u2014 static false positive test cases"
+description: ''
+acceptance_criteria:
+- 'Corpus of negative lookalikes: order numbers resembling SSNs, random strings resembling
+  API keys, dates resembling DOBs'
+- At least 10 near-miss categories covering PII, Financial, Credential patterns
+- Each near-miss has label 'none' (should not be classified)
+- Integrates with accuracy benchmark harness
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/benchmarks/test_fp_corpus.py: verify none of the FP corpus values trigger
+  classifications above min_confidence'
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

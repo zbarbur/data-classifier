@@ -169,39 +169,97 @@ All patterns in this library are **original implementations**. We did NOT copy r
 
 ## Gap Closure Plan
 
-### Iteration 2 — Priority Gaps (target: 60+ patterns)
+### Iteration 2 — Pattern Expansion + Quality Enhancements (target: 60+ patterns)
 
-| Gap | Source | Effort | Patterns to Add |
+#### New PII Patterns
+
+| Gap | Source | Effort | Validator | FP Risk |
+|---|---|---|---|---|
+| US NPI (National Provider Identifier) | Presidio/CMS spec | Small | Luhn (modified, prefix 80840) | Low |
+| US DEA Number | DEA spec | Small | Check digit (weighted formula) | Low |
+| US MBI (Medicare Beneficiary Identifier) | CMS spec | Small | Positional format (no S,L,O,I,B,Z) | Low |
+| VIN (Vehicle Identification Number) | ISO 3779 | Small | Check digit (mod 11, position 9) | Low |
+| US EIN (Employer ID Number) | IRS spec | Small | Prefix validation (campus codes) | Medium |
+| Additional DOB formats | Original | Small | None | Medium |
+
+#### New Financial Patterns
+
+| Gap | Source | Effort | Validator | FP Risk |
+|---|---|---|---|---|
+| SWIFT/BIC code | ISO 9362 | Small | Structure self-validates (4+2+2+3) | Low |
+| Bitcoin address (P2PKH/P2SH/Bech32) | Bitcoin wiki | Small | Prefix (1/3/bc1) + Base58 | Low |
+| Ethereum address | EIP-55 | Small | 0x prefix + 40 hex | Low |
+| ABA routing number + checksum | ABA spec | Small | Weighted mod-10 (3-7-1) | Medium (needs context) |
+| IBAN mod-97 validator | ISO 13616 | Small | Complete existing stub | Low |
+
+#### New Credential Patterns (small batch — bulk via secret scanner)
+
+| Gap | Source | Effort | FP Risk |
 |---|---|---|---|
-| URL detection | Presidio | Small | 1 pattern (have it) |
-| ABA routing number + checksum | Presidio | Small | 1 pattern + validator |
-| US NPI + Luhn | Presidio | Small | 1 pattern + validator |
-| IBAN mod-97 validator | Presidio | Small | Finish existing stub |
-| Canadian SIN + Luhn | Presidio | Small | 1 pattern + validator |
-| Discord bot token | gitleaks | Small | 1 pattern |
-| npm token | gitleaks | Small | 1 pattern |
-| Hashicorp Vault token | gitleaks | Small | 1 pattern |
-| GCP service account key | trufflehog ref | Medium | 1 multi-line pattern |
-| Azure storage key | gitleaks | Medium | 1 context-dependent pattern |
-| High-entropy string detector | detect-secrets | Medium | Heuristic engine (not regex) |
+| Discord bot token | gitleaks | Small | Low (fixed format) |
+| npm token | gitleaks | Small | Low (`npm_` prefix) |
+| Hashicorp Vault token | gitleaks | Small | Low (`hvs.` prefix) |
+| Pulumi access token | gitleaks | Small | Low (`pul-` prefix) |
 
-### Iteration 3 — Country-Specific Phase 1 (target: 80+ patterns)
+#### Other Patterns
 
-| Region | Source | Patterns |
-|---|---|---|
-| UK (passport, postcode, vehicle) | Presidio | 3-4 patterns |
-| Germany (tax ID, passport, ID card) | Presidio | 4-5 patterns + checksums |
-| Australia (ABN, ACN, TFN, Medicare) | Presidio | 4 patterns + checksums |
-| Canada (SIN done; add health card, SIN alt formats) | Presidio | 2-3 patterns |
-| India (PAN, Aadhaar) | Presidio | 2 patterns + checksums |
+| Gap | Source | Effort | Validator | FP Risk |
+|---|---|---|---|---|
+| Canadian SIN + Luhn | CRA spec | Small | Luhn | Low |
+
+#### Regex Engine Quality Enhancements
+
+| Enhancement | Inspired By | Effort | Impact |
+|---|---|---|---|
+| Context window confidence boosting | Presidio LemmaContextAwareEnhancer, Cloud DLP HotwordRules | Medium | Biggest FP reducer for ambiguous patterns (ABA, EIN, dates) |
+| Stopword / anti-indicator suppression | gitleaks stopwords | Small | Eliminates placeholder/example FPs ("changeme", test card numbers) |
+| Allowlist / FP suppression mechanism | gitleaks allowlists | Small | Per-pattern regex allowlists (value/match/line scope) |
+| Phone number library integration | Presidio PhoneRecognizer (`phonenumbers`) | Medium | 170+ countries, format normalization, range validation |
+
+### Iteration 3 — Country-Specific Phase 1 + Financial (target: 80+ patterns)
+
+| Region/Type | Source | Patterns | Validators |
+|---|---|---|---|
+| UK (NHS, passport, postcode) | Presidio | 3-4 patterns | NHS mod-11 checksum |
+| Germany (tax ID, passport, ID card) | Presidio | 4-5 patterns | Tax ID checksum |
+| Australia (ABN, ACN, TFN, Medicare) | Presidio | 4 patterns | ABN mod-89, TFN mod-11 |
+| India (PAN, Aadhaar) | Presidio | 2 patterns | Aadhaar Verhoeff checksum |
+| CUSIP | Cloud DLP ref | 1 pattern | Mod-10 check digit (needs context) |
+| ISIN | ISO 6166 | 1 pattern | Luhn check digit |
+| EU VAT (per-country formats) | Cloud DLP ref | 5+ patterns | Country-specific check digits |
 
 ### Iteration 4+ — Broad International (target: 100+ patterns)
 
-| Region | Source | Patterns |
+| Region/Type | Source | Patterns |
 |---|---|---|
 | Italy, Spain, Korea, Poland, Finland, Sweden, etc. | Presidio | 30+ patterns |
 | Additional cloud services (50+ from trufflehog list) | gitleaks + original | 20+ patterns |
-| Financial instruments (SWIFT, BIC, CUSIP) | Cloud DLP ref | 5+ patterns |
+| GPS coordinates, US NDC drug codes, CPT/HCPCS | Cloud DLP/Macie | 5+ patterns (strong context required) |
+| US driver's license (per-state formats) | Macie | 10+ patterns |
+| Credit card track 2 data | PCI spec | 1 pattern |
+
+## Testing & Corpus Strategy
+
+### Iteration 2 — Build Foundation
+
+| Deliverable | Source | License | Notes |
+|---|---|---|---|
+| Synthetic corpus generator (Faker) | Own | N/A | Labeled columns per entity type, adversarial near-misses |
+| Accuracy benchmark harness | Own | N/A | Precision/recall/F1 per entity type, separate from CI |
+| FP test corpus | Own + Nightfall | Free eval | Negative lookalikes (order#→SSN, random→API key) |
+| Property-based testing (Hypothesis) | Own | N/A | Edge case generation for patterns |
+| Performance benchmarks | Own | N/A | Latency regression baseline |
+
+### Iteration 3 — External Corpus Integration
+
+| Deliverable | Source | License | Size | Notes |
+|---|---|---|---|---|
+| Nemotron-PII ETL | NVIDIA | CC BY 4.0 | 100K records, 55+ types | Extract entity values from structured records |
+| SecretBench + FPSecretBench | Academic | MIT + data agreement | 97K labeled + FP corpus | Gold standard for credential accuracy |
+| Ai4Privacy pii-masking-300k | Ai4Privacy | Custom (research OK) | 225K rows, 27+ types | NER spans → column values ETL |
+| StarPII | BigCode | Gated access | 20K secrets in code | Credential testing in code context |
+| Nightfall expanded | Nightfall AI | Free eval | Small curated | CSV samples + negative lookalikes |
+| Presidio cross-validation | Microsoft | MIT | Generated | Run same inputs through Presidio + us, compare |
 
 ## Pattern Quality Standards
 
@@ -220,14 +278,22 @@ Every pattern added to `default_patterns.json` must have:
 
 ## Competitive Position
 
-| Capability | Presidio | Cloud DLP | gitleaks | trufflehog | **Us (iter 1)** |
-|---|---|---|---|---|---|
-| PII regex patterns | ~20 | 150+ | 0 | 0 | **15** |
-| Credential patterns | 0 | 50+ | ~100 | 800+ | **20** |
-| Country IDs | ~40 | 30+ | 0 | 0 | **2** (ITIN, NINO) |
-| Checksum validators | ~15 | built-in | 0 | ~50 | **4** (Luhn, SSN, IPv4, IBAN stub) |
-| RE2 set matching | No (Python re) | N/A | N/A | N/A | **Yes** |
-| Sample-based confidence | No | N/A | N/A | N/A | **Yes** |
-| Category filtering | No | InfoType groups | No | Detector types | **Yes** |
+| Capability | Presidio | Cloud DLP | gitleaks | trufflehog | **Us (iter 1)** | **Us (iter 2 target)** |
+|---|---|---|---|---|---|---|
+| PII regex patterns | ~20 | 150+ | 0 | 0 | **15** | **21** (+NPI, DEA, MBI, VIN, EIN, DOB) |
+| Financial patterns | 3 | 20+ | 0 | 0 | **6** | **11** (+SWIFT, BTC, ETH, ABA, IBAN done) |
+| Credential patterns | 0 | 50+ | ~100 | 800+ | **20** | **24** (+Discord, npm, Vault, Pulumi) |
+| Health patterns | 3 | 10+ | 0 | 0 | **2** | **5** (+NPI, DEA, MBI) |
+| Country IDs | ~40 | 30+ | 0 | 0 | **2** (ITIN, NINO) | **3** (+Canadian SIN) |
+| Checksum validators | ~15 | built-in | 0 | ~50 | **4** | **10** (+DEA, VIN, ABA, EIN, IBAN, NPI) |
+| Context window boosting | Yes (Lemma) | Yes (Hotword) | No | No | **No** | **Yes** |
+| Entropy gating | No | No | Yes | Yes | **No** | **Yes** (secret scanner) |
+| Stopword suppression | No | No | Yes | No | **No** | **Yes** |
+| Allowlist/FP suppression | No | Exclusion rules | Yes | No | **No** | **Yes** |
+| Phone library (phonenumbers) | Yes | N/A | N/A | N/A | **No** | **Yes** |
+| RE2 set matching | No (Python re) | N/A | N/A | N/A | **Yes** | **Yes** |
+| Sample-based confidence | No | N/A | N/A | N/A | **Yes** | **Yes** |
+| Category filtering | No | InfoType groups | No | Detector types | **Yes** | **Yes** |
+| Accuracy benchmarks | Presidio-research | N/A | N/A | N/A | **No** | **Yes** (Faker + FP corpus) |
 
-Our differentiators: RE2 two-phase matching, sample-based confidence + prevalence, category dimension, connector-agnostic design. Our gap: country-specific ID coverage (Presidio leads), total credential breadth (trufflehog leads).
+Our differentiators: RE2 two-phase matching, sample-based confidence + prevalence, category dimension, connector-agnostic design, structured secret scanner (key-name + entropy), context boosting + FP suppression suite. Our gap: country-specific ID coverage (Presidio leads), total credential breadth (trufflehog leads).

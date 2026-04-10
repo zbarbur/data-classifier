@@ -1,0 +1,42 @@
+title: Context window confidence boosting (per-pattern context words)
+status: doing
+priority: P1
+category: feature
+sprint_target: 2
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: Add per-pattern context words that boost or suppress confidence based on surrounding
+  text
+complexity: M
+technical_specs:
+- "File: data_classifier/core/types.py \u2014 add context_words_boost, context_words_suppress\
+  \ to ContentPattern dataclass"
+- "File: data_classifier/engines/regex_engine.py \u2014 implement context scanning\
+  \ in sample value matching"
+- "File: data_classifier/patterns/default_patterns.json \u2014 add context words to\
+  \ ambiguous patterns"
+description: ''
+acceptance_criteria:
+- Each pattern in default_patterns.json can declare context_words_boost and context_words_suppress
+  lists
+- Context window scans N tokens before/after a regex match for context words
+- Matching boost word adds configurable factor to confidence (default +0.3)
+- Matching suppress word reduces confidence (default -0.3)
+- 'Context populated for ambiguous patterns: ABA (routing, RTN), EIN (employer, tax),
+  DOB (birth, born), SSN (social, security)'
+- Case-insensitive context matching
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_regex_engine.py: TestContextBoosting \u2014 verify boost with positive\
+  \ context, suppress with negative context, no change without context"
+- 'tests/test_regex_engine.py: test ABA routing + ''routing number:'' context vs bare
+  9-digit number'
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

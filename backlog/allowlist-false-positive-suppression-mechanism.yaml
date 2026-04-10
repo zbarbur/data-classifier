@@ -1,0 +1,34 @@
+title: Allowlist / false positive suppression mechanism
+status: doing
+priority: P2
+category: feature
+sprint_target: 2
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: Add per-pattern allowlist regex to suppress known false positive patterns
+complexity: S
+technical_specs:
+- "File: data_classifier/core/types.py \u2014 add allowlist_patterns to ContentPattern"
+- "File: data_classifier/engines/regex_engine.py \u2014 check allowlist after match\
+  \ extraction"
+- "File: data_classifier/patterns/default_patterns.json \u2014 add allowlists for\
+  \ high-FP patterns"
+description: ''
+acceptance_criteria:
+- Each pattern can declare allowlist_patterns (list of regex)
+- Allowlist regex can target the extracted value
+- If allowlist matches, finding is suppressed (confidence 0)
+- Boolean OR logic (any allowlist match suppresses)
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_regex_engine.py: TestAllowlistSuppression \u2014 verify allowlist regex\
+  \ suppresses matching values, non-matching values pass through"
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

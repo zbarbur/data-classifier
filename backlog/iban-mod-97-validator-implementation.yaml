@@ -1,5 +1,5 @@
 title: IBAN mod-97 validator implementation
-status: backlog
+status: done
 priority: P2
 category: feature
 sprint_target: null

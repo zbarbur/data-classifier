@@ -1,0 +1,35 @@
+title: Synthetic corpus generator (Faker-based labeled columns)
+status: doing
+priority: P1
+category: feature
+sprint_target: 2
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: Build a Faker-based generator that produces labeled column data for accuracy
+  benchmarking
+complexity: M
+technical_specs:
+- "File: tests/benchmarks/corpus_generator.py \u2014 Faker-based generator"
+- "File: pyproject.toml \u2014 add faker to dev dependencies"
+description: ''
+acceptance_criteria:
+- Generator produces ColumnInput objects with known entity types as ground truth
+- Covers all entity types in the library (SSN, email, phone, CC, NPI, etc.)
+- Generates adversarial near-misses (9-digit numbers that aren't SSNs, random strings
+  that look like keys)
+- Parametrizable by locale (US, UK, CA, etc.)
+- Configurable sample size per entity type
+- 'Output format: list of (ColumnInput, expected_entity_type) tuples'
+- Faker added to dev dependencies in pyproject.toml
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/benchmarks/test_corpus_generator.py: verify generator produces valid ColumnInputs,
+  verify ground truth labels are correct'
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

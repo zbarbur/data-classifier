@@ -1,20 +1,42 @@
 title: Column name semantics engine (400+ variants, fuzzy matching)
-status: backlog
+status: doing
 priority: P1
 category: feature
-sprint_target: null
+sprint_target: 2
 created: 2026-04-10
 updated: 2026-04-10
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: 'Build second classification engine: column name semantics with 400+ variants
+  and fuzzy matching'
+complexity: L
+technical_specs:
+- "File: data_classifier/engines/column_name_engine.py \u2014 new engine class"
+- "File: data_classifier/patterns/column_names.json \u2014 400+ variants organized\
+  \ by entity type"
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 register engine in cascade"
+- "File: data_classifier/__init__.py \u2014 expose ColumnNameEngine, update _DEFAULT_ENGINES"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- New ColumnNameEngine class implementing ClassificationEngine interface
+- 400+ sensitive field name variants across PII, Financial, Credential, Health categories
+- 'Normalized matching: lowercase, strip underscores/hyphens/spaces'
+- Abbreviation expansion (dob->date_of_birth, ssn->social_security_number, cc->credit_card,
+  etc.)
+- Multi-token matching (customer_social_security_num -> SSN)
+- Column name variants stored in data_classifier/patterns/column_names.json
+- Engine registered in orchestrator with order=1 (before regex)
+- Returns entity_type, category, sensitivity, confidence based on match quality
+- No match on generic names (id, value, field1, col_a, status, data)
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_column_name_engine.py: fuzzy matching, abbreviation expansion, multi-token,
+  no-match on generic names'
+- 'tests/test_golden_fixtures.py: existing golden column name tests should continue
+  passing'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []
