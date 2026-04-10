@@ -145,9 +145,22 @@ def print_report(
 if __name__ == "__main__":
     from tests.benchmarks.corpus_generator import generate_corpus
 
+    samples = 50
     print("Generating synthetic corpus...")  # noqa: T201
-    corpus = generate_corpus(samples_per_type=20, locale="en_US")
-    print(f"Corpus size: {len(corpus)} columns")  # noqa: T201
+    corpus = generate_corpus(samples_per_type=samples, locale="en_US")
+
+    total_columns = len(corpus)
+    positive_columns = sum(1 for _, expected in corpus if expected is not None)
+    negative_columns = total_columns - positive_columns
+    total_samples = sum(len(col.sample_values) for col, _ in corpus)
+    entity_types_tested = len({expected for _, expected in corpus if expected is not None})
+
+    print("Corpus summary:")  # noqa: T201
+    print(f"  Columns:          {total_columns}")  # noqa: T201
+    print(f"  Positive columns: {positive_columns} ({entity_types_tested} entity types)")  # noqa: T201
+    print(f"  Negative columns: {negative_columns}")  # noqa: T201
+    print(f"  Total samples:    {total_samples} ({samples} per column)")  # noqa: T201
+    print()  # noqa: T201
 
     metrics, fp_details, fn_details = run_accuracy_benchmark(corpus)
     print_report(metrics, fp_details, fn_details)
