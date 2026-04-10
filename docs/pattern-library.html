@@ -25,6 +25,8 @@
   .stats { display: flex; gap: 2rem; margin-bottom: 1rem; }
   .stat { background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 4px; }
   .stat strong { display: block; font-size: 1.5rem; }
+  .encoded-examples { cursor: pointer; color: #1a73e8; }
+  .encoded-examples:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -103,6 +105,43 @@
 <footer style="margin-top: 2rem; color: #999; font-size: 0.8rem;">
   Generated from <code>data_classifier/patterns/default_patterns.json</code>.
   All patterns use Google RE2 (linear-time, no backtracking).
+  Credential examples are XOR-encoded &mdash; click to decode in browser.
 </footer>
+
+<script>
+// XOR decode credential examples client-side (uses DOM API, not innerHTML)
+const XOR_KEY = 90;
+
+function xorDecode(encoded) {
+  if (encoded.startsWith('xor:')) {
+    const b64 = encoded.slice(4);
+    const raw = atob(b64);
+    let result = '';
+    for (let i = 0; i < raw.length; i++) {
+      result += String.fromCharCode(raw.charCodeAt(i) ^ XOR_KEY);
+    }
+    return result;
+  } else if (encoded.startsWith('b64:')) {
+    return atob(encoded.slice(4));
+  }
+  return encoded;
+}
+
+document.querySelectorAll('.encoded-examples').forEach(function(el) {
+  el.addEventListener('click', function() {
+    var examples = JSON.parse(el.dataset.encoded);
+    // Clear existing content safely
+    while (el.firstChild) el.removeChild(el.firstChild);
+    examples.forEach(function(enc, i) {
+      if (i > 0) el.appendChild(document.createTextNode(', '));
+      var code = document.createElement('code');
+      code.textContent = xorDecode(enc);
+      el.appendChild(code);
+    });
+    el.style.cursor = 'default';
+    el.style.color = '#333';
+  });
+});
+</script>
 </body>
 </html>

@@ -38,7 +38,7 @@ Every task, regardless of type:
 - [ ] {METHOD} {/endpoint} returns {status code} with {expected shape}
 - [ ] Error cases return appropriate status codes (400, 422, 500)
 - [ ] Request validates against Pydantic model
-- [ ] Response shape matches classification-library-docs/02-api-reference.md
+- [ ] Response shape matches docs/spec/02-api-reference.md
 - [ ] TestClient integration test passes
 - [ ] Tests pass (`pytest tests/ -v`)
 - [ ] Lint clean (`ruff check . && ruff format --check .`)

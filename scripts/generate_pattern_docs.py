@@ -5,6 +5,10 @@ Usage:
     python scripts/generate_pattern_docs.py
 
 Outputs: docs/pattern-library.html
+
+Credential examples are stored XOR-encoded in the JSON. The HTML stores them
+as data attributes and decodes client-side with JS — so the HTML file in git
+never contains literal secret prefixes.
 """
 
 import json
@@ -13,12 +17,17 @@ from pathlib import Path
 PATTERNS_FILE = Path(__file__).parent.parent / "data_classifier" / "patterns" / "default_patterns.json"
 OUTPUT_FILE = Path(__file__).parent.parent / "docs" / "pattern-library.html"
 
+XOR_KEY = 0x5A  # Must match data_classifier/patterns/__init__.py
+
+
+def _is_encoded(v: str) -> bool:
+    return v.startswith("xor:") or v.startswith("b64:")
+
 
 def generate_html(patterns_data: dict) -> str:
     meta = patterns_data["_metadata"]
     patterns = patterns_data["patterns"]
 
-    # Group by category
     by_category: dict[str, list] = {}
     for p in patterns:
         by_category.setdefault(p["category"], []).append(p)
@@ -32,13 +41,28 @@ def generate_html(patterns_data: dict) -> str:
             continue
         rows.append(f'<tr class="category-header"><td colspan="8">{cat}</td></tr>')
         for p in sorted(cat_patterns, key=lambda x: x["entity_type"]):
-            # Mask credential examples in HTML to avoid push protection
-            if cat == "Credential":
-                examples_match = "<em>(encoded — run tests to verify)</em>" if p.get("examples_match") else "&mdash;"
-                examples_no = "<em>(encoded)</em>" if p.get("examples_no_match") else "&mdash;"
+            match_examples = p.get("examples_match", [])
+            no_match_examples = p.get("examples_no_match", [])
+
+            has_encoded_match = any(_is_encoded(e) for e in match_examples)
+            has_encoded_no = any(_is_encoded(e) for e in no_match_examples)
+
+            if has_encoded_match:
+                encoded_json = _escape_attr(json.dumps(match_examples))
+                examples_match_html = (
+                    f'<span class="encoded-examples" data-encoded="{encoded_json}"><em>click to decode</em></span>'
+                )
             else:
-                examples_match = ", ".join(f"<code>{e}</code>" for e in p.get("examples_match", []))
-                examples_no = ", ".join(f"<code>{e}</code>" for e in p.get("examples_no_match", []))
+                examples_match_html = ", ".join(f"<code>{_escape(e)}</code>" for e in match_examples) or "&mdash;"
+
+            if has_encoded_no:
+                encoded_json = _escape_attr(json.dumps(no_match_examples))
+                examples_no_html = (
+                    f'<span class="encoded-examples" data-encoded="{encoded_json}"><em>click to decode</em></span>'
+                )
+            else:
+                examples_no_html = ", ".join(f"<code>{_escape(e)}</code>" for e in no_match_examples) or "&mdash;"
+
             validator = p.get("validator", "") or "&mdash;"
             rows.append(
                 f"<tr>"
@@ -48,14 +72,16 @@ def generate_html(patterns_data: dict) -> str:
                 f'<td class="conf">{p["confidence"]:.2f}</td>'
                 f'<td class="regex"><code>{_escape(p["regex"])}</code></td>'
                 f"<td>{validator}</td>"
-                f"<td>{examples_match}</td>"
-                f"<td>{examples_no}</td>"
+                f"<td>{examples_match_html}</td>"
+                f"<td>{examples_no_html}</td>"
                 f"</tr>"
                 f'<tr class="desc"><td colspan="8">{p.get("description", "")}</td></tr>'
             )
 
     table_rows = "\n".join(rows)
 
+    # The JS decoder uses textContent (not innerHTML) to avoid XSS.
+    # Decoded values are placed in <code> elements created via DOM API.
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -83,6 +109,8 @@ def generate_html(patterns_data: dict) -> str:
   .stats {{ display: flex; gap: 2rem; margin-bottom: 1rem; }}
   .stat {{ background: #f5f5f5; padding: 0.5rem 1rem; border-radius: 4px; }}
   .stat strong {{ display: block; font-size: 1.5rem; }}
+  .encoded-examples {{ cursor: pointer; color: #1a73e8; }}
+  .encoded-examples:hover {{ text-decoration: underline; }}
 </style>
 </head>
 <body>
@@ -115,13 +143,55 @@ def generate_html(patterns_data: dict) -> str:
 <footer style="margin-top: 2rem; color: #999; font-size: 0.8rem;">
   Generated from <code>data_classifier/patterns/default_patterns.json</code>.
   All patterns use Google RE2 (linear-time, no backtracking).
+  Credential examples are XOR-encoded &mdash; click to decode in browser.
 </footer>
+
+<script>
+// XOR decode credential examples client-side (uses DOM API, not innerHTML)
+const XOR_KEY = {XOR_KEY};
+
+function xorDecode(encoded) {{
+  if (encoded.startsWith('xor:')) {{
+    const b64 = encoded.slice(4);
+    const raw = atob(b64);
+    let result = '';
+    for (let i = 0; i < raw.length; i++) {{
+      result += String.fromCharCode(raw.charCodeAt(i) ^ XOR_KEY);
+    }}
+    return result;
+  }} else if (encoded.startsWith('b64:')) {{
+    return atob(encoded.slice(4));
+  }}
+  return encoded;
+}}
+
+document.querySelectorAll('.encoded-examples').forEach(function(el) {{
+  el.addEventListener('click', function() {{
+    var examples = JSON.parse(el.dataset.encoded);
+    // Clear existing content safely
+    while (el.firstChild) el.removeChild(el.firstChild);
+    examples.forEach(function(enc, i) {{
+      if (i > 0) el.appendChild(document.createTextNode(', '));
+      var code = document.createElement('code');
+      code.textContent = xorDecode(enc);
+      el.appendChild(code);
+    }});
+    el.style.cursor = 'default';
+    el.style.color = '#333';
+  }});
+}});
+</script>
 </body>
 </html>"""
 
 
 def _escape(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _escape_attr(s: str) -> str:
+    """Escape for use in HTML attribute values (double-quoted)."""
+    return s.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def main():

@@ -85,4 +85,4 @@
 | `docs/PATTERN_SOURCES.md` | Pattern sources, license/IP, gap plan |
 | `docs/pattern-library.html` | Generated pattern reference |
 | `docs/sprints/SPRINT1_HANDOVER.md` | Sprint 1 delivery log |
-| `classification-library-docs/` | Full architectural spec (read-only reference) |
+| `docs/spec/` | Full architectural spec (read-only reference) |

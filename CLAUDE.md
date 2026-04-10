@@ -17,7 +17,7 @@
 
 Standalone, stateless Python library for detecting and classifying sensitive data in structured database columns. Connector-agnostic — works with BigQuery, Snowflake, Postgres, or any structured data source.
 
-**Architectural source of truth:** `classification-library-docs/` contains the full specification.
+**Architectural source of truth:** `docs/spec/` contains the full specification.
 Only docs 01-05 are relevant for iteration 1 (regex engine).
 
 ## Critical Rules

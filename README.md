@@ -46,7 +46,7 @@ ColumnInput → Orchestrator → [Engine Cascade] → ClassificationFinding
 
 ## Specification
 
-Full architectural specification: [`classification-library-docs/`](classification-library-docs/)
+Full architectural specification: [`docs/spec/`](docs/spec/)
 
 Client integration guide: [`docs/CLIENT_INTEGRATION_GUIDE.md`](docs/CLIENT_INTEGRATION_GUIDE.md)
 
