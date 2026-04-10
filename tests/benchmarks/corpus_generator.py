@@ -224,7 +224,14 @@ _ENTITY_GENERATORS: dict[str, dict] = {
     "VIN": {
         "column_name": "test_vin_column",
         "generator": lambda _fake, n: random.choices(
-            ["1HGBH41JXMN109186", "5YJSA1DG9DFP14705", "WVWZZZ3CZWE123456"], k=n
+            [
+                "1HGBH41JXMN109186",  # Honda
+                "5YJSA1DG9DFP14705",  # Tesla
+                "2T1BURHE5JC034461",  # Toyota
+                "3VWFE21C04M000001",  # Volkswagen
+                "1N4AL3AP8JC231503",  # Nissan
+            ],
+            k=n,
         ),
     },
     "BITCOIN_ADDRESS": {
