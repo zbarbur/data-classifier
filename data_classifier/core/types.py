@@ -75,6 +75,9 @@ class ColumnInput:
     dataset: str = ""
     """Dataset, schema, or database name."""
 
+    schema_name: str = ""
+    """Schema name within a dataset or database (e.g. ``public``, ``dbo``)."""
+
     data_type: str = ""
     """SQL data type as string (e.g. ``STRING``, ``INTEGER``)."""
 
