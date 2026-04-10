@@ -1,5 +1,5 @@
 title: Write parameterized pytest tests loading golden fixtures
-status: backlog
+status: done
 priority: P1
 category: feature
 sprint_target: 1

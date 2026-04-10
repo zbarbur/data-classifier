@@ -1,5 +1,5 @@
 title: Port BQ connector test fixtures as golden-set YAML
-status: backlog
+status: done
 priority: P1
 category: feature
 sprint_target: 1
