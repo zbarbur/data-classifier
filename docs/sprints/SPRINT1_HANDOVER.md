@@ -77,6 +77,57 @@
 7. agile-backlog for backlog management
 8. Testing: phased approach — structural now, corpus-based later
 
+## Open Threads (Carry to Sprint 2)
+
+### 1. Testing Strategy — Corpus Collection
+Agreed on phased approach: structural tests now (done — 234 passing), corpus-based later. **Open question:** Where do we get a labeled dataset for precision/recall benchmarks? Options discussed:
+- Synthetic labeled columns (generate fake schemas with known PII types)
+- Presidio's test data (MIT licensed)
+- Production data sample from BQ connector scans (anonymized)
+- StarPii dataset (20,961 annotated secrets — for credential testing)
+
+**Action needed:** Decide corpus source and start collection. This gates the accuracy benchmark backlog item.
+
+### 2. Pattern Licensing — Deeper Review
+Documented in `docs/PATTERN_SOURCES.md` with license/IP position. All patterns are original implementations. **Open question:** As we expand to 50+ patterns (iteration 2), should we:
+- Establish a formal review process for each new pattern (source, license, original vs referenced)?
+- Create a pattern contribution guide for future contributors?
+- Set up automated checks that verify no pattern regex was copied verbatim from AGPL sources (trufflehog)?
+
+### 3. BQ Connector Coordination
+Client integration guide shared. **Open items with BQ team:**
+- DB migration needed: `category TEXT` column on `classification_findings` table
+- `evidence TEXT` and `match_ratio FLOAT` columns also needed
+- Sampling implementation: what sample size? Configurable per-profile?
+- When does Sprint 27 migration start? Need to coordinate timing.
+- Profile YAML: will BQ connector add `category` to their DB-stored profiles?
+
+### 4. Performance Measurement Strategy
+Library captures timing via `TierEvent.latency_ms` and `ClassificationEvent.total_ms`. **Open questions:**
+- Should we add a timing report to `classify_columns()` return value (not just events)?
+- How do we expose per-column timing to the connector for their dashboards?
+- `budget_ms` is accepted but not enforced in iteration 1. When do we implement the budget engine?
+- Should RE2 Set compilation time be measured separately from matching time?
+
+### 5. Custom Regexp from Consumers
+Discussed: consumers will want to add their own patterns (e.g., `EMP-\d{6}` for employee IDs). **Open questions:**
+- How do custom patterns interact with the RE2 Set? (Recompile on each request? Cache per consumer?)
+- False positive management: if a custom pattern produces too many FPs, how does the consumer tune it?
+- Should custom patterns have a lower default confidence than curated patterns?
+- The `config` parameter on `classify_columns()` is the entry point — needs design spec.
+
+### 6. Engine Category Pre-Filtering
+Currently category filtering is post-match (fine for regex). **Open question for iteration 3:**
+- ML engines (GLiNER2, embeddings) take 10-30ms each. If client only wants Credentials, we should skip them entirely.
+- Should `supported_categories` be added to the `ClassificationEngine` interface now (forward declaration)?
+- Or should the orchestrator infer categories from the pattern/rule registry?
+
+### 7. HTML Pattern Reference Usability
+Current HTML shows credential examples as "click to decode" (XOR + JS). **Open questions:**
+- Is this workflow acceptable for pattern curation? Or do we need a local-only unencoded view?
+- Should we add search/filter to the HTML reference?
+- Should the HTML include a "test this pattern" feature (paste a value, see if it matches)?
+
 ## Commits
 
 | # | Hash | Description |
