@@ -1,0 +1,214 @@
+# Pattern Sources & Coverage Plan
+
+> Living document. Tracks where our patterns come from, what gaps remain, and when we plan to close them.
+> Last updated: 2026-04-10
+
+## Source Inventory
+
+### 1. Microsoft Presidio (~60 regex recognizers)
+- **Repo:** https://github.com/microsoft/presidio
+- **Path:** `presidio-analyzer/presidio_analyzer/predefined_recognizers/`
+- **Strength:** International government IDs with checksum validators (20+ countries), per-US-state driver's license patterns
+- **Weakness:** No credential/secret detection (relies on ML for that)
+- **License:** MIT
+
+**What we took (iteration 1):**
+- SSN zero-group validator pattern (from `UsSsnRecognizer`)
+- Luhn checksum validator (from `CreditCardRecognizer`)
+- ITIN format (from `UsItinRecognizer`)
+- UK NINO format (from `NhsRecognizer` family)
+- Discover card format (from `CreditCardRecognizer`)
+
+**What remains (backlog):**
+- US NPI (National Provider Identifier) — Luhn validated, 10 digits
+- US MBI (Medicare Beneficiary Identifier) — alphanumeric checksum
+- ABA routing number — 9 digits with checksum
+- Canadian SIN — Luhn validated
+- Australian ABN, ACN, TFN, Medicare — each with specific checksums
+- Italian fiscal code, VAT, passport, DL, ID card
+- Indian PAN, Aadhaar, GSTIN, voter ID, passport
+- Spanish NIF, NIE
+- UK NINO (have it), UK passport, UK postcode, UK vehicle registration
+- Korean RRN, BRN, DL, passport
+- German tax ID, passport, ID card, SSN, health insurance
+- Polish, Finnish, Swedish, Thai, Nigerian, Singaporean IDs
+
+### 2. gitleaks (~100 rules)
+- **Repo:** https://github.com/gitleaks/gitleaks
+- **Path:** `config/gitleaks.toml` (all rules in one TOML file)
+- **Strength:** Best-curated service-specific API key patterns. Fixed prefixes = very low false positive.
+- **Weakness:** Secret detection only — no PII patterns
+- **License:** MIT
+
+**What we took (iteration 1):**
+- Stripe secret key (`sk_live_`, `sk_test_`, `rk_*`)
+- Stripe publishable key (`pk_live_`, `pk_test_`)
+- Slack bot token (`xoxb-`)
+- Slack user token (`xoxp-`)
+- Slack webhook URL (`hooks.slack.com/services/`)
+- SendGrid API key (`SG.`)
+- Twilio API key (`SK` + 32 hex)
+- Mailgun API key (`key-` + 32 hex)
+- Google API key (`AIza` + 35 chars)
+- OpenAI API key (`sk-proj-`)
+- GitLab PAT (`glpat-`)
+- Shopify access token (`shpat_`, `shpca_`, `shppa_`, `shpss_`)
+- Databricks token (`dapi`)
+
+**What remains (backlog — high value, low effort):**
+- Discord bot token
+- Heroku API key (context-dependent: `HEROKU_API_KEY=`)
+- Cloudflare API key (context: `CF_API_KEY=`)
+- npm token (`npm_` + 36 chars)
+- DigitalOcean PAT (`dop_v1_` + 64 hex)
+- Grafana API key (`eyJr` prefix — needs context to distinguish from JWT)
+- Azure storage key (context: `AccountKey=`)
+- Facebook access token (long numeric, needs context)
+- Twitter bearer token (base64, needs context)
+- LinkedIn client secret (no fixed prefix, needs keyword)
+- Hashicorp Vault token (`hvs.`)
+- Pulumi access token (`pul-`)
+- Confluent API key (`CCLOUD_API_KEY=`)
+- GCP service account key (`"type": "service_account"`)
+
+### 3. trufflehog (800+ detectors)
+- **Repo:** https://github.com/trufflesecurity/trufflehog
+- **Path:** `pkg/detectors/` (one Go file per detector)
+- **Strength:** Broadest coverage. Many detectors include live verification (actually call the service to check if key is valid).
+- **Weakness:** Go-only, not directly portable. Many detectors rely on multi-line context.
+- **License:** AGPL-3.0 (cannot copy code, but can reference patterns)
+
+**What we reference (not copied — license restriction):**
+- Detector list as coverage benchmark
+- Pattern formats for services not in gitleaks
+- Verification approach inspiration (for future: validate detected keys against APIs)
+
+**Specific gaps trufflehog covers that we don't:**
+- Alibaba Cloud keys
+- Atlassian API tokens
+- Bitbucket tokens
+- CircleCI tokens
+- Coinbase keys
+- Datadog API keys
+- Dropbox tokens
+- Elastic Cloud keys
+- Fastly API keys
+- Firebase tokens
+- Fly.io tokens
+- Hugging Face tokens
+- LaunchDarkly keys
+- Linear API keys
+- Netlify tokens
+- New Relic keys
+- PagerDuty keys
+- Planetscale tokens
+- Railway tokens
+- Sentry auth tokens
+- Supabase keys
+- Terraform Cloud tokens
+- Vercel tokens
+
+### 4. detect-secrets (~15 plugins)
+- **Repo:** https://github.com/Yelp/detect-secrets
+- **Strength:** Entropy-based detection (Shannon entropy on hex/base64 strings). Keyword scanning. Low false positive approach.
+- **Weakness:** Fewer patterns, more heuristic
+- **License:** Apache 2.0
+
+**What we reference:**
+- High-entropy string detection approach (for our structured secret scanner, iteration 2)
+- Keyword + entropy combination scoring (informed our confidence model)
+- Artificial example patterns for their plugins
+
+### 5. Google Cloud DLP (150+ InfoTypes)
+- **Reference:** https://cloud.google.com/sensitive-data-protection/docs/infotypes-reference
+- **Strength:** Broadest PII coverage, 150+ InfoTypes, context-aware. Global coverage.
+- **Weakness:** Cloud API only, not local patterns. Cost per API call.
+
+**What we reference:**
+- InfoType taxonomy as our entity type naming reference
+- Coverage benchmark — what should we eventually detect?
+- Country-specific PII coverage targets
+
+### 6. AWS Macie (managed data identifiers)
+- **Reference:** https://docs.aws.amazon.com/macie/latest/user/mdis-reference-quick.html
+- **Strength:** Cloud-specific credential detection (AWS, Azure, GCP keys). Financial data.
+- **Weakness:** AWS ecosystem only. Not open source.
+
+**What we reference:**
+- Cloud credential format specifications
+- Financial data patterns (bank routing numbers, SWIFT codes)
+
+## Current Coverage: 43 Content Patterns + 15 Profile Rules
+
+| Category | Content Patterns | Profile Rules | Total |
+|---|---|---|---|
+| PII | 15 | 12 | 27 |
+| Financial | 6 | 3 | 9 |
+| Credential | 20 | 1 | 21 |
+| Health | 2 | 1 | 3 |
+| **Total** | **43** | **15** (overlap) | **58 rules** |
+
+## Gap Closure Plan
+
+### Iteration 2 — Priority Gaps (target: 60+ patterns)
+
+| Gap | Source | Effort | Patterns to Add |
+|---|---|---|---|
+| URL detection | Presidio | Small | 1 pattern (have it) |
+| ABA routing number + checksum | Presidio | Small | 1 pattern + validator |
+| US NPI + Luhn | Presidio | Small | 1 pattern + validator |
+| IBAN mod-97 validator | Presidio | Small | Finish existing stub |
+| Canadian SIN + Luhn | Presidio | Small | 1 pattern + validator |
+| Discord bot token | gitleaks | Small | 1 pattern |
+| npm token | gitleaks | Small | 1 pattern |
+| Hashicorp Vault token | gitleaks | Small | 1 pattern |
+| GCP service account key | trufflehog ref | Medium | 1 multi-line pattern |
+| Azure storage key | gitleaks | Medium | 1 context-dependent pattern |
+| High-entropy string detector | detect-secrets | Medium | Heuristic engine (not regex) |
+
+### Iteration 3 — Country-Specific Phase 1 (target: 80+ patterns)
+
+| Region | Source | Patterns |
+|---|---|---|
+| UK (passport, postcode, vehicle) | Presidio | 3-4 patterns |
+| Germany (tax ID, passport, ID card) | Presidio | 4-5 patterns + checksums |
+| Australia (ABN, ACN, TFN, Medicare) | Presidio | 4 patterns + checksums |
+| Canada (SIN done; add health card, SIN alt formats) | Presidio | 2-3 patterns |
+| India (PAN, Aadhaar) | Presidio | 2 patterns + checksums |
+
+### Iteration 4+ — Broad International (target: 100+ patterns)
+
+| Region | Source | Patterns |
+|---|---|---|
+| Italy, Spain, Korea, Poland, Finland, Sweden, etc. | Presidio | 30+ patterns |
+| Additional cloud services (50+ from trufflehog list) | gitleaks + original | 20+ patterns |
+| Financial instruments (SWIFT, BIC, CUSIP) | Cloud DLP ref | 5+ patterns |
+
+## Pattern Quality Standards
+
+Every pattern added to `default_patterns.json` must have:
+
+1. **RE2 compatibility verified** — no lookahead, lookbehind, or backreferences
+2. **Validator** where applicable (Luhn, checksum, format check)
+3. **examples_match** — at least 2 positive examples (XOR-encoded for credentials)
+4. **examples_no_match** — at least 2 negative examples (common false positives)
+5. **Confidence calibrated** — based on false positive risk:
+   - 0.95-0.99: Fixed prefix, unique format (e.g., `AKIA`, `ghp_`, `SG.`)
+   - 0.80-0.95: Well-defined format with some FP risk (e.g., SSN, IBAN)
+   - 0.50-0.80: Ambiguous format, needs context (e.g., 9-digit number, dates)
+   - <0.50: High FP risk, context-dependent (e.g., passport numbers)
+6. **Sourced and documented** — which reference source the pattern came from
+
+## Competitive Position
+
+| Capability | Presidio | Cloud DLP | gitleaks | trufflehog | **Us (iter 1)** |
+|---|---|---|---|---|---|
+| PII regex patterns | ~20 | 150+ | 0 | 0 | **15** |
+| Credential patterns | 0 | 50+ | ~100 | 800+ | **20** |
+| Country IDs | ~40 | 30+ | 0 | 0 | **2** (ITIN, NINO) |
+| Checksum validators | ~15 | built-in | 0 | ~50 | **4** (Luhn, SSN, IPv4, IBAN stub) |
+| RE2 set matching | No (Python re) | N/A | N/A | N/A | **Yes** |
+| Sample-based confidence | No | N/A | N/A | N/A | **Yes** |
+| Category filtering | No | InfoType groups | No | Detector types | **Yes** |
+
+Our differentiators: RE2 two-phase matching, sample-based confidence + prevalence, category dimension, connector-agnostic design. Our gap: country-specific ID coverage (Presidio leads), total credential breadth (trufflehog leads).
