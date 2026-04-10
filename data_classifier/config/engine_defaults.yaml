@@ -1,0 +1,23 @@
+heuristic_engine:
+  min_samples: 10
+  signals:
+    cardinality:
+      low_threshold: 0.05    # ratio below this → categorical/lookup (ABA)
+      high_threshold: 0.80   # ratio above this → unique identifiers (SSN)
+    entropy:
+      high_threshold: 4.0    # bits/char → possible secrets/hashes
+    length:
+      consistency_threshold: 0.95  # fraction with same length → formatted ID
+
+secret_scanner:
+  # placeholder for Task 6
+  entropy_thresholds:
+    hex: 3.5
+    base64: 4.0
+    alphanumeric: 4.5
+  min_value_length: 8
+  anti_indicators:
+    - example
+    - test
+    - placeholder
+    - changeme
