@@ -1,0 +1,22 @@
+title: "DATE_OF_BIRTH_EU: European DD/MM format detected as generic DOB \u2014 decide\
+  \ if separate entity type needed"
+status: backlog
+priority: P3
+category: chore
+sprint_target: null
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: ''
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
