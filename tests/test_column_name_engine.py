@@ -516,8 +516,6 @@ class TestCompoundTableMatching:
 
     def test_boost_amount(self, engine: ColumnNameEngine) -> None:
         """Boost should be exactly +0.05, capped at 1.0."""
-        import pytest
-
         base = ColumnInput(column_name="ssn", column_id="no_table:ssn")
         boosted = ColumnInput(column_name="ssn", column_id="employees:ssn", table_name="employees")
         base_findings = engine.classify_column(base, min_confidence=0.0)
