@@ -48,6 +48,7 @@ from data_classifier.core.types import (
 from data_classifier.engines.column_name_engine import ColumnNameEngine
 from data_classifier.engines.heuristic_engine import HeuristicEngine
 from data_classifier.engines.regex_engine import RegexEngine
+from data_classifier.engines.secret_scanner import SecretScannerEngine
 from data_classifier.events.emitter import EventEmitter
 from data_classifier.orchestrator.orchestrator import Orchestrator
 from data_classifier.profiles import (
@@ -84,7 +85,7 @@ __all__ = [
 
 # ── Module-level engine registry ─────────────────────────────────────────────
 
-_DEFAULT_ENGINES = [ColumnNameEngine(), RegexEngine(), HeuristicEngine()]
+_DEFAULT_ENGINES = [ColumnNameEngine(), RegexEngine(), HeuristicEngine(), SecretScannerEngine()]
 
 
 def classify_columns(

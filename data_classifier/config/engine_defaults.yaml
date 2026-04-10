@@ -13,11 +13,10 @@ heuristic_engine:
       mixed_char_threshold: 0.50    # fraction of values that are alnum+special (for credential detection)
 
 secret_scanner:
-  # placeholder for Task 6
   entropy_thresholds:
     hex: 3.5
     base64: 4.0
-    alphanumeric: 4.5
+    alphanumeric: 3.5
   min_value_length: 8
   anti_indicators:
     - example
