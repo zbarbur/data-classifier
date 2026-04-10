@@ -173,6 +173,21 @@ def iban_checksum_check(value: str) -> bool:
     return int(numeric) % 97 == 1
 
 
+def sin_luhn_check(value: str) -> bool:
+    """Luhn check for Canadian SIN — strips separators and requires exactly 9 digits."""
+    digits = [int(c) for c in value if c.isdigit()]
+    if len(digits) != 9:
+        return False
+    checksum = 0
+    for i, d in enumerate(reversed(digits)):
+        if i % 2 == 1:
+            d *= 2
+            if d > 9:
+                d -= 9
+        checksum += d
+    return checksum % 10 == 0
+
+
 def phone_number_check(value: str) -> bool:
     """Validate phone number using Google's phonenumbers library.
 
@@ -198,6 +213,7 @@ def phone_number_check(value: str) -> bool:
 VALIDATORS: dict[str, typing.Callable] = {
     "luhn": luhn_check,
     "luhn_strip": luhn_strip_check,
+    "sin_luhn": sin_luhn_check,
     "ssn_zeros": ssn_zeros_check,
     "ipv4_not_reserved": ipv4_not_reserved_check,
     "npi_luhn": npi_luhn_check,

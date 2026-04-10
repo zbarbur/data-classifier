@@ -1279,10 +1279,11 @@
       "sensitivity": "HIGH",
       "confidence": 0.85,
       "description": "Canadian Social Insurance Number",
-      "validator": "luhn_strip",
+      "validator": "sin_luhn",
       "examples_match": [
         "046 454 286",
-        "046-454-286"
+        "046-454-286",
+        "046454286"
       ],
       "examples_no_match": [
         "12345678",

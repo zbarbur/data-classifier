@@ -255,6 +255,47 @@ class TestValidators:
             assert sa.samples_matched == 2
             assert sa.samples_validated == 1  # only 4111...1111 passes Luhn
 
+    def test_sin_luhn_validator_unit(self):
+        """sin_luhn_check handles formatted, unformatted, and invalid SINs."""
+        from data_classifier.engines.validators import sin_luhn_check
+
+        # Valid formatted SIN — spaces
+        assert sin_luhn_check("046 454 286") is True
+        # Valid formatted SIN — dashes
+        assert sin_luhn_check("046-454-286") is True
+        # Valid unformatted SIN — the bug case
+        assert sin_luhn_check("046454286") is True
+        # Wrong length — 8 digits
+        assert sin_luhn_check("04645428") is False
+        # Wrong length — 10 digits
+        assert sin_luhn_check("0464542860") is False
+        # Correct length but fails Luhn checksum
+        assert sin_luhn_check("046454287") is False
+
+    def test_sin_luhn_validates_formatted_and_unformatted(self):
+        """Canadian SIN classification accepts both formatted and unformatted values.
+
+        Uses a neutral column name so the content engine (not column-name engine) fires.
+        """
+        profile = load_profile("standard")
+        col = ColumnInput(
+            column_name="data",
+            column_id="test:data",
+            sample_values=[
+                "046 454 286",  # formatted spaces — valid Luhn
+                "046-454-286",  # formatted dashes — valid Luhn
+                "046454286",  # unformatted — the bug case, valid Luhn
+                "046454287",  # unformatted — fails Luhn
+            ],
+        )
+        findings = classify_columns([col], profile, min_confidence=0.0)
+        sin = [f for f in findings if f.entity_type == "CANADIAN_SIN"]
+        assert sin, "Expected CANADIAN_SIN finding"
+        sa = sin[0].sample_analysis
+        assert sa is not None
+        assert sa.samples_matched == 4  # all 4 match the regex
+        assert sa.samples_validated == 3  # 3 pass Luhn; 046454287 fails
+
 
 class TestIntrospection:
     def test_get_supported_categories(self):
