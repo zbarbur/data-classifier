@@ -6,7 +6,7 @@
 
 | Metric | Value |
 |---|---|
-| Current sprint | 1 (complete) |
+| Current sprint | 2 (planning) |
 | Tests | 234 passing (0.34s local, ~19s CI) |
 | CI | Green on Python 3.11, 3.12, 3.13 |
 | Patterns | 43 content patterns + 15 profile rules |
