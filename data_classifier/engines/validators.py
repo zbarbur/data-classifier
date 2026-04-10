@@ -6,6 +6,8 @@ If a validator returns False, the match is discarded.
 
 from __future__ import annotations
 
+import typing
+
 
 def luhn_check(value: str) -> bool:
     """Luhn algorithm checksum for credit card numbers."""
@@ -193,7 +195,7 @@ def phone_number_check(value: str) -> bool:
 
 
 # Registry mapping validator names to functions
-VALIDATORS: dict[str, callable] = {
+VALIDATORS: dict[str, typing.Callable] = {
     "luhn": luhn_check,
     "luhn_strip": luhn_strip_check,
     "ssn_zeros": ssn_zeros_check,

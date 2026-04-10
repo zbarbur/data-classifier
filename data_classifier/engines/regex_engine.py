@@ -16,6 +16,7 @@ Two classification paths:
 from __future__ import annotations
 
 import logging
+import typing
 from dataclasses import dataclass
 
 import re2
@@ -178,7 +179,7 @@ class _CompiledPatternSet:
     individual: list[re2._Regexp]
     """Individually compiled patterns for Phase 2 extraction."""
 
-    validators: list[callable | None]
+    validators: list[typing.Callable | None]
     """Validator function per pattern (None = no validation)."""
 
 
@@ -211,7 +212,7 @@ def _build_profile_pattern_set(profile: ClassificationProfile) -> _CompiledPatte
     re2_set = re2.Set(re2._Anchor.UNANCHORED)
     flat_patterns: list[ContentPattern] = []
     individual = []
-    validators: list[callable | None] = []
+    validators: list[typing.Callable | None] = []
 
     for rule in profile.rules:
         for pattern_str in rule.patterns:
