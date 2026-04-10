@@ -1,0 +1,39 @@
+title: 'PII pattern expansion: NPI, DEA, MBI, VIN, EIN, DOB formats'
+status: done
+priority: P1
+category: feature
+sprint_target: 2
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: Add 6 new PII patterns with validators, reaching 49+ content patterns
+complexity: M
+technical_specs:
+- "File: data_classifier/patterns/default_patterns.json \u2014 add 6 pattern entries"
+- "File: data_classifier/engines/regex_engine.py \u2014 add DEA, VIN, EIN, NPI validators"
+- "File: data_classifier/profiles/standard.yaml \u2014 add profile rules for new entity\
+  \ types"
+- "File: tests/test_patterns.py \u2014 auto-covered by parameterized pattern self-tests"
+description: ''
+acceptance_criteria:
+- US NPI pattern with modified Luhn validator (prefix 80840)
+- US DEA Number pattern with check digit validator (weighted formula)
+- US MBI pattern with positional format validation (no S,L,O,I,B,Z)
+- VIN pattern with mod-11 check digit validator (position 9)
+- US EIN pattern with campus prefix validation
+- 'Additional DOB formats: DD/MM/YYYY, DD MMM YYYY, Month DD YYYY'
+- Each pattern has 2+ examples_match, 2+ examples_no_match
+- All patterns RE2 compatible
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_patterns.py: parameterized self-tests for all new patterns (examples_match/no_match)'
+- 'tests/test_regex_engine.py: validator unit tests for DEA check digit, VIN mod-11,
+  NPI Luhn, EIN prefix'
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

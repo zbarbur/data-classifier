@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from data_classifier.core.types import ClassificationFinding, ColumnInput
+from data_classifier.core.types import ClassificationFinding, ClassificationProfile, ColumnInput
 
 
 class ClassificationEngine(ABC):
@@ -35,7 +35,15 @@ class ClassificationEngine(ABC):
     Valid values: ``structured``, ``unstructured``, ``prompt``."""
 
     @abstractmethod
-    def classify_column(self, column: ColumnInput) -> list[ClassificationFinding]:
+    def classify_column(
+        self,
+        column: ColumnInput,
+        *,
+        profile: ClassificationProfile | None = None,
+        min_confidence: float = 0.5,
+        mask_samples: bool = False,
+        max_evidence_samples: int = 5,
+    ) -> list[ClassificationFinding]:
         """Classify a single column.  Return empty list if no findings."""
         ...
 

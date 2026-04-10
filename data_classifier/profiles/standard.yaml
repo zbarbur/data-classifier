@@ -89,6 +89,30 @@ profiles:
         patterns:
           - "(^|_)(national_id|nationalid|passport|passport_number|drivers_license|driver_license|dl_number|id_number|govt_id|government_id|national_insurance)(_|$)"
 
+      - entity_type: NPI
+        category: Health
+        sensitivity: HIGH
+        regulatory: [PII, HIPAA]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(npi|national_provider|national_provider_id|provider_npi)(_|$)"
+
+      - entity_type: DEA_NUMBER
+        category: Health
+        sensitivity: HIGH
+        regulatory: [PII, HIPAA, DEA]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(dea|dea_number|dea_registration)(_|$)"
+
+      - entity_type: MBI
+        category: Health
+        sensitivity: HIGH
+        regulatory: [PII, HIPAA, CMS]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(mbi|medicare_beneficiary|medicare_id|medicare_number)(_|$)"
+
       - entity_type: HEALTH
         category: Health
         sensitivity: HIGH
@@ -97,16 +121,88 @@ profiles:
         patterns:
           - "(^|_)(diagnosis|icd_code|medical_record|mrn|patient_id|health_condition|prescription|medication|drug_name|lab_result|blood_type|medical_history)(_|$)"
 
+      - entity_type: CANADIAN_SIN
+        category: PII
+        sensitivity: HIGH
+        regulatory: [PII, PIPEDA]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(sin|social_insurance|social_insurance_number)(_|$)"
+
+      - entity_type: IBAN
+        category: Financial
+        sensitivity: HIGH
+        regulatory: [PCI_DSS, PII, GDPR]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(iban|iban_code|iban_number)(_|$)"
+
       - entity_type: BANK_ACCOUNT
         category: Financial
         sensitivity: HIGH
         regulatory: [PCI_DSS, PII, GDPR]
         confidence: 0.90
         patterns:
-          - "(^|_)(bank_account|bankaccount|account_number|accountnumber|iban|routing_number|sort_code|swift_code|bsb_number)(_|$)"
+          - "(^|_)(bank_account|bankaccount|account_number|accountnumber|sort_code|bsb_number)(_|$)"
+
+      - entity_type: SWIFT_BIC
+        category: Financial
+        sensitivity: HIGH
+        regulatory: [PCI_DSS, PII]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(swift|bic|swift_code|bic_code|swift_bic)(_|$)"
+
+      - entity_type: ABA_ROUTING
+        category: Financial
+        sensitivity: HIGH
+        regulatory: [PCI_DSS, PII]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(aba|aba_routing|routing_transit|rtn)(_|$)"
+
+      - entity_type: BITCOIN_ADDRESS
+        category: Financial
+        sensitivity: HIGH
+        regulatory: [PII]
+        confidence: 0.85
+        patterns:
+          - "(^|_)(bitcoin|btc|btc_address|bitcoin_address|bitcoin_wallet)(_|$)"
+
+      - entity_type: ETHEREUM_ADDRESS
+        category: Financial
+        sensitivity: HIGH
+        regulatory: [PII]
+        confidence: 0.85
+        patterns:
+          - "(^|_)(ethereum|eth|eth_address|ethereum_address|ethereum_wallet)(_|$)"
+
+      - entity_type: EIN
+        category: Financial
+        sensitivity: MEDIUM
+        regulatory: [PII, SOX]
+        confidence: 0.85
+        patterns:
+          - "(^|_)(ein|employer_id|employer_identification|tax_id|fein|federal_ein)(_|$)"
 
       # ── MEDIUM ────────────────────────────────────────────────────────────
-      # NOTE: IP_ADDRESS must come before ADDRESS (more specific match first)
+      # NOTE: MAC_ADDRESS and IP_ADDRESS must come before ADDRESS (more specific match first)
+
+      - entity_type: MAC_ADDRESS
+        category: PII
+        sensitivity: MEDIUM
+        regulatory: [PII]
+        confidence: 0.85
+        patterns:
+          - "(^|_)(mac_address|macaddress|mac_addr|hardware_address|physical_address|device_mac)(_|$)"
+
+      - entity_type: VIN
+        category: PII
+        sensitivity: MEDIUM
+        regulatory: [PII]
+        confidence: 0.85
+        patterns:
+          - "(^|_)(vin|vehicle_id|vehicle_identification|vehicle_number|chassis_number)(_|$)"
 
       - entity_type: IP_ADDRESS
         category: PII

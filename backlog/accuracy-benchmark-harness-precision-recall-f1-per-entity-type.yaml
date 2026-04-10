@@ -1,0 +1,34 @@
+title: Accuracy benchmark harness (precision/recall/F1 per entity type)
+status: done
+priority: P1
+category: feature
+sprint_target: 2
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: Build benchmark harness that measures precision/recall/F1 per entity type against
+  a labeled corpus
+complexity: M
+technical_specs:
+- "File: tests/benchmarks/accuracy_benchmark.py \u2014 harness with P/R/F1 computation"
+- "File: tests/benchmarks/__init__.py \u2014 package init"
+description: ''
+acceptance_criteria:
+- Accepts labeled corpus (ColumnInput + expected entity type)
+- Runs classify_columns() and compares to ground truth
+- Computes precision, recall, F1 per entity type
+- Computes overall weighted precision/recall/F1
+- Reports false positives and false negatives with details
+- 'Runnable as CLI: python -m tests.benchmarks.accuracy_benchmark'
+- NOT in CI pytest suite (separate benchmark command)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/benchmarks/test_accuracy_benchmark.py: verify P/R/F1 computation on known
+  small corpus'
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

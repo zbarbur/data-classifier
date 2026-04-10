@@ -1,0 +1,70 @@
+site_name: data_classifier
+site_description: "General-purpose data classification engine for detecting sensitive data"
+docs_dir: docs-public
+site_dir: site
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            docstring_style: google
+            merge_init_into_class: true
+            show_if_no_docstring: false
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - API Reference:
+    - Functions: api-reference/functions.md
+    - Types: api-reference/types.md
+    - Introspection: api-reference/introspection.md
+  - Catalog:
+    - Patterns: catalog/patterns.md
+    - Entity Types: catalog/entity-types.md
+    - Profiles: catalog/profiles.md
+    - Validators: catalog/validators.md
+  - Guides:
+    - Integration Guide: guides/integration.md
+    - Examples: guides/examples.md
+  - Changelog: changelog.md

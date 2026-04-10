@@ -1,0 +1,43 @@
+cases:
+  - name: "Order numbers that look like SSNs"
+    sample_values: ["123-45-6789", "987-65-4321", "456-78-9012"]
+    should_not_match: ["SSN"]
+    context: "These are order numbers with SSN-like format"
+
+  - name: "Random 16-digit numbers (not credit cards)"
+    sample_values: ["1234567890123456", "9876543210987654"]
+    should_not_match: ["CREDIT_CARD"]
+
+  - name: "Hex strings that look like API keys"
+    sample_values: ["abcdef1234567890abcdef1234567890", "0000000000000000000000000000000000000000"]
+    should_not_match: ["CREDENTIAL"]
+
+  - name: "Dates that look like DOBs"
+    sample_values: ["01/15/2024", "12/25/2023", "07/04/2024"]
+    should_not_match: ["DATE_OF_BIRTH"]
+    context: "These are transaction dates, not birth dates"
+
+  - name: "9-digit numbers (not SSN, not ABA)"
+    sample_values: ["100000001", "999999999", "123456789"]
+    should_not_match: ["SSN"]
+
+  - name: "10-digit numbers (not NPI, not phone)"
+    sample_values: ["1000000000", "9999999999"]
+    should_not_match: ["NPI", "PHONE"]
+
+  - name: "17-char alphanumeric (not VIN)"
+    sample_values: ["ABCDEFGH12345MNOP", "12345678901234567"]
+    should_not_match: ["VIN"]
+
+  - name: "Placeholder API keys"
+    sample_values: ["AKIAIOSFODNN7EXAMPLE", "sk_test_1234567890"]
+    should_not_match: ["CREDENTIAL"]
+
+  - name: "Test credit card numbers"
+    sample_values: ["4111111111111111", "5500000000000004"]
+    should_not_match: ["CREDIT_CARD"]
+    context: "Known test card numbers"
+
+  - name: "Email-like but not email"
+    sample_values: ["user@localhost", "name@"]
+    should_not_match: ["EMAIL"]

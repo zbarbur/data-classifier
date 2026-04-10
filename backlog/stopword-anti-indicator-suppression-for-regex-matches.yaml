@@ -1,0 +1,35 @@
+title: Stopword / anti-indicator suppression for regex matches
+status: done
+priority: P1
+category: feature
+sprint_target: 2
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: Suppress regex matches on known placeholder/test values
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/regex_engine.py \u2014 add stopword checking after\
+  \ match extraction"
+- "File: data_classifier/patterns/default_patterns.json \u2014 add per-pattern stopwords\
+  \ where applicable"
+- "File: data_classifier/patterns/stopwords.json \u2014 global stopword list"
+description: ''
+acceptance_criteria:
+- Stopword list of known placeholder values (changeme, password, example, test, AKIAIOSFODNN7EXAMPLE,
+  4111111111111111, etc.)
+- When extracted match value equals a stopword, confidence set to 0
+- Stopwords checked case-insensitively
+- Stopword list is configurable per pattern and globally
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_regex_engine.py: TestStopwordSuppression \u2014 verify AKIAIOSFODNN7EXAMPLE\
+  \ suppressed, 4111111111111111 suppressed, real values pass through"
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

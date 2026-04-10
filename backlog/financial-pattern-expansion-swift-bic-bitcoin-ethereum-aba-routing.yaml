@@ -1,0 +1,37 @@
+title: 'Financial pattern expansion: SWIFT/BIC, Bitcoin, Ethereum, ABA routing'
+status: done
+priority: P1
+category: feature
+sprint_target: 2
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: Add 5 financial patterns with validators, complete IBAN mod-97
+complexity: M
+technical_specs:
+- "File: data_classifier/patterns/default_patterns.json \u2014 add 4 pattern entries"
+- "File: data_classifier/engines/regex_engine.py \u2014 add ABA checksum validator,\
+  \ complete IBAN validator"
+- "File: data_classifier/profiles/standard.yaml \u2014 add profile rules for SWIFT,\
+  \ crypto"
+description: ''
+acceptance_criteria:
+- SWIFT/BIC pattern (8 or 11 chars, self-validating structure)
+- Bitcoin address pattern (P2PKH/P2SH/Bech32 prefixes)
+- Ethereum address pattern (0x + 40 hex)
+- ABA routing number pattern with weighted mod-10 checksum (3-7-1)
+- IBAN mod-97 validator completed (was stub)
+- Each pattern has 2+ examples_match, 2+ examples_no_match
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_patterns.py: parameterized self-tests for new patterns'
+- 'tests/test_regex_engine.py: ABA checksum validator tests, IBAN mod-97 tests with
+  known valid/invalid IBANs'
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

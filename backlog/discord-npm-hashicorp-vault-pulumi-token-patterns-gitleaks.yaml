@@ -1,20 +1,30 @@
 title: Discord, npm, Hashicorp Vault, Pulumi token patterns (gitleaks)
-status: backlog
+status: done
 priority: P2
 category: feature
-sprint_target: null
+sprint_target: 2
 created: 2026-04-10
 updated: 2026-04-10
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Add 4 credential patterns for Discord, npm, Vault, Pulumi tokens
+complexity: S
+technical_specs:
+- "File: data_classifier/patterns/default_patterns.json \u2014 add 4 credential patterns"
+- "File: tests/test_patterns.py \u2014 auto-covered by parameterized self-tests"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Discord bot token pattern (fixed multi-segment format)
+- npm token pattern (npm_ prefix + 36 chars)
+- Hashicorp Vault token pattern (hvs. prefix)
+- Pulumi access token pattern (pul- prefix)
+- Each pattern has 2+ examples_match, 2+ examples_no_match (XOR-encoded)
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_patterns.py: parameterized self-tests for new credential patterns'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

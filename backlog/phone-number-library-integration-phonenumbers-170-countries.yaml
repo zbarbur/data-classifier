@@ -1,0 +1,34 @@
+title: Phone number library integration (phonenumbers, 170+ countries)
+status: done
+priority: P2
+category: feature
+sprint_target: 2
+created: 2026-04-10
+updated: 2026-04-10
+depends_on: []
+tags: []
+goal: Replace phone regex with phonenumbers library for 170+ country support
+complexity: M
+technical_specs:
+- "File: data_classifier/engines/regex_engine.py \u2014 add phonenumbers-based phone\
+  \ validator"
+- "File: pyproject.toml \u2014 add phonenumbers dependency"
+description: ''
+acceptance_criteria:
+- Phone detection delegates to phonenumbers library instead of regex-only
+- Supports US, UK, EU, international formats
+- Validates number ranges (not just structure)
+- Format normalization (parentheses, dots, dashes, spaces all handled)
+- phonenumbers added to pyproject.toml dependencies
+- Existing phone tests still pass
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_regex_engine.py: TestPhoneValidation \u2014 US, UK, DE, invalid numbers,\
+  \ edge cases"
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

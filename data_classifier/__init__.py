@@ -45,6 +45,7 @@ from data_classifier.core.types import (
     RollupResult,
     SampleAnalysis,
 )
+from data_classifier.engines.column_name_engine import ColumnNameEngine
 from data_classifier.engines.regex_engine import RegexEngine
 from data_classifier.events.emitter import EventEmitter
 from data_classifier.orchestrator.orchestrator import Orchestrator
@@ -82,7 +83,7 @@ __all__ = [
 
 # ── Module-level engine registry ─────────────────────────────────────────────
 
-_DEFAULT_ENGINES = [RegexEngine()]
+_DEFAULT_ENGINES = [ColumnNameEngine(), RegexEngine()]
 
 
 def classify_columns(

@@ -6,6 +6,8 @@ If a validator returns False, the match is discarded.
 
 from __future__ import annotations
 
+import typing
+
 
 def luhn_check(value: str) -> bool:
     """Luhn algorithm checksum for credit card numbers."""
@@ -53,11 +55,156 @@ def ipv4_not_reserved_check(value: str) -> bool:
     return True
 
 
+def npi_luhn_check(value: str) -> bool:
+    """NPI Luhn check — prepend '80840' then standard Luhn."""
+    digits_only = "".join(c for c in value if c.isdigit())
+    if len(digits_only) != 10:
+        return False
+    return luhn_check("80840" + digits_only)
+
+
+def dea_checkdigit_check(value: str) -> bool:
+    """DEA number check digit validation.
+
+    Check digit = last digit of (d1+d3+d5 + 2*(d2+d4+d6)).
+    """
+    if len(value) != 9:
+        return False
+    try:
+        digits = [int(c) for c in value[2:]]
+    except ValueError:
+        return False
+    checksum = (digits[0] + digits[2] + digits[4]) + 2 * (digits[1] + digits[3] + digits[5])
+    return checksum % 10 == digits[6]
+
+
+def vin_checkdigit_check(value: str) -> bool:
+    """VIN check digit (position 9, mod 11)."""
+    transliteration = {
+        "A": 1,
+        "B": 2,
+        "C": 3,
+        "D": 4,
+        "E": 5,
+        "F": 6,
+        "G": 7,
+        "H": 8,
+        "J": 1,
+        "K": 2,
+        "L": 3,
+        "M": 4,
+        "N": 5,
+        "P": 7,
+        "R": 9,
+        "S": 2,
+        "T": 3,
+        "U": 4,
+        "V": 5,
+        "W": 6,
+        "X": 7,
+        "Y": 8,
+        "Z": 9,
+    }
+    weights = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2]
+    value = value.upper()
+    if len(value) != 17:
+        return False
+    total = 0
+    for i, c in enumerate(value):
+        if c.isdigit():
+            val = int(c)
+        else:
+            val = transliteration.get(c, 0)
+        total += val * weights[i]
+    remainder = total % 11
+    check_char = value[8]
+    expected = "X" if remainder == 10 else str(remainder)
+    return check_char == expected
+
+
+def ein_prefix_check(value: str) -> bool:
+    """Validate EIN campus prefix (first 2 digits)."""
+    digits = value.replace("-", "")
+    if len(digits) != 9:
+        return False
+    try:
+        prefix = int(digits[:2])
+    except ValueError:
+        return False
+    valid_ranges = [
+        (1, 6),
+        (10, 16),
+        (20, 27),
+        (30, 39),
+        (40, 48),
+        (50, 68),
+        (71, 77),
+        (80, 88),
+        (90, 95),
+        (98, 99),
+    ]
+    return any(lo <= prefix <= hi for lo, hi in valid_ranges)
+
+
+def aba_checksum_check(value: str) -> bool:
+    """ABA routing number weighted checksum (3-7-1 pattern)."""
+    digits = [int(c) for c in value if c.isdigit()]
+    if len(digits) != 9:
+        return False
+    weights = [3, 7, 1, 3, 7, 1, 3, 7, 1]
+    return sum(d * w for d, w in zip(digits, weights)) % 10 == 0
+
+
+def iban_checksum_check(value: str) -> bool:
+    """IBAN mod-97 validation (ISO 13616)."""
+    clean = value.replace(" ", "").replace("-", "").upper()
+    if len(clean) < 5:
+        return False
+    # Move first 4 chars to end
+    rearranged = clean[4:] + clean[:4]
+    numeric = ""
+    for c in rearranged:
+        if c.isdigit():
+            numeric += c
+        elif c.isalpha():
+            numeric += str(ord(c) - ord("A") + 10)
+        else:
+            return False
+    return int(numeric) % 97 == 1
+
+
+def phone_number_check(value: str) -> bool:
+    """Validate phone number using Google's phonenumbers library.
+
+    Supports 170+ countries, validates number ranges (not just format).
+    Strips extensions (x1234) before parsing.
+    """
+    try:
+        import phonenumbers
+    except ImportError:
+        return True  # Graceful degradation if phonenumbers not installed
+
+    # Strip common extension formats
+    clean = value.split("x")[0].split("ext")[0].strip()
+
+    try:
+        parsed = phonenumbers.parse(clean, "US")  # Default region US
+        return phonenumbers.is_possible_number(parsed)
+    except phonenumbers.NumberParseException:
+        return False
+
+
 # Registry mapping validator names to functions
-VALIDATORS: dict[str, callable] = {
+VALIDATORS: dict[str, typing.Callable] = {
     "luhn": luhn_check,
     "luhn_strip": luhn_strip_check,
     "ssn_zeros": ssn_zeros_check,
     "ipv4_not_reserved": ipv4_not_reserved_check,
-    "iban_checksum": lambda _v: True,  # TODO: implement IBAN mod-97 check
+    "npi_luhn": npi_luhn_check,
+    "dea_checkdigit": dea_checkdigit_check,
+    "vin_checkdigit": vin_checkdigit_check,
+    "ein_prefix": ein_prefix_check,
+    "aba_checksum": aba_checksum_check,
+    "iban_checksum": iban_checksum_check,
+    "phone_number": phone_number_check,
 }

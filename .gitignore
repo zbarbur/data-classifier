@@ -45,3 +45,6 @@ Thumbs.db
 # Claude Code
 .claude/worktrees/
 .claude/projects/
+
+site/
+.hypothesis/

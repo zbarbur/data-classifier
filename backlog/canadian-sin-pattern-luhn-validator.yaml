@@ -1,20 +1,30 @@
 title: Canadian SIN pattern + Luhn validator
-status: backlog
+status: done
 priority: P2
 category: feature
-sprint_target: null
+sprint_target: 2
 created: 2026-04-10
 updated: 2026-04-10
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Add Canadian SIN pattern with Luhn validation
+complexity: S
+technical_specs:
+- "File: data_classifier/patterns/default_patterns.json \u2014 add SIN pattern"
+- "File: data_classifier/profiles/standard.yaml \u2014 add SIN profile rule"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- SIN pattern matches 9-digit formatted (XXX-XXX-XXX) and unformatted
+- Luhn validator reused from credit card implementation
+- 2+ examples_match, 2+ examples_no_match
+- Profile rule added for column names (sin, social_insurance)
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_patterns.py: parameterized self-tests'
+- 'tests/test_regex_engine.py: Luhn validation on known valid/invalid SINs'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

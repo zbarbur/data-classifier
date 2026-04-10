@@ -55,6 +55,18 @@ class ContentPattern:
     examples_no_match: list[str] = field(default_factory=list)
     """Values that should NOT match (for false positive testing)."""
 
+    context_words_boost: list[str] = field(default_factory=list)
+    """Words near a match that INCREASE confidence (e.g. 'ssn' near a 9-digit number)."""
+
+    context_words_suppress: list[str] = field(default_factory=list)
+    """Words near a match that DECREASE confidence (e.g. 'order' near a 9-digit number)."""
+
+    stopwords: list[str] = field(default_factory=list)
+    """Known placeholder values — if the match equals a stopword, confidence → 0."""
+
+    allowlist_patterns: list[str] = field(default_factory=list)
+    """Regex patterns — if any matches the extracted value, confidence → 0."""
+
 
 _XOR_KEY = 0x5A
 
