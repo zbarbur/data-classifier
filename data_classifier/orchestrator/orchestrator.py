@@ -24,6 +24,17 @@ from data_classifier.events.types import ClassificationEvent, TierEvent
 
 logger = logging.getLogger(__name__)
 
+# Known collision pairs: entity types whose regex patterns structurally overlap.
+# Ordered so that type_a and type_b are interchangeable — only confidence decides.
+_COLLISION_PAIRS: list[tuple[str, str]] = [
+    ("SSN", "ABA_ROUTING"),
+    # Future: ("NPI", "PHONE") — 10-digit overlap
+]
+
+# Minimum confidence gap required to suppress the lower-confidence finding.
+# Below this threshold the column is genuinely ambiguous and both findings are kept.
+_COLLISION_GAP_THRESHOLD: float = 0.15
+
 
 class Orchestrator:
     """Coordinates the engine cascade for column classification.
@@ -116,6 +127,9 @@ class Orchestrator:
 
         total_ms = (time.monotonic() - t_start) * 1000
 
+        # Resolve known collision pairs before emitting results
+        all_findings = self._resolve_collisions(all_findings)
+
         # Emit classification event
         result = list(all_findings.values())
         self.emitter.emit(
@@ -130,3 +144,27 @@ class Orchestrator:
         )
 
         return result
+
+    def _resolve_collisions(self, findings: dict[str, ClassificationFinding]) -> dict[str, ClassificationFinding]:
+        """Suppress the lower-confidence finding when known collision pairs co-occur.
+
+        Only suppresses when the confidence gap exceeds ``_COLLISION_GAP_THRESHOLD``.
+        If the gap is small, both findings are kept — the column is genuinely ambiguous.
+        """
+        for type_a, type_b in _COLLISION_PAIRS:
+            if type_a in findings and type_b in findings:
+                conf_a = findings[type_a].confidence
+                conf_b = findings[type_b].confidence
+                gap = abs(conf_a - conf_b)
+                if gap >= _COLLISION_GAP_THRESHOLD:
+                    loser = type_b if conf_a > conf_b else type_a
+                    logger.debug(
+                        "Collision resolution: suppressing %s (%.2f) in favour of %s (%.2f) — gap=%.2f",
+                        loser,
+                        findings[loser].confidence,
+                        type_a if loser == type_b else type_b,
+                        max(conf_a, conf_b),
+                        gap,
+                    )
+                    del findings[loser]
+        return findings

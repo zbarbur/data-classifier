@@ -19,7 +19,7 @@ import string
 import pytest
 
 from data_classifier.config import load_engine_config
-from data_classifier.core.types import ClassificationProfile, ColumnInput, ColumnStats
+from data_classifier.core.types import ClassificationFinding, ClassificationProfile, ColumnInput, ColumnStats
 from data_classifier.engines.heuristic_engine import (
     HeuristicEngine,
     compute_avg_entropy,
@@ -28,6 +28,7 @@ from data_classifier.engines.heuristic_engine import (
     compute_length_stats,
     compute_shannon_entropy,
 )
+from data_classifier.orchestrator.orchestrator import Orchestrator
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -326,3 +327,90 @@ class TestConfigLoading:
     def test_secret_scanner_placeholder(self):
         config = load_engine_config()
         assert "secret_scanner" in config
+
+
+# ── Collision resolution tests ─────────────────────────────────────────────
+
+
+class TestCollisionResolution:
+    """Orchestrator _resolve_collisions suppresses the weaker of SSN/ABA_ROUTING.
+
+    These tests exercise the method in isolation by constructing ``findings``
+    dicts directly — no engines need to run.
+    """
+
+    def _make_finding(self, entity_type: str, confidence: float) -> ClassificationFinding:
+        return ClassificationFinding(
+            column_id="col_test",
+            entity_type=entity_type,
+            category="Test",
+            sensitivity="HIGH",
+            confidence=confidence,
+            regulatory=[],
+            engine="test",
+        )
+
+    @pytest.fixture
+    def orchestrator(self) -> Orchestrator:
+        return Orchestrator(engines=[])
+
+    def test_ssn_wins_over_aba(self, orchestrator):
+        """SSN=0.85 + ABA=0.60 → gap 0.25 ≥ 0.15, ABA suppressed."""
+        findings = {
+            "SSN": self._make_finding("SSN", 0.85),
+            "ABA_ROUTING": self._make_finding("ABA_ROUTING", 0.60),
+        }
+        result = orchestrator._resolve_collisions(findings)
+        assert "SSN" in result
+        assert "ABA_ROUTING" not in result
+
+    def test_aba_wins_over_ssn(self, orchestrator):
+        """ABA=0.85 + SSN=0.60 → gap 0.25 ≥ 0.15, SSN suppressed."""
+        findings = {
+            "SSN": self._make_finding("SSN", 0.60),
+            "ABA_ROUTING": self._make_finding("ABA_ROUTING", 0.85),
+        }
+        result = orchestrator._resolve_collisions(findings)
+        assert "ABA_ROUTING" in result
+        assert "SSN" not in result
+
+    def test_small_gap_keeps_both(self, orchestrator):
+        """SSN=0.65 + ABA=0.60 → gap 0.05 < 0.15, both kept (ambiguous)."""
+        findings = {
+            "SSN": self._make_finding("SSN", 0.65),
+            "ABA_ROUTING": self._make_finding("ABA_ROUTING", 0.60),
+        }
+        result = orchestrator._resolve_collisions(findings)
+        assert "SSN" in result
+        assert "ABA_ROUTING" in result
+
+    def test_exact_threshold_gap_suppresses(self, orchestrator):
+        """Gap exactly equal to threshold (0.15) triggers suppression."""
+        findings = {
+            "SSN": self._make_finding("SSN", 0.75),
+            "ABA_ROUTING": self._make_finding("ABA_ROUTING", 0.60),
+        }
+        result = orchestrator._resolve_collisions(findings)
+        assert "SSN" in result
+        assert "ABA_ROUTING" not in result
+
+    def test_only_ssn_no_change(self, orchestrator):
+        """Only SSN present → no collision pair, no change."""
+        findings = {"SSN": self._make_finding("SSN", 0.85)}
+        result = orchestrator._resolve_collisions(findings)
+        assert result == {"SSN": findings["SSN"]}
+
+    def test_only_aba_no_change(self, orchestrator):
+        """Only ABA_ROUTING present → no collision pair, no change."""
+        findings = {"ABA_ROUTING": self._make_finding("ABA_ROUTING", 0.80)}
+        result = orchestrator._resolve_collisions(findings)
+        assert result == {"ABA_ROUTING": findings["ABA_ROUTING"]}
+
+    def test_neither_ssn_nor_aba_no_change(self, orchestrator):
+        """Unrelated entity types → no collision pair, unchanged."""
+        findings = {
+            "EMAIL": self._make_finding("EMAIL", 0.90),
+            "PHONE": self._make_finding("PHONE", 0.70),
+        }
+        result = orchestrator._resolve_collisions(findings)
+        assert set(result.keys()) == {"EMAIL", "PHONE"}
