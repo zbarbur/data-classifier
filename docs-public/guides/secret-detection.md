@@ -172,21 +172,59 @@ The orchestrator (`data_classifier/orchestrator/orchestrator.py`) calls `_suppre
 
 ## 5. Configuration
 
-The scanner is configured via `data_classifier/config/engine_defaults.yaml`:
+All parameters are in `data_classifier/config/engine_defaults.yaml` — no code changes needed to tune.
 
 ```yaml
 secret_scanner:
-  min_value_length: 8        # Values shorter than this are skipped entirely
-  anti_indicators:           # Substrings that suppress any finding when found in key or value
+  min_value_length: 8            # Values shorter than this are skipped
+  anti_indicators:               # Suppress finding if found in key or value
     - example
     - test
     - placeholder
     - changeme
+  scoring:
+    tier_boundaries:
+      definitive: 0.90           # Key score >= this → key name alone sufficient
+      strong: 0.70               # Key score >= this → needs moderate value signal
+    definitive_multiplier: 0.95  # Definitive: composite = key_score × this
+    strong_min_entropy_score: 0.6  # Strong: minimum entropy contribution
+    relative_entropy_thresholds:
+      strong: 0.5                # Strong: rel entropy >= this OR diversity >= 3
+      contextual: 0.7            # Contextual: rel entropy >= this AND diversity >= 3
+    diversity_threshold: 3       # Min character classes (upper/lower/digit/special)
+    prose_alpha_threshold: 0.6   # Value with >60% alpha + spaces = prose, not secret
+
+collision_resolution:
+  gap_threshold: 0.15            # Min confidence gap to suppress lower finding
 ```
+
+### Parameter Reference
+
+| Parameter | Default | What it controls |
+|---|---|---|
+| `min_value_length` | 8 | Values shorter than this are skipped before scoring |
+| `anti_indicators` | 4 words | Substrings that suppress findings in key or value (case-insensitive) |
+| `tier_boundaries.definitive` | 0.90 | Key score threshold for definitive tier (key alone sufficient) |
+| `tier_boundaries.strong` | 0.70 | Key score threshold for strong tier (needs value signal) |
+| `definitive_multiplier` | 0.95 | Score multiplier for definitive tier findings |
+| `strong_min_entropy_score` | 0.60 | Minimum entropy score contribution for strong tier |
+| `relative_entropy_thresholds.strong` | 0.50 | Relative entropy threshold for strong tier |
+| `relative_entropy_thresholds.contextual` | 0.70 | Relative entropy threshold for contextual tier |
+| `diversity_threshold` | 3 | Minimum character classes required |
+| `prose_alpha_threshold` | 0.60 | Alpha ratio above which space-containing values are classified as prose |
+| `collision_resolution.gap_threshold` | 0.15 | Minimum confidence gap to suppress a conflicting entity type |
 
 Anti-indicators are checked case-insensitively against both the key name and the value. So `{"password": "test123"}` is suppressed (value contains `test`), and `{"test_password": "kJ9x#Mp$2wLq"}` is also suppressed (key contains `test`).
 
-To add new anti-indicators, edit `engine_defaults.yaml`. No code changes or library rebuild required — the file is read at engine startup.
+### Data Files (also configurable, no code changes needed)
+
+| File | Purpose | Entries |
+|---|---|---|
+| `patterns/secret_key_names.json` | Key-name dictionary with scores, match types, tiers | 88 |
+| `patterns/known_placeholder_values.json` | Known dummy values to suppress | 34 |
+| `patterns/default_patterns.json` | Regex patterns (credential section) | 36 |
+
+To add new entries, edit the JSON files directly. Changes take effect at next engine startup.
 
 ---
 
