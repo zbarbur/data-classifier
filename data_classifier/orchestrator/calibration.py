@@ -20,6 +20,7 @@ Design:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 from data_classifier.core.types import ClassificationFinding
 
@@ -106,12 +107,12 @@ def calibrate_ml(finding: ClassificationFinding) -> float:
 
 # Maps engine name → calibration function.
 # New engines register here.  Unknown engines use identity (no-op).
-CALIBRATION_FUNCTIONS: dict[str, callable] = {
+CALIBRATION_FUNCTIONS: dict[str, Callable[[ClassificationFinding], float]] = {
     "regex": calibrate_regex,
     "column_name": calibrate_column_name,
     "heuristic_stats": calibrate_heuristic,
     "secret_scanner": calibrate_secret_scanner,
-    "ml": calibrate_ml,
+    "gliner2": calibrate_ml,
 }
 
 

@@ -332,9 +332,13 @@ class Orchestrator:
 
         # ── Pass 1: Independent classification ────────────────────────────────
         pass1_results: dict[str, list[ClassificationFinding]] = {}
+        column_keys: list[str] = []
         all_pass1_findings: list[ClassificationFinding] = []
 
-        for column in columns:
+        for i, column in enumerate(columns):
+            # Use column_id if set, otherwise generate a unique key
+            key = column.column_id or f"_col_{i}_{column.column_name}"
+            column_keys.append(key)
             findings = self.classify_column(
                 column,
                 profile,
@@ -344,7 +348,7 @@ class Orchestrator:
                 mask_samples=mask_samples,
                 max_evidence_samples=max_evidence_samples,
             )
-            pass1_results[column.column_id] = findings
+            pass1_results[key] = findings
             all_pass1_findings.extend(findings)
 
         # ── Pass 2: Sibling context adjustment ────────────────────────────────
@@ -363,8 +367,8 @@ class Orchestrator:
 
         # Apply sibling adjustments to each column's findings
         adjusted_findings: list[ClassificationFinding] = []
-        for column in columns:
-            column_findings = pass1_results[column.column_id]
+        for column, key in zip(columns, column_keys):
+            column_findings = pass1_results[key]
             adjusted = self._apply_sibling_adjustments(
                 column_findings,
                 table_profile,

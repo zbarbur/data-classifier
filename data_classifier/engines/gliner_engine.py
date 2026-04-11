@@ -102,14 +102,6 @@ _SAMPLE_SEPARATOR = " ; "
 _SAMPLE_CHUNK_SIZE = 50
 
 
-def _load_gliner_model() -> Any:
-    """Load the GLiNER model.  Called lazily by the ModelRegistry."""
-    from gliner import GLiNER  # type: ignore[import-not-found]
-
-    model = GLiNER.from_pretrained(_MODEL_ID)
-    return model
-
-
 class GLiNER2Engine(ClassificationEngine):
     """GLiNER2-based NER classification engine.
 

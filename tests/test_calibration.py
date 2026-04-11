@@ -48,7 +48,7 @@ def _make_finding(
 class TestMonotonicity:
     """All calibration functions must be monotonic: higher raw → higher calibrated."""
 
-    @pytest.mark.parametrize("engine", ["regex", "column_name", "heuristic_stats", "secret_scanner", "ml"])
+    @pytest.mark.parametrize("engine", ["regex", "column_name", "heuristic_stats", "secret_scanner", "gliner2"])
     def test_monotonic(self, engine: str) -> None:
         """Calibration is monotonic for engine."""
         fn = CALIBRATION_FUNCTIONS[engine]
@@ -151,7 +151,7 @@ class TestMLCalibration:
 
     def test_identity(self) -> None:
         """ML calibration is identity function (placeholder)."""
-        finding = _make_finding("ml", 0.75)
+        finding = _make_finding("gliner2", 0.75)
         calibrated = calibrate_ml(finding)
         assert calibrated == 0.75
 
@@ -161,12 +161,12 @@ class TestCalibrateRegistry:
 
     def test_all_engines_registered(self) -> None:
         """All known engines have calibration functions."""
-        expected = {"regex", "column_name", "heuristic_stats", "secret_scanner", "ml"}
+        expected = {"regex", "column_name", "heuristic_stats", "secret_scanner", "gliner2"}
         assert set(CALIBRATION_FUNCTIONS.keys()) == expected
 
     def test_ml_slot_exists(self) -> None:
         """ML engine integration point is defined."""
-        assert "ml" in CALIBRATION_FUNCTIONS
+        assert "gliner2" in CALIBRATION_FUNCTIONS
 
 
 class TestCalibrateFinding:

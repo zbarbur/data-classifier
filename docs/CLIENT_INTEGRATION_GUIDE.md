@@ -533,11 +533,14 @@ python scripts/export_onnx_model.py --output models/gliner_onnx
 ```python
 # Runtime — uses ONNX, no torch, no HuggingFace download
 from data_classifier import classify_columns, load_profile
-# The library auto-detects ONNX model when available.
-# To explicitly set the path:
-import os
-os.environ["GLINER_ONNX_PATH"] = "models/gliner_onnx"
+from data_classifier.engines.gliner_engine import GLiNER2Engine
 
+# Create engine with ONNX path explicitly
+engine = GLiNER2Engine(onnx_path="models/gliner_onnx")
+
+# Then use classify_columns as normal — the library auto-includes
+# the GLiNER engine when the gliner package is installed.
+# For custom engine configuration, pass engines list to the orchestrator.
 findings = classify_columns(inputs, profile)
 ```
 
