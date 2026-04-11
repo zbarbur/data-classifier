@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 from pathlib import Path
 
@@ -27,45 +28,22 @@ from data_classifier.core.types import (
     ColumnInput,
     SampleAnalysis,
 )
-from data_classifier.engines.heuristic_engine import compute_shannon_entropy
+from data_classifier.engines.heuristic_engine import compute_char_class_diversity, compute_shannon_entropy
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.engines.parsers import parse_key_values
 
 logger = logging.getLogger(__name__)
 
 _SECRET_KEY_NAMES_FILE = Path(__file__).parent.parent / "patterns" / "secret_key_names.json"
+_PLACEHOLDER_VALUES_FILE = Path(__file__).parent.parent / "patterns" / "known_placeholder_values.json"
 
-# Known example/placeholder values that should never be flagged
-_KNOWN_EXAMPLES: frozenset[str] = frozenset(
-    {
-        "akiaiosfodnn7example",
-        "changeme",
-        "password123",
-        "password",
-        "passw0rd",
-        "p@ssw0rd",
-        "admin",
-        "root",
-        "default",
-        "12345678",
-        "123456789",
-        "1234567890",
-        "abcdefgh",
-        "qwerty123",
-        "letmein",
-        "welcome1",
-        "abc12345",
-        "your_api_key_here",
-        "your_secret_here",
-        "xxx",
-        "xxxxxxxx",
-        "todo",
-        "fixme",
-        "replace_me",
-        "insert_here",
-        "put_your_key_here",
-    }
-)
+# Theoretical maximum entropy per character for each detected charset
+_CHARSET_MAX_ENTROPY: dict[str, float] = {
+    "hex": math.log2(16),  # 4.0
+    "base64": math.log2(64),  # 6.0
+    "alphanumeric": math.log2(62),  # 5.95
+    "full": math.log2(95),  # 6.57
+}
 
 
 def _detect_charset(value: str) -> str:
@@ -75,61 +53,174 @@ def _detect_charset(value: str) -> str:
         value: The string to analyze.
 
     Returns:
-        One of ``"hex"``, ``"base64"``, or ``"alphanumeric"``.
+        One of ``"hex"``, ``"base64"``, ``"alphanumeric"``, or ``"full"``.
     """
-    # Check hex: 0-9, a-f (case-insensitive)
     if re.fullmatch(r"[0-9a-fA-F]+", value):
         return "hex"
-    # Check base64: A-Za-z0-9+/= (with optional padding)
     if re.fullmatch(r"[A-Za-z0-9+/=]+", value):
         return "base64"
-    return "alphanumeric"
+    if re.fullmatch(r"[A-Za-z0-9]+", value):
+        return "alphanumeric"
+    return "full"
 
 
-def _score_value_entropy(value: str, thresholds: dict) -> float:
-    """Score a value based on Shannon entropy relative to its character set.
-
-    Values below the charset-specific threshold score 0.0.  Values above
-    scale linearly from 0.5 to 1.0 based on how far they exceed the threshold.
+def _compute_relative_entropy(value: str) -> float:
+    """Compute entropy as fraction of theoretical maximum for the detected charset.
 
     Args:
-        value: The value string to score.
-        thresholds: Dict mapping charset names to entropy thresholds.
+        value: The string to analyze.
+
+    Returns:
+        Relative entropy between 0.0 and 1.0.
+    """
+    entropy = compute_shannon_entropy(value)
+    charset = _detect_charset(value)
+    max_entropy = _CHARSET_MAX_ENTROPY.get(charset, _CHARSET_MAX_ENTROPY["full"])
+    if max_entropy == 0:
+        return 0.0
+    return min(1.0, entropy / max_entropy)
+
+
+def _score_relative_entropy(relative_entropy: float) -> float:
+    """Convert relative entropy to a 0.0-1.0 score.
+
+    Linear scaling: returns 0.0 below 0.5, then scales linearly up to 1.0.
+
+    Args:
+        relative_entropy: Relative entropy between 0.0 and 1.0.
 
     Returns:
         Score between 0.0 and 1.0.
     """
-    entropy = compute_shannon_entropy(value)
-    charset = _detect_charset(value)
-    threshold = thresholds.get(charset, 4.0)
-    if entropy < threshold:
+    if relative_entropy < 0.5:
         return 0.0
-    # Scale 0.0-1.0 based on how far above threshold
-    return min(1.0, 0.5 + 0.5 * (entropy - threshold) / 2.0)
+    return min(1.0, relative_entropy)
 
 
-def _score_key_name(key: str, key_entries: list[dict]) -> float:
+# Regex for values that look like dates, versions, or numeric IDs
+_DATE_LIKE = re.compile(r"^\d{4}[-/]\d{2}[-/]\d{2}")
+_URL_LIKE = re.compile(r"^https?://", re.IGNORECASE)
+
+# Common config values that are not credentials
+_CONFIG_VALUES: frozenset[str] = frozenset(
+    {
+        "true",
+        "false",
+        "yes",
+        "no",
+        "on",
+        "off",
+        "enabled",
+        "disabled",
+        "none",
+        "null",
+        "info",
+        "debug",
+        "warn",
+        "error",
+        "trace",
+        "production",
+        "staging",
+        "development",
+        "test",
+    }
+)
+
+
+def _value_is_obviously_not_secret(value: str) -> bool:
+    """Check if a value is obviously NOT a credential.
+
+    Rejects prose text, dates, URLs, and common config values even when
+    the key name strongly suggests a secret. This prevents false positives
+    on keys like ``password_policy``, ``password_last_changed``.
+
+    Returns:
+        True if the value is clearly not a credential.
+    """
+    v_lower = value.lower().strip()
+
+    # Common config values
+    if v_lower in _CONFIG_VALUES:
+        return True
+
+    # URLs
+    if _URL_LIKE.match(value):
+        return True
+
+    # Date-like patterns (2024-01-15, 2024/01/15)
+    if _DATE_LIKE.match(value):
+        return True
+
+    # Prose — contains spaces and is mostly alphabetic
+    # Real credentials rarely have spaces; descriptions/policies always do
+    if " " in value:
+        alpha_chars = sum(1 for c in value if c.isalpha())
+        if alpha_chars / max(len(value), 1) > 0.6:
+            return True
+
+    return False
+
+
+def _match_key_pattern(key_lower: str, pattern: str, match_type: str) -> bool:
+    """Check if a key matches a pattern according to the match_type rule.
+
+    Args:
+        key_lower: The lowered key name to test.
+        pattern: The pattern to match against.
+        match_type: One of ``"substring"``, ``"word_boundary"``, or ``"suffix"``.
+
+    Returns:
+        True if the key matches.
+    """
+    if match_type == "word_boundary":
+        return bool(re.search(rf"(^|[_\-\s.]){re.escape(pattern)}($|[_\-\s.])", key_lower))
+    if match_type == "suffix":
+        return bool(re.search(rf"[_\-\s.]{re.escape(pattern)}$", key_lower))
+    # Default: substring
+    return pattern in key_lower
+
+
+def _score_key_name(key: str, key_entries: list[dict]) -> tuple[float, str]:
     """Score a key name against the secret key-name dictionary.
 
-    Performs case-insensitive substring matching: if any pattern appears
-    as a substring of the key (after lowering), its score is used.
-    Returns the highest matching score.
+    Performs matching according to each entry's ``match_type``: substring,
+    word_boundary, or suffix.  Returns the highest matching score and its tier.
 
     Args:
         key: The key name to score (e.g. ``"DB_PASSWORD"``).
-        key_entries: List of dicts with ``pattern`` and ``score`` keys.
+        key_entries: List of dicts with ``pattern``, ``score``, ``match_type``,
+            and ``tier`` keys.
 
     Returns:
-        Score between 0.0 and 1.0.  0.0 if no pattern matches.
+        Tuple of (score, tier).  ``(0.0, "")`` if no pattern matches.
     """
     key_lower = key.lower()
     best_score = 0.0
+    best_tier = ""
     for entry in key_entries:
         pattern = entry["pattern"]
-        if pattern in key_lower:
+        match_type = entry.get("match_type", "substring")
+        if _match_key_pattern(key_lower, pattern, match_type):
             if entry["score"] > best_score:
                 best_score = entry["score"]
-    return best_score
+                best_tier = entry.get("tier", _tier_from_score(entry["score"]))
+    return best_score, best_tier
+
+
+def _tier_from_score(score: float) -> str:
+    """Derive tier from score when not explicitly set.
+
+    Args:
+        score: The key-name score.
+
+    Returns:
+        Tier string: ``"definitive"``, ``"strong"``, or ``"contextual"``.
+    """
+    if score >= 0.90:
+        return "definitive"
+    if score >= 0.70:
+        return "strong"
+    return "contextual"
 
 
 class SecretScannerEngine(ClassificationEngine):
@@ -148,12 +239,14 @@ class SecretScannerEngine(ClassificationEngine):
     def __init__(self) -> None:
         self._config: dict | None = None
         self._key_entries: list[dict] | None = None
+        self._placeholder_values: frozenset[str] | None = None
 
     def startup(self) -> None:
         """Load engine configuration and key-name dictionary."""
         full_config = load_engine_config()
         self._config = full_config.get("secret_scanner", {})
         self._key_entries = _load_key_names()
+        self._placeholder_values = _load_placeholder_values()
         logger.info("SecretScannerEngine: loaded %d key-name patterns", len(self._key_entries))
 
     def _ensure_config(self) -> None:
@@ -173,7 +266,7 @@ class SecretScannerEngine(ClassificationEngine):
         """Classify a column by scanning sample values for embedded secrets.
 
         For each sample value, parses key-value pairs and scores them
-        using key-name matching and Shannon entropy analysis.
+        using tiered key-name matching and relative entropy analysis.
 
         Returns findings for columns where embedded credentials are detected.
         """
@@ -182,7 +275,6 @@ class SecretScannerEngine(ClassificationEngine):
         if not column.sample_values:
             return []
 
-        thresholds = self._config.get("entropy_thresholds", {})
         min_value_length = self._config.get("min_value_length", 8)
         anti_indicators = self._config.get("anti_indicators", [])
 
@@ -211,38 +303,36 @@ class SecretScannerEngine(ClassificationEngine):
                 if self._has_anti_indicator(key, value, anti_indicators):
                     continue
 
-                # Known example suppression
-                if value.lower() in _KNOWN_EXAMPLES:
+                # Known placeholder suppression
+                if value.lower() in self._placeholder_values:
                     continue
 
-                # Score the key name
-                key_score = _score_key_name(key, self._key_entries)
+                # Score the key name (returns score and tier)
+                key_score, tier = _score_key_name(key, self._key_entries)
                 if key_score <= 0.0:
                     continue
 
-                # Score the value entropy
-                entropy_score = _score_value_entropy(value, thresholds)
-                if entropy_score <= 0.0:
+                # Tiered scoring
+                composite = self._compute_tiered_score(key_score, tier, value)
+                if composite <= 0.0:
                     continue
 
-                # Composite score
-                composite = key_score * entropy_score
                 if composite >= min_confidence:
                     matched_sample_indices.add(idx)
                     if composite > best_confidence:
                         best_confidence = composite
-                        entropy = compute_shannon_entropy(value)
+                        rel_entropy = _compute_relative_entropy(value)
                         charset = _detect_charset(value)
                         best_evidence = (
-                            f"Secret scanner: key '{key}' (score={key_score:.2f}) "
-                            f"with {charset} entropy={entropy:.2f} bits/char "
-                            f"(score={entropy_score:.2f}), composite={composite:.2f}"
+                            f"Secret scanner: key '{key}' (score={key_score:.2f}, tier={tier}) "
+                            f"with {charset} relative_entropy={rel_entropy:.2f} "
+                            f"composite={composite:.2f}"
                         )
                     if len(matched_evidence) < max_evidence_samples:
                         display_value = _mask_value(value) if mask_samples else value
                         matched_evidence.append(f"{key}={display_value}")
 
-        if best_confidence < min_confidence:
+        if best_confidence <= 0.0 or best_confidence < min_confidence:
             return []
 
         samples_matched = len(matched_sample_indices)
@@ -267,6 +357,45 @@ class SecretScannerEngine(ClassificationEngine):
                 sample_analysis=sample_analysis,
             )
         ]
+
+    def _compute_tiered_score(self, key_score: float, tier: str, value: str) -> float:
+        """Compute composite score based on the tier of the key-name match.
+
+        - ``"definitive"``: Key name alone is sufficient, but value must pass a
+          plausibility check — prose, dates, URLs, and config values are rejected.
+        - ``"strong"``: Needs moderate value signal — relative entropy >= 0.5 or
+          3+ character classes.
+        - ``"contextual"``: Needs strong value signal — relative entropy >= 0.7
+          AND 3+ character classes.
+
+        Args:
+            key_score: The key-name match score (0.0-1.0).
+            tier: One of ``"definitive"``, ``"strong"``, ``"contextual"``.
+            value: The value string to analyze.
+
+        Returns:
+            Composite confidence score (0.0-1.0), or 0.0 if the value
+            does not meet the tier's evidence requirements.
+        """
+        if tier == "definitive":
+            # Key name is strong evidence, but reject values that are clearly not credentials
+            if _value_is_obviously_not_secret(value):
+                return 0.0
+            return key_score * 0.95
+
+        if tier == "strong":
+            rel_entropy = _compute_relative_entropy(value)
+            diversity = compute_char_class_diversity(value)
+            if rel_entropy >= 0.5 or diversity >= 3:
+                return key_score * max(0.6, _score_relative_entropy(rel_entropy))
+            return 0.0
+
+        # contextual tier — need strong value signal
+        rel_entropy = _compute_relative_entropy(value)
+        diversity = compute_char_class_diversity(value)
+        if rel_entropy >= 0.7 and diversity >= 3:
+            return key_score * _score_relative_entropy(rel_entropy)
+        return 0.0
 
     @staticmethod
     def _has_anti_indicator(key: str, value: str, anti_indicators: list[str]) -> bool:
@@ -307,7 +436,8 @@ def _load_key_names() -> list[dict]:
     """Load secret key-name patterns from JSON file.
 
     Returns:
-        List of dicts with ``pattern``, ``score``, and ``category`` keys.
+        List of dicts with ``pattern``, ``score``, ``category``,
+        ``match_type``, and ``tier`` keys.
 
     Raises:
         FileNotFoundError: If the key-name dictionary file is missing.
@@ -320,3 +450,22 @@ def _load_key_names() -> list[dict]:
     if "key_names" not in raw:
         raise ValueError(f"Missing 'key_names' key in {_SECRET_KEY_NAMES_FILE}")
     return raw["key_names"]
+
+
+def _load_placeholder_values() -> frozenset[str]:
+    """Load known placeholder values from JSON file.
+
+    Returns:
+        Frozenset of lowercased placeholder value strings.
+
+    Raises:
+        FileNotFoundError: If the placeholder values file is missing.
+        ValueError: If the file is malformed or missing the ``placeholder_values`` key.
+    """
+    if not _PLACEHOLDER_VALUES_FILE.exists():
+        raise FileNotFoundError(f"Placeholder values file not found: {_PLACEHOLDER_VALUES_FILE}")
+    with open(_PLACEHOLDER_VALUES_FILE) as fh:
+        raw = json.load(fh)
+    if "placeholder_values" not in raw:
+        raise ValueError(f"Missing 'placeholder_values' key in {_PLACEHOLDER_VALUES_FILE}")
+    return frozenset(v.lower() for v in raw["placeholder_values"])

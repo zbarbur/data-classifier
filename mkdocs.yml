@@ -66,5 +66,6 @@ nav:
     - Validators: catalog/validators.md
   - Guides:
     - Integration Guide: guides/integration.md
+    - Secret Detection: guides/secret-detection.md
     - Examples: guides/examples.md
   - Changelog: changelog.md

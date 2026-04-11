@@ -1,13 +1,16 @@
 project_name: data_classifier
 language: python
 
-current_sprint: 2
+current_sprint: 3
 
 # Commands — Python toolchain
 test_command: "pytest tests/ -v"
 lint_command: "ruff check . --exclude .claude/worktrees && ruff format --check . --exclude .claude/worktrees"
 format_command: "ruff check --fix . && ruff format ."
 ci_command: "ruff check . --exclude .claude/worktrees && ruff format --check . --exclude .claude/worktrees && pytest tests/ -v"
+benchmark_command: "python3 -m tests.benchmarks.generate_report --sprint {N}"
+benchmark_perf: "python3 -m tests.benchmarks.perf_benchmark --iterations 30"
+benchmark_accuracy: "python3 -m tests.benchmarks.accuracy_benchmark"
 
 # Backlog tool (Python package: pip install agile-backlog)
 backlog_tool: agile-backlog

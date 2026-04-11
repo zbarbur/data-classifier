@@ -28,7 +28,10 @@ logger = logging.getLogger(__name__)
 # Ordered so that type_a and type_b are interchangeable — only confidence decides.
 _COLLISION_PAIRS: list[tuple[str, str]] = [
     ("SSN", "ABA_ROUTING"),
-    # Future: ("NPI", "PHONE") — 10-digit overlap
+    ("SSN", "CANADIAN_SIN"),
+    ("ABA_ROUTING", "CANADIAN_SIN"),
+    ("NPI", "PHONE"),
+    ("DEA_NUMBER", "IBAN"),
 ]
 
 # Minimum confidence gap required to suppress the lower-confidence finding.
@@ -130,6 +133,9 @@ class Orchestrator:
         # Resolve known collision pairs before emitting results
         all_findings = self._resolve_collisions(all_findings)
 
+        # Suppress generic CREDENTIAL when more specific types are found
+        all_findings = self._suppress_generic_credential(all_findings)
+
         # Emit classification event
         result = list(all_findings.values())
         self.emitter.emit(
@@ -167,4 +173,36 @@ class Orchestrator:
                         gap,
                     )
                     del findings[loser]
+        return findings
+
+    @staticmethod
+    def _suppress_generic_credential(
+        findings: dict[str, ClassificationFinding],
+    ) -> dict[str, ClassificationFinding]:
+        """Suppress CREDENTIAL when a more specific entity type is found with higher confidence.
+
+        CREDENTIAL from heuristic/secret scanner engines is a catch-all signal (high entropy).
+        When a more specific engine (regex, column_name) already identified the entity type,
+        the generic CREDENTIAL finding is almost certainly a false positive.
+        """
+        if "CREDENTIAL" not in findings or len(findings) < 2:
+            return findings
+
+        credential = findings["CREDENTIAL"]
+        # Check if any other finding has higher or equal confidence
+        for entity_type, finding in findings.items():
+            if entity_type == "CREDENTIAL":
+                continue
+            if finding.confidence >= credential.confidence:
+                logger.debug(
+                    "Suppressing generic CREDENTIAL (%.2f, engine=%s) — %s has higher confidence (%.2f, engine=%s)",
+                    credential.confidence,
+                    credential.engine,
+                    entity_type,
+                    finding.confidence,
+                    finding.engine,
+                )
+                del findings["CREDENTIAL"]
+                return findings
+
         return findings

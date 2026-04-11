@@ -1,7 +1,8 @@
 """Tests for the structured secret scanner engine.
 
-Covers parsers, key-name scoring, entropy scoring, composite scoring,
-anti-indicator suppression, integration scenarios, and edge cases.
+Covers parsers, key-name scoring, entropy scoring, tiered composite scoring,
+match-type filtering, anti-indicator suppression, integration scenarios,
+and edge cases.
 """
 
 from __future__ import annotations
@@ -20,9 +21,11 @@ from data_classifier.engines.parsers import (
 )
 from data_classifier.engines.secret_scanner import (
     SecretScannerEngine,
+    _compute_relative_entropy,
     _detect_charset,
+    _match_key_pattern,
     _score_key_name,
-    _score_value_entropy,
+    _score_relative_entropy,
 )
 
 # ── Parser tests ─────────────────────────────────────────────────────────────
@@ -186,11 +189,66 @@ class TestParseKeyValues:
         assert parse_key_values("just plain text with no structure") == []
 
 
+# ── Match-type tests ────────────────────────────────────────────────────────
+
+
+class TestMatchType:
+    """Tests for word_boundary and suffix match-type logic."""
+
+    def test_word_boundary_matches_whole_word(self) -> None:
+        assert _match_key_pattern("auth_token", "auth", "word_boundary") is True
+
+    def test_word_boundary_matches_at_start(self) -> None:
+        assert _match_key_pattern("auth", "auth", "word_boundary") is True
+
+    def test_word_boundary_matches_after_separator(self) -> None:
+        assert _match_key_pattern("my_auth", "auth", "word_boundary") is True
+
+    def test_word_boundary_rejects_substring(self) -> None:
+        """'auth' should NOT match 'author' or 'authenticate'."""
+        assert _match_key_pattern("author", "auth", "word_boundary") is False
+        assert _match_key_pattern("authenticate", "auth", "word_boundary") is False
+
+    def test_word_boundary_rejects_internal_substring(self) -> None:
+        """'token' should NOT match 'tokenize'."""
+        assert _match_key_pattern("tokenize", "token", "word_boundary") is False
+
+    def test_word_boundary_pass_rejects_bypass(self) -> None:
+        """'pass' should NOT match 'bypass'."""
+        assert _match_key_pattern("bypass", "pass", "word_boundary") is False
+
+    def test_word_boundary_hash_rejects_hashtag(self) -> None:
+        """'hash' should NOT match 'hashtag'."""
+        assert _match_key_pattern("hashtag", "hash", "word_boundary") is False
+
+    def test_word_boundary_salt_rejects_basalt(self) -> None:
+        """'salt' should NOT match 'basalt'."""
+        assert _match_key_pattern("basalt", "salt", "word_boundary") is False
+
+    def test_suffix_matches_after_separator(self) -> None:
+        assert _match_key_pattern("api_key", "key", "suffix") is True
+        assert _match_key_pattern("secret_key", "key", "suffix") is True
+        assert _match_key_pattern("my-key", "key", "suffix") is True
+
+    def test_suffix_rejects_bare_word(self) -> None:
+        """'key' alone (without a preceding separator) should NOT match as suffix."""
+        assert _match_key_pattern("key", "key", "suffix") is False
+
+    def test_suffix_rejects_substring(self) -> None:
+        """'key' should NOT match 'keyboard' or 'monkey'."""
+        assert _match_key_pattern("keyboard", "key", "suffix") is False
+        assert _match_key_pattern("monkey", "key", "suffix") is False
+
+    def test_substring_matches_anywhere(self) -> None:
+        assert _match_key_pattern("my_password_field", "password", "substring") is True
+        assert _match_key_pattern("password", "password", "substring") is True
+
+
 # ── Key-name scoring tests ───────────────────────────────────────────────────
 
 
 class TestKeyNameScoring:
-    """Tests for key-name pattern matching."""
+    """Tests for key-name pattern matching with match_type and tier."""
 
     @pytest.fixture()
     def key_entries(self) -> list[dict]:
@@ -203,41 +261,70 @@ class TestKeyNameScoring:
         return data["key_names"]
 
     def test_api_key_high_score(self, key_entries: list[dict]) -> None:
-        score = _score_key_name("api_key", key_entries)
+        score, tier = _score_key_name("api_key", key_entries)
         assert score >= 0.90
+        assert tier == "definitive"
 
     def test_password_high_score(self, key_entries: list[dict]) -> None:
-        score = _score_key_name("password", key_entries)
+        score, tier = _score_key_name("password", key_entries)
         assert score >= 0.90
+        assert tier == "definitive"
 
     def test_db_password_high_score(self, key_entries: list[dict]) -> None:
-        score = _score_key_name("DB_PASSWORD", key_entries)
+        score, tier = _score_key_name("DB_PASSWORD", key_entries)
         assert score >= 0.90
 
     def test_my_custom_api_key_matches(self, key_entries: list[dict]) -> None:
         """Substring matching: 'api_key' is in 'MY_CUSTOM_API_KEY'."""
-        score = _score_key_name("MY_CUSTOM_API_KEY", key_entries)
+        score, _tier = _score_key_name("MY_CUSTOM_API_KEY", key_entries)
         assert score >= 0.90
 
     def test_name_no_match(self, key_entries: list[dict]) -> None:
-        score = _score_key_name("name", key_entries)
+        score, _tier = _score_key_name("name", key_entries)
         assert score == 0.0
 
     def test_config_path_no_match(self, key_entries: list[dict]) -> None:
-        score = _score_key_name("config_path", key_entries)
+        score, _tier = _score_key_name("config_path", key_entries)
         assert score == 0.0
 
     def test_username_no_match(self, key_entries: list[dict]) -> None:
         """'username' should not match 'pass' or 'password'."""
-        score = _score_key_name("username", key_entries)
+        score, _tier = _score_key_name("username", key_entries)
         assert score == 0.0
 
     def test_token_moderate_score(self, key_entries: list[dict]) -> None:
-        score = _score_key_name("token", key_entries)
+        score, tier = _score_key_name("token", key_entries)
         assert 0.5 < score < 1.0
+        assert tier == "strong"
+
+    def test_author_not_matched(self, key_entries: list[dict]) -> None:
+        """'author' should NOT match 'auth' (word_boundary)."""
+        score, _tier = _score_key_name("author", key_entries)
+        assert score == 0.0
+
+    def test_keyboard_not_matched(self, key_entries: list[dict]) -> None:
+        """'keyboard' should NOT match 'key' (suffix)."""
+        score, _tier = _score_key_name("keyboard", key_entries)
+        assert score == 0.0
+
+    def test_authenticate_not_matched(self, key_entries: list[dict]) -> None:
+        """'authenticate' should NOT match 'auth' (word_boundary)."""
+        score, _tier = _score_key_name("authenticate", key_entries)
+        assert score == 0.0
+
+    def test_auth_token_matches_definitive(self, key_entries: list[dict]) -> None:
+        """'auth_token' should match the specific 'auth_token' pattern (definitive)."""
+        score, tier = _score_key_name("auth_token", key_entries)
+        assert score >= 0.90
+        assert tier == "definitive"
+
+    def test_my_auth_matches(self, key_entries: list[dict]) -> None:
+        """'my_auth' should match 'auth' at word boundary."""
+        score, _tier = _score_key_name("my_auth", key_entries)
+        assert score > 0.0
 
 
-# ── Entropy scoring tests ────────────────────────────────────────────────────
+# ── Charset detection tests ─────────────────────────────────────────────────
 
 
 class TestCharsetDetection:
@@ -249,50 +336,125 @@ class TestCharsetDetection:
     def test_base64_string(self) -> None:
         assert _detect_charset("ABCdef123+/=") == "base64"
 
-    def test_alphanumeric_with_special(self) -> None:
-        assert _detect_charset("kJ#9xMp$2wLq!") == "alphanumeric"
+    def test_alphanumeric_classified_as_base64(self) -> None:
+        """Pure alphanumeric is a subset of base64 charset."""
+        assert _detect_charset("ABCdef123xyz") == "base64"
+
+    def test_full_charset(self) -> None:
+        assert _detect_charset("kJ#9xMp$2wLq!") == "full"
 
     def test_pure_digits_as_hex(self) -> None:
         assert _detect_charset("12345678") == "hex"
 
 
-class TestEntropyScoring:
-    """Tests for value entropy scoring."""
-
-    @pytest.fixture()
-    def thresholds(self) -> dict:
-        return {"hex": 3.5, "base64": 4.0, "alphanumeric": 3.5}
-
-    def test_high_entropy_detected(self, thresholds: dict) -> None:
-        # Random-looking string with high entropy
-        score = _score_value_entropy("kJ#9xMp$2wLq!", thresholds)
-        assert score > 0.0
-
-    def test_low_entropy_rejected(self, thresholds: dict) -> None:
-        # Repeating characters — low entropy
-        score = _score_value_entropy("aaaaaaaa", thresholds)
-        assert score == 0.0
-
-    def test_high_entropy_hex(self, thresholds: dict) -> None:
-        score = _score_value_entropy("a1b2c3d4e5f6a7b8", thresholds)
-        assert score > 0.0
-
-    def test_empty_value(self, thresholds: dict) -> None:
-        score = _score_value_entropy("", thresholds)
-        assert score == 0.0
+# ── Relative entropy tests ──────────────────────────────────────────────────
 
 
-# ── Composite scoring tests ──────────────────────────────────────────────────
+class TestRelativeEntropy:
+    """Tests for relative entropy computation and scoring."""
+
+    def test_high_entropy_hex(self) -> None:
+        """High-entropy hex should have relative entropy near 1.0."""
+        rel = _compute_relative_entropy("a1b2c3d4e5f6a7b8")
+        assert rel > 0.7
+
+    def test_low_entropy_repeating(self) -> None:
+        """Repeating chars should have very low relative entropy."""
+        rel = _compute_relative_entropy("aaaaaaaa")
+        assert rel < 0.2
+
+    def test_relative_entropy_bounded(self) -> None:
+        """Relative entropy should never exceed 1.0."""
+        rel = _compute_relative_entropy("kJ#9xMp$2wLq!aB")
+        assert 0.0 <= rel <= 1.0
+
+    def test_score_below_threshold_is_zero(self) -> None:
+        assert _score_relative_entropy(0.3) == 0.0
+        assert _score_relative_entropy(0.49) == 0.0
+
+    def test_score_at_threshold(self) -> None:
+        assert _score_relative_entropy(0.5) == 0.5
+
+    def test_score_high_value(self) -> None:
+        assert _score_relative_entropy(0.9) == 0.9
+
+    def test_score_capped_at_one(self) -> None:
+        assert _score_relative_entropy(1.5) == 1.0
 
 
-class TestCompositeScoring:
-    """Tests for combined key-name + entropy scoring."""
+# ── Tiered composite scoring tests ──────────────────────────────────────────
+
+
+class TestTieredScoring:
+    """Tests for the tiered scoring model."""
 
     @pytest.fixture()
     def engine(self) -> SecretScannerEngine:
         engine = SecretScannerEngine()
         engine.startup()
         return engine
+
+    def test_definitive_password_with_low_entropy(self, engine: SecretScannerEngine) -> None:
+        """password='admin123' SHOULD be detected — definitive tier bypasses entropy."""
+        column = ColumnInput(
+            column_name="config_data",
+            column_id="col_1",
+            sample_values=['password = "admin12345"'],
+        )
+        findings = engine.classify_column(column, min_confidence=0.3)
+        assert len(findings) == 1
+        assert findings[0].entity_type == "CREDENTIAL"
+        assert findings[0].confidence > 0.5
+
+    def test_definitive_tier_rejects_placeholder(self, engine: SecretScannerEngine) -> None:
+        """Definitive key with known placeholder value should NOT be detected."""
+        column = ColumnInput(
+            column_name="config",
+            column_id="col_1",
+            sample_values=["password=changeme"],
+        )
+        findings = engine.classify_column(column, min_confidence=0.1)
+        assert len(findings) == 0
+
+    def test_strong_tier_with_high_entropy(self, engine: SecretScannerEngine) -> None:
+        """'token' (strong tier) with high-entropy value should be detected."""
+        column = ColumnInput(
+            column_name="config",
+            column_id="col_1",
+            sample_values=["my_token=kJ#9xMp$2wLq!aB"],
+        )
+        findings = engine.classify_column(column, min_confidence=0.3)
+        assert len(findings) == 1
+
+    def test_strong_tier_with_low_entropy_rejected(self, engine: SecretScannerEngine) -> None:
+        """'token' (strong tier) with low-entropy value should NOT be detected."""
+        column = ColumnInput(
+            column_name="config",
+            column_id="col_1",
+            sample_values=["my_token=aaaaaaaa"],
+        )
+        findings = engine.classify_column(column, min_confidence=0.3)
+        assert len(findings) == 0
+
+    def test_contextual_tier_needs_strong_signal(self, engine: SecretScannerEngine) -> None:
+        """'hash' (contextual) with high-entropy diverse value should be detected."""
+        column = ColumnInput(
+            column_name="config",
+            column_id="col_1",
+            sample_values=["my_hash=xK7#mQ2$pL9!nR4wB6@jF8dZ3&hY5"],
+        )
+        findings = engine.classify_column(column, min_confidence=0.1)
+        assert len(findings) == 1
+
+    def test_contextual_tier_rejects_low_diversity(self, engine: SecretScannerEngine) -> None:
+        """'hash' (contextual) with hex-only value (low diversity) should NOT be detected."""
+        column = ColumnInput(
+            column_name="config",
+            column_id="col_1",
+            sample_values=["my_hash=a1b2c3d4e5f6a7b8"],
+        )
+        findings = engine.classify_column(column, min_confidence=0.1)
+        assert len(findings) == 0
 
     def test_password_with_high_entropy_detected(self, engine: SecretScannerEngine) -> None:
         """DB_PASSWORD with random value should be detected."""
@@ -350,7 +512,7 @@ class TestAntiIndicatorSuppression:
         assert len(findings) == 0
 
     def test_changeme_suppressed(self, engine: SecretScannerEngine) -> None:
-        """Known example 'changeme' should be suppressed."""
+        """Known placeholder 'changeme' should be suppressed."""
         column = ColumnInput(
             column_name="config",
             column_id="col_1",

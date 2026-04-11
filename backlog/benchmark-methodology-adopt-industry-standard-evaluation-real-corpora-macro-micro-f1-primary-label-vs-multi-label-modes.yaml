@@ -1,0 +1,29 @@
+title: "Benchmark methodology: adopt industry-standard evaluation \u2014 real corpora,\
+  \ macro/micro F1, primary-label vs multi-label modes"
+status: backlog
+priority: P1
+category: chore
+sprint_target: 4
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags:
+- iter2
+goal: "Align benchmark methodology with industry standards \u2014 Presidio-research\
+  \ evaluation framework, standard metrics, real corpora"
+complexity: M
+technical_specs: []
+description: ''
+acceptance_criteria:
+- Benchmark reports both micro F1 (current) and macro F1 (per-entity-type average)
+- Benchmark reports primary-label accuracy (top prediction vs expected) alongside
+  multi-label
+- Benchmark corpus includes at least one real-world PII dataset (not just Faker)
+- "Methodology documented \u2014 what we measure, how, and why"
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

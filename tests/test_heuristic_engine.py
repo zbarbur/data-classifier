@@ -4,7 +4,7 @@ Covers:
 - Pure signal computation functions (unit tests)
 - SSN-like column detection (high cardinality, 9-digit uniform)
 - ABA routing number detection (low cardinality, 9-digit uniform)
-- High-entropy credential detection
+- High-entropy values are NOT flagged as CREDENTIAL (secret scanner owns that)
 - Below min_samples guard
 - Non-matching columns
 - Engine registration in orchestrator
@@ -238,20 +238,18 @@ class TestABARoutingDetection:
         assert len(ssn_findings) == 0
 
 
-class TestCredentialDetection:
-    """High entropy + mixed chars → CREDENTIAL."""
+class TestNoCredentialFromHeuristic:
+    """Heuristic engine does NOT produce CREDENTIAL findings — secret scanner owns that."""
 
-    def test_high_entropy_column(self, engine: HeuristicEngine, empty_profile: ClassificationProfile):
+    def test_high_entropy_column_no_credential(self, engine: HeuristicEngine, empty_profile: ClassificationProfile):
+        """High-entropy column should NOT be flagged as CREDENTIAL by heuristic engine."""
         samples = _make_high_entropy_samples(60)
         column = ColumnInput(column_name="token_value", column_id="col5", sample_values=samples)
 
         findings = engine.classify_column(column, profile=empty_profile)
 
         cred_findings = [f for f in findings if f.entity_type == "CREDENTIAL"]
-        assert len(cred_findings) == 1
-        assert cred_findings[0].confidence >= 0.60
-        assert cred_findings[0].engine == "heuristic_stats"
-        assert cred_findings[0].category == "Credential"
+        assert len(cred_findings) == 0
 
 
 class TestEdgeCases:

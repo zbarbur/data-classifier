@@ -1,0 +1,26 @@
+title: "Three-way collision resolution for SSN/ABA/CANADIAN_SIN \u2014 extend orchestrator\
+  \ to handle triple overlaps"
+status: backlog
+priority: P1
+category: feature
+sprint_target: 4
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags:
+- iter2
+goal: Resolve the 7-FP three-way collision between SSN, ABA_ROUTING, and CANADIAN_SIN
+  on 9-digit columns
+complexity: S
+technical_specs: []
+description: ''
+acceptance_criteria:
+- When SSN+ABA+SIN co-occur, only the highest-confidence one is kept
+- Column benchmark FP count drops by 5+
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

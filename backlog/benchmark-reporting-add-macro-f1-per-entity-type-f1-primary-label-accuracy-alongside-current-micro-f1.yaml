@@ -1,0 +1,23 @@
+title: 'Benchmark reporting: add macro F1, per-entity-type F1, primary-label accuracy
+  alongside current micro F1'
+status: backlog
+priority: P1
+category: feature
+sprint_target: 4
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags:
+- iter2
+goal: ''
+complexity: S
+technical_specs: []
+description: ''
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

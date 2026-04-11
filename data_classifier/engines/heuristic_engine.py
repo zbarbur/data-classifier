@@ -156,6 +156,44 @@ def compute_char_class_ratios(values: list[str]) -> dict:
     }
 
 
+def compute_char_class_diversity(value: str) -> int:
+    """Count how many character classes are present in a single value.
+
+    Classes: uppercase, lowercase, digits, special characters.
+    Returns 0-4.  Real secrets typically use 3-4 classes; numeric IDs
+    use 1, natural text uses 2-3 (but rarely has digits + special together).
+    """
+    if not value:
+        return 0
+    classes = 0
+    has_upper = has_lower = has_digit = has_special = False
+    for c in value:
+        if c.isupper():
+            has_upper = True
+        elif c.islower():
+            has_lower = True
+        elif c.isdigit():
+            has_digit = True
+        else:
+            has_special = True
+    classes = sum([has_upper, has_lower, has_digit, has_special])
+    return classes
+
+
+def compute_avg_char_class_diversity(values: list[str]) -> float:
+    """Average character class diversity across all values.
+
+    Returns 0.0-4.0.  Higher means values use more character classes,
+    which is a strong signal for credential-like content.
+    """
+    if not values:
+        return 0.0
+    diversities = [compute_char_class_diversity(v) for v in values if v]
+    if not diversities:
+        return 0.0
+    return sum(diversities) / len(diversities)
+
+
 # ── Engine ──────────────────────────────────────────────────────────────────
 
 
@@ -204,15 +242,12 @@ class HeuristicEngine(ClassificationEngine):
         min_samples = self._config["min_samples"]
         signals_config = self._config["signals"]
         cardinality_config = signals_config["cardinality"]
-        entropy_config = signals_config["entropy"]
         char_class_config = signals_config["char_class"]
 
         # Thresholds from config — no hardcoded fallbacks
         low_cardinality = cardinality_config["low_threshold"]
         high_cardinality = cardinality_config["high_threshold"]
-        high_entropy = entropy_config["high_threshold"]
         digit_purity = char_class_config["digit_purity_threshold"]
-        mixed_char_threshold = char_class_config["mixed_char_threshold"]
 
         values = column.sample_values
 
@@ -222,7 +257,6 @@ class HeuristicEngine(ClassificationEngine):
 
         # Compute signals
         cardinality = compute_cardinality_ratio(values)
-        avg_entropy = compute_avg_entropy(values)
         length_stats = compute_length_stats(values)
         char_ratios = compute_char_class_ratios(values)
 
@@ -284,29 +318,8 @@ class HeuristicEngine(ClassificationEngine):
                     )
                 )
 
-        # ── Rule: High entropy + mixed chars → CREDENTIAL ──
-        if (
-            avg_entropy >= high_entropy
-            and char_ratios["special_ratio"] + char_ratios["alnum_ratio"] >= mixed_char_threshold
-        ):
-            confidence = 0.60 + 0.08 * (avg_entropy - high_entropy)
-            confidence = min(confidence, 0.90)
-            if confidence >= min_confidence:
-                findings.append(
-                    ClassificationFinding(
-                        column_id=column.column_id,
-                        entity_type="CREDENTIAL",
-                        category="Credential",
-                        sensitivity="CRITICAL",
-                        confidence=round(confidence, 4),
-                        regulatory=["SOC2", "ISO27001"],
-                        engine=self.name,
-                        evidence=(
-                            f"Heuristic: avg_entropy={avg_entropy:.2f} bits/char (high), "
-                            f"mixed chars (alnum={char_ratios['alnum_ratio']:.2f}, "
-                            f"special={char_ratios['special_ratio']:.2f})"
-                        ),
-                    )
-                )
+        # NOTE: CREDENTIAL detection is handled by the secret scanner engine (order=4),
+        # which uses key-name + entropy scoring for much higher precision. The heuristic
+        # engine's entropy-only signal produces too many false positives on natural text.
 
         return findings
