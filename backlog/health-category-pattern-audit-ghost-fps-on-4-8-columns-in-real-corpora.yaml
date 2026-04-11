@@ -1,15 +1,14 @@
-title: GLiNER2 engine (205M, NER + text classification)
+title: "HEALTH category pattern audit \u2014 ghost FPs on 4-8 columns in real corpora"
 status: backlog
 priority: P1
-category: feature
+category: bug
 sprint_target: 5
-created: 2026-04-10
+created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
-tags:
-- iter3
+tags: []
 goal: ''
-complexity: null
+complexity: S
 technical_specs: []
 description: ''
 acceptance_criteria: []

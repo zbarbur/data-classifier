@@ -1,6 +1,6 @@
 title: "Three-way collision resolution for SSN/ABA/CANADIAN_SIN \u2014 extend orchestrator\
   \ to handle triple overlaps"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 4

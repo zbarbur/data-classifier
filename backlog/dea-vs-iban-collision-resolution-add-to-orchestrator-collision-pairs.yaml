@@ -1,5 +1,5 @@
 title: "DEA vs IBAN collision resolution \u2014 add to orchestrator collision pairs"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 4

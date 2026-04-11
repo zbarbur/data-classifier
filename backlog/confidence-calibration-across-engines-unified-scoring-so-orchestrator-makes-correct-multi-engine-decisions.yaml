@@ -1,15 +1,15 @@
-title: GLiNER2 engine (205M, NER + text classification)
+title: "Confidence calibration across engines \u2014 unified scoring so orchestrator\
+  \ makes correct multi-engine decisions"
 status: backlog
 priority: P1
 category: feature
 sprint_target: 5
-created: 2026-04-10
+created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
-tags:
-- iter3
+tags: []
 goal: ''
-complexity: null
+complexity: M
 technical_specs: []
 description: ''
 acceptance_criteria: []

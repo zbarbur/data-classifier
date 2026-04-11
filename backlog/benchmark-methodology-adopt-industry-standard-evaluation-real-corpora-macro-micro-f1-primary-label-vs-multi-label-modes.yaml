@@ -1,6 +1,6 @@
 title: "Benchmark methodology: adopt industry-standard evaluation \u2014 real corpora,\
   \ macro/micro F1, primary-label vs multi-label modes"
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 4

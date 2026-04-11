@@ -1,6 +1,6 @@
 title: "Add unit tests for all collision pairs \u2014 SSN/SIN, ABA/SIN, NPI/PHONE,\
   \ DEA/IBAN"
-status: doing
+status: done
 priority: P2
 category: chore
 sprint_target: 4

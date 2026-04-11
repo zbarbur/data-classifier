@@ -1,13 +1,13 @@
-title: GLiNER2 engine (205M, NER + text classification)
+title: "International phone format expansion \u2014 Ai4Privacy PHONE column 0% match\
+  \ on non-US formats"
 status: backlog
-priority: P1
+priority: P2
 category: feature
-sprint_target: 5
-created: 2026-04-10
+sprint_target: null
+created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
-tags:
-- iter3
+tags: []
 goal: ''
 complexity: null
 technical_specs: []

@@ -1,13 +1,13 @@
-title: GLiNER2 engine (205M, NER + text classification)
+title: "HTML benchmark report \u2014 self-contained HTML with summary cards, color-coded\
+  \ metrics, collapsible sections"
 status: backlog
-priority: P1
+priority: P2
 category: feature
-sprint_target: 5
-created: 2026-04-10
+sprint_target: null
+created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
-tags:
-- iter3
+tags: []
 goal: ''
 complexity: null
 technical_specs: []

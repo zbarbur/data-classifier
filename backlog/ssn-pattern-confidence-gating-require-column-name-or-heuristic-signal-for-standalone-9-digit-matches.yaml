@@ -1,15 +1,15 @@
-title: GLiNER2 engine (205M, NER + text classification)
+title: "SSN pattern confidence gating \u2014 require column name or heuristic signal\
+  \ for standalone 9-digit matches"
 status: backlog
 priority: P1
 category: feature
 sprint_target: 5
-created: 2026-04-10
+created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
-tags:
-- iter3
+tags: []
 goal: ''
-complexity: null
+complexity: S
 technical_specs: []
 description: ''
 acceptance_criteria: []

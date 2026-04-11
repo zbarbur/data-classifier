@@ -1,13 +1,13 @@
-title: GLiNER2 engine (205M, NER + text classification)
+title: "Gitleaks FP analysis \u2014 add missing placeholder suppressions for 37 false-positive\
+  \ test cases"
 status: backlog
-priority: P1
-category: feature
-sprint_target: 5
-created: 2026-04-10
+priority: P2
+category: bug
+sprint_target: null
+created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
-tags:
-- iter3
+tags: []
 goal: ''
 complexity: null
 technical_specs: []

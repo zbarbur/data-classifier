@@ -1,6 +1,6 @@
 title: 'Benchmark reporting: add macro F1, per-entity-type F1, primary-label accuracy
   alongside current micro F1'
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 4

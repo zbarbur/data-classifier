@@ -1,6 +1,6 @@
 title: "Integrate real-world PII corpus into benchmark \u2014 replace Faker synthetics\
   \ with Ai4Privacy/Nemotron subsets"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 4
