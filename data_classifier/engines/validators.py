@@ -6,6 +6,7 @@ If a validator returns False, the match is discarded.
 
 from __future__ import annotations
 
+import re
 import typing
 
 
@@ -215,8 +216,6 @@ def aws_secret_not_hex(value: str) -> bool:
     Rejects pure-hex strings that match the 40-char length but are actually
     git SHAs, checksums, or other hex identifiers.
     """
-    import re
-
     # Strip any matched prefix/suffix that the regex might have included
     clean = value.strip()
     # Pure hex (0-9, a-f, case-insensitive) → not an AWS key

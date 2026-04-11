@@ -127,12 +127,17 @@ _CONFIG_VALUES: frozenset[str] = frozenset(
 )
 
 
-def _value_is_obviously_not_secret(value: str) -> bool:
+def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) -> bool:
     """Check if a value is obviously NOT a credential.
 
     Rejects prose text, dates, URLs, and common config values even when
     the key name strongly suggests a secret. This prevents false positives
     on keys like ``password_policy``, ``password_last_changed``.
+
+    Args:
+        value: The value string to check.
+        prose_threshold: Fraction of alpha characters above which a
+            space-containing value is considered prose (from config).
 
     Returns:
         True if the value is clearly not a credential.
@@ -155,7 +160,7 @@ def _value_is_obviously_not_secret(value: str) -> bool:
     # Real credentials rarely have spaces; descriptions/policies always do
     if " " in value:
         alpha_chars = sum(1 for c in value if c.isalpha())
-        if alpha_chars / max(len(value), 1) > 0.6:
+        if alpha_chars / max(len(value), 1) > prose_threshold:
             return True
 
     return False
@@ -361,12 +366,12 @@ class SecretScannerEngine(ClassificationEngine):
     def _compute_tiered_score(self, key_score: float, tier: str, value: str) -> float:
         """Compute composite score based on the tier of the key-name match.
 
+        All thresholds are loaded from ``engine_defaults.yaml`` scoring section.
+
         - ``"definitive"``: Key name alone is sufficient, but value must pass a
           plausibility check — prose, dates, URLs, and config values are rejected.
-        - ``"strong"``: Needs moderate value signal — relative entropy >= 0.5 or
-          3+ character classes.
-        - ``"contextual"``: Needs strong value signal — relative entropy >= 0.7
-          AND 3+ character classes.
+        - ``"strong"``: Needs moderate value signal — relative entropy or diversity.
+        - ``"contextual"``: Needs strong value signal — relative entropy AND diversity.
 
         Args:
             key_score: The key-name match score (0.0-1.0).
@@ -377,23 +382,32 @@ class SecretScannerEngine(ClassificationEngine):
             Composite confidence score (0.0-1.0), or 0.0 if the value
             does not meet the tier's evidence requirements.
         """
+        scoring = self._config.get("scoring", {})
+        rel_thresholds = scoring.get("relative_entropy_thresholds", {})
+        definitive_mult = scoring.get("definitive_multiplier", 0.95)
+        strong_min = scoring.get("strong_min_entropy_score", 0.6)
+        strong_rel = rel_thresholds.get("strong", 0.5)
+        contextual_rel = rel_thresholds.get("contextual", 0.7)
+        diversity_min = scoring.get("diversity_threshold", 3)
+        prose_threshold = scoring.get("prose_alpha_threshold", 0.6)
+
         if tier == "definitive":
             # Key name is strong evidence, but reject values that are clearly not credentials
-            if _value_is_obviously_not_secret(value):
+            if _value_is_obviously_not_secret(value, prose_threshold=prose_threshold):
                 return 0.0
-            return key_score * 0.95
+            return key_score * definitive_mult
 
         if tier == "strong":
             rel_entropy = _compute_relative_entropy(value)
             diversity = compute_char_class_diversity(value)
-            if rel_entropy >= 0.5 or diversity >= 3:
-                return key_score * max(0.6, _score_relative_entropy(rel_entropy))
+            if rel_entropy >= strong_rel or diversity >= diversity_min:
+                return key_score * max(strong_min, _score_relative_entropy(rel_entropy))
             return 0.0
 
         # contextual tier — need strong value signal
         rel_entropy = _compute_relative_entropy(value)
         diversity = compute_char_class_diversity(value)
-        if rel_entropy >= 0.7 and diversity >= 3:
+        if rel_entropy >= contextual_rel and diversity >= diversity_min:
             return key_score * _score_relative_entropy(rel_entropy)
         return 0.0
 

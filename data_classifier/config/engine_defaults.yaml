@@ -19,3 +19,17 @@ secret_scanner:
     - test
     - placeholder
     - changeme
+  scoring:
+    tier_boundaries:
+      definitive: 0.90       # key score >= this → key name alone sufficient
+      strong: 0.70            # key score >= this → needs moderate value signal
+    definitive_multiplier: 0.95  # composite = key_score × this
+    strong_min_entropy_score: 0.6  # minimum entropy score for strong tier
+    relative_entropy_thresholds:
+      strong: 0.5             # strong tier: relative entropy >= this OR diversity >= 3
+      contextual: 0.7         # contextual tier: relative entropy >= this AND diversity >= 3
+    diversity_threshold: 3    # minimum character classes (upper/lower/digit/special)
+    prose_alpha_threshold: 0.6  # value with >60% alpha + spaces = prose (not a secret)
+
+collision_resolution:
+  gap_threshold: 0.15         # minimum confidence gap to suppress lower finding
