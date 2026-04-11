@@ -20,10 +20,18 @@ dependencies = [
 
 [project.optional-dependencies]
 ml = [
+    "gliner>=0.2",
+    "onnxruntime>=1.17",
+]
+ml-full = [
+    "gliner>=0.2",
+    "onnxruntime>=1.17",
     "torch>=2.0",
     "transformers>=4.40",
-    "tokenizers>=0.19",
-    "gliner>=0.2",
+    "onnx>=1.15",
+]
+ml-api = [
+    "gliner2>=1.0",
 ]
 dev = [
     "pytest>=8.0",

@@ -132,22 +132,37 @@ class GLiNER2Engine(ClassificationEngine):
         gliner_threshold: float = _DEFAULT_GLINER_THRESHOLD,
         entity_types: list[str] | None = None,
         model_id: str = _MODEL_ID,
+        onnx_path: str | None = None,
+        api_key: str | None = None,
     ) -> None:
         """Initialize the GLiNER2 engine.
 
+        Inference modes (tried in order):
+
+        1. **ONNX local** — if ``onnx_path`` points to an exported model dir.
+           Fastest load (3s vs 14s), no HuggingFace download, production-ready.
+        2. **Local model** — downloads from HuggingFace or loads from cache.
+        3. **API fallback** — if ``api_key`` set and local loading fails,
+           calls the GLiNER hosted API (gliner.pioneer.ai).
+
         Args:
-            registry: Model registry for lazy loading.  Uses a private
-                registry if not provided.
-            gliner_threshold: Minimum GLiNER2 prediction score to accept.
+            registry: Model registry for lazy loading.
+            gliner_threshold: Minimum prediction score to accept.
             entity_types: Entity types to detect.  Defaults to all mapped types.
             model_id: HuggingFace model ID.  Defaults to the PII-tuned model.
-                Alternatives: ``fastino/gliner2-base-v1`` (general, supports
-                descriptions), ``urchade/gliner_large-v2.1`` (larger, slower).
+            onnx_path: Path to pre-exported ONNX model directory.  If set,
+                loads from local ONNX files (faster, no HF download needed).
+                Export with: ``model.export_to_onnx(path, quantize=True)``
+            api_key: GLiNER API key for hosted inference fallback.  If set
+                and local model loading fails, falls back to API mode.
         """
         self._registry = registry or ModelRegistry()
         self._gliner_threshold = gliner_threshold
         self._model_id = model_id
+        self._onnx_path = onnx_path
+        self._api_key = api_key
         self._is_v2 = model_id.startswith("fastino/")
+        self._inference_mode: str | None = None  # set during startup
         self._registered = False
 
         # Filter to requested entity types (must be in our mapping)
@@ -164,20 +179,44 @@ class GLiNER2Engine(ClassificationEngine):
         self._gliner_labels: list[str] = [ENTITY_LABEL_DESCRIPTIONS[et][0] for et in self._entity_types]
 
     def startup(self) -> None:
-        """Register the model in the registry for lazy loading."""
+        """Register the model in the registry for lazy loading.
+
+        Tries modes in order: ONNX local → HuggingFace model → API fallback.
+        """
         if not self._registered:
             model_id = self._model_id
             is_v2 = self._is_v2
+            onnx_path = self._onnx_path
+            api_key = self._api_key
 
             def _loader() -> Any:
-                if is_v2:
-                    from gliner2 import GLiNER2  # type: ignore[import-not-found]
-
-                    return GLiNER2.from_pretrained(model_id)
-                else:
+                # Mode 1: ONNX local
+                if onnx_path:
                     from gliner import GLiNER  # type: ignore[import-not-found]
 
-                    return GLiNER.from_pretrained(model_id)
+                    logger.info("Loading GLiNER from ONNX: %s", onnx_path)
+                    return GLiNER.from_pretrained(onnx_path, load_onnx_model=True, load_tokenizer=True)
+
+                # Mode 2: Local model (HuggingFace download/cache)
+                try:
+                    if is_v2:
+                        from gliner2 import GLiNER2  # type: ignore[import-not-found]
+
+                        return GLiNER2.from_pretrained(model_id)
+                    else:
+                        from gliner import GLiNER  # type: ignore[import-not-found]
+
+                        return GLiNER.from_pretrained(model_id)
+                except Exception:
+                    if not api_key:
+                        raise
+                    logger.warning("Local model load failed, falling back to API mode")
+
+                # Mode 3: API fallback
+                from gliner2 import GLiNER2  # type: ignore[import-not-found]
+
+                logger.info("Using GLiNER API mode")
+                return GLiNER2.from_api(api_key=api_key)
 
             pkg = "gliner2" if is_v2 else "gliner"
             cls = "gliner2.GLiNER2" if is_v2 else "gliner.GLiNER"
@@ -191,7 +230,9 @@ class GLiNER2Engine(ClassificationEngine):
             except ValueError:
                 pass  # Already registered
             self._registered = True
-        logger.info("GLiNER2Engine: registered model '%s' (%s) for lazy loading", _MODEL_NAME, self._model_id)
+
+        mode = "onnx" if self._onnx_path else "local"
+        logger.info("GLiNER2Engine: registered '%s' (%s, mode=%s)", _MODEL_NAME, self._model_id, mode)
 
     def shutdown(self) -> None:
         """Unload the GLiNER2 model to free memory."""
