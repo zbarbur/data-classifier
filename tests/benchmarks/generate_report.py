@@ -57,11 +57,11 @@ def _capture_column_report(corpus: list[tuple], corpus_source: str = "synthetic"
     }, buf.getvalue()
 
 
-def _capture_perf_report(corpus: list[tuple]) -> tuple[dict, str]:
+def _capture_perf_report(corpus: list[tuple], iterations: int = 5) -> tuple[dict, str]:
     """Run performance benchmark and capture results."""
     from tests.benchmarks.perf_benchmark import print_report
 
-    perf_results = run_perf_benchmark(corpus, iterations=30)
+    perf_results = run_perf_benchmark(corpus, iterations=iterations)
 
     buf = io.StringIO()
     with redirect_stdout(buf):
@@ -104,6 +104,8 @@ def generate_report(
     corpus_source: str = "synthetic",
     *,
     blind: bool = False,
+    include_perf: bool = False,
+    perf_iterations: int = 5,
 ) -> tuple[str, dict]:
     """Generate the full benchmark report as a Markdown string.
 
@@ -226,9 +228,13 @@ def generate_report(
     w(f"| Entity types tested | {len({e for _, e in corpus if e is not None})} |")
     w()
 
-    # ── Performance ──────────────────────────────────────────────────────
-    print("Running performance benchmark...", file=sys.stderr)
-    perf_data, perf_text = _capture_perf_report(corpus)
+    # ── Performance (opt-in) ───────────────────────────────────────────
+    if include_perf:
+        print(f"Running performance benchmark ({perf_iterations} iterations)...", file=sys.stderr)
+        perf_data, perf_text = _capture_perf_report(corpus, iterations=perf_iterations)
+    else:
+        print("Skipping performance benchmark (use --perf to include).", file=sys.stderr)
+        perf_data, perf_text = {}, ""
     fp = perf_data.get("full_pipeline", {})
 
     w("## Performance")
@@ -730,10 +736,17 @@ if __name__ == "__main__":
         action="store_true",
         help="Use generic column names (col_0, col_1, ...) to test sample-value-only classification",
     )
+    parser.add_argument("--perf", action="store_true", help="Include performance benchmark (slow, off by default)")
+    parser.add_argument("--perf-iterations", type=int, default=5, help="Performance benchmark iterations (default: 5)")
     args = parser.parse_args()
 
     report, report_data = generate_report(
-        sprint=args.sprint, samples_per_type=args.samples, corpus_source=args.corpus, blind=args.blind
+        sprint=args.sprint,
+        samples_per_type=args.samples,
+        corpus_source=args.corpus,
+        blind=args.blind,
+        include_perf=args.perf,
+        perf_iterations=args.perf_iterations,
     )
 
     # Markdown report in docs/sprints/ (legacy location)
