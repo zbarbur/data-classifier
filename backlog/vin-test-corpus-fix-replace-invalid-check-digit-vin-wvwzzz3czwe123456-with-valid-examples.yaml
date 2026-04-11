@@ -1,6 +1,6 @@
 title: 'VIN test corpus fix: replace invalid check-digit VIN (WVWZZZ3CZWE123456) with
   valid examples'
-status: doing
+status: done
 priority: P2
 category: bug
 sprint_target: 3

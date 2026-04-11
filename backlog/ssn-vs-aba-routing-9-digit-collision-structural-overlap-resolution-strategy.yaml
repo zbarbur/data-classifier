@@ -1,5 +1,5 @@
 title: 'SSN vs ABA routing 9-digit collision: structural overlap resolution strategy'
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 3

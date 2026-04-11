@@ -1,20 +1,21 @@
 # data_classifier — Project Context
 
-> **Last updated:** 2026-04-10 (Sprint 2 complete)
+> **Last updated:** 2026-04-11 (Sprint 3 complete)
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Current sprint | 3 (planning) |
-| Tests | 398 passing (0.94s local) |
+| Current sprint | 4 (planning) |
+| Tests | 603 passing (1.28s local) |
 | CI | Green on Python 3.11, 3.12, 3.13 |
-| Patterns | 59 content patterns + 25 profile rules |
-| Engines | 2 (column_name, regex) |
-| Validators | 11 |
+| Patterns | 71 content patterns + 25 profile rules |
+| Engines | 4 (column_name, regex, heuristic_stats, secret_scanner) |
+| Validators | 12 (+ aws_secret_not_hex) |
 | Entity types | 32 (in column_names.json) |
-| Backlog | 65+ items |
-| Benchmark F1 | Pattern: 0.793, Column: 0.765 |
+| Key-name patterns | 88 (in secret_key_names.json) |
+| Backlog | 70+ items |
+| Benchmark F1 | Column: 0.897, Secret: 0.985 |
 
 ## Architecture
 
@@ -28,18 +29,24 @@
 | `engines/interface.py` | ClassificationEngine base class |
 | `engines/column_name_engine.py` | Column name semantics (400+ variants, fuzzy matching) |
 | `engines/regex_engine.py` | RE2 two-phase matching + context boosting + stopwords + allowlists |
-| `engines/validators.py` | 11 validators (Luhn, SSN, IPv4, NPI, DEA, VIN, EIN, ABA, IBAN, phone) |
-| `orchestrator/orchestrator.py` | Engine cascade, event telemetry, budget awareness |
+| `engines/heuristic_engine.py` | Cardinality, entropy, length, char class analysis (Sprint 3) |
+| `engines/secret_scanner.py` | Structured secret scanner — key-name + entropy scoring (Sprint 3) |
+| `engines/parsers.py` | JSON, YAML, env, code literal parsers for secret scanner |
+| `engines/validators.py` | 12 validators (Luhn, SSN, IPv4, NPI, DEA, VIN, EIN, ABA, IBAN, phone, SIN Luhn, AWS not-hex) |
+| `orchestrator/orchestrator.py` | Engine cascade, collision resolution, CREDENTIAL suppression |
+| `config/engine_defaults.yaml` | All engine thresholds and scoring parameters (Sprint 3) |
 | `profiles/__init__.py` | Profile loading (YAML, dict, bundled) |
 | `profiles/standard.yaml` | Bundled default profile (25 rules, 4 categories) |
-| `patterns/default_patterns.json` | Content pattern library (59 patterns) |
+| `patterns/default_patterns.json` | Content pattern library (71 patterns) |
 | `patterns/column_names.json` | Column name variants (400+, 32 entity types) |
-| `patterns/stopwords.json` | Known placeholder values for FP suppression |
+| `patterns/secret_key_names.json` | Secret key-name dictionary (88 entries, tiered scoring) |
+| `patterns/known_placeholder_values.json` | Known placeholder values for FP suppression (34) |
+| `patterns/stopwords.json` | Known placeholder values for regex FP suppression |
 | `events/emitter.py` | Pluggable event handlers |
 
 ### Key Patterns
 
-- **RE2 Set matching** — all 59 patterns screened in one C++ pass per value
+- **RE2 Set matching** — all 71 patterns screened in one C++ pass per value
 - **Two-phase matching** — Set screens, then individual patterns extract + validate
 - **Context boosting** — per-pattern boost/suppress words adjust confidence ±0.30
 - **Stopword suppression** — global + per-pattern known placeholders → hard zero
@@ -67,21 +74,25 @@
 
 | Suite | Tests | What |
 |---|---|---|
-| test_patterns.py | 236 | Pattern compilation, examples, metadata (59 patterns × 4) |
-| test_column_name_engine.py | 60+ | Fuzzy matching, abbreviations, multi-token, no-match |
+| test_patterns.py | 288 | Pattern compilation, examples, metadata (71 patterns × 4) |
+| test_column_name_engine.py | 78+ | Fuzzy matching, abbreviations, multi-token, compound table matching |
+| test_heuristic_engine.py | 42+ | Signal functions, SSN/ABA detection, collision resolution |
+| test_secret_scanner.py | 70+ | Parsers, scoring tiers, match types, integration |
 | test_golden_fixtures.py | 31 | BQ compat contract (column names + rollups) |
-| test_regex_engine.py | 31 | Engine behavior, confidence, masking, filtering, validators |
+| test_regex_engine.py | 33+ | Engine behavior, confidence, masking, filtering, validators, SIN Luhn |
 | test_hypothesis.py | 4 | Property-based (SSN, email, CC, random strings) |
-| **Total** | **398** | **0.94s** |
+| test_python_api.py | 57+ | API contract |
+| **Total** | **603** | **1.28s** |
 
 ### Benchmark Suite (not in CI — manual)
 
 | Benchmark | Command | What |
 |---|---|---|
-| Pattern matching | `python -m tests.benchmarks.pattern_benchmark` | Per-sample TP/FP/FN on raw values |
-| Column accuracy | `python -m tests.benchmarks.accuracy_benchmark` | Full pipeline P/R/F1 |
-| Performance | `python -m tests.benchmarks.perf_benchmark` | Latency, throughput, scaling |
-| Sprint report | `python -m tests.benchmarks.generate_report --sprint N` | Combined markdown report |
+| Pattern matching | `python3 -m tests.benchmarks.pattern_benchmark` | Per-sample TP/FP/FN on raw values |
+| Column accuracy | `python3 -m tests.benchmarks.accuracy_benchmark` | Full pipeline P/R/F1 |
+| Performance | `python3 -m tests.benchmarks.perf_benchmark` | Per-engine latency, input-type matrix, scaling |
+| Secret detection | `python3 -m tests.benchmarks.secret_benchmark` | Per-layer P/R/F1 on 102 adversarial samples |
+| Sprint report | `python3 -m tests.benchmarks.generate_report --sprint N` | Combined markdown report |
 
 ## Sprint History
 
@@ -89,6 +100,7 @@
 |---|---|---|---|---|
 | 1 | Bootstrap + RE2 engine | Complete | 234 | Package, RE2 engine, 43 patterns, 4 validators, orchestrator, events, CI |
 | 2 | Regex hardening + column name engine + testing | Complete | 398 | 59 patterns, 11 validators, column name engine, context boosting, stopwords, benchmarks, mkdocs |
+| 3 | Disambiguation + new engines + secret detection | Complete | 603 | 71 patterns, 12 validators, heuristic + secret scanner engines, collision resolution, F1 0.897 |
 
 ## Consumers
 

@@ -1,6 +1,6 @@
 title: 'Canadian SIN: Luhn validation failing on unformatted 9-digit values (corpus
   or validator bug)'
-status: doing
+status: done
 priority: P2
 category: bug
 sprint_target: 3

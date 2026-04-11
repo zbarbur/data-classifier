@@ -1,5 +1,5 @@
 title: Extend ColumnInput with table_name, schema_name, dataset_name optional fields
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 3
