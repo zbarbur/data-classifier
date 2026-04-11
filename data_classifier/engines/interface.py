@@ -47,6 +47,41 @@ class ClassificationEngine(ABC):
         """Classify a single column.  Return empty list if no findings."""
         ...
 
+    def classify_batch(
+        self,
+        columns: list[ColumnInput],
+        *,
+        profile: ClassificationProfile | None = None,
+        min_confidence: float = 0.5,
+        mask_samples: bool = False,
+        max_evidence_samples: int = 5,
+    ) -> list[list[ClassificationFinding]]:
+        """Classify multiple columns in a batch.
+
+        Default implementation delegates to :meth:`classify_column` in a loop.
+        ML engines should override this for efficient batched inference.
+
+        Args:
+            columns: Columns to classify.
+            profile: Classification profile to apply.
+            min_confidence: Minimum confidence threshold.
+            mask_samples: Whether to redact sample matches.
+            max_evidence_samples: Max matching samples per finding.
+
+        Returns:
+            List of finding-lists, one per input column.
+        """
+        return [
+            self.classify_column(
+                col,
+                profile=profile,
+                min_confidence=min_confidence,
+                mask_samples=mask_samples,
+                max_evidence_samples=max_evidence_samples,
+            )
+            for col in columns
+        ]
+
     def startup(self) -> None:
         """Optional lifecycle hook — called once before first use.
 
