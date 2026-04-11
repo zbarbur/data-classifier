@@ -102,6 +102,8 @@ def generate_report(
     sprint: int,
     samples_per_type: int = 500,
     corpus_source: str = "synthetic",
+    *,
+    blind: bool = False,
 ) -> tuple[str, dict]:
     """Generate the full benchmark report as a Markdown string.
 
@@ -159,7 +161,7 @@ def generate_report(
     else:
         from tests.benchmarks.corpus_loader import load_corpus
 
-        corpus = load_corpus(corpus_source, samples_per_type=samples_per_type)
+        corpus = load_corpus(corpus_source, samples_per_type=samples_per_type, blind=blind)
     col_data, col_text = _capture_column_report(corpus, corpus_source=corpus_source)
     total_col_samples = sum(len(c.sample_values) for c, _ in corpus)
     col_metrics = col_data["metrics"]
@@ -723,9 +725,16 @@ if __name__ == "__main__":
         choices=["synthetic", "ai4privacy", "nemotron", "all"],
         help="Corpus source (default: synthetic)",
     )
+    parser.add_argument(
+        "--blind",
+        action="store_true",
+        help="Use generic column names (col_0, col_1, ...) to test sample-value-only classification",
+    )
     args = parser.parse_args()
 
-    report, report_data = generate_report(sprint=args.sprint, samples_per_type=args.samples, corpus_source=args.corpus)
+    report, report_data = generate_report(
+        sprint=args.sprint, samples_per_type=args.samples, corpus_source=args.corpus, blind=args.blind
+    )
 
     # Markdown report in docs/sprints/ (legacy location)
     md_path = args.output or f"docs/sprints/SPRINT{args.sprint}_BENCHMARK.md"

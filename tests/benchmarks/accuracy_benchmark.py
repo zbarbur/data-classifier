@@ -558,6 +558,11 @@ if __name__ == "__main__":
         help="Corpus source to use (default: synthetic)",
     )
     parser.add_argument("--max-rows", type=int, default=500, help="Max rows for real-world corpora")
+    parser.add_argument(
+        "--blind",
+        action="store_true",
+        help="Use generic column names (col_0, col_1, ...) to test sample-value-only classification",
+    )
     args = parser.parse_args()
 
     corpus_source = args.corpus
@@ -570,8 +575,11 @@ if __name__ == "__main__":
     else:
         from tests.benchmarks.corpus_loader import load_corpus
 
-        print(f"Loading {corpus_source} corpus (max {args.max_rows} rows)...")  # noqa: T201
-        corpus = load_corpus(corpus_source, max_rows=args.max_rows)
+        label = f"{corpus_source} corpus"
+        if args.blind:
+            label += " (BLIND — generic column names)"
+        print(f"Loading {label} (max {args.max_rows} rows)...")  # noqa: T201
+        corpus = load_corpus(corpus_source, max_rows=args.max_rows, blind=args.blind)
 
     results, metrics = run_benchmark(corpus, verbose=args.verbose, corpus_source=corpus_source)
     print_report(corpus, results, metrics, verbose=args.verbose)

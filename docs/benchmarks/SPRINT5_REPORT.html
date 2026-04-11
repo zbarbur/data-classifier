@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprint 5 Benchmark Report</title>
+<style>
+  :root {
+    --bg:#f8fafc;--surface:#fff;--border:#e2e8f0;--border-light:#f1f5f9;
+    --text:#1e293b;--text-muted:#64748b;--text-faint:#94a3b8;
+    --green:#22c55e;--green-bg:#dcfce7;--green-text:#166534;
+    --amber:#f59e0b;--amber-bg:#fef3c7;--amber-text:#92400e;
+    --red:#ef4444;--red-bg:#fee2e2;--red-text:#991b1b;
+    --blue:#3b82f6;--blue-light:#dbeafe;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+       background:var(--bg);color:var(--text);max-width:1280px;margin:0 auto;padding:2rem}
+  .header{margin-bottom:2.5rem}
+  .header h1{font-size:2rem;font-weight:800;letter-spacing:-0.02em}
+  .header .subtitle{color:var(--text-muted);font-size:1rem;margin-top:0.3rem}
+  .header .meta{display:flex;gap:1.5rem;margin-top:0.8rem;flex-wrap:wrap}
+  .header .meta span{font-size:0.85rem;color:var(--text-faint)}
+  .header .meta strong{color:var(--text-muted)}
+  .section{margin-top:3rem}
+  .section-header{display:flex;align-items:baseline;gap:0.8rem;margin-bottom:1.2rem;
+                   border-bottom:2px solid var(--border);padding-bottom:0.6rem}
+  .section-header h2{font-size:1.35rem;font-weight:700}
+  .section-badge{font-size:0.75rem;background:var(--blue-light);color:var(--blue);
+                  padding:0.2rem 0.6rem;border-radius:10px;font-weight:600}
+  .summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:1.5rem 0}
+  .summary-card{background:var(--surface);border-radius:12px;padding:1.5rem;
+                 box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid var(--border-light);
+                 transition:box-shadow .15s}
+  .summary-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08)}
+  .summary-card .card-label{font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;
+                             letter-spacing:0.06em;font-weight:600}
+  .summary-card .card-value{font-size:2.4rem;font-weight:800;margin:0.3rem 0 0.15rem;
+                             letter-spacing:-0.02em;line-height:1.1}
+  .summary-card .card-sub{font-size:0.8rem;color:var(--text-faint)}
+  .summary-card.highlight{border-left:4px solid var(--blue)}
+  .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0.8rem;margin:1rem 0}
+  .metric-card{background:var(--surface);border-radius:8px;padding:1rem;
+                box-shadow:0 1px 2px rgba(0,0,0,.05);border:1px solid var(--border-light)}
+  .metric-card .card-label{font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;
+                            letter-spacing:0.05em;font-weight:600}
+  .metric-card .card-value{font-size:1.6rem;font-weight:700;margin-top:0.2rem}
+  .metric-card .card-sub{font-size:0.75rem;color:var(--text-faint);margin-top:0.1rem}
+  table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:10px;
+         overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid var(--border-light)}
+  th{background:var(--border-light);text-align:left;padding:0.7rem 1rem;font-size:0.75rem;
+      color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;font-weight:700}
+  td{padding:0.6rem 1rem;border-top:1px solid var(--border-light);font-size:0.88rem}
+  td.num{font-variant-numeric:tabular-nums;text-align:right}
+  tr:hover td{background:#f8fafc}
+  .bar-bg{width:80px;height:8px;background:var(--border-light);border-radius:4px;
+           overflow:hidden;display:inline-block;vertical-align:middle}
+  .bar{height:100%;border-radius:4px}
+  .bar-label{font-size:0.75rem;color:var(--text-muted);margin-left:0.3rem}
+  .tag{display:inline-block;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;
+        font-weight:700;letter-spacing:0.03em}
+  .tag-good{background:var(--green-bg);color:var(--green-text)}
+  .tag-warn{background:var(--amber-bg);color:var(--amber-text)}
+  .tag-bad{background:var(--red-bg);color:var(--red-text)}
+  details{margin:1.2rem 0}
+  summary{cursor:pointer;font-weight:600;font-size:0.95rem;padding:0.6rem 0;
+          color:var(--blue);user-select:none}
+  summary:hover{color:#2563eb}
+  details[open] summary{margin-bottom:0.8rem}
+  .entity-health{display:flex;gap:1rem;margin-bottom:1rem;align-items:center}
+  .health-pill{display:flex;align-items:center;gap:0.4rem;font-size:0.85rem;font-weight:600}
+  .health-dot{width:10px;height:10px;border-radius:50%}
+  footer{margin-top:3rem;padding-top:1.2rem;border-top:1px solid var(--border);
+         color:var(--text-faint);font-size:0.8rem;display:flex;justify-content:space-between}
+  @media(max-width:768px){
+    .summary-grid{grid-template-columns:1fr}
+    .metric-grid{grid-template-columns:repeat(2,1fr)}
+    body{padding:1rem}
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Sprint 5 — Benchmark Report</h1>
+  <div class="subtitle">data_classifier — Consolidated Accuracy + Performance</div>
+  <div class="meta">
+    <span>Corpus: <strong>ai4privacy</strong></span>
+    <span>Entities: <strong>9</strong></span>
+    <span>Generated: <strong>2026-04-11 20:28 UTC</strong></span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Executive Summary</h2>
+    <span class="section-badge">At a Glance</span>
+  </div>
+  <div class="summary-grid">
+    <div class="summary-card highlight">
+      <div class="card-label">Macro F1 <span class="tag tag-bad">LOW</span></div>
+      <div class="card-value" style="color:#ef4444">0.500</div>
+      <div class="card-sub">Average per-entity F1</div>
+    </div>
+    <div class="summary-card highlight">
+      <div class="card-label">Primary-Label <span class="tag tag-bad">LOW</span></div>
+      <div class="card-value" style="color:#ef4444">50.0%</div>
+      <div class="card-sub">Top-1 prediction correct</div>
+    </div>
+    <div class="summary-card">
+      <div class="card-label">Throughput</div>
+      <div class="card-value">0</div>
+      <div class="card-sub">columns/sec (p50=3333.82ms)</div>
+    </div>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="card-label">Micro F1</div>
+      <div class="card-value" style="color:#ef4444">0.480</div>
+      <div class="card-sub">TP=6 FP=11 FN=2</div>
+    </div>
+    <div class="metric-card">
+      <div class="card-label">Precision</div>
+      <div class="card-value" style="color:#ef4444">0.353</div>
+      <div class="card-sub">Low FPs = trust</div>
+    </div>
+    <div class="metric-card">
+      <div class="card-label">Recall</div>
+      <div class="card-value" style="color:#f59e0b">0.750</div>
+      <div class="card-sub">Low FNs = coverage</div>
+    </div>
+    <div class="metric-card">
+      <div class="card-label">Secret Detection F1</div>
+      <div class="card-value" style="color:#ef4444">0.337</div>
+      <div class="card-sub">P=0.377 R=0.304</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Accuracy — Per-Entity Breakdown</h2>
+    <span class="section-badge">9 entities</span>
+  </div>
+  <div class="entity-health">
+    <div class="health-pill">
+      <div class="health-dot" style="background:var(--green)"></div>
+      2 good (F1 &ge; 0.9)</div>
+    <div class="health-pill">
+      <div class="health-dot" style="background:var(--amber)"></div>
+      0 warning (0.7&ndash;0.9)</div>
+    <div class="health-pill">
+      <div class="health-dot" style="background:var(--red)"></div>
+      7 low (&lt; 0.7)</div>
+  </div>
+  <table>
+  <thead><tr>
+    <th>Entity Type</th><th style="text-align:right">TP</th>
+    <th style="text-align:right">FP</th><th style="text-align:right">FN</th>
+    <th style="text-align:right">Prec</th><th style="text-align:right">Recall</th>
+    <th style="text-align:right">F1</th><th>F1 Bar</th>
+  </tr></thead>
+  <tbody>
+<tr><td><strong>ADDRESS</strong></td><td class='num'>1</td><td class='num'>0</td><td class='num'>0</td><td class='num'>1.000</td><td class='num'>1.000</td><td class='num' style='color:#22c55e;font-weight:700'>1.000</td><td><div class='bar-bg'><div class='bar' style='width:100.0%;background:#22c55e'></div></div></td></tr>
+<tr><td><strong>DATE_OF_BIRTH</strong></td><td class='num'>1</td><td class='num'>0</td><td class='num'>0</td><td class='num'>1.000</td><td class='num'>1.000</td><td class='num' style='color:#22c55e;font-weight:700'>1.000</td><td><div class='bar-bg'><div class='bar' style='width:100.0%;background:#22c55e'></div></div></td></tr>
+<tr><td><strong>PHONE</strong></td><td class='num'>1</td><td class='num'>1</td><td class='num'>0</td><td class='num'>0.500</td><td class='num'>1.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.667</td><td><div class='bar-bg'><div class='bar' style='width:66.66666666666666%;background:#ef4444'></div></div></td></tr>
+<tr><td><strong>EMAIL</strong></td><td class='num'>1</td><td class='num'>2</td><td class='num'>0</td><td class='num'>0.333</td><td class='num'>1.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.500</td><td><div class='bar-bg'><div class='bar' style='width:50.0%;background:#ef4444'></div></div></td></tr>
+<tr><td><strong>IP_ADDRESS</strong></td><td class='num'>1</td><td class='num'>2</td><td class='num'>0</td><td class='num'>0.333</td><td class='num'>1.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.500</td><td><div class='bar-bg'><div class='bar' style='width:50.0%;background:#ef4444'></div></div></td></tr>
+<tr><td><strong>PERSON_NAME</strong></td><td class='num'>1</td><td class='num'>4</td><td class='num'>0</td><td class='num'>0.200</td><td class='num'>1.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.333</td><td><div class='bar-bg'><div class='bar' style='width:33.333333333333336%;background:#ef4444'></div></div></td></tr>
+<tr><td><strong>CREDENTIAL</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>1</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td><td><div class='bar-bg'><div class='bar' style='width:2%;background:#ef4444'></div></div></td></tr>
+<tr><td><strong>ORGANIZATION</strong></td><td class='num'>0</td><td class='num'>2</td><td class='num'>0</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td><td><div class='bar-bg'><div class='bar' style='width:2%;background:#ef4444'></div></div></td></tr>
+<tr><td><strong>SSN</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>1</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td><td><div class='bar-bg'><div class='bar' style='width:2%;background:#ef4444'></div></div></td></tr>
+
+  </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Performance</h2>
+    <span class="section-badge">Latency &amp; Throughput</span>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="card-label">Throughput</div>
+      <div class="card-value">0</div>
+      <div class="card-sub">columns/sec</div>
+    </div>
+    <div class="metric-card">
+      <div class="card-label">Per Column (p50)</div>
+      <div class="card-value">3333.82</div>
+      <div class="card-sub">ms</div>
+    </div>
+    <div class="metric-card">
+      <div class="card-label">Per Sample (p50)</div>
+      <div class="card-value">6667.6</div>
+      <div class="card-sub">us</div>
+    </div>
+    <div class="metric-card">
+      <div class="card-label">Warmup (RE2)</div>
+      <div class="card-value">2269.1</div>
+      <div class="card-sub">ms (compile)</div>
+    </div>
+  </div>
+  <details>
+  <summary>Per-Engine Latency Breakdown</summary>
+  <table>
+  <thead><tr><th>Engine</th><th style="text-align:right">Total (p50)</th>
+    <th style="text-align:right">Per Column</th><th>% of Pipeline</th></tr></thead>
+  <tbody><tr><td><strong>Column Name</strong></td><td class='num'>0.02 ms</td><td class='num'>0.002 ms</td><td><div class='bar-bg'><div class='bar' style='width:5.6242218357768195e-05%;background:#3b82f6'></div></div><span class='bar-label'>0%</span></td></tr>
+<tr><td><strong>Heuristic Stats</strong></td><td class='num'>0.77 ms</td><td class='num'>0.097 ms</td><td><div class='bar-bg'><div class='bar' style='width:0.0029048885352448736%;background:#3b82f6'></div></div><span class='bar-label'>0%</span></td></tr>
+<tr><td><strong>Regex</strong></td><td class='num'>12.88 ms</td><td class='num'>1.610 ms</td><td><div class='bar-bg'><div class='bar' style='width:0.04829763683226402%;background:#3b82f6'></div></div><span class='bar-label'>0%</span></td></tr>
+<tr><td><strong>Secret Scanner</strong></td><td class='num'>89.29 ms</td><td class='num'>11.162 ms</td><td><div class='bar-bg'><div class='bar' style='width:0.3347965962379717%;background:#3b82f6'></div></div><span class='bar-label'>0%</span></td></tr>
+</tbody>
+  </table>
+  </details>
+  <details>
+  <summary>Sample Count Scaling</summary>
+  <table>
+  <thead><tr><th style="text-align:right">Samples/col</th>
+    <th style="text-align:right">Latency (p50)</th></tr></thead>
+  <tbody><tr><td class='num'>10</td><td class='num'>147.596 ms</td></tr>
+<tr><td class='num'>50</td><td class='num'>395.901 ms</td></tr>
+<tr><td class='num'>100</td><td class='num'>700.518 ms</td></tr>
+<tr><td class='num'>500</td><td class='num'>3760.630 ms</td></tr>
+</tbody>
+  </table>
+  </details>
+  <details>
+  <summary>Input Length Scaling (RE2 Linearity)</summary>
+  <table>
+  <thead><tr><th style="text-align:right">Input Bytes</th>
+    <th style="text-align:right">p50</th>
+    <th style="text-align:right">Ratio</th></tr></thead>
+  <tbody><tr><td class='num'>51</td><td class='num'>2.4 us</td><td class='num' style='color:#22c55e'>1.0x</td></tr>
+<tr><td class='num'>101</td><td class='num'>2.5 us</td><td class='num' style='color:#22c55e'>1.1x</td></tr>
+<tr><td class='num'>501</td><td class='num'>3.9 us</td><td class='num' style='color:#22c55e'>1.6x</td></tr>
+<tr><td class='num'>1,001</td><td class='num'>5.8 us</td><td class='num' style='color:#22c55e'>2.5x</td></tr>
+<tr><td class='num'>5,001</td><td class='num'>159.5 us</td><td class='num' style='color:#ef4444'>67.1x</td></tr>
+<tr><td class='num'>10,001</td><td class='num'>305.8 us</td><td class='num' style='color:#ef4444'>128.7x</td></tr>
+<tr><td class='num'>50,001</td><td class='num'>1585.1 us</td><td class='num' style='color:#ef4444'>667.4x</td></tr>
+</tbody>
+  </table>
+  </details>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Secret Detection</h2>
+    <span class="section-badge">By Source</span>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="card-label">Overall F1</div>
+      <div class="card-value" style="color:#ef4444">0.337</div>
+    </div>
+    <div class="metric-card">
+      <div class="card-label">Precision</div>
+      <div class="card-value" style="color:#ef4444">0.377</div>
+    </div>
+    <div class="metric-card">
+      <div class="card-label">Recall</div>
+      <div class="card-value" style="color:#ef4444">0.304</div>
+    </div>
+  </div>
+  <details open>
+  <summary>Per-Source Breakdown</summary>
+  <table>
+  <thead><tr><th>Source</th><th style="text-align:right">Total</th>
+    <th style="text-align:right">TP</th><th style="text-align:right">FP</th>
+    <th style="text-align:right">FN</th><th style="text-align:right">Prec</th>
+    <th style="text-align:right">Recall</th>
+    <th style="text-align:right">F1</th></tr></thead>
+  <tbody><tr><td><strong>external</strong></td><td class='num'>839</td><td class='num'>140</td><td class='num'>294</td><td class='num'>405</td><td class='num'>0.323</td><td class='num'>0.257</td><td class='num' style='color:#ef4444;font-weight:700'>0.286</td></tr>
+<tr><td><strong>known_limitation</strong></td><td class='num'>1</td><td class='num'>0</td><td class='num'>0</td><td class='num'>1</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td></tr>
+<tr><td><strong>regex</strong></td><td class='num'>19</td><td class='num'>18</td><td class='num'>0</td><td class='num'>1</td><td class='num'>1.000</td><td class='num'>0.947</td><td class='num' style='color:#22c55e;font-weight:700'>0.973</td></tr>
+<tr><td><strong>scanner_contextual</strong></td><td class='num'>1</td><td class='num'>1</td><td class='num'>0</td><td class='num'>0</td><td class='num'>1.000</td><td class='num'>1.000</td><td class='num' style='color:#22c55e;font-weight:700'>1.000</td></tr>
+<tr><td><strong>scanner_definitive</strong></td><td class='num'>13</td><td class='num'>12</td><td class='num'>0</td><td class='num'>1</td><td class='num'>1.000</td><td class='num'>0.923</td><td class='num' style='color:#22c55e;font-weight:700'>0.960</td></tr>
+<tr><td><strong>scanner_strong</strong></td><td class='num'>7</td><td class='num'>7</td><td class='num'>0</td><td class='num'>0</td><td class='num'>1.000</td><td class='num'>1.000</td><td class='num' style='color:#22c55e;font-weight:700'>1.000</td></tr>
+<tr><td><strong>tn_ambiguous</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td></tr>
+<tr><td><strong>tn_edge</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td></tr>
+<tr><td><strong>tn_encoded</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td></tr>
+<tr><td><strong>tn_high_entropy</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td></tr>
+<tr><td><strong>tn_near_miss_keys</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td></tr>
+<tr><td><strong>tn_nonsecret</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td></tr>
+<tr><td><strong>tn_placeholder</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td></tr>
+<tr><td><strong>tn_plain</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td></tr>
+<tr><td><strong>tn_word_boundary</strong></td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0.000</td><td class='num'>0.000</td><td class='num' style='color:#ef4444;font-weight:700'>0.000</td></tr>
+</tbody>
+  </table>
+  </details>
+</div>
+
+<footer>
+  <span>data_classifier Sprint 5 — consolidated benchmark report</span>
+  <span>Generated by tests.benchmarks.generate_report</span>
+</footer>
+</body>
+</html>

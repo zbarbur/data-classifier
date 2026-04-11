@@ -1,16 +1,15 @@
 """GLiNER2 NER classification engine — ML-based entity detection from sample values.
 
-Uses the GLiNER2 model (a zero-shot NER model that accepts entity labels at
-inference time) to detect entity types in column sample values.  Targets
-entity types where sample value analysis adds value beyond regex:
-PERSON_NAME, ADDRESS, ORGANIZATION, DATE_OF_BIRTH.
+Uses GLiNER2 (a unified schema-based information extraction model) to detect
+entity types in column sample values.  Entity descriptions provide semantic
+context that significantly improves detection accuracy.
 
 Order 5 in the engine cascade (after secret_scanner).  Only runs when the
-``gliner`` package is installed; raises ``ModelDependencyError`` otherwise.
+``gliner2`` package is installed; raises ``ModelDependencyError`` otherwise.
 
-The engine concatenates sample values into text blocks and runs GLiNER2's
-``predict_entities`` method.  Predictions are mapped back to our entity
-taxonomy and filtered by confidence threshold.
+The engine processes sample values in chunks, runs GLiNER2's
+``extract_entities`` method with descriptions and confidence scores,
+then maps results back to our entity taxonomy.
 """
 
 from __future__ import annotations
@@ -32,47 +31,65 @@ logger = logging.getLogger(__name__)
 # ── GLiNER2 model configuration ────────────────────────────────────────────
 
 _MODEL_NAME = "gliner2-ner"
-_MODEL_ID = "urchade/gliner_medium-v2.1"
+_MODEL_ID = "urchade/gliner_multi_pii-v1"
 _REQUIRED_PACKAGES = ["gliner"]
 
-# ── Entity type mapping ────────────────────────────────────────────────────
+# ── Entity type mapping with descriptions ─────────────────────────────────
 #
-# Maps our internal entity types to natural language labels that GLiNER2
-# understands.  We only target entity types where NER on sample values
-# adds value over regex pattern matching.
+# GLiNER2 uses descriptions as semantic context for better accuracy.
+# Labels and descriptions were tested against real corpus samples.
+# Format: entity_type -> (gliner_label, description)
 
-ENTITY_TO_GLINER_LABEL: dict[str, str] = {
-    "PERSON_NAME": "person name",
-    "ADDRESS": "physical address",
-    "ORGANIZATION": "organization",
-    "DATE_OF_BIRTH": "date of birth",
+ENTITY_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
+    "PERSON_NAME": (
+        "person",
+        "Names of people or individuals, including first and last names",
+    ),
+    "ADDRESS": (
+        "street address",
+        "Street names, roads, avenues, physical locations with or without house numbers",
+    ),
+    "ORGANIZATION": (
+        "organization",
+        "Company names, institutions, agencies, or other organizational entities",
+    ),
+    "DATE_OF_BIRTH": (
+        "date of birth",
+        "Dates representing when a person was born, in any format",
+    ),
+    "PHONE": (
+        "phone number",
+        "Telephone numbers in any international format with country codes, dashes, dots, or spaces",
+    ),
+    "SSN": (
+        "national identification number",
+        "Government-issued personal identification numbers such as SSN, national insurance, or tax ID",
+    ),
+    "EMAIL": (
+        "email",
+        "Email addresses including international domains and subdomains",
+    ),
+    "IP_ADDRESS": (
+        "ip address",
+        "IPv4 or IPv6 network addresses",
+    ),
 }
 
 # Reverse mapping: GLiNER2 label -> our entity type
-GLINER_LABEL_TO_ENTITY: dict[str, str] = {v: k for k, v in ENTITY_TO_GLINER_LABEL.items()}
+GLINER_LABEL_TO_ENTITY: dict[str, str] = {
+    label: entity_type for entity_type, (label, _) in ENTITY_LABEL_DESCRIPTIONS.items()
+}
 
 # Entity metadata for findings
 _ENTITY_METADATA: dict[str, dict[str, Any]] = {
-    "PERSON_NAME": {
-        "category": "PII",
-        "sensitivity": "HIGH",
-        "regulatory": ["GDPR", "CCPA"],
-    },
-    "ADDRESS": {
-        "category": "PII",
-        "sensitivity": "HIGH",
-        "regulatory": ["GDPR", "CCPA"],
-    },
-    "ORGANIZATION": {
-        "category": "PII",
-        "sensitivity": "MEDIUM",
-        "regulatory": [],
-    },
-    "DATE_OF_BIRTH": {
-        "category": "PII",
-        "sensitivity": "HIGH",
-        "regulatory": ["GDPR", "CCPA", "HIPAA"],
-    },
+    "PERSON_NAME": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA"]},
+    "ADDRESS": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA"]},
+    "ORGANIZATION": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": []},
+    "DATE_OF_BIRTH": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA", "HIPAA"]},
+    "PHONE": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR", "CCPA"]},
+    "SSN": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA", "HIPAA"]},
+    "EMAIL": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR", "CCPA"]},
+    "IP_ADDRESS": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR"]},
 }
 
 # Default confidence threshold for GLiNER2 predictions
@@ -81,9 +98,12 @@ _DEFAULT_GLINER_THRESHOLD = 0.5
 # Separator used when concatenating sample values
 _SAMPLE_SEPARATOR = " ; "
 
+# Max samples per NER chunk — keeps text within model's context window
+_SAMPLE_CHUNK_SIZE = 50
+
 
 def _load_gliner_model() -> Any:
-    """Load the GLiNER2 model.  Called lazily by the ModelRegistry."""
+    """Load the GLiNER model.  Called lazily by the ModelRegistry."""
     from gliner import GLiNER  # type: ignore[import-not-found]
 
     model = GLiNER.from_pretrained(_MODEL_ID)
@@ -94,8 +114,7 @@ class GLiNER2Engine(ClassificationEngine):
     """GLiNER2-based NER classification engine.
 
     Uses GLiNER2 for zero-shot named entity recognition on column sample
-    values.  Targets entity types where regex is insufficient: PERSON_NAME,
-    ADDRESS, ORGANIZATION, DATE_OF_BIRTH.
+    values with description-enhanced labels for higher accuracy.
 
     Order 5 in the cascade (after secret_scanner).  Only participates
     in ``structured`` mode.
@@ -112,6 +131,7 @@ class GLiNER2Engine(ClassificationEngine):
         registry: ModelRegistry | None = None,
         gliner_threshold: float = _DEFAULT_GLINER_THRESHOLD,
         entity_types: list[str] | None = None,
+        model_id: str = _MODEL_ID,
     ) -> None:
         """Initialize the GLiNER2 engine.
 
@@ -120,35 +140,58 @@ class GLiNER2Engine(ClassificationEngine):
                 registry if not provided.
             gliner_threshold: Minimum GLiNER2 prediction score to accept.
             entity_types: Entity types to detect.  Defaults to all mapped types.
+            model_id: HuggingFace model ID.  Defaults to the PII-tuned model.
+                Alternatives: ``fastino/gliner2-base-v1`` (general, supports
+                descriptions), ``urchade/gliner_large-v2.1`` (larger, slower).
         """
         self._registry = registry or ModelRegistry()
         self._gliner_threshold = gliner_threshold
+        self._model_id = model_id
+        self._is_v2 = model_id.startswith("fastino/")
         self._registered = False
 
         # Filter to requested entity types (must be in our mapping)
         if entity_types is not None:
-            self._entity_types = [et for et in entity_types if et in ENTITY_TO_GLINER_LABEL]
+            self._entity_types = [et for et in entity_types if et in ENTITY_LABEL_DESCRIPTIONS]
         else:
-            self._entity_types = list(ENTITY_TO_GLINER_LABEL.keys())
+            self._entity_types = list(ENTITY_LABEL_DESCRIPTIONS.keys())
 
-        # Build the labels list for GLiNER2 inference
-        self._gliner_labels = [ENTITY_TO_GLINER_LABEL[et] for et in self._entity_types]
+        # Build labels — v1 uses plain list, v2 uses dict with descriptions
+        if self._is_v2:
+            self._gliner_labels_v2: dict[str, str] = {
+                ENTITY_LABEL_DESCRIPTIONS[et][0]: ENTITY_LABEL_DESCRIPTIONS[et][1] for et in self._entity_types
+            }
+        self._gliner_labels: list[str] = [ENTITY_LABEL_DESCRIPTIONS[et][0] for et in self._entity_types]
 
     def startup(self) -> None:
-        """Register the GLiNER2 model in the registry for lazy loading."""
+        """Register the model in the registry for lazy loading."""
         if not self._registered:
+            model_id = self._model_id
+            is_v2 = self._is_v2
+
+            def _loader() -> Any:
+                if is_v2:
+                    from gliner2 import GLiNER2  # type: ignore[import-not-found]
+
+                    return GLiNER2.from_pretrained(model_id)
+                else:
+                    from gliner import GLiNER  # type: ignore[import-not-found]
+
+                    return GLiNER.from_pretrained(model_id)
+
+            pkg = "gliner2" if is_v2 else "gliner"
+            cls = "gliner2.GLiNER2" if is_v2 else "gliner.GLiNER"
             try:
                 self._registry.register(
                     _MODEL_NAME,
-                    loader=_load_gliner_model,
-                    model_class="gliner.GLiNER",
-                    requires=_REQUIRED_PACKAGES,
+                    loader=_loader,
+                    model_class=cls,
+                    requires=[pkg],
                 )
             except ValueError:
-                # Already registered (e.g. by another engine instance)
-                pass
+                pass  # Already registered
             self._registered = True
-        logger.info("GLiNER2Engine: registered model '%s' for lazy loading", _MODEL_NAME)
+        logger.info("GLiNER2Engine: registered model '%s' (%s) for lazy loading", _MODEL_NAME, self._model_id)
 
     def shutdown(self) -> None:
         """Unload the GLiNER2 model to free memory."""
@@ -167,7 +210,7 @@ class GLiNER2Engine(ClassificationEngine):
         """Get the GLiNER2 model, loading lazily.
 
         Raises:
-            ModelDependencyError: If gliner package is not installed.
+            ModelDependencyError: If gliner2 package is not installed.
         """
         self._ensure_started()
         return self._registry.get(_MODEL_NAME)
@@ -183,21 +226,8 @@ class GLiNER2Engine(ClassificationEngine):
     ) -> list[ClassificationFinding]:
         """Classify a column by running GLiNER2 NER on sample values.
 
-        Concatenates sample values into a text block, runs NER, and maps
-        predictions back to our entity taxonomy.
-
-        Args:
-            column: Column to classify.
-            profile: Classification profile (not used by this engine).
-            min_confidence: Minimum confidence for returned findings.
-            mask_samples: Whether to redact evidence samples.
-            max_evidence_samples: Max evidence samples per finding.
-
-        Returns:
-            List of classification findings from NER predictions.
-
-        Raises:
-            ModelDependencyError: If gliner package is not installed.
+        Processes sample values in chunks, runs NER with descriptions,
+        and maps predictions back to our entity taxonomy.
         """
         if not column.sample_values:
             return []
@@ -220,70 +250,23 @@ class GLiNER2Engine(ClassificationEngine):
         mask_samples: bool = False,
         max_evidence_samples: int = 5,
     ) -> list[list[ClassificationFinding]]:
-        """Classify multiple columns with batched GLiNER2 inference.
-
-        Prepares all text blocks and runs ``batch_predict_entities`` once
-        for efficient GPU utilization, then maps results back per-column.
-
-        Args:
-            columns: Columns to classify.
-            profile: Classification profile (not used by this engine).
-            min_confidence: Minimum confidence for returned findings.
-            mask_samples: Whether to redact evidence samples.
-            max_evidence_samples: Max evidence samples per finding.
-
-        Returns:
-            List of finding-lists, one per input column.
-
-        Raises:
-            ModelDependencyError: If gliner package is not installed.
-        """
+        """Classify multiple columns, delegating to classify_column per column."""
         if not columns:
             return []
 
         model = self._get_model()
-
-        # Build text blocks for all columns that have samples
-        texts: list[str] = []
-        column_indices: list[int] = []  # maps text index -> column index
-        for i, col in enumerate(columns):
-            if col.sample_values:
-                texts.append(_SAMPLE_SEPARATOR.join(col.sample_values))
-                column_indices.append(i)
-
-        # Initialize results
-        all_results: list[list[ClassificationFinding]] = [[] for _ in columns]
-
-        if not texts:
-            return all_results
-
-        # Batch predict
-        try:
-            batch_predictions = model.batch_predict_entities(
-                texts,
-                self._gliner_labels,
-                threshold=self._gliner_threshold,
-            )
-        except AttributeError:
-            # Fallback if batch_predict_entities is not available
-            batch_predictions = [
-                model.predict_entities(text, self._gliner_labels, threshold=self._gliner_threshold) for text in texts
-            ]
-
-        # Map predictions back to columns
-        for text_idx, predictions in enumerate(batch_predictions):
-            col_idx = column_indices[text_idx]
-            column = columns[col_idx]
-            findings = self._predictions_to_findings(
-                predictions=predictions,
-                column=column,
+        return [
+            self._run_ner_on_samples(
+                model=model,
+                column=col,
                 min_confidence=min_confidence,
                 mask_samples=mask_samples,
                 max_evidence_samples=max_evidence_samples,
             )
-            all_results[col_idx] = findings
-
-        return all_results
+            if col.sample_values
+            else []
+            for col in columns
+        ]
 
     def _run_ner_on_samples(
         self,
@@ -294,51 +277,71 @@ class GLiNER2Engine(ClassificationEngine):
         mask_samples: bool,
         max_evidence_samples: int,
     ) -> list[ClassificationFinding]:
-        """Run GLiNER2 NER on a single column's sample values."""
-        text = _SAMPLE_SEPARATOR.join(column.sample_values)
-        predictions = model.predict_entities(text, self._gliner_labels, threshold=self._gliner_threshold)
-        return self._predictions_to_findings(
-            predictions=predictions,
+        """Run GLiNER2 NER on a column's sample values in chunks.
+
+        Processes samples in small chunks to stay within the model's
+        context window.  Aggregates predictions across all chunks.
+        """
+        # Collect predictions from all chunks: {entity_type: [(text, confidence), ...]}
+        entity_hits: dict[str, list[tuple[str, float]]] = {}
+
+        for i in range(0, len(column.sample_values), _SAMPLE_CHUNK_SIZE):
+            chunk = column.sample_values[i : i + _SAMPLE_CHUNK_SIZE]
+            text = _SAMPLE_SEPARATOR.join(chunk)
+
+            try:
+                if self._is_v2:
+                    result = model.extract_entities(text, self._gliner_labels_v2, include_confidence=True)
+                    for gliner_label, matches in result.get("entities", {}).items():
+                        entity_type = GLINER_LABEL_TO_ENTITY.get(gliner_label)
+                        if entity_type is None:
+                            continue
+                        for match in matches:
+                            if isinstance(match, dict):
+                                entity_hits.setdefault(entity_type, []).append(
+                                    (match.get("text", ""), match.get("confidence", 0.5))
+                                )
+                            else:
+                                entity_hits.setdefault(entity_type, []).append((str(match), 0.5))
+                else:
+                    preds = model.predict_entities(text, self._gliner_labels, threshold=self._gliner_threshold)
+                    for pred in preds:
+                        entity_type = GLINER_LABEL_TO_ENTITY.get(pred.get("label", ""))
+                        if entity_type is None:
+                            continue
+                        entity_hits.setdefault(entity_type, []).append((pred.get("text", ""), pred.get("score", 0.0)))
+            except Exception:
+                logger.exception("GLiNER inference failed on chunk %d for column %s", i, column.column_id)
+                continue
+
+        return self._hits_to_findings(
+            entity_hits=entity_hits,
             column=column,
             min_confidence=min_confidence,
             mask_samples=mask_samples,
             max_evidence_samples=max_evidence_samples,
         )
 
-    def _predictions_to_findings(
+    def _hits_to_findings(
         self,
         *,
-        predictions: list[dict],
+        entity_hits: dict[str, list[tuple[str, float]]],
         column: ColumnInput,
         min_confidence: float,
         mask_samples: bool,
         max_evidence_samples: int,
     ) -> list[ClassificationFinding]:
-        """Convert GLiNER2 predictions into ClassificationFindings.
-
-        Groups predictions by entity type, computes aggregate confidence,
-        and builds evidence strings.
-        """
-        # Group predictions by entity type
-        entity_groups: dict[str, list[dict]] = {}
-        for pred in predictions:
-            label = pred.get("label", "")
-            entity_type = GLINER_LABEL_TO_ENTITY.get(label)
-            if entity_type is None:
-                continue
-            entity_groups.setdefault(entity_type, []).append(pred)
-
+        """Convert aggregated GLiNER2 hits into ClassificationFindings."""
         findings: list[ClassificationFinding] = []
         total_samples = len(column.sample_values)
 
-        for entity_type, preds in entity_groups.items():
-            # Compute aggregate confidence from individual prediction scores
-            scores = [p.get("score", 0.0) for p in preds]
+        for entity_type, hits in entity_hits.items():
+            count = len(hits)
+            scores = [conf for _, conf in hits]
             avg_score = sum(scores) / len(scores) if scores else 0.0
             max_score = max(scores) if scores else 0.0
 
-            # Use max score as confidence, boosted by count
-            count = len(preds)
+            # Confidence: use average, scaled by hit density
             if count == 1:
                 confidence = avg_score * 0.85
             elif count <= 3:
@@ -350,12 +353,11 @@ class GLiNER2Engine(ClassificationEngine):
                 continue
 
             # Build evidence
-            matched_texts = [p.get("text", "") for p in preds[:max_evidence_samples]]
+            matched_texts = [text for text, _ in hits[:max_evidence_samples]]
             if mask_samples:
                 matched_texts = [_mask_ner_value(t) for t in matched_texts]
 
             metadata = _ENTITY_METADATA.get(entity_type, {})
-
             match_ratio = count / total_samples if total_samples > 0 else 0.0
 
             findings.append(
@@ -382,7 +384,44 @@ class GLiNER2Engine(ClassificationEngine):
                 )
             )
 
+        return _deduplicate_gliner_findings(findings)
+
+
+# More specific entity types suppress more general ones when both are found
+_SPECIFICITY_ORDER: dict[str, int] = {
+    "ADDRESS": 3,
+    "DATE_OF_BIRTH": 3,
+    "SSN": 3,
+    "EMAIL": 3,
+    "IP_ADDRESS": 3,
+    "PHONE": 3,
+    "ORGANIZATION": 2,
+    "PERSON_NAME": 1,
+}
+
+
+def _deduplicate_gliner_findings(findings: list[ClassificationFinding]) -> list[ClassificationFinding]:
+    """When GLiNER2 finds overlapping entity types, keep the more specific one.
+
+    Example: ADDRESS and PERSON_NAME both found → keep ADDRESS (street names
+    contain words that look like names).
+    """
+    if len(findings) <= 1:
         return findings
+
+    # Sort by specificity (highest first), then confidence
+    findings.sort(key=lambda f: (_SPECIFICITY_ORDER.get(f.entity_type, 0), f.confidence), reverse=True)
+    top = findings[0]
+    top_spec = _SPECIFICITY_ORDER.get(top.entity_type, 0)
+
+    # Suppress less-specific types when confidence gap is small
+    kept = [top]
+    for f in findings[1:]:
+        f_spec = _SPECIFICITY_ORDER.get(f.entity_type, 0)
+        if f_spec < top_spec and top.confidence - f.confidence < 0.3:
+            continue  # Suppress less-specific type
+        kept.append(f)
+    return kept
 
 
 def _mask_ner_value(value: str) -> str:

@@ -85,7 +85,20 @@ __all__ = [
 
 # ── Module-level engine registry ─────────────────────────────────────────────
 
-_DEFAULT_ENGINES = [ColumnNameEngine(), RegexEngine(), HeuristicEngine(), SecretScannerEngine()]
+
+def _build_default_engines() -> list:
+    """Build default engine list, including GLiNER2 if available."""
+    engines: list = [ColumnNameEngine(), RegexEngine(), HeuristicEngine(), SecretScannerEngine()]
+    try:
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engines.append(GLiNER2Engine())
+    except Exception:  # noqa: BLE001
+        pass  # GLiNER2 engine not available — skipping
+    return engines
+
+
+_DEFAULT_ENGINES = _build_default_engines()
 
 
 def classify_columns(

@@ -106,11 +106,18 @@ def _records_to_corpus(
     type_map: dict[str, str],
     source_name: str,
     max_rows: int = 500,
+    *,
+    blind: bool = False,
 ) -> list[tuple[ColumnInput, str | None]]:
     """Convert corpus records to (ColumnInput, expected_entity_type) tuples.
 
     Groups values by mapped entity type, creates one ColumnInput per type
     with up to max_rows sample values.
+
+    Args:
+        blind: If True, use generic column names (col_0, col_1, ...) so
+            the column name engine cannot cheat.  This tests whether
+            classification works from sample values alone.
     """
     # Group values by our entity type
     by_type: dict[str, list[str]] = {}
@@ -127,12 +134,18 @@ def _records_to_corpus(
         by_type.setdefault(our_type, []).append(str(value))
 
     corpus: list[tuple[ColumnInput, str | None]] = []
-    for entity_type, values in sorted(by_type.items()):
+    for idx, (entity_type, values) in enumerate(sorted(by_type.items())):
         # Truncate to max_rows
         values = values[:max_rows]
+        if blind:
+            col_name = f"col_{idx}"
+            col_id = f"col_{idx}"
+        else:
+            col_name = f"{source_name}_{entity_type.lower()}"
+            col_id = f"{source_name}_{entity_type}_0"
         col = ColumnInput(
-            column_name=f"{source_name}_{entity_type.lower()}",
-            column_id=f"{source_name}_{entity_type}_0",
+            column_name=col_name,
+            column_id=col_id,
             data_type="STRING",
             sample_values=values,
         )
@@ -144,6 +157,8 @@ def _records_to_corpus(
 def load_ai4privacy_corpus(
     path: Path | str | None = None,
     max_rows: int = 500,
+    *,
+    blind: bool = False,
 ) -> list[tuple[ColumnInput, str | None]]:
     """Load Ai4Privacy corpus sample and convert to our format.
 
@@ -164,12 +179,14 @@ def load_ai4privacy_corpus(
         logger.warning("No records loaded from Ai4Privacy corpus at %s", path)
         return []
 
-    return _records_to_corpus(records, AI4PRIVACY_TYPE_MAP, "ai4privacy", max_rows)
+    return _records_to_corpus(records, AI4PRIVACY_TYPE_MAP, "ai4privacy", max_rows, blind=blind)
 
 
 def load_nemotron_corpus(
     path: Path | str | None = None,
     max_rows: int = 500,
+    *,
+    blind: bool = False,
 ) -> list[tuple[ColumnInput, str | None]]:
     """Load Nemotron-PII corpus sample and convert to our format.
 
@@ -190,7 +207,7 @@ def load_nemotron_corpus(
         logger.warning("No records loaded from Nemotron corpus at %s", path)
         return []
 
-    return _records_to_corpus(records, NEMOTRON_TYPE_MAP, "nemotron", max_rows)
+    return _records_to_corpus(records, NEMOTRON_TYPE_MAP, "nemotron", max_rows, blind=blind)
 
 
 def load_synthetic_corpus(
@@ -215,6 +232,7 @@ def load_corpus(
     max_rows: int = 500,
     path: Path | str | None = None,
     samples_per_type: int = 200,
+    blind: bool = False,
 ) -> list[tuple[ColumnInput, str | None]]:
     """Dispatcher — load corpus by source name.
 
@@ -223,6 +241,8 @@ def load_corpus(
         max_rows: Max rows for real-world corpora.
         path: Optional custom path to corpus file.
         samples_per_type: Samples per type for synthetic corpus.
+        blind: If True, use generic column names (col_0, col_1, ...) to
+            test classification from sample values alone.
 
     Returns:
         List of (ColumnInput, expected_entity_type) tuples.
@@ -230,14 +250,14 @@ def load_corpus(
     if source == "synthetic":
         return load_synthetic_corpus(samples_per_type=samples_per_type)
     elif source == "ai4privacy":
-        return load_ai4privacy_corpus(path=path, max_rows=max_rows)
+        return load_ai4privacy_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "nemotron":
-        return load_nemotron_corpus(path=path, max_rows=max_rows)
+        return load_nemotron_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "all":
         corpus: list[tuple[ColumnInput, str | None]] = []
         corpus.extend(load_synthetic_corpus(samples_per_type=samples_per_type))
-        corpus.extend(load_ai4privacy_corpus(max_rows=max_rows))
-        corpus.extend(load_nemotron_corpus(max_rows=max_rows))
+        corpus.extend(load_ai4privacy_corpus(max_rows=max_rows, blind=blind))
+        corpus.extend(load_nemotron_corpus(max_rows=max_rows, blind=blind))
         return corpus
     else:
         msg = f"Unknown corpus source: {source!r}. Valid: synthetic, ai4privacy, nemotron, all"

@@ -175,6 +175,9 @@ class Orchestrator:
         # Apply engine priority weighting: suppress/boost based on cross-engine agreement
         all_findings = self._apply_engine_weighting(all_findings, finding_authority, engine_findings)
 
+        # Suppress ML-only findings when a non-ML engine already has a strong match
+        all_findings = self._suppress_ml_when_strong_match(all_findings, engine_findings)
+
         # Resolve known collision pairs before emitting results
         all_findings = self._resolve_collisions(all_findings)
 
@@ -456,6 +459,52 @@ class Orchestrator:
                     )
                     del findings[loser]
         return findings
+
+    @staticmethod
+    def _suppress_ml_when_strong_match(
+        findings: dict[str, ClassificationFinding],
+        engine_findings: dict[str, list[ClassificationFinding]],
+    ) -> dict[str, ClassificationFinding]:
+        """Suppress ML-only entity types when a non-ML engine has a strong match.
+
+        If any non-ML engine produced a finding with confidence >= 0.85,
+        remove ML-only findings for *different* entity types.  This prevents
+        GLiNER2 from adding PERSON_NAME noise on columns where regex already
+        confidently identified EMAIL, IP_ADDRESS, etc.
+
+        ML findings that *agree* with non-ML findings are kept (they reinforce).
+        ML findings on columns where no non-ML engine found anything are kept
+        (they fill detection gaps — the whole point of the ML engine).
+        """
+        ml_engines = frozenset({"gliner2"})
+        suppress_threshold = 0.85
+
+        # Collect non-ML entity types with strong confidence
+        non_ml_types: set[str] = set()
+        for engine_name, efindings in engine_findings.items():
+            if engine_name in ml_engines:
+                continue
+            for f in efindings:
+                if f.confidence >= suppress_threshold:
+                    non_ml_types.add(f.entity_type)
+
+        if not non_ml_types:
+            return findings  # No strong non-ML signal — keep everything
+
+        # Identify ML-only entity types (in findings but only from ML engines)
+        ml_only_types: set[str] = set()
+        for entity_type, f in findings.items():
+            if f.engine in ml_engines and entity_type not in non_ml_types:
+                ml_only_types.add(entity_type)
+
+        if not ml_only_types:
+            return findings
+
+        # Suppress ML-only types that differ from the strong non-ML signal
+        suppressed = {et: f for et, f in findings.items() if et not in ml_only_types}
+        for et in ml_only_types:
+            logger.debug("Suppressed ML-only %s (non-ML has strong %s)", et, non_ml_types)
+        return suppressed
 
     @staticmethod
     def _suppress_generic_credential(
