@@ -1,6 +1,6 @@
 title: "SSN pattern confidence gating \u2014 require column name or heuristic signal\
   \ for standalone 9-digit matches"
-status: backlog
+status: doing
 priority: P1
 category: feature
 sprint_target: 5
@@ -8,14 +8,30 @@ created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
 tags: []
-goal: ''
+goal: "Prevent SSN pattern from firing on any 9-digit number \u2014 require column\
+  \ name or heuristic confirmation to surface SSN findings"
 complexity: S
-technical_specs: []
+technical_specs:
+- "File: data_classifier/profiles/standard.yaml \u2014 lower SSN base confidence below\
+  \ threshold"
+- "File: data_classifier/engines/regex_engine.py \u2014 context boost for SSN when\
+  \ column name or heuristic confirms"
+- "File: tests/test_patterns.py \u2014 SSN gating regression tests"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- SSN regex match alone (no column name, no heuristic) stays below min_confidence
+  threshold
+- SSN with column name signal (ssn, social_security) surfaces normally
+- SSN with heuristic signal (format xxx-xx-xxxx, valid area number) surfaces normally
+- Reduces SSN FPs on Ai4Privacy/Nemotron corpora
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_patterns.py: 9-digit number without context \u2192 no SSN finding"
+- "tests/test_patterns.py: 9-digit number with ssn column name \u2192 SSN finding"
+- "tests/test_patterns.py: xxx-xx-xxxx format \u2192 SSN finding (format heuristic)"
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

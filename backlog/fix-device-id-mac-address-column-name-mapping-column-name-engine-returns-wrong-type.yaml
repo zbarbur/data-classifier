@@ -1,6 +1,6 @@
 title: "Fix DEVICE_ID / MAC_ADDRESS column name mapping \u2014 column name engine\
   \ returns wrong type"
-status: backlog
+status: doing
 priority: P1
 category: bug
 sprint_target: 5
@@ -8,14 +8,25 @@ created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
 tags: []
-goal: ''
+goal: Fix column name engine mapping so DEVICE_ID and MAC_ADDRESS columns return correct
+  entity types
 complexity: S
-technical_specs: []
+technical_specs:
+- "File: data_classifier/engines/column_name_engine.py \u2014 fix keyword-to-entity\
+  \ mapping"
+- "File: tests/test_column_name_engine.py \u2014 add regression tests for DEVICE_ID/MAC_ADDRESS"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Column name 'mac_address' maps to MAC_ADDRESS entity type
+- Column name 'device_id' maps to DEVICE_ID entity type
+- No regression on other column name mappings
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_column_name_engine.py: mac_address column \u2192 MAC_ADDRESS type"
+- "tests/test_column_name_engine.py: device_id column \u2192 DEVICE_ID type"
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

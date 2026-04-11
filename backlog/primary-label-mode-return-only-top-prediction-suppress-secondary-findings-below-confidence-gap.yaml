@@ -1,6 +1,6 @@
 title: "Primary-label mode \u2014 return only top prediction, suppress secondary findings\
   \ below confidence gap"
-status: backlog
+status: doing
 priority: P1
 category: feature
 sprint_target: 5
@@ -8,14 +8,29 @@ created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
 tags: []
-goal: ''
+goal: "Add max_findings parameter to suppress secondary predictions \u2014 users see\
+  \ top-1 result, eliminating multi-label FP noise"
 complexity: S
-technical_specs: []
+technical_specs:
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 add max_findings param\
+  \ and confidence-gap suppression"
+- "File: data_classifier/__init__.py \u2014 expose max_findings in public API"
+- "File: tests/test_primary_label.py \u2014 NEW: primary-label mode tests"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- classify_columns accepts max_findings parameter (default None = all findings)
+- max_findings=1 returns only the highest-confidence finding per column
+- Secondary findings suppressed when confidence gap > threshold
+- "API backward compatible \u2014 existing callers unaffected"
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_primary_label.py: max_findings=1 returns single finding per column'
+- 'tests/test_primary_label.py: default max_findings returns all findings (backward
+  compat)'
+- 'tests/test_primary_label.py: confidence gap suppression removes low-gap secondary'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

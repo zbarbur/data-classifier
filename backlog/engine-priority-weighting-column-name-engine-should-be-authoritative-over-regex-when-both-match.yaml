@@ -1,6 +1,6 @@
 title: "Engine priority weighting \u2014 column name engine should be authoritative\
   \ over regex when both match"
-status: backlog
+status: doing
 priority: P1
 category: feature
 sprint_target: 5
@@ -8,14 +8,32 @@ created: 2026-04-11
 updated: 2026-04-11
 depends_on: []
 tags: []
-goal: ''
+goal: "When column name engine and regex engine both match, column name engine is\
+  \ authoritative \u2014 eliminates the root cause of most real-world FPs"
 complexity: M
-technical_specs: []
+technical_specs:
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 add engine priority weighting\
+  \ in _merge_findings or new _apply_engine_weights method"
+- "File: data_classifier/engines/interface.py \u2014 may need engine.weight or engine.authority_level\
+  \ property"
+- "File: tests/test_engine_weighting.py \u2014 NEW: parameterized tests for column-name-wins\
+  \ scenarios"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Column name engine findings override regex when entity types conflict
+- When column name agrees with regex, confidence is boosted
+- When column name and regex agree, no change to current behavior
+- Real-world primary-label accuracy improves on Ai4Privacy corpus
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_engine_weighting.py: column name EMAIL vs regex SSN \u2192 EMAIL wins"
+- "tests/test_engine_weighting.py: column name agrees with regex \u2192 confidence\
+  \ boosted"
+- "tests/test_engine_weighting.py: regex-only finding (no column name match) \u2192\
+  \ unchanged"
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []
