@@ -260,18 +260,20 @@ def run_benchmark(
     entity_f1s = [m.f1 for m in metrics.values() if (m.tp + m.fn) > 0]
     macro_f1 = sum(entity_f1s) / len(entity_f1s) if entity_f1s else 0.0
 
-    # Primary-label accuracy — is the top prediction correct for each positive column?
+    # Primary-label accuracy — is the TOP prediction (highest confidence) correct?
+    # predicted_entity_types comes from findings which are merged by highest confidence,
+    # so we need to find the actual highest-confidence prediction.
     primary_correct = 0
     primary_total = 0
     for cr in column_results:
         if cr.expected_entity_type is not None:
             primary_total += 1
-            if cr.predicted_entity_types and cr.predicted_entity_types[0] == cr.expected_entity_type:
-                primary_correct += 1
-            elif cr.expected_entity_type in cr.predicted_entity_types:
-                # Expected type is predicted but not as top — still count if it's the highest confidence
-                # (predicted_entity_types may not be confidence-sorted, so check findings)
-                primary_correct += 1
+            # Find the highest-confidence finding from the pipeline results
+            col_findings = findings_by_col.get(cr.column_id, [])
+            if col_findings:
+                top_prediction = max(col_findings, key=lambda f: f.confidence)
+                if top_prediction.entity_type == cr.expected_entity_type:
+                    primary_correct += 1
 
     primary_label_accuracy = primary_correct / primary_total if primary_total > 0 else 0.0
 

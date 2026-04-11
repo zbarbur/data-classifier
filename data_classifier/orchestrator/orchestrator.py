@@ -45,8 +45,27 @@ _THREE_WAY_TYPES = frozenset({"SSN", "ABA_ROUTING", "CANADIAN_SIN"})
 _NPI_COLUMN_KEYWORDS = {"npi", "provider", "prescriber"}
 
 # Column name keywords for DEA/IBAN disambiguation.
+# Word-boundary matching to avoid "dea" matching "idea", "deadline", etc.
 _DEA_COLUMN_KEYWORDS = {"dea"}
 _IBAN_COLUMN_KEYWORDS = {"iban"}
+
+
+def _keyword_match(column_name_lower: str, keywords: set[str]) -> bool:
+    """Check if any keyword matches as a whole word in the column name.
+
+    Uses word-boundary logic: keyword must be preceded and followed by
+    a non-alphanumeric character (or start/end of string).
+    """
+    for kw in keywords:
+        idx = column_name_lower.find(kw)
+        while idx != -1:
+            before_ok = idx == 0 or not column_name_lower[idx - 1].isalnum()
+            after_idx = idx + len(kw)
+            after_ok = after_idx >= len(column_name_lower) or not column_name_lower[after_idx].isalnum()
+            if before_ok and after_ok:
+                return True
+            idx = column_name_lower.find(kw, idx + 1)
+    return False
 
 
 class Orchestrator:
@@ -260,7 +279,7 @@ class Orchestrator:
         col_lower = column_name.lower()
 
         # Signal 1: column name keywords strongly indicate NPI
-        if any(kw in col_lower for kw in _NPI_COLUMN_KEYWORDS):
+        if _keyword_match(col_lower, _NPI_COLUMN_KEYWORDS):
             logger.debug("NPI/PHONE collision: NPI wins — column name '%s' matches NPI keywords", column_name)
             del findings["PHONE"]
             return findings
@@ -331,12 +350,12 @@ class Orchestrator:
             return findings
 
         # Signal 3: column name tiebreaker
-        if any(kw in col_lower for kw in _DEA_COLUMN_KEYWORDS):
+        if _keyword_match(col_lower, _DEA_COLUMN_KEYWORDS):
             logger.debug("DEA/IBAN collision: DEA wins — column name '%s'", column_name)
             del findings["IBAN"]
             return findings
 
-        if any(kw in col_lower for kw in _IBAN_COLUMN_KEYWORDS):
+        if _keyword_match(col_lower, _IBAN_COLUMN_KEYWORDS):
             logger.debug("DEA/IBAN collision: IBAN wins — column name '%s'", column_name)
             del findings["DEA_NUMBER"]
             return findings

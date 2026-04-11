@@ -82,7 +82,7 @@ def _capture_secret_report() -> tuple[dict, str]:
         secret_print_report(metrics)
 
     # Compute overall metrics
-    tp_layers = [layer for layer in metrics if not layer.startswith("tn_")]
+    tp_layers = [layer for layer in metrics if not layer.startswith("tn_") and layer != "known_limitation"]
     overall_tp = sum(metrics[layer].tp for layer in tp_layers)
     overall_fp = sum(m.fp for m in metrics.values())
     overall_fn = sum(metrics[layer].fn for layer in tp_layers)
@@ -148,8 +148,13 @@ def generate_report(
     w("|---|---|---|")
 
     # ── Column-level benchmark ───────────────────────────────────────────
-    print(f"Running column benchmark ({samples_per_type} samples/type)...", file=sys.stderr)
-    corpus = generate_corpus(samples_per_type=samples_per_type)
+    print(f"Running column benchmark ({corpus_source}, {samples_per_type} samples/type)...", file=sys.stderr)
+    if corpus_source == "synthetic":
+        corpus = generate_corpus(samples_per_type=samples_per_type)
+    else:
+        from tests.benchmarks.corpus_loader import load_corpus
+
+        corpus = load_corpus(corpus_source, samples_per_type=samples_per_type)
     col_data, col_text = _capture_column_report(corpus, corpus_source=corpus_source)
     total_col_samples = sum(len(c.sample_values) for c, _ in corpus)
     col_metrics = col_data["metrics"]

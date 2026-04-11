@@ -439,6 +439,29 @@ class TestDeaIbanCollision:
         result = orch._resolve_dea_iban(findings, column_name="dea_col")
         assert "DEA_NUMBER" in result
 
+    def test_dea_keyword_does_not_match_idea(self):
+        """Column name 'idea_status' should NOT trigger DEA keyword match."""
+        orch = _make_orchestrator()
+        findings = _findings_dict(
+            _make_finding("DEA_NUMBER", 0.70),
+            _make_finding("IBAN", 0.70),
+        )
+        # "idea" contains "dea" as substring but should NOT match
+        result = orch._resolve_dea_iban(findings, column_name="idea_status")
+        assert "DEA_NUMBER" in result
+        assert "IBAN" in result  # Both kept — no decisive signal
+
+    def test_dea_keyword_does_not_match_deadline(self):
+        """Column name 'deadline' should NOT trigger DEA keyword match."""
+        orch = _make_orchestrator()
+        findings = _findings_dict(
+            _make_finding("DEA_NUMBER", 0.70),
+            _make_finding("IBAN", 0.70),
+        )
+        result = orch._resolve_dea_iban(findings, column_name="deadline")
+        assert "DEA_NUMBER" in result
+        assert "IBAN" in result  # Both kept — no decisive signal
+
 
 # ── CREDENTIAL Suppression Tests ────────────────────────────────────────────
 

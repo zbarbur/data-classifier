@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+import threading
 from typing import Any, Callable
 
 from data_classifier.registry.model_entry import ModelDependencyError, ModelEntry
@@ -39,10 +40,14 @@ class ModelRegistry:
     Each model is registered with a loader callable and a list of required
     packages.  On first ``get()``, dependencies are checked and the loader
     is called.  Subsequent ``get()`` calls return the cached instance.
+
+    Thread safety: ``register()`` is protected by a registry-level lock.
+    ``get()`` uses per-entry locks for concurrent model loading.
     """
 
     def __init__(self) -> None:
         self._entries: dict[str, ModelEntry] = {}
+        self._registry_lock = threading.Lock()
 
     def register(
         self,
@@ -63,14 +68,15 @@ class ModelRegistry:
         Raises:
             ValueError: If a model with this name is already registered.
         """
-        if name in self._entries:
-            raise ValueError(f"Model '{name}' is already registered")
-        self._entries[name] = ModelEntry(
-            name=name,
-            loader=loader,
-            model_class=model_class,
-            requires=requires or [],
-        )
+        with self._registry_lock:
+            if name in self._entries:
+                raise ValueError(f"Model '{name}' is already registered")
+            self._entries[name] = ModelEntry(
+                name=name,
+                loader=loader,
+                model_class=model_class,
+                requires=requires or [],
+            )
         logger.debug("Registered model '%s' (class=%s, requires=%s)", name, model_class, requires or [])
 
     def get(self, name: str) -> Any:
@@ -89,10 +95,7 @@ class ModelRegistry:
             ModelDependencyError: If required packages are missing.
         """
         entry = self._get_entry(name)
-        if entry._loaded:
-            return entry._instance
         with entry._lock:
-            # Double-check after acquiring lock
             if entry._loaded:
                 return entry._instance
             # Check dependencies before loading
@@ -178,7 +181,13 @@ class ModelRegistry:
 
     @staticmethod
     def _check_deps(entry: ModelEntry) -> tuple[bool, list[str]]:
-        missing = [pkg for pkg in entry.requires if importlib.util.find_spec(pkg) is None]
+        missing: list[str] = []
+        for pkg in entry.requires:
+            try:
+                if importlib.util.find_spec(pkg) is None:
+                    missing.append(pkg)
+            except (ModuleNotFoundError, ValueError):
+                missing.append(pkg)
         return (len(missing) == 0, missing)
 
 
