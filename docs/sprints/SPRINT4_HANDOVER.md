@@ -182,19 +182,66 @@ Model registry is ready. First ML engine should dramatically improve PERSON_NAME
 ### 7. Real-Corpus Baseline Report
 Document Sprint 4 real-corpus results formally as the baseline for measuring ML engine impact.
 
-## Sprint 5 Backlog (Recommended Scope)
+## Sprint 5 Plan
 
-| # | Item | Pri | Size | Why |
-|---|------|-----|------|-----|
-| 1 | Engine priority weighting | P1 | M | Root cause of most FPs — biggest single lever |
-| 2 | Primary-label mode | P1 | S | Instant user-facing improvement |
-| 3 | HEALTH pattern audit | P1 | S | Quick fix, eliminates a whole FP category |
-| 4 | MAC/DEVICE_ID column name fix | P1 | S | Quick fix |
-| 5 | Confidence calibration | P1 | M | Foundation for multi-engine scoring |
-| 6 | SSN confidence gating | P1 | S | Reduces SSN overfiring |
-| 7 | GLiNER2 engine | P1 | L | First ML engine — Iteration 3 starts |
-| 8 | SecretBench FN analysis | P1 | S | Research for Layer 3 |
-| 9 | Real-corpus baseline report | P1 | S | Document honest numbers |
+### Theme: Precision Fix — Engine Weighting, Sibling Analysis & ML Prep
+
+The real-world corpus results revealed that precision is the bottleneck (0.10-0.30 on real data). Sprint 5 has two architectural fixes that should make the biggest impact before ML engines are added.
+
+### Strategic Rationale
+
+1. **Engine priority weighting + sibling analysis** are the two biggest levers for structured data precision — no ML needed
+2. **Quick fixes** (HEALTH, MAC/DEVICE_ID, SSN gating) eliminate known FP categories
+3. **Confidence calibration** prepares the orchestrator for multi-engine scoring (ML engines in Sprint 6)
+4. **GLiNER2** starts Iteration 3 — first ML engine, targets PERSON_NAME and ADDRESS (currently column-name-only)
+5. **Users see top-1 prediction** — primary-label mode aligns the API with how connectors consume results
+
+### Parallel Streams (suggested)
+
+**Stream A: Orchestrator Precision** (items 1-2, both modify orchestrator)
+- Engine priority weighting: column name engine authoritative when it matches
+- Sibling column analysis: two-pass classification, table profile from high-confidence siblings
+- These must be sequential (both modify orchestrator), but together they're the sprint's biggest win
+
+**Stream B: Quick Fixes + Calibration** (items 3-7, independent of Stream A)
+- HEALTH pattern audit, MAC/DEVICE_ID fix, SSN gating — all small, parallel
+- Primary-label mode — orchestrator change but independent of Stream A
+- Confidence calibration — broader orchestrator change
+
+**Stream C: ML + Research** (items 8-10, independent)
+- GLiNER2 engine integration using model registry from Sprint 4
+- SecretBench FN analysis — research task
+- Baseline report documentation
+
+### Recommended Scope
+
+| # | Item | Pri | Size | Stream | Why |
+|---|------|-----|------|--------|-----|
+| 1 | Engine priority weighting | P1 | M | A | Root cause of most FPs — biggest single lever |
+| 2 | Sibling column analysis | P1 | M | A | Table-level disambiguation — strongest structured data signal |
+| 3 | Primary-label mode | P1 | S | B | Instant user-facing improvement |
+| 4 | HEALTH pattern audit | P1 | S | B | Quick fix, eliminates a whole FP category |
+| 5 | MAC/DEVICE_ID column name fix | P1 | S | B | Quick fix |
+| 6 | Confidence calibration | P1 | M | B | Foundation for multi-engine scoring |
+| 7 | SSN confidence gating | P1 | S | B | Reduces SSN overfiring |
+| 8 | GLiNER2 engine | P1 | L | C | First ML engine — Iteration 3 starts |
+| 9 | SecretBench FN analysis | P1 | S | C | Research for Layer 3 |
+| 10 | Real-corpus baseline report | P1 | S | C | Document honest numbers |
+
+### Success Criteria
+
+- Real-world primary-label accuracy > 95% on both Ai4Privacy and Nemotron
+- Micro F1 on Nemotron > 0.70 (from 0.464)
+- GLiNER2 detects PERSON_NAME and ADDRESS from sample values (not just column name)
+- All benchmarks re-run with `python3 -m tests.benchmarks.generate_report --sprint 5`
+
+### Key Context for Sprint 5
+
+- **Model registry is ready** — `data_classifier/registry/` with lazy loading, thread safety, `classify_batch()`
+- **Real corpora are downloaded** — 595K records across 4 sources in `tests/fixtures/corpora/`
+- **Benchmark tooling is complete** — macro F1, primary-label, per-entity breakdown, HTML reports
+- **Download script** — `python3 scripts/download_corpora.py` to refresh corpora
+- **BQ connector coordination** happening in parallel outside sprint scope
 
 ## Commits
 
@@ -205,3 +252,6 @@ Document Sprint 4 real-corpus results formally as the baseline for measuring ML 
 | 3 | 76d8a9f | feat: collision resolution — three-way SSN/ABA/SIN, NPI/PHONE, DEA/IBAN, AWS pattern redesign |
 | 4 | a374e3a | feat: Sprint 4 Stream B — benchmark methodology, reporting, and corpus integration |
 | 5 | 68ff8ec | feat: real-world corpora, download script, CI docs check, benchmark fixes |
+| 6 | d1e4164 | fix: code review — keyword word-boundary, registry thread safety, metric accuracy |
+| 7 | 73ff202 | feat: HTML benchmark report + Sprint 4 benchmark baseline |
+| 8 | 5995b8f | chore: bump sibling column analysis to P1 Sprint 5 |
