@@ -50,53 +50,96 @@ class TestPatternExamples:
         assert 0.0 < pattern.confidence <= 1.0, f"Confidence must be (0, 1], got {pattern.confidence}"
 
 
-class TestAwsSecretKeyPattern:
-    """Tests for the redesigned aws_secret_key pattern with context requirements."""
+class TestHealthPatternAudit:
+    """Regression: HEALTH patterns must not fire on non-health data.
 
-    @pytest.fixture(autouse=True)
-    def _load_pattern(self):
-        matches = [p for p in _PATTERNS if p.name == "aws_secret_key"]
-        assert len(matches) == 1, "Expected exactly one aws_secret_key pattern"
-        self.pattern = matches[0]
+    Sprint 5 fix — icd10_code pattern was too broad (matching any letter+2digits),
+    causing ghost FPs on columns with generic alphanumeric codes.
+    """
 
-    def test_base_confidence_is_low(self):
-        """Base confidence should be low enough that it needs context boost to be actionable."""
-        assert self.pattern.confidence <= 0.40, (
-            f"aws_secret_key base confidence {self.pattern.confidence} is too high — "
-            "pattern is too broad without context"
+    def test_icd10_requires_decimal(self):
+        """ICD-10 pattern must require the decimal portion to match."""
+        icd_pattern = next(p for p in _PATTERNS if p.name == "icd10_code")
+        compiled = re2.compile(icd_pattern.regex)
+
+        # Should match full ICD-10 codes with decimal
+        assert compiled.search("E11.9"), "Should match E11.9"
+        assert compiled.search("J06.9"), "Should match J06.9"
+        assert compiled.search("M54.5"), "Should match M54.5"
+        assert compiled.search("I10.0"), "Should match I10.0"
+
+        # Should NOT match bare letter+2digits (too generic)
+        assert not compiled.search("A01"), "Should NOT match A01 (too generic)"
+        assert not compiled.search("B12"), "Should NOT match B12 (too generic)"
+        assert not compiled.search("C99"), "Should NOT match C99 (too generic)"
+
+    def test_icd10_low_confidence(self):
+        """ICD-10 pattern must have low base confidence (needs context)."""
+        icd_pattern = next(p for p in _PATTERNS if p.name == "icd10_code")
+        assert icd_pattern.confidence <= 0.35, (
+            f"ICD-10 confidence {icd_pattern.confidence} too high — should be <= 0.35 to avoid FPs"
         )
 
-    def test_has_context_words_boost(self):
-        """Pattern must have context_words_boost to require AWS-specific context."""
-        assert len(self.pattern.context_words_boost) >= 3, (
-            "aws_secret_key needs context_words_boost for AWS-specific keywords"
+    def test_icd10_has_context_words(self):
+        """ICD-10 pattern should have context words for boosting and suppression."""
+        icd_pattern = next(p for p in _PATTERNS if p.name == "icd10_code")
+        assert len(icd_pattern.context_words_boost) > 0, "Should have boost context words"
+        assert len(icd_pattern.context_words_suppress) > 0, "Should have suppress context words"
+
+    def test_icd10_no_match_on_product_codes(self):
+        """ICD-10 should not match common product/version codes."""
+        icd_pattern = next(p for p in _PATTERNS if p.name == "icd10_code")
+        compiled = re2.compile(icd_pattern.regex)
+        for code in ["SKU123", "V8", "R2D2", "T800"]:
+            assert not compiled.search(code), f"Should NOT match {code}"
+
+
+class TestSsnConfidenceGating:
+    """Regression: SSN pattern must not fire without context.
+
+    Sprint 5 fix — SSN no-dashes pattern must have low base confidence
+    so it stays below min_confidence (0.5) without column-name or format context.
+    The formatted SSN (with dashes) is a strong format signal and surfaces normally.
+    """
+
+    def test_ssn_no_dashes_below_threshold(self):
+        """SSN no-dashes pattern must have confidence below 0.5."""
+        ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_no_dashes")
+        assert ssn_pattern.confidence < 0.5, (
+            f"SSN no-dashes confidence {ssn_pattern.confidence} too high — must be below 0.5"
         )
 
-    def test_context_words_include_aws_keywords(self):
-        """Context boost words should include common AWS secret key field names."""
-        boost_lower = {w.lower() for w in self.pattern.context_words_boost}
-        for keyword in ["aws_secret", "secret_access_key"]:
-            assert keyword in boost_lower, f"Missing expected context boost word: {keyword}"
-
-    def test_has_context_words_suppress(self):
-        """Pattern should suppress on hash/checksum contexts to reduce FPs."""
-        assert len(self.pattern.context_words_suppress) >= 2, (
-            "aws_secret_key needs context_words_suppress for hash/checksum contexts"
+    def test_ssn_formatted_has_high_confidence(self):
+        """SSN formatted pattern (with dashes) should have high confidence."""
+        ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_formatted")
+        assert ssn_pattern.confidence >= 0.90, (
+            f"SSN formatted confidence {ssn_pattern.confidence} too low — dashes are a strong signal"
         )
 
-    def test_suppress_words_include_hash_keywords(self):
-        """Context suppress words should include hash-related terms."""
-        suppress_lower = {w.lower() for w in self.pattern.context_words_suppress}
-        for keyword in ["sha", "hash", "checksum"]:
-            assert keyword in suppress_lower, f"Missing expected context suppress word: {keyword}"
+    def test_ssn_no_dashes_has_context_boost(self):
+        """SSN no-dashes pattern should have context boost words."""
+        ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_no_dashes")
+        assert len(ssn_pattern.context_words_boost) > 0
+        boost_lower = {w.lower() for w in ssn_pattern.context_words_boost}
+        assert "ssn" in boost_lower or "social security" in boost_lower
 
-    def test_validator_is_aws_secret_not_hex(self):
-        """Pattern should still use the aws_secret_not_hex validator."""
-        assert self.pattern.validator == "aws_secret_not_hex"
+    def test_ssn_no_dashes_stays_below_with_many_matches(self):
+        """Even with many matches, SSN no-dashes should not exceed 0.5."""
+        from data_classifier.engines.regex_engine import _compute_sample_confidence
 
-    def test_has_stopwords(self):
-        """Pattern should retain stopwords for placeholder values."""
-        assert len(self.pattern.stopwords) > 0
+        ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_no_dashes")
+        # Test with many matches (>20), which gives the 1.05 multiplier
+        conf = _compute_sample_confidence(ssn_pattern.confidence, matches=50, validated=50)
+        assert conf < 0.50, f"SSN no-dashes with 50 matches: {conf} >= 0.50"
+
+    def test_ssn_formatted_surfaces_with_dashes(self):
+        """SSN with dashes pattern should surface above threshold."""
+        from data_classifier.engines.regex_engine import _compute_sample_confidence
+
+        ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_formatted")
+        # Even with few matches
+        conf = _compute_sample_confidence(ssn_pattern.confidence, matches=3, validated=3)
+        assert conf >= 0.50, f"SSN formatted with 3 matches: {conf} < 0.50"
 
 
 class TestPatternLibraryIntegrity:

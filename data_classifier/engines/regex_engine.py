@@ -280,6 +280,7 @@ class RegexEngine(ClassificationEngine):
 
     name = "regex"
     order = 2
+    authority = 5
     min_confidence = 0.0
     supported_modes = frozenset({"structured", "unstructured", "prompt"})
 

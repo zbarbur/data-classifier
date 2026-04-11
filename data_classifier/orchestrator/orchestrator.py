@@ -4,8 +4,15 @@ One orchestrator, one cascade logic, three behaviors (structured, unstructured,
 prompt).  The ``mode`` flag controls which engines run.  Engines declare their
 ``supported_modes`` and ``order``; the orchestrator filters and sequences them.
 
-Iteration 1: single engine (regex).  The orchestrator infrastructure exists so
-iteration 2 can add engines without refactoring.
+Engine priority weighting:
+  Each engine declares an ``authority`` weight (higher = more trusted).
+  When two engines produce findings for the same column:
+  - Same entity_type: highest-authority engine's finding is preferred; if equal
+    authority, highest confidence wins.
+  - Conflicting entity_types: when a high-authority engine (column_name) identifies
+    an entity type, lower-authority engines' conflicting entity types are suppressed.
+  - Agreement: when high-authority and lower-authority engines agree on entity_type,
+    confidence is boosted.
 """
 
 from __future__ import annotations
@@ -21,6 +28,12 @@ from data_classifier.core.types import (
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.events.emitter import EventEmitter
 from data_classifier.events.types import ClassificationEvent, TierEvent
+from data_classifier.orchestrator.calibration import calibrate_finding
+from data_classifier.orchestrator.table_profile import (
+    TableProfile,
+    build_table_profile,
+    get_sibling_adjustment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,34 +51,14 @@ _COLLISION_PAIRS: list[tuple[str, str]] = [
 # Below this threshold the column is genuinely ambiguous and both findings are kept.
 _COLLISION_GAP_THRESHOLD: float = 0.15
 
-# Three-way collision types — these overlap structurally (all 9-digit numeric).
-_THREE_WAY_TYPES = frozenset({"SSN", "ABA_ROUTING", "CANADIAN_SIN"})
+# Confidence boost when a high-authority engine agrees with a lower-authority engine
+_AGREEMENT_BOOST: float = 0.05
 
-# Column name keywords that strongly indicate NPI (vs PHONE).
-_NPI_COLUMN_KEYWORDS = {"npi", "provider", "prescriber"}
+# Minimum authority level to consider an engine "authoritative" (can suppress others)
+_AUTHORITY_THRESHOLD: int = 8
 
-# Column name keywords for DEA/IBAN disambiguation.
-# Word-boundary matching to avoid "dea" matching "idea", "deadline", etc.
-_DEA_COLUMN_KEYWORDS = {"dea"}
-_IBAN_COLUMN_KEYWORDS = {"iban"}
-
-
-def _keyword_match(column_name_lower: str, keywords: set[str]) -> bool:
-    """Check if any keyword matches as a whole word in the column name.
-
-    Uses word-boundary logic: keyword must be preceded and followed by
-    a non-alphanumeric character (or start/end of string).
-    """
-    for kw in keywords:
-        idx = column_name_lower.find(kw)
-        while idx != -1:
-            before_ok = idx == 0 or not column_name_lower[idx - 1].isalnum()
-            after_idx = idx + len(kw)
-            after_ok = after_idx >= len(column_name_lower) or not column_name_lower[after_idx].isalnum()
-            if before_ok and after_ok:
-                return True
-            idx = column_name_lower.find(kw, idx + 1)
-    return False
+# Minimum authority gap to suppress a lower-authority engine's conflicting findings
+_AUTHORITY_GAP_MIN: int = 3
 
 
 class Orchestrator:
@@ -107,10 +100,16 @@ class Orchestrator:
         """Run the engine cascade on a single column.
 
         Engines run in order.  Each engine can produce findings independently.
-        Findings are collected, deduplicated by entity_type (highest confidence
-        wins), and filtered by min_confidence.
+        Findings are merged with authority-weighted conflict resolution:
+        - Same entity_type: higher-authority engine wins; equal authority → highest confidence wins.
+        - Different entity_types: tracked per-engine for cross-engine conflict resolution.
         """
+        # Track findings per entity_type along with the producing engine's authority
         all_findings: dict[str, ClassificationFinding] = {}
+        finding_authority: dict[str, int] = {}  # entity_type → authority of engine that produced it
+        # Track all findings per engine for cross-engine conflict resolution
+        engine_findings: dict[str, list[ClassificationFinding]] = {}
+
         engines_executed: list[str] = []
         engines_skipped: list[str] = []
         t_start = time.monotonic()
@@ -151,21 +150,32 @@ class Orchestrator:
                 )
             )
 
-            # Merge findings (highest confidence per entity_type wins)
+            # Calibrate findings before merging
+            findings = [calibrate_finding(f) for f in findings]
+
+            engine_findings[engine.name] = list(findings)
+
+            # Merge findings: authority-weighted, then confidence
             for f in findings:
                 existing = all_findings.get(f.entity_type)
-                if existing is None or f.confidence > existing.confidence:
+                existing_auth = finding_authority.get(f.entity_type, 0)
+                if existing is None:
+                    all_findings[f.entity_type] = f
+                    finding_authority[f.entity_type] = engine.authority
+                elif engine.authority > existing_auth:
+                    # Higher authority engine always wins
+                    all_findings[f.entity_type] = f
+                    finding_authority[f.entity_type] = engine.authority
+                elif engine.authority == existing_auth and f.confidence > existing.confidence:
+                    # Same authority → highest confidence wins
                     all_findings[f.entity_type] = f
 
         total_ms = (time.monotonic() - t_start) * 1000
 
-        # Three-way SSN/ABA/SIN resolution runs first (before pairwise)
-        all_findings = self._resolve_three_way_collisions(all_findings)
+        # Apply engine priority weighting: suppress/boost based on cross-engine agreement
+        all_findings = self._apply_engine_weighting(all_findings, finding_authority, engine_findings)
 
-        # Resolve known collision pairs (including NPI/PHONE, DEA/IBAN specials)
-        column_name = column.column_name
-        all_findings = self._resolve_npi_phone(all_findings, column_name=column_name)
-        all_findings = self._resolve_dea_iban(all_findings, column_name=column_name)
+        # Resolve known collision pairs before emitting results
         all_findings = self._resolve_collisions(all_findings)
 
         # Suppress generic CREDENTIAL when more specific types are found
@@ -186,201 +196,248 @@ class Orchestrator:
 
         return result
 
-    # ── Three-way SSN / ABA_ROUTING / CANADIAN_SIN ──────────────────────────
-
-    def _resolve_three_way_collisions(
-        self, findings: dict[str, ClassificationFinding]
+    def _apply_engine_weighting(
+        self,
+        findings: dict[str, ClassificationFinding],
+        finding_authority: dict[str, int],
+        engine_findings: dict[str, list[ClassificationFinding]],
     ) -> dict[str, ClassificationFinding]:
-        """Resolve the three-way SSN/ABA_ROUTING/CANADIAN_SIN collision.
+        """Apply engine priority weighting across findings.
 
-        All three are 9-digit numeric patterns that structurally overlap.
-        When all three co-occur, use engine signals and confidence gap to
-        pick a single winner (or keep all if genuinely ambiguous).
-
-        Must run BEFORE pairwise ``_resolve_collisions()`` so pairwise
-        doesn't incorrectly suppress one of a remaining pair.
+        When a high-authority engine (e.g. column_name) has identified an entity type:
+        1. Suppress findings from lower-authority engines that disagree on entity type.
+        2. Boost confidence when engines agree on entity type.
         """
-        present = _THREE_WAY_TYPES & findings.keys()
-        if len(present) < 3:
-            return findings  # Not a three-way — let pairwise handle it
+        if not findings or len(engine_findings) < 2:
+            return findings
 
-        three = {t: findings[t] for t in _THREE_WAY_TYPES}
+        # Find the highest-authority engine that produced findings
+        max_authority = 0
+        authoritative_types: set[str] = set()
+        for entity_type, auth in finding_authority.items():
+            if auth > max_authority:
+                max_authority = auth
+                authoritative_types = {entity_type}
+            elif auth == max_authority:
+                authoritative_types.add(entity_type)
 
-        # Signal 1: column_name engine — if one finding came from column_name engine,
-        # the column name itself matched that entity type. Strong signal.
-        column_name_winners = [t for t, f in three.items() if f.engine == "column_name"]
-        if len(column_name_winners) == 1:
-            winner = column_name_winners[0]
-            for t in _THREE_WAY_TYPES - {winner}:
+        if max_authority < _AUTHORITY_THRESHOLD:
+            # No engine has authoritative-level authority — skip weighting
+            return findings
+
+        # Collect entity types from lower-authority engines
+        low_auth_types: set[str] = set()
+        for entity_type, auth in finding_authority.items():
+            if auth < max_authority and (max_authority - auth) >= _AUTHORITY_GAP_MIN:
+                low_auth_types.add(entity_type)
+
+        # Suppress low-authority findings that conflict with authoritative findings
+        # A conflict means: the low-authority engine found a DIFFERENT entity type
+        # AND this entity type was NOT also found by the authoritative engine
+        conflicting = low_auth_types - authoritative_types
+        for entity_type in conflicting:
+            logger.debug(
+                "Engine weighting: suppressing %s (authority=%d) — conflicts with authoritative finding(s) %s",
+                entity_type,
+                finding_authority[entity_type],
+                authoritative_types,
+            )
+            del findings[entity_type]
+            del finding_authority[entity_type]
+
+        # Boost confidence when high-authority and lower-authority engines agree
+        for entity_type in authoritative_types:
+            # Check if any lower-authority engine also found this type
+            for engine_name, efindings in engine_findings.items():
+                engine_obj = next((e for e in self.engines if e.name == engine_name), None)
+                if engine_obj is None:
+                    continue
+                if engine_obj.authority >= max_authority:
+                    continue
+                # Lower-authority engine — did it also find this entity type?
+                for ef in efindings:
+                    if ef.entity_type == entity_type:
+                        current = findings[entity_type]
+                        boosted = min(1.0, current.confidence + _AGREEMENT_BOOST)
+                        logger.debug(
+                            "Engine weighting: boosting %s confidence %.2f → %.2f (agreement between %s and %s)",
+                            entity_type,
+                            current.confidence,
+                            boosted,
+                            current.engine,
+                            engine_name,
+                        )
+                        findings[entity_type] = ClassificationFinding(
+                            column_id=current.column_id,
+                            entity_type=current.entity_type,
+                            category=current.category,
+                            sensitivity=current.sensitivity,
+                            confidence=boosted,
+                            regulatory=current.regulatory,
+                            engine=current.engine,
+                            evidence=current.evidence + f" [+{_AGREEMENT_BOOST:.2f} agreement with {engine_name}]",
+                            sample_analysis=current.sample_analysis,
+                        )
+                        break  # Only boost once per lower engine
+
+        return findings
+
+    def classify_columns(
+        self,
+        columns: list[ColumnInput],
+        profile: ClassificationProfile,
+        *,
+        min_confidence: float = 0.5,
+        budget_ms: float | None = None,
+        run_id: str | None = None,
+        mask_samples: bool = False,
+        max_evidence_samples: int = 5,
+    ) -> list[ClassificationFinding]:
+        """Two-pass classification of multiple columns with sibling context.
+
+        Pass 1: Classify each column independently (existing single-column logic).
+        Pass 2: Build table profile from high-confidence Pass 1 findings, then
+                 re-adjust ambiguous columns using sibling context.
+
+        For a single column, this is equivalent to calling ``classify_column`` directly.
+
+        Args:
+            columns: Columns to classify.
+            profile: Classification profile.
+            min_confidence: Minimum confidence threshold.
+            budget_ms: Optional latency budget.
+            run_id: Run ID for telemetry.
+            mask_samples: Whether to mask sample values.
+            max_evidence_samples: Max evidence samples.
+
+        Returns:
+            All findings across all columns.
+        """
+        if len(columns) <= 1:
+            # Single column — no sibling context, use standard path
+            if not columns:
+                return []
+            return self.classify_column(
+                columns[0],
+                profile,
+                min_confidence=min_confidence,
+                budget_ms=budget_ms,
+                run_id=run_id,
+                mask_samples=mask_samples,
+                max_evidence_samples=max_evidence_samples,
+            )
+
+        # ── Pass 1: Independent classification ────────────────────────────────
+        pass1_results: dict[str, list[ClassificationFinding]] = {}
+        all_pass1_findings: list[ClassificationFinding] = []
+
+        for column in columns:
+            findings = self.classify_column(
+                column,
+                profile,
+                min_confidence=min_confidence,
+                budget_ms=budget_ms,
+                run_id=run_id,
+                mask_samples=mask_samples,
+                max_evidence_samples=max_evidence_samples,
+            )
+            pass1_results[column.column_id] = findings
+            all_pass1_findings.extend(findings)
+
+        # ── Pass 2: Sibling context adjustment ────────────────────────────────
+        table_profile = build_table_profile(all_pass1_findings)
+
+        if table_profile.primary_domain is None:
+            # No clear domain signal — return Pass 1 results as-is
+            logger.debug("Sibling analysis: no clear domain signal, skipping Pass 2")
+            return all_pass1_findings
+
+        logger.debug(
+            "Sibling analysis: detected domain '%s' with %d signals, running Pass 2",
+            table_profile.primary_domain,
+            table_profile.signal_count,
+        )
+
+        # Apply sibling adjustments to each column's findings
+        adjusted_findings: list[ClassificationFinding] = []
+        for column in columns:
+            column_findings = pass1_results[column.column_id]
+            adjusted = self._apply_sibling_adjustments(
+                column_findings,
+                table_profile,
+                column.column_id,
+                all_pass1_findings,
+                min_confidence,
+            )
+            adjusted_findings.extend(adjusted)
+
+        return adjusted_findings
+
+    def _apply_sibling_adjustments(
+        self,
+        findings: list[ClassificationFinding],
+        table_profile: TableProfile,
+        column_id: str,
+        all_findings: list[ClassificationFinding],
+        min_confidence: float,
+    ) -> list[ClassificationFinding]:
+        """Apply sibling-context adjustments to a column's findings.
+
+        Uses the table profile to boost/suppress entity types based on domain context.
+        Only adjusts findings when there are known collision pairs or ambiguous types.
+        """
+        if not findings:
+            return findings
+
+        # Build column-specific profile excluding this column
+        column_profile = build_table_profile(all_findings, exclude_column_id=column_id)
+        if column_profile.primary_domain is None:
+            # Without this column, no clear domain — keep findings as-is
+            return findings
+
+        adjusted: list[ClassificationFinding] = []
+        for f in findings:
+            adjustment = get_sibling_adjustment(f.entity_type, column_profile)
+            if adjustment == 0.0:
+                adjusted.append(f)
+                continue
+
+            new_confidence = max(0.0, min(1.0, f.confidence + adjustment))
+            if new_confidence < min_confidence:
                 logger.debug(
-                    "Three-way collision: %s wins (column_name engine) — removing %s",
-                    winner,
-                    t,
+                    "Sibling analysis: suppressing %s on %s (%.2f → %.2f, domain=%s)",
+                    f.entity_type,
+                    column_id,
+                    f.confidence,
+                    new_confidence,
+                    column_profile.primary_domain,
                 )
-                del findings[t]
-            return findings
+                continue
 
-        # Signal 2: heuristic engine (cardinality analysis) — if one finding came
-        # from heuristic engine, it has structural evidence beyond regex match.
-        heuristic_winners = [t for t, f in three.items() if f.engine == "heuristic"]
-        if len(heuristic_winners) == 1:
-            winner = heuristic_winners[0]
-            # Only use heuristic signal if confidence gap is reasonable
-            others = [f.confidence for t, f in three.items() if t != winner]
-            if three[winner].confidence >= max(others):
-                for t in _THREE_WAY_TYPES - {winner}:
-                    logger.debug(
-                        "Three-way collision: %s wins (heuristic engine) — removing %s",
-                        winner,
-                        t,
-                    )
-                    del findings[t]
-                return findings
-
-        # Signal 3: confidence gap — pick the highest confidence if the gap
-        # between best and worst exceeds the threshold.
-        sorted_types = sorted(_THREE_WAY_TYPES, key=lambda t: three[t].confidence, reverse=True)
-        best = sorted_types[0]
-        worst = sorted_types[2]
-        gap = three[best].confidence - three[worst].confidence
-
-        if gap >= _COLLISION_GAP_THRESHOLD:
-            # Remove all but the best
-            for t in _THREE_WAY_TYPES - {best}:
-                logger.debug(
-                    "Three-way collision: %s wins (confidence %.2f) — removing %s (%.2f), gap=%.2f",
-                    best,
-                    three[best].confidence,
-                    t,
-                    three[t].confidence,
-                    gap,
+            evidence_suffix = (
+                f" [sibling {'+' if adjustment > 0 else ''}{adjustment:.2f} domain={column_profile.primary_domain}]"
+            )
+            adjusted.append(
+                ClassificationFinding(
+                    column_id=f.column_id,
+                    entity_type=f.entity_type,
+                    category=f.category,
+                    sensitivity=f.sensitivity,
+                    confidence=new_confidence,
+                    regulatory=f.regulatory,
+                    engine=f.engine,
+                    evidence=f.evidence + evidence_suffix,
+                    sample_analysis=f.sample_analysis,
                 )
-                del findings[t]
+            )
 
-        return findings
-
-    # ── NPI vs PHONE ────────────────────────────────────────────────────────
-
-    def _resolve_npi_phone(
-        self, findings: dict[str, ClassificationFinding], *, column_name: str
-    ) -> dict[str, ClassificationFinding]:
-        """Resolve NPI vs PHONE collision with domain-specific logic.
-
-        NPI (National Provider Identifier) is a 10-digit number used in healthcare.
-        PHONE numbers are also 10 digits. When both collide:
-        - Column name contains npi/provider/prescriber → NPI wins
-        - NPI has validator confirmation → NPI wins
-        - Otherwise PHONE wins (far more common in general data)
-        """
-        if "NPI" not in findings or "PHONE" not in findings:
-            return findings
-
-        npi = findings["NPI"]
-        col_lower = column_name.lower()
-
-        # Signal 1: column name keywords strongly indicate NPI
-        if _keyword_match(col_lower, _NPI_COLUMN_KEYWORDS):
-            logger.debug("NPI/PHONE collision: NPI wins — column name '%s' matches NPI keywords", column_name)
-            del findings["PHONE"]
-            return findings
-
-        # Signal 2: NPI validator confirmation (check digit validated)
-        npi_validated = False
-        if "validat" in (npi.evidence or "").lower():
-            npi_validated = True
-        elif npi.sample_analysis and npi.sample_analysis.samples_validated > 0:
-            npi_validated = True
-
-        if npi_validated:
-            logger.debug("NPI/PHONE collision: NPI wins — validator confirmation")
-            del findings["PHONE"]
-            return findings
-
-        # Default: PHONE wins (far more common in real-world data)
-        logger.debug("NPI/PHONE collision: PHONE wins — no NPI-specific signals")
-        del findings["NPI"]
-        return findings
-
-    # ── DEA_NUMBER vs IBAN ──────────────────────────────────────────────────
-
-    def _resolve_dea_iban(
-        self, findings: dict[str, ClassificationFinding], *, column_name: str
-    ) -> dict[str, ClassificationFinding]:
-        """Resolve DEA_NUMBER vs IBAN collision with length and validator signals.
-
-        DEA numbers are 9 characters (2 letters + 7 digits).
-        IBANs are 15-34 characters. When both collide:
-        - Length-based: 9-char samples → DEA; 15+ chars → IBAN
-        - Validator-based: samples_validated > 0 for either type wins
-        - Column name as tiebreaker
-        """
-        if "DEA_NUMBER" not in findings or "IBAN" not in findings:
-            return findings
-
-        dea = findings["DEA_NUMBER"]
-        iban = findings["IBAN"]
-        col_lower = column_name.lower()
-
-        # Signal 1: sample value length — strongest structural signal
-        dea_lengths = self._get_sample_lengths(dea)
-        iban_lengths = self._get_sample_lengths(iban)
-
-        if dea_lengths and all(length <= 10 for length in dea_lengths):
-            logger.debug("DEA/IBAN collision: DEA wins — sample lengths suggest DEA (%s)", dea_lengths)
-            del findings["IBAN"]
-            return findings
-
-        if iban_lengths and all(length >= 15 for length in iban_lengths):
-            logger.debug("DEA/IBAN collision: IBAN wins — sample lengths suggest IBAN (%s)", iban_lengths)
-            del findings["DEA_NUMBER"]
-            return findings
-
-        # Signal 2: validator confirmation
-        dea_validated = dea.sample_analysis and dea.sample_analysis.samples_validated > 0
-        iban_validated = iban.sample_analysis and iban.sample_analysis.samples_validated > 0
-
-        if dea_validated and not iban_validated:
-            logger.debug("DEA/IBAN collision: DEA wins — validator confirmation")
-            del findings["IBAN"]
-            return findings
-
-        if iban_validated and not dea_validated:
-            logger.debug("DEA/IBAN collision: IBAN wins — validator confirmation")
-            del findings["DEA_NUMBER"]
-            return findings
-
-        # Signal 3: column name tiebreaker
-        if _keyword_match(col_lower, _DEA_COLUMN_KEYWORDS):
-            logger.debug("DEA/IBAN collision: DEA wins — column name '%s'", column_name)
-            del findings["IBAN"]
-            return findings
-
-        if _keyword_match(col_lower, _IBAN_COLUMN_KEYWORDS):
-            logger.debug("DEA/IBAN collision: IBAN wins — column name '%s'", column_name)
-            del findings["DEA_NUMBER"]
-            return findings
-
-        # No decisive signal — let pairwise confidence resolution handle it
-        return findings
-
-    @staticmethod
-    def _get_sample_lengths(finding: ClassificationFinding) -> list[int]:
-        """Extract sample match lengths from a finding's sample_analysis."""
-        if not finding.sample_analysis or not finding.sample_analysis.sample_matches:
-            return []
-        return [len(s) for s in finding.sample_analysis.sample_matches]
-
-    # ── Pairwise Collision Resolution ───────────────────────────────────────
+        return adjusted
 
     def _resolve_collisions(self, findings: dict[str, ClassificationFinding]) -> dict[str, ClassificationFinding]:
         """Suppress the lower-confidence finding when known collision pairs co-occur.
 
         Only suppresses when the confidence gap exceeds ``_COLLISION_GAP_THRESHOLD``.
         If the gap is small, both findings are kept — the column is genuinely ambiguous.
-
-        NPI/PHONE and DEA/IBAN are handled by their dedicated methods before this
-        runs, so they are typically already resolved. The pairwise logic here serves
-        as a fallback if the special methods couldn't decide.
         """
         for type_a, type_b in _COLLISION_PAIRS:
             if type_a in findings and type_b in findings:

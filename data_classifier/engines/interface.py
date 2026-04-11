@@ -24,8 +24,22 @@ class ClassificationEngine(ABC):
     name: str = ""
     """Unique engine identifier (e.g. ``regex``, ``column_name``, ``gliner2``)."""
 
+    @property
+    def engine_id(self) -> str:
+        """Stable engine identifier for calibration registry lookup.
+
+        Defaults to ``name``.  Override in subclasses if the engine name
+        might change (e.g. versioned engines like ``gliner2`` vs ``gliner3``).
+        """
+        return self.name
+
     order: int = 0
     """Execution order in the cascade.  Lower runs first."""
+
+    authority: int = 1
+    """Authority weight for conflict resolution.  Higher = more trusted.
+    When two engines produce conflicting entity types for the same column,
+    the engine with higher authority wins.  Default 1 (lowest)."""
 
     min_confidence: float = 0.0
     """Minimum confidence threshold for this engine to emit a finding."""

@@ -585,3 +585,62 @@ class TestSchemaNameField:
         findings = engine.classify_column(col, min_confidence=0.0)
         assert len(findings) == 1
         assert findings[0].entity_type == "EMAIL"
+
+
+# ── TestDeviceIdMacAddressFix ─────────────────────────────────────────────
+
+
+class TestDeviceIdMacAddressFix:
+    """Regression: mac_address columns must return MAC_ADDRESS, not DEVICE_ID.
+
+    Sprint 5 fix — mac-related variants were duplicated in DEVICE_ID and
+    MAC_ADDRESS, with DEVICE_ID loaded first winning the first-come-first-served
+    registration.
+    """
+
+    def test_mac_address_returns_mac_address(self, engine: ColumnNameEngine) -> None:
+        findings = _classify(engine, "mac_address")
+        assert len(findings) == 1
+        assert findings[0].entity_type == "MAC_ADDRESS"
+
+    def test_macaddress_returns_mac_address(self, engine: ColumnNameEngine) -> None:
+        findings = _classify(engine, "macaddress")
+        assert len(findings) == 1
+        assert findings[0].entity_type == "MAC_ADDRESS"
+
+    def test_mac_addr_returns_mac_address(self, engine: ColumnNameEngine) -> None:
+        findings = _classify(engine, "mac_addr")
+        assert len(findings) == 1
+        assert findings[0].entity_type == "MAC_ADDRESS"
+
+    def test_device_mac_returns_mac_address(self, engine: ColumnNameEngine) -> None:
+        findings = _classify(engine, "device_mac")
+        assert len(findings) == 1
+        assert findings[0].entity_type == "MAC_ADDRESS"
+
+    def test_wifi_mac_returns_mac_address(self, engine: ColumnNameEngine) -> None:
+        findings = _classify(engine, "wifi_mac")
+        assert len(findings) == 1
+        assert findings[0].entity_type == "MAC_ADDRESS"
+
+    def test_hardware_address_returns_mac_address(self, engine: ColumnNameEngine) -> None:
+        findings = _classify(engine, "hardware_address")
+        assert len(findings) == 1
+        assert findings[0].entity_type == "MAC_ADDRESS"
+
+    def test_device_id_still_returns_device_id(self, engine: ColumnNameEngine) -> None:
+        """device_id column still correctly classified as DEVICE_ID."""
+        findings = _classify(engine, "device_id")
+        assert len(findings) == 1
+        assert findings[0].entity_type == "DEVICE_ID"
+
+    def test_deviceid_still_returns_device_id(self, engine: ColumnNameEngine) -> None:
+        findings = _classify(engine, "deviceid")
+        assert len(findings) == 1
+        assert findings[0].entity_type == "DEVICE_ID"
+
+    def test_imei_returns_device_id(self, engine: ColumnNameEngine) -> None:
+        """imei is a DEVICE_ID variant, not MAC_ADDRESS."""
+        findings = _classify(engine, "imei")
+        assert len(findings) == 1
+        assert findings[0].entity_type == "DEVICE_ID"

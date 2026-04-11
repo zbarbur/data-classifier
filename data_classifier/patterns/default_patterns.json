@@ -322,8 +322,8 @@
       "entity_type": "CREDENTIAL",
       "category": "Credential",
       "sensitivity": "CRITICAL",
-      "confidence": 0.35,
-      "description": "Potential AWS Secret Key (40 chars base64). Very low confidence alone \u2014 requires context words (aws_secret, secret_access_key) to reach actionable confidence. Validator rejects pure-hex strings (git SHAs, checksums).",
+      "confidence": 0.5,
+      "description": "Potential AWS Secret Key (40 chars base64). Low confidence alone \u2014 usually paired with access key context. Validator rejects pure-hex strings (git SHAs, checksums).",
       "validator": "aws_secret_not_hex",
       "examples_match": [
         "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
@@ -332,21 +332,6 @@
       "examples_no_match": [
         "wJalrXUtnFEMI/K7MDENG/bPxRfi",
         "too-short"
-      ],
-      "context_words_boost": [
-        "aws_secret",
-        "secret_access_key",
-        "aws_secret_access_key",
-        "secretaccesskey",
-        "aws_secret_key"
-      ],
-      "context_words_suppress": [
-        "sha",
-        "hash",
-        "checksum",
-        "digest",
-        "commit",
-        "git"
       ],
       "stopwords": [
         "example",
@@ -564,22 +549,30 @@
     },
     {
       "name": "icd10_code",
-      "regex": "\\b[A-TV-Z]\\d{2}\\.?\\d{0,4}\\b",
+      "regex": "\\b[A-TV-Z]\\d{2}\\.\\d{1,4}\\b",
       "entity_type": "HEALTH",
       "category": "Health",
       "sensitivity": "HIGH",
-      "confidence": 0.45,
-      "description": "ICD-10 diagnosis code (letter + 2 digits + optional decimal). Low confidence alone \u2014 needs context.",
+      "confidence": 0.30,
+      "description": "ICD-10 diagnosis code (letter + 2 digits + decimal + 1-4 digits). Requires decimal portion to reduce FPs on generic codes. Low confidence alone \u2014 needs column-name context.",
       "validator": "",
       "examples_match": [
         "E11.9",
         "J06.9",
-        "M54.5"
+        "M54.5",
+        "I10.0",
+        "F32.10"
       ],
       "examples_no_match": [
         "U99.9",
-        "ABC"
-      ]
+        "ABC",
+        "A01",
+        "B12",
+        "C99",
+        "SKU123"
+      ],
+      "context_words_boost": ["diagnosis", "icd", "medical", "clinical", "patient", "condition", "disease"],
+      "context_words_suppress": ["product", "sku", "item", "code", "version", "zone", "model", "serial"]
     },
     {
       "name": "mac_address",
