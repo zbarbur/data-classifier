@@ -16,7 +16,7 @@ from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tests.benchmarks.accuracy_benchmark import run_benchmark
+from tests.benchmarks.accuracy_benchmark import BenchmarkResult, run_benchmark
 from tests.benchmarks.corpus_generator import generate_corpus, generate_raw_samples
 from tests.benchmarks.pattern_benchmark import run_pattern_benchmark
 from tests.benchmarks.perf_benchmark import run_perf_benchmark
@@ -35,17 +35,26 @@ def _capture_pattern_report(samples: list[tuple[str, str | None]]) -> tuple[dict
     return {"entity_results": entity_results, "collision_matrix": collision_matrix}, buf.getvalue()
 
 
-def _capture_column_report(corpus: list[tuple]) -> tuple[dict, str]:
+def _capture_column_report(corpus: list[tuple], corpus_source: str = "synthetic") -> tuple[dict, str]:
     """Run column-level benchmark and capture results."""
     from tests.benchmarks.accuracy_benchmark import print_report
 
-    results, metrics = run_benchmark(corpus)
+    results, metrics = run_benchmark(corpus, corpus_source=corpus_source)
+
+    # Retrieve the BenchmarkResult with aggregate metrics
+    last_result: BenchmarkResult | None = getattr(run_benchmark, "_last_result", None)
 
     buf = io.StringIO()
     with redirect_stdout(buf):
         print_report(corpus, results, metrics)
 
-    return {"metrics": metrics}, buf.getvalue()
+    return {
+        "metrics": metrics,
+        "macro_f1": last_result.macro_f1 if last_result else 0.0,
+        "micro_f1": last_result.micro_f1 if last_result else 0.0,
+        "primary_label_accuracy": last_result.primary_label_accuracy if last_result else 0.0,
+        "corpus_source": corpus_source,
+    }, buf.getvalue()
 
 
 def _capture_perf_report(corpus: list[tuple]) -> tuple[dict, str]:
@@ -61,7 +70,39 @@ def _capture_perf_report(corpus: list[tuple]) -> tuple[dict, str]:
     return perf_results, buf.getvalue()
 
 
-def generate_report(sprint: int, samples_per_type: int = 500) -> str:
+def _capture_secret_report() -> tuple[dict, str]:
+    """Run secret detection benchmark and capture results."""
+    from tests.benchmarks.secret_benchmark import print_report as secret_print_report
+    from tests.benchmarks.secret_benchmark import run_benchmark as secret_run_benchmark
+
+    metrics = secret_run_benchmark()
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        secret_print_report(metrics)
+
+    # Compute overall metrics
+    tp_layers = [layer for layer in metrics if not layer.startswith("tn_")]
+    overall_tp = sum(metrics[layer].tp for layer in tp_layers)
+    overall_fp = sum(m.fp for m in metrics.values())
+    overall_fn = sum(metrics[layer].fn for layer in tp_layers)
+    overall_p = overall_tp / (overall_tp + overall_fp) if (overall_tp + overall_fp) > 0 else 0.0
+    overall_r = overall_tp / (overall_tp + overall_fn) if (overall_tp + overall_fn) > 0 else 0.0
+    overall_f1 = 2 * overall_p * overall_r / (overall_p + overall_r) if (overall_p + overall_r) > 0 else 0.0
+
+    return {
+        "metrics": metrics,
+        "overall_f1": overall_f1,
+        "overall_precision": overall_p,
+        "overall_recall": overall_r,
+    }, buf.getvalue()
+
+
+def generate_report(
+    sprint: int,
+    samples_per_type: int = 500,
+    corpus_source: str = "synthetic",
+) -> str:
     """Generate the full benchmark report as a Markdown string."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -82,6 +123,7 @@ def generate_report(sprint: int, samples_per_type: int = 500) -> str:
     w(f"> **Samples per type:** {samples_per_type}")
     w(f"> **Patterns:** {pattern_count}")
     w(f"> **Entity types (patterns):** {entity_types_in_patterns}")
+    w(f"> **Corpus source:** {corpus_source}")
     w()
 
     # ── Pattern-level benchmark ──────────────────────────────────────────
@@ -108,7 +150,7 @@ def generate_report(sprint: int, samples_per_type: int = 500) -> str:
     # ── Column-level benchmark ───────────────────────────────────────────
     print(f"Running column benchmark ({samples_per_type} samples/type)...", file=sys.stderr)
     corpus = generate_corpus(samples_per_type=samples_per_type)
-    col_data, col_text = _capture_column_report(corpus)
+    col_data, col_text = _capture_column_report(corpus, corpus_source=corpus_source)
     total_col_samples = sum(len(c.sample_values) for c, _ in corpus)
     col_metrics = col_data["metrics"]
     col_tp = sum(m.tp for m in col_metrics.values())
@@ -117,6 +159,15 @@ def generate_report(sprint: int, samples_per_type: int = 500) -> str:
     col_p = col_tp / (col_tp + col_fp) if (col_tp + col_fp) > 0 else 0.0
     col_r = col_tp / (col_tp + col_fn) if (col_tp + col_fn) > 0 else 0.0
     col_f1 = 2 * col_p * col_r / (col_p + col_r) if (col_p + col_r) > 0 else 0.0
+    col_macro_f1 = col_data.get("macro_f1", 0.0)
+    col_primary_acc = col_data.get("primary_label_accuracy", 0.0)
+
+    # ── Secret detection benchmark ──────────────────────────────────────
+    print("Running secret detection benchmark...", file=sys.stderr)
+    secret_data, secret_text = _capture_secret_report()
+    secret_f1 = secret_data.get("overall_f1", 0.0)
+    secret_p = secret_data.get("overall_precision", 0.0)
+    secret_r = secret_data.get("overall_recall", 0.0)
 
     w(f"| Total samples | {len(raw_samples):,} | {total_col_samples:,} |")
     w(
@@ -126,8 +177,41 @@ def generate_report(sprint: int, samples_per_type: int = 500) -> str:
     )
     w(f"| Precision | {overall_p:.3f} | {col_p:.3f} |")
     w(f"| Recall | {overall_r:.3f} | {col_r:.3f} |")
-    w(f"| **F1** | **{overall_f1:.3f}** | **{col_f1:.3f}** |")
+    w(f"| **Micro F1** | **{overall_f1:.3f}** | **{col_f1:.3f}** |")
+    w(f"| **Macro F1** | — | **{col_macro_f1:.3f}** |")
+    w(f"| **Primary-Label Accuracy** | — | **{col_primary_acc:.1%}** |")
     w(f"| TP / FP / FN | {total_tp:,} / {total_fp:,} / {total_fn:,} | {col_tp} / {col_fp} / {col_fn} |")
+    w()
+
+    # ── Secret detection summary ────────────────────────────────────────
+    w("### Secret Detection")
+    w()
+    w("| Metric | Value |")
+    w("|---|---|")
+    w(f"| Precision | {secret_p:.3f} |")
+    w(f"| Recall | {secret_r:.3f} |")
+    w(f"| **F1** | **{secret_f1:.3f}** |")
+    w()
+
+    # ── Per-entity F1 breakdown ─────────────────────────────────────────
+    w("### Per-Entity F1 Breakdown (Column-Level)")
+    w()
+    w("| Entity Type | Precision | Recall | F1 | TP | FP | FN |")
+    w("|---|---|---|---|---|---|---|")
+    for entity_type in sorted(col_metrics.keys()):
+        m = col_metrics[entity_type]
+        w(f"| {entity_type} | {m.precision:.3f} | {m.recall:.3f} | {m.f1:.3f} | {m.tp} | {m.fp} | {m.fn} |")
+    w()
+
+    # ── Corpus source metadata ──────────────────────────────────────────
+    w("### Corpus Metadata")
+    w()
+    w("| Property | Value |")
+    w("|---|---|")
+    w(f"| Source | {corpus_source} |")
+    w(f"| Pattern samples | {len(raw_samples):,} ({positive_samples:,} positive, {negative_samples:,} negative) |")
+    w(f"| Column corpus | {len(corpus)} columns ({total_col_samples:,} total samples) |")
+    w(f"| Entity types tested | {len({e for _, e in corpus if e is not None})} |")
     w()
 
     # ── Performance ──────────────────────────────────────────────────────
@@ -188,6 +272,13 @@ def generate_report(sprint: int, samples_per_type: int = 500) -> str:
     w("```")
     w()
 
+    w("## Secret Detection Detail")
+    w()
+    w("```")
+    w(secret_text.strip())
+    w("```")
+    w()
+
     w("## Performance Detail")
     w()
     w("```")
@@ -202,9 +293,16 @@ if __name__ == "__main__":
     parser.add_argument("--sprint", type=int, required=True, help="Sprint number")
     parser.add_argument("--samples", type=int, default=500, help="Samples per entity type")
     parser.add_argument("--output", type=str, default=None, help="Output file (default: docs/sprints/)")
+    parser.add_argument(
+        "--corpus",
+        type=str,
+        default="synthetic",
+        choices=["synthetic", "ai4privacy", "nemotron", "all"],
+        help="Corpus source (default: synthetic)",
+    )
     args = parser.parse_args()
 
-    report = generate_report(sprint=args.sprint, samples_per_type=args.samples)
+    report = generate_report(sprint=args.sprint, samples_per_type=args.samples, corpus_source=args.corpus)
 
     output_path = args.output or f"docs/sprints/SPRINT{args.sprint}_BENCHMARK.md"
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)

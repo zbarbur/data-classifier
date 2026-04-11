@@ -64,6 +64,8 @@ class SampleCase:
     expected_detected: bool
     layer: str
     description: str
+    detection_layers: list[str] = field(default_factory=list)  # Which layer(s) should detect this
+    source: str = "builtin"  # Corpus source: builtin, gitleaks, detect_secrets, secretbench
 
 
 @dataclass
@@ -480,9 +482,67 @@ _TN_EDGE: list[SampleCase] = [
 ]
 
 
-def _build_corpus() -> list[SampleCase]:
+def _load_external_secret_corpus() -> list[SampleCase]:
+    """Load secret test cases from external corpus fixtures (gitleaks, detect-secrets, SecretBench)."""
+    import json
+    from pathlib import Path
+
+    fixtures_dir = Path(__file__).parent.parent / "fixtures" / "corpora"
+    cases: list[SampleCase] = []
+
+    # Track values we already have to avoid duplicates
+    existing_values = {
+        c.value
+        for c in (
+            _TP_REGEX
+            + _TP_SCANNER_DEFINITIVE
+            + _TP_SCANNER_STRONG
+            + _TP_SCANNER_CONTEXTUAL
+            + _TN_KNOWN_LIMITATIONS
+            + _TN_AMBIGUOUS
+            + _TN_NEAR_MISS_KEYS
+            + _TN_WORD_BOUNDARY
+            + _TN_PLACEHOLDER
+            + _TN_NONSECRET
+            + _TN_HIGH_ENTROPY
+            + _TN_ENCODED
+            + _TN_PLAIN
+            + _TN_EDGE
+        )
+    }
+
+    for filename, source_name in [
+        ("gitleaks_fixtures.json", "gitleaks"),
+        ("detect_secrets_fixtures.json", "detect_secrets"),
+        ("secretbench_sample.json", "secretbench"),
+    ]:
+        path = fixtures_dir / filename
+        if not path.exists():
+            continue
+        with open(path, encoding="utf-8") as f:
+            records = json.load(f)
+        for rec in records:
+            value = rec.get("value", "")
+            if not value or value in existing_values:
+                continue
+            existing_values.add(value)
+            cases.append(
+                SampleCase(
+                    value=value,
+                    expected_detected=rec.get("expected_detected", False),
+                    layer=rec.get("layer", "external"),
+                    description=rec.get("description", f"External: {source_name}"),
+                    detection_layers=[rec.get("layer", "unknown")],
+                    source=source_name,
+                )
+            )
+
+    return cases
+
+
+def _build_corpus(*, include_external: bool = True) -> list[SampleCase]:
     """Assemble the full test corpus."""
-    return (
+    builtin = (
         _TP_REGEX
         + _TP_SCANNER_DEFINITIVE
         + _TP_SCANNER_STRONG
@@ -498,6 +558,10 @@ def _build_corpus() -> list[SampleCase]:
         + _TN_PLAIN
         + _TN_EDGE
     )
+
+    if include_external:
+        return builtin + _load_external_secret_corpus()
+    return builtin
 
 
 # ── Detection logic ─────────────────────────────────────────────────────────
@@ -526,9 +590,9 @@ def _detect_credential(value: str) -> bool:
 # ── Benchmark runner ─────────────────────────────────────────────────────────
 
 
-def run_benchmark(*, verbose: bool = False) -> dict[str, LayerMetrics]:
+def run_benchmark(*, verbose: bool = False, include_external: bool = True) -> dict[str, LayerMetrics]:
     """Run the secret detection benchmark and return per-layer metrics."""
-    corpus = _build_corpus()
+    corpus = _build_corpus(include_external=include_external)
     metrics: dict[str, LayerMetrics] = {}
 
     # Collect unique layers in corpus order
@@ -576,9 +640,9 @@ def _count_by_layers(corpus: list[SampleCase], positive: bool) -> dict[str, int]
     return counts
 
 
-def print_report(metrics: dict[str, LayerMetrics]) -> None:  # noqa: T201
+def print_report(metrics: dict[str, LayerMetrics], *, include_external: bool = True) -> None:  # noqa: T201
     """Print the secret detection benchmark report."""
-    corpus = _build_corpus()
+    corpus = _build_corpus(include_external=include_external)
 
     tp_layers = _count_by_layers(corpus, positive=True)
     tn_layers = _count_by_layers(corpus, positive=False)
@@ -589,6 +653,12 @@ def print_report(metrics: dict[str, LayerMetrics]) -> None:  # noqa: T201
     tp_breakdown = ", ".join(f"{layer}: {count}" for layer, count in tp_layers.items())
     tn_breakdown = ", ".join(f"{layer.removeprefix('tn_')}: {count}" for layer, count in tn_layers.items())
 
+    # Source breakdown
+    source_counts: dict[str, int] = {}
+    for case in corpus:
+        source_counts[case.source] = source_counts.get(case.source, 0) + 1
+    source_breakdown = ", ".join(f"{s}: {c}" for s, c in sorted(source_counts.items()))
+
     w = 70
 
     print("=" * w)  # noqa: T201
@@ -597,8 +667,10 @@ def print_report(metrics: dict[str, LayerMetrics]) -> None:  # noqa: T201
     print()  # noqa: T201
 
     print("CORPUS")  # noqa: T201
+    print(f"  Total samples:      {len(corpus)}")  # noqa: T201
     print(f"  True positives:     {total_tp_samples} samples ({tp_breakdown})")  # noqa: T201
     print(f"  True negatives:     {total_tn_samples} samples ({tn_breakdown})")  # noqa: T201
+    print(f"  Sources:            {source_breakdown}")  # noqa: T201
     print()  # noqa: T201
 
     # Per-layer results — only show TP layers (positive expectations)
@@ -670,6 +742,35 @@ def print_report(metrics: dict[str, LayerMetrics]) -> None:  # noqa: T201
     else:
         print("  (none)")  # noqa: T201
     print()  # noqa: T201
+
+    # ── Per-source breakdown ────────────────────────────────────────────
+    if any(c.source != "builtin" for c in corpus):
+        print("PER-SOURCE BREAKDOWN")  # noqa: T201
+        print("-" * w)  # noqa: T201
+        print(f"{'Source':<20} {'Total':>6} {'TP':>6} {'FP':>6} {'FN':>6} {'TN':>6}")  # noqa: T201
+        print("-" * w)  # noqa: T201
+        by_source: dict[str, dict[str, int]] = {}
+        for case in corpus:
+            s = by_source.setdefault(case.source, {"total": 0, "tp": 0, "fp": 0, "fn": 0, "tn": 0})
+            s["total"] += 1
+        # Re-run detection counts grouped by source
+        for case in corpus:
+            detected = _detect_credential(case.value)
+            s = by_source[case.source]
+            if case.expected_detected and detected:
+                s["tp"] += 1
+            elif case.expected_detected and not detected:
+                s["fn"] += 1
+            elif not case.expected_detected and detected:
+                s["fp"] += 1
+            else:
+                s["tn"] += 1
+        for source_name, counts in sorted(by_source.items()):
+            print(  # noqa: T201
+                f"{source_name:<20} {counts['total']:>6} {counts['tp']:>6}"
+                f" {counts['fp']:>6} {counts['fn']:>6} {counts['tn']:>6}"
+            )
+        print()  # noqa: T201
 
 
 # ── HTML viewer generation ───────────────────────────────────────────────────
@@ -800,6 +901,11 @@ if __name__ == "__main__":
         help="Encode a secret value for safe storage in the benchmark corpus. "
         "Use this when adding new test cases: paste the hex output into the corpus as _decode('hex').",
     )
+    parser.add_argument(
+        "--no-external",
+        action="store_true",
+        help="Exclude external corpus fixtures (gitleaks, detect-secrets, SecretBench)",
+    )
     args = parser.parse_args()
 
     if args.encode:
@@ -823,9 +929,10 @@ if __name__ == "__main__":
             print("Running secret detection benchmark (verbose)...")  # noqa: T201
             print()  # noqa: T201
 
-        metrics = run_benchmark(verbose=args.verbose)
+        include_ext = not args.no_external
+        metrics = run_benchmark(verbose=args.verbose, include_external=include_ext)
 
         if args.verbose:
             print()  # noqa: T201
 
-        print_report(metrics)
+        print_report(metrics, include_external=include_ext)

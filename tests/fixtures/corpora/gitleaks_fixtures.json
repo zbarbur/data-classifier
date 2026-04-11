@@ -1,0 +1,17 @@
+[
+  {"type": "aws_access_key", "value": "AKIAIOSFODNN7EXAMPLE", "expected_detected": true, "layer": "regex", "description": "AWS access key (gitleaks)"},
+  {"type": "github_pat", "value": "ghp_ABCDEFGHIJKLMNOPabcdefghijklmnop12", "expected_detected": true, "layer": "regex", "description": "GitHub PAT v2 (gitleaks)"},
+  {"type": "gitlab_pat", "value": "glpat-ABCDEFGHIJKLMNOPQRSTab", "expected_detected": true, "layer": "regex", "description": "GitLab PAT (gitleaks)"},
+  {"type": "slack_bot_token", "value": "xoxb-123456789012-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx", "expected_detected": true, "layer": "regex", "description": "Slack bot token (gitleaks)"},
+  {"type": "stripe_secret_key", "value": "sk_live_ABCDEFGHIJKLMNOPQRSTUVWXYZabc", "expected_detected": true, "layer": "regex", "description": "Stripe secret key (gitleaks)"},
+  {"type": "sendgrid_api_key", "value": "SG.ABCDEFGHIJKLMNOPqr.ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn", "expected_detected": true, "layer": "regex", "description": "SendGrid API key (gitleaks)"},
+  {"type": "generic_password", "value": "password = \"S3cureP@ssw0rd!\"", "expected_detected": true, "layer": "scanner_definitive", "description": "Generic password assignment (gitleaks)"},
+  {"type": "env_password", "value": "DB_PASSWORD=MyS3cr3tP@ss!", "expected_detected": true, "layer": "scanner_definitive", "description": "Env var password (gitleaks)"},
+  {"type": "json_password", "value": "{\"password\": \"Pr0d_S3cret!abc\"}", "expected_detected": true, "layer": "scanner_definitive", "description": "JSON password field (gitleaks)"},
+  {"type": "yaml_secret", "value": "secret_key: \"kJ9x#Mp$2wLqaB3\"", "expected_detected": true, "layer": "scanner_definitive", "description": "YAML secret key (gitleaks)"},
+  {"type": "private_key_header", "value": "-----BEGIN RSA PRIVATE KEY-----", "expected_detected": true, "layer": "regex", "description": "Private key header (gitleaks)"},
+  {"type": "non_secret_url", "value": "https://docs.example.com/getting-started", "expected_detected": false, "layer": "tn_nonsecret", "description": "Documentation URL (gitleaks TN)"},
+  {"type": "non_secret_comment", "value": "# This is a configuration comment", "expected_detected": false, "layer": "tn_nonsecret", "description": "Config comment (gitleaks TN)"},
+  {"type": "placeholder", "value": "password = \"changeme\"", "expected_detected": false, "layer": "tn_placeholder", "description": "Placeholder password (gitleaks TN)"},
+  {"type": "placeholder", "value": "api_key = \"your_api_key_here\"", "expected_detected": false, "layer": "tn_placeholder", "description": "Placeholder API key (gitleaks TN)"}
+]
