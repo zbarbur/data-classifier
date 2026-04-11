@@ -25,7 +25,9 @@ from faker import Faker
 from data_classifier import classify_columns, load_profile
 from data_classifier.core.types import ColumnInput
 from data_classifier.engines.column_name_engine import ColumnNameEngine
+from data_classifier.engines.heuristic_engine import HeuristicEngine
 from data_classifier.engines.regex_engine import RegexEngine
+from data_classifier.engines.secret_scanner import SecretScannerEngine
 from data_classifier.events.emitter import CallbackHandler, EventEmitter
 from data_classifier.events.types import TierEvent
 
@@ -80,7 +82,13 @@ def run_perf_benchmark(
     }
 
     # ── 3. Per-engine isolation timing ───────────────────────────────────
-    for engine_cls, engine_name in [(ColumnNameEngine, "column_name"), (RegexEngine, "regex")]:
+    all_engines = [
+        (ColumnNameEngine, "column_name"),
+        (RegexEngine, "regex"),
+        (HeuristicEngine, "heuristic_stats"),
+        (SecretScannerEngine, "secret_scanner"),
+    ]
+    for engine_cls, engine_name in all_engines:
         engine = engine_cls()
         engine_latencies: list[float] = []
         for _ in range(iterations):
@@ -99,6 +107,33 @@ def run_perf_benchmark(
             if full_latencies[len(full_latencies) // 2] > 0
             else 0,
         }
+
+    # ── 3b. Input-type variation — different engines have different cost profiles ──
+    input_types = {
+        "plain_digits": [str(100000000 + i) for i in range(100)],
+        "plain_text": [f"word_{i}" for i in range(100)],
+        "kv_json": ['{"password": "test123", "host": "localhost"}'] * 100,
+        "kv_env": ["DB_PASSWORD=SuperSecret123\nDB_HOST=localhost"] * 100,
+    }
+    results["input_type_latency"] = {}
+    for input_label, sample_values in input_types.items():
+        test_col = ColumnInput(
+            column_name="__input_type_test__",
+            column_id=f"__input_{input_label}__",
+            data_type="STRING",
+            sample_values=sample_values,
+        )
+        per_engine: dict[str, float] = {}
+        for engine_cls, engine_name in all_engines:
+            engine = engine_cls()
+            timings = []
+            for _ in range(50):
+                t0 = time.perf_counter()
+                engine.classify_column(test_col, profile=profile, min_confidence=0.0)
+                timings.append((time.perf_counter() - t0) * 1000)
+            timings.sort()
+            per_engine[engine_name] = timings[len(timings) // 2]
+        results["input_type_latency"][input_label] = per_engine
 
     # ── 4. Per-engine telemetry via events ────────────────────────────────
     tier_events: list[TierEvent] = []
@@ -270,15 +305,27 @@ def print_report(results: dict) -> None:
     print()  # noqa: T201
     print("PER-ENGINE BREAKDOWN")  # noqa: T201
     print("-" * w)  # noqa: T201
-    for key in ["engine_column_name", "engine_regex"]:
-        if key in results:
-            eng = results[key]
-            name = key.replace("engine_", "")
-            print(  # noqa: T201
-                f"  {name:<20} total_p50={eng['total_p50_ms']:.2f} ms"
-                f"  per_col={eng['per_column_p50_ms']:.3f} ms"
-                f"  ({eng['pct_of_pipeline']:.0f}% of pipeline)"
-            )
+    engine_keys = sorted([k for k in results if k.startswith("engine_") and k != "engine_events"])
+    for key in engine_keys:
+        eng = results[key]
+        name = key.replace("engine_", "")
+        print(  # noqa: T201
+            f"  {name:<20} total_p50={eng['total_p50_ms']:.2f} ms"
+            f"  per_col={eng['per_column_p50_ms']:.3f} ms"
+            f"  ({eng['pct_of_pipeline']:.0f}% of pipeline)"
+        )
+
+    input_type_data = results.get("input_type_latency", {})
+    if input_type_data:
+        print()  # noqa: T201
+        print("PER-ENGINE BY INPUT TYPE (ms, 100 samples)")  # noqa: T201
+        print("-" * w)  # noqa: T201
+        engine_names = list(next(iter(input_type_data.values())).keys())
+        header = f"  {'Input Type':<18}" + "".join(f"{e:>16}" for e in engine_names)
+        print(header)  # noqa: T201
+        for input_label, per_engine in input_type_data.items():
+            row = f"  {input_label:<18}" + "".join(f"{v:>15.3f}ms" for v in per_engine.values())
+            print(row)  # noqa: T201
 
     print()  # noqa: T201
     print("ENGINE TELEMETRY (single run)")  # noqa: T201

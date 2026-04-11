@@ -1,0 +1,23 @@
+title: "Add unit tests for all collision pairs \u2014 SSN/SIN, ABA/SIN, NPI/PHONE,\
+  \ DEA/IBAN"
+status: backlog
+priority: P2
+category: chore
+sprint_target: 4
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags:
+- iter2
+goal: ''
+complexity: S
+technical_specs: []
+description: ''
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

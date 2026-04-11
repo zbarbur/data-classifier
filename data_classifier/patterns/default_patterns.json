@@ -2,8 +2,8 @@
   "_metadata": {
     "version": "0.1.0",
     "description": "Curated content-matching patterns for PII, financial, credential, and health data detection. RE2-compatible.",
-    "pattern_count": 44,
-    "last_updated": "2026-04-10",
+    "pattern_count": 56,
+    "last_updated": "2026-04-11",
     "coverage_notes": "Iteration 1: core PII + financial + credential patterns. Benchmarked against Presidio, gitleaks, trufflehog. Service-specific API key patterns from gitleaks audit."
   },
   "patterns": [
@@ -323,10 +323,16 @@
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.5,
-      "description": "Potential AWS Secret Key (40 chars base64). Low confidence alone \u2014 usually paired with access key context.",
-      "validator": "",
-      "examples_match": [],
-      "examples_no_match": [],
+      "description": "Potential AWS Secret Key (40 chars base64). Low confidence alone \u2014 usually paired with access key context. Validator rejects pure-hex strings (git SHAs, checksums).",
+      "validator": "aws_secret_not_hex",
+      "examples_match": [
+        "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY"
+      ],
+      "examples_no_match": [
+        "wJalrXUtnFEMI/K7MDENG/bPxRfi",
+        "too-short"
+      ],
       "stopwords": [
         "example",
         "test",
@@ -1279,10 +1285,11 @@
       "sensitivity": "HIGH",
       "confidence": 0.85,
       "description": "Canadian Social Insurance Number",
-      "validator": "luhn_strip",
+      "validator": "sin_luhn",
       "examples_match": [
         "046 454 286",
-        "046-454-286"
+        "046-454-286",
+        "046454286"
       ],
       "examples_no_match": [
         "12345678",
@@ -1413,6 +1420,332 @@
         "sample",
         "your_api_key_here",
         "your-api-key",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "digitalocean_pat",
+      "regex": "\\bdop_v1_[a-f0-9]{64}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "DigitalOcean Personal Access Token",
+      "validator": "",
+      "examples_match": [
+        "xor:PjUqBSxrBTs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
+      ],
+      "examples_no_match": [
+        "xor:PjUqBSxrBTs7Ozs7Ozs7Ozs="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "digitalocean_oauth_token",
+      "regex": "\\bdoo_v1_[a-f0-9]{64}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "DigitalOcean OAuth access token",
+      "validator": "",
+      "examples_match": [
+        "xor:PjU1BSxrBTg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg="
+      ],
+      "examples_no_match": [
+        "xor:PjU1BSxrBTg4ODg4ODg4ODg="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_key_here",
+        "your-api-key",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "azure_storage_account_key",
+      "regex": "AccountKey=[A-Za-z0-9+/]{86}==",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Azure Storage Account key (AccountKey= connection string fragment)",
+      "validator": "",
+      "examples_match": [
+        "xor:Gzk5NS80LhE/I2cbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbG2dn"
+      ],
+      "examples_no_match": [
+        "xor:Gzk5NS80LhE/I2cpMjUoLg=="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_storage_key_here",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "cloudflare_api_token",
+      "regex": "\\bv1\\.0-[a-f0-9]{40}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Cloudflare API token",
+      "validator": "",
+      "examples_match": [
+        "xor:LGt0anc5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5"
+      ],
+      "examples_no_match": [
+        "xor:LGt0anc5OTk5OQ=="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_api_token_here",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "huggingface_token",
+      "regex": "\\bhf_[A-Za-z0-9]{20,}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Hugging Face API token",
+      "validator": "",
+      "examples_match": [
+        "xor:MjwFHh4eHh4eHh4eHh4eHh4eHh4eHh4="
+      ],
+      "examples_no_match": [
+        "xor:MjwFHh4="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_hf_token_here",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "sentry_auth_token",
+      "regex": "\\bsntrys_[A-Za-z0-9]{32,}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Sentry auth token",
+      "validator": "",
+      "examples_match": [
+        "xor:KTQuKCMpBR8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f"
+      ],
+      "examples_no_match": [
+        "xor:KTQuKCMpBR8fHw=="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_sentry_token_here",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "supabase_service_key",
+      "regex": "\\bsbp_[A-Za-z0-9]{40,}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Supabase service role / personal access token",
+      "validator": "",
+      "examples_match": [
+        "xor:KTgqBTw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw="
+      ],
+      "examples_no_match": [
+        "xor:KTgqBTw8PA=="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_supabase_key_here",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "terraform_cloud_token",
+      "regex": "\\batlasv1\\.[A-Za-z0-9]{24,}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Terraform Cloud / HCP Terraform API token",
+      "validator": "",
+      "examples_match": [
+        "xor:Oy42Oyksa3Q9PT09PT09PT09PT09PT09PT09PT09PT0="
+      ],
+      "examples_no_match": [
+        "xor:Oy42Oyksa3Q9PT0="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_tf_token_here",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "vercel_api_token",
+      "regex": "\\bvercel_[A-Za-z0-9]{24,}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Vercel API token",
+      "validator": "",
+      "examples_match": [
+        "xor:LD8oOT82BRISEhISEhISEhISEhISEhISEhISEhISEg=="
+      ],
+      "examples_no_match": [
+        "xor:LD8oOT82BRISEg=="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_vercel_token_here",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "linear_api_key",
+      "regex": "\\blin_api_[A-Za-z0-9]{40,}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Linear API key",
+      "validator": "",
+      "examples_match": [
+        "xor:NjM0BTsqMwUzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMz"
+      ],
+      "examples_no_match": [
+        "xor:NjM0BTsqMwUzMzM="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_linear_key_here",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "netlify_pat",
+      "regex": "\\bnfp_[A-Za-z0-9]{40,}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Netlify Personal Access Token",
+      "validator": "",
+      "examples_match": [
+        "xor:NDwqBRAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBA="
+      ],
+      "examples_no_match": [
+        "xor:NDwqBRAQEA=="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_netlify_token_here",
+        "insert_key_here"
+      ]
+    },
+    {
+      "name": "flyio_api_token",
+      "regex": "\\bfo1_[A-Za-z0-9]{40,}\\b",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Fly.io API token",
+      "validator": "",
+      "examples_match": [
+        "xor:PDVrBTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="
+      ],
+      "examples_no_match": [
+        "xor:PDVrBTExMQ=="
+      ],
+      "stopwords": [
+        "example",
+        "test",
+        "demo",
+        "placeholder",
+        "changeme",
+        "dummy",
+        "sample",
+        "your_fly_token_here",
         "insert_key_here"
       ]
     }

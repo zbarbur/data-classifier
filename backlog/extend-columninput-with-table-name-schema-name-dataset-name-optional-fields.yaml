@@ -1,20 +1,40 @@
 title: Extend ColumnInput with table_name, schema_name, dataset_name optional fields
-status: backlog
+status: done
 priority: P1
 category: feature
-sprint_target: null
+sprint_target: 3
 created: 2026-04-10
-updated: 2026-04-10
+updated: 2026-04-11
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Add optional table_name, schema_name, dataset_name fields to ColumnInput so
+  engines can use table/schema context for disambiguation
+complexity: S
+technical_specs:
+- "File: data_classifier/core/types.py \u2014 add 3 optional fields to ColumnInput\
+  \ dataclass"
+- "File: data_classifier/engines/column_name_engine.py \u2014 use table_name in matching\
+  \ when available"
+- "File: docs/CLIENT_INTEGRATION_GUIDE.md \u2014 document new optional fields"
+- "File: data_classifier/__init__.py \u2014 verify ColumnInput re-export unchanged"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- 'ColumnInput dataclass has optional table_name: str | None, schema_name: str | None,
+  dataset_name: str | None fields'
+- "Fields default to None \u2014 fully backward compatible, no existing code breaks"
+- "Column name engine uses table_name for compound matching (e.g., employees.ssn \u2192\
+  \ higher SSN confidence)"
+- CLIENT_INTEGRATION_GUIDE.md updated with new fields
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_python_api.py: test ColumnInput with and without new fields (backward
+  compat)'
+- 'tests/test_column_name_engine.py: test table_name compound matching boosts confidence'
+- 'tests/test_column_name_engine.py: test None table_name has no effect (backward
+  compat)'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

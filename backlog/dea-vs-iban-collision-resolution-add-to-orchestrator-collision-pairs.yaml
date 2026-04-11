@@ -1,0 +1,23 @@
+title: "DEA vs IBAN collision resolution \u2014 add to orchestrator collision pairs"
+status: backlog
+priority: P1
+category: feature
+sprint_target: 4
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags:
+- iter2
+goal: "Resolve DEA vs IBAN alphanumeric collision \u2014 1 FP in current benchmark"
+complexity: S
+technical_specs: []
+description: ''
+acceptance_criteria:
+- DEA and IBAN collision pair added to orchestrator
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

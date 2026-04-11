@@ -457,3 +457,131 @@ class TestMinConfidenceFiltering:
         column = ColumnInput(column_name="ssn", column_id="test:ssn")
         findings = engine.classify_column(column, min_confidence=0.5)
         assert len(findings) == 1
+
+
+# ── TestCompoundTableMatching ───────────────────────────────────────────────
+
+
+class TestCompoundTableMatching:
+    """Compound matching: table_name provides context boost."""
+
+    def test_employees_ssn_gets_boost(self, engine: ColumnNameEngine) -> None:
+        """employees.ssn → SSN with boost vs ssn alone."""
+        base = ColumnInput(column_name="ssn", column_id="no_table:ssn")
+        boosted = ColumnInput(column_name="ssn", column_id="employees:ssn", table_name="employees")
+        base_findings = engine.classify_column(base, min_confidence=0.0)
+        boosted_findings = engine.classify_column(boosted, min_confidence=0.0)
+        assert len(base_findings) == 1
+        assert len(boosted_findings) == 1
+        assert boosted_findings[0].entity_type == "SSN"
+        assert boosted_findings[0].confidence > base_findings[0].confidence
+
+    def test_patients_mrn_gets_boost(self, engine: ColumnNameEngine) -> None:
+        """patients.mrn → MRN with boost vs mrn alone (health context)."""
+        base = ColumnInput(column_name="mrn", column_id="no_table:mrn")
+        boosted = ColumnInput(column_name="mrn", column_id="patients:mrn", table_name="patients")
+        base_findings = engine.classify_column(base, min_confidence=0.0)
+        boosted_findings = engine.classify_column(boosted, min_confidence=0.0)
+        assert len(base_findings) == 1
+        assert len(boosted_findings) == 1
+        assert boosted_findings[0].confidence > base_findings[0].confidence
+
+    def test_orders_id_no_boost(self, engine: ColumnNameEngine) -> None:
+        """orders.id should produce no findings — 'id' is a no-match column."""
+        column = ColumnInput(column_name="id", column_id="orders:id", table_name="orders")
+        findings = engine.classify_column(column, min_confidence=0.0)
+        assert len(findings) == 0
+
+    def test_non_matching_table_no_boost(self, engine: ColumnNameEngine) -> None:
+        """A table with no context keyword should yield unmodified confidence."""
+        base = ColumnInput(column_name="ssn", column_id="no_table:ssn")
+        no_boost = ColumnInput(column_name="ssn", column_id="widgets:ssn", table_name="widgets")
+        base_findings = engine.classify_column(base, min_confidence=0.0)
+        no_boost_findings = engine.classify_column(no_boost, min_confidence=0.0)
+        assert base_findings[0].confidence == no_boost_findings[0].confidence
+
+    def test_boost_capped_at_1(self, engine: ColumnNameEngine) -> None:
+        """Confidence must never exceed 1.0 even with boost."""
+        column = ColumnInput(column_name="ssn", column_id="employees:ssn", table_name="employees")
+        findings = engine.classify_column(column, min_confidence=0.0)
+        assert len(findings) == 1
+        assert findings[0].confidence <= 1.0
+
+    def test_boost_evidence_mentions_table(self, engine: ColumnNameEngine) -> None:
+        """Evidence string should mention table context when boost is applied."""
+        column = ColumnInput(column_name="ssn", column_id="employees:ssn", table_name="employees")
+        findings = engine.classify_column(column, min_confidence=0.0)
+        assert len(findings) == 1
+        assert "employees" in findings[0].evidence
+
+    def test_boost_amount(self, engine: ColumnNameEngine) -> None:
+        """Boost should be exactly +0.05, capped at 1.0."""
+        base = ColumnInput(column_name="ssn", column_id="no_table:ssn")
+        boosted = ColumnInput(column_name="ssn", column_id="employees:ssn", table_name="employees")
+        base_findings = engine.classify_column(base, min_confidence=0.0)
+        boosted_findings = engine.classify_column(boosted, min_confidence=0.0)
+        expected = min(1.0, base_findings[0].confidence + 0.05)
+        assert boosted_findings[0].confidence == pytest.approx(expected, abs=0.001)
+
+    def test_payments_account_number_boost(self, engine: ColumnNameEngine) -> None:
+        """payments.account_number → Financial context boost."""
+        base = ColumnInput(column_name="account_number", column_id="no_table:acctnum")
+        boosted = ColumnInput(column_name="account_number", column_id="payments:acctnum", table_name="payments")
+        base_findings = engine.classify_column(base, min_confidence=0.0)
+        boosted_findings = engine.classify_column(boosted, min_confidence=0.0)
+        assert len(base_findings) == 1
+        assert len(boosted_findings) == 1
+        assert boosted_findings[0].confidence > base_findings[0].confidence
+
+    @pytest.mark.parametrize(
+        "table_name,column_name,expected_entity_type",
+        [
+            ("employees", "ssn", "SSN"),
+            ("patients", "mrn", "HEALTH"),
+            ("customers", "email", "EMAIL"),
+            ("users", "date_of_birth", "DATE_OF_BIRTH"),
+            ("billing", "credit_card_number", "CREDIT_CARD"),
+            ("personnel", "first_name", "PERSON_NAME"),
+        ],
+    )
+    def test_compound_preserves_entity_type(
+        self, engine: ColumnNameEngine, table_name: str, column_name: str, expected_entity_type: str
+    ) -> None:
+        """Compound matching must not change the entity type, only the confidence."""
+        column = ColumnInput(column_name=column_name, column_id=f"{table_name}:{column_name}", table_name=table_name)
+        findings = engine.classify_column(column, min_confidence=0.0)
+        assert len(findings) >= 1
+        assert findings[0].entity_type == expected_entity_type
+
+
+# ── TestSchemaNameField ─────────────────────────────────────────────────────
+
+
+class TestSchemaNameField:
+    """schema_name field on ColumnInput — backward compatible."""
+
+    def test_schema_name_default_empty(self) -> None:
+        col = ColumnInput(column_name="ssn")
+        assert col.schema_name == ""
+
+    def test_schema_name_accepted(self) -> None:
+        col = ColumnInput(column_name="ssn", schema_name="public")
+        assert col.schema_name == "public"
+
+    def test_schema_name_does_not_affect_classification(self, engine: ColumnNameEngine) -> None:
+        """schema_name is stored but does not alter classification output."""
+        without = ColumnInput(column_name="ssn", column_id="a")
+        with_schema = ColumnInput(column_name="ssn", column_id="b", schema_name="hr")
+        f1 = engine.classify_column(without, min_confidence=0.0)
+        f2 = engine.classify_column(with_schema, min_confidence=0.0)
+        assert len(f1) == 1
+        assert len(f2) == 1
+        assert f1[0].entity_type == f2[0].entity_type
+        assert f1[0].confidence == f2[0].confidence
+
+    def test_backward_compat_no_schema_name(self, engine: ColumnNameEngine) -> None:
+        """Existing code that omits schema_name continues to work."""
+        col = ColumnInput(column_name="email_address", column_id="legacy")
+        findings = engine.classify_column(col, min_confidence=0.0)
+        assert len(findings) == 1
+        assert findings[0].entity_type == "EMAIL"

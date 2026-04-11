@@ -62,6 +62,9 @@ inputs = [
     ColumnInput(
         column_name=col["name"],
         column_id=col["id"],
+        table_name=col.get("table", ""),
+        dataset=col.get("dataset", ""),
+        schema_name=col.get("schema", ""),
         data_type=col.get("type", ""),
         description=col.get("description", ""),
         # NEW: pass sample values if collected (see Section 4)
@@ -122,6 +125,10 @@ class ColumnInput:
 
     dataset: str = ""
     # Dataset, schema, or database name.
+
+    schema_name: str = ""
+    # Schema name within a dataset or database (e.g. "public", "dbo").
+    # Passed through for connector reference; not currently used for classification.
 
     data_type: str = ""
     # SQL data type as string: "STRING", "INTEGER", "TIMESTAMP", etc.

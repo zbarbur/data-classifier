@@ -80,6 +80,67 @@ _ABBREVIATIONS: dict[str, str] = {
 # Regex for splitting camelCase into tokens
 _CAMEL_SPLIT = re.compile(r"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
+# ── Table context mapping ──────────────────────────────────────────────────
+
+# Maps table name keywords (lowercased) to a set of entity categories that the
+# table contextually supports.  When a column-name match is found AND the
+# column's table_name contains a keyword for the same category, a small
+# confidence boost is applied.
+_TABLE_CONTEXT: dict[str, frozenset[str]] = {
+    # PII tables
+    "employee": frozenset({"PII"}),
+    "employees": frozenset({"PII"}),
+    "personnel": frozenset({"PII"}),
+    "person": frozenset({"PII"}),
+    "persons": frozenset({"PII"}),
+    "people": frozenset({"PII"}),
+    "user": frozenset({"PII"}),
+    "users": frozenset({"PII"}),
+    "customer": frozenset({"PII"}),
+    "customers": frozenset({"PII"}),
+    "member": frozenset({"PII"}),
+    "members": frozenset({"PII"}),
+    "contact": frozenset({"PII"}),
+    "contacts": frozenset({"PII"}),
+    "staff": frozenset({"PII"}),
+    "client": frozenset({"PII"}),
+    "clients": frozenset({"PII"}),
+    "profile": frozenset({"PII"}),
+    "profiles": frozenset({"PII"}),
+    # Health / clinical tables
+    "patient": frozenset({"Health"}),
+    "patients": frozenset({"Health"}),
+    "medical": frozenset({"Health"}),
+    "clinical": frozenset({"Health"}),
+    "encounter": frozenset({"Health"}),
+    "encounters": frozenset({"Health"}),
+    "diagnosis": frozenset({"Health"}),
+    "diagnoses": frozenset({"Health"}),
+    "prescription": frozenset({"Health"}),
+    "prescriptions": frozenset({"Health"}),
+    "lab": frozenset({"Health"}),
+    "labs": frozenset({"Health"}),
+    # Financial tables
+    "payment": frozenset({"Financial"}),
+    "payments": frozenset({"Financial"}),
+    "billing": frozenset({"Financial"}),
+    "invoice": frozenset({"Financial"}),
+    "invoices": frozenset({"Financial"}),
+    "transaction": frozenset({"Financial"}),
+    "transactions": frozenset({"Financial"}),
+    "order": frozenset({"Financial"}),
+    "orders": frozenset({"Financial"}),
+    "account": frozenset({"Financial"}),
+    "accounts": frozenset({"Financial"}),
+    "ledger": frozenset({"Financial"}),
+    "salary": frozenset({"Financial"}),
+    "salaries": frozenset({"Financial"}),
+    "payroll": frozenset({"Financial"}),
+}
+
+_TABLE_CONTEXT_BOOST = 0.05
+"""Confidence boost applied when the table name contextually supports the entity category."""
+
 
 # ── Variant entry ──────────────────────────────────────────────────────────
 
@@ -119,6 +180,24 @@ def _normalize(name: str) -> str:
 def _tokenize(normalized: str) -> list[str]:
     """Split a normalized name into tokens on underscores."""
     return [t for t in normalized.split("_") if t]
+
+
+def _table_context_boost(table_name: str, category: str) -> float:
+    """Return a confidence boost if the table name supports the entity category.
+
+    Splits the table name into tokens and checks each against ``_TABLE_CONTEXT``.
+    Returns ``_TABLE_CONTEXT_BOOST`` if any token maps to a set that contains
+    ``category``, otherwise returns 0.0.
+    """
+    if not table_name:
+        return 0.0
+    normalized = _normalize(table_name)
+    tokens = _tokenize(normalized)
+    for token in tokens:
+        supported = _TABLE_CONTEXT.get(token)
+        if supported and category in supported:
+            return _TABLE_CONTEXT_BOOST
+    return 0.0
 
 
 # ── Engine ─────────────────────────────────────────────────────────────────
@@ -178,7 +257,11 @@ class ColumnNameEngine(ClassificationEngine):
         entry = self._lookup.get(normalized)
         if entry is not None:
             confidence = entry.confidence
+            boost = _table_context_boost(column.table_name, entry.category)
+            confidence = min(1.0, confidence + boost)
             evidence = f"Column name '{column.column_name}' directly matches {entry.entity_type} variant '{normalized}'"
+            if boost:
+                evidence += f" (table '{column.table_name}' context boost +{boost:.2f})"
             return self._make_finding(column, entry, confidence, evidence, min_confidence)
 
         # Strategy 2: Abbreviation expansion
@@ -187,10 +270,14 @@ class ColumnNameEngine(ClassificationEngine):
             entry = self._lookup.get(_normalize(expanded))
             if entry is not None:
                 confidence = entry.confidence * 0.95
+                boost = _table_context_boost(column.table_name, entry.category)
+                confidence = min(1.0, confidence + boost)
                 evidence = (
                     f"Column name '{column.column_name}' matches {entry.entity_type} "
                     f"via abbreviation expansion '{normalized}' -> '{expanded}'"
                 )
+                if boost:
+                    evidence += f" (table '{column.table_name}' context boost +{boost:.2f})"
                 return self._make_finding(column, entry, confidence, evidence, min_confidence)
 
         # Strategy 3: Multi-token subsequence matching
@@ -221,9 +308,13 @@ class ColumnNameEngine(ClassificationEngine):
                 entry = self._lookup.get(subseq)
                 if entry is not None:
                     confidence = entry.confidence * 0.85
+                    boost = _table_context_boost(column.table_name, entry.category)
+                    confidence = min(1.0, confidence + boost)
                     evidence = (
                         f"Column name '{column.column_name}' matches {entry.entity_type} via subsequence '{subseq}'"
                     )
+                    if boost:
+                        evidence += f" (table '{column.table_name}' context boost +{boost:.2f})"
                     return self._make_finding(column, entry, confidence, evidence, min_confidence)
 
                 # Try abbreviation expansion on the subsequence
@@ -232,10 +323,14 @@ class ColumnNameEngine(ClassificationEngine):
                     entry = self._lookup.get(_normalize(expanded))
                     if entry is not None:
                         confidence = entry.confidence * 0.85 * 0.95
+                        boost = _table_context_boost(column.table_name, entry.category)
+                        confidence = min(1.0, confidence + boost)
                         evidence = (
                             f"Column name '{column.column_name}' matches {entry.entity_type} "
                             f"via subsequence abbreviation '{subseq}' -> '{expanded}'"
                         )
+                        if boost:
+                            evidence += f" (table '{column.table_name}' context boost +{boost:.2f})"
                         return self._make_finding(column, entry, confidence, evidence, min_confidence)
 
         return []

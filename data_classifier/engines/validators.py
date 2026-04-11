@@ -6,6 +6,7 @@ If a validator returns False, the match is discarded.
 
 from __future__ import annotations
 
+import re
 import typing
 
 
@@ -173,6 +174,21 @@ def iban_checksum_check(value: str) -> bool:
     return int(numeric) % 97 == 1
 
 
+def sin_luhn_check(value: str) -> bool:
+    """Luhn check for Canadian SIN — strips separators and requires exactly 9 digits."""
+    digits = [int(c) for c in value if c.isdigit()]
+    if len(digits) != 9:
+        return False
+    checksum = 0
+    for i, d in enumerate(reversed(digits)):
+        if i % 2 == 1:
+            d *= 2
+            if d > 9:
+                d -= 9
+        checksum += d
+    return checksum % 10 == 0
+
+
 def phone_number_check(value: str) -> bool:
     """Validate phone number using Google's phonenumbers library.
 
@@ -194,10 +210,28 @@ def phone_number_check(value: str) -> bool:
         return False
 
 
+def aws_secret_not_hex(value: str) -> bool:
+    """AWS secret keys are base64 (mixed case + digits + /+=), never pure hex.
+
+    Rejects pure-hex strings that match the 40-char length but are actually
+    git SHAs, checksums, or other hex identifiers.
+    """
+    # Strip any matched prefix/suffix that the regex might have included
+    clean = value.strip()
+    # Pure hex (0-9, a-f, case-insensitive) → not an AWS key
+    if re.fullmatch(r"[0-9a-fA-F]+", clean):
+        return False
+    # Must contain at least one uppercase AND one lowercase (base64 property)
+    has_upper = any(c.isupper() for c in clean)
+    has_lower = any(c.islower() for c in clean)
+    return has_upper and has_lower
+
+
 # Registry mapping validator names to functions
 VALIDATORS: dict[str, typing.Callable] = {
     "luhn": luhn_check,
     "luhn_strip": luhn_strip_check,
+    "sin_luhn": sin_luhn_check,
     "ssn_zeros": ssn_zeros_check,
     "ipv4_not_reserved": ipv4_not_reserved_check,
     "npi_luhn": npi_luhn_check,
@@ -207,4 +241,5 @@ VALIDATORS: dict[str, typing.Callable] = {
     "aba_checksum": aba_checksum_check,
     "iban_checksum": iban_checksum_check,
     "phone_number": phone_number_check,
+    "aws_secret_not_hex": aws_secret_not_hex,
 }

@@ -1,21 +1,33 @@
 title: 'VIN test corpus fix: replace invalid check-digit VIN (WVWZZZ3CZWE123456) with
   valid examples'
-status: backlog
+status: done
 priority: P2
 category: bug
-sprint_target: null
+sprint_target: 3
 created: 2026-04-10
-updated: 2026-04-10
+updated: 2026-04-11
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Replace invalid check-digit VIN test value WVWZZZ3CZWE123456 with VINs that
+  pass mod-11 validation
+complexity: S
+technical_specs:
+- "File: data_classifier/patterns/default_patterns.json \u2014 replace VIN examples_match\
+  \ with valid check-digit VINs"
+- "File: tests/benchmarks/corpus_generator.py \u2014 fix VIN corpus to generate valid\
+  \ check digits"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- All VIN examples in test corpus pass mod-11 check digit validation
+- At least 5 valid VIN test values from different manufacturers
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_patterns.py: existing pattern self-tests verify new VIN examples pass'
+- 'tests/test_regex_engine.py: verify VIN validator accepts new examples, rejects
+  old invalid one'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

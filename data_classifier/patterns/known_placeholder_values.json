@@ -1,0 +1,11 @@
+{
+  "placeholder_values": [
+    "changeme", "password123", "password", "passw0rd", "p@ssw0rd",
+    "admin", "root", "default", "12345678", "123456789", "1234567890",
+    "abcdefgh", "qwerty123", "letmein", "welcome1", "abc12345",
+    "your_api_key_here", "your_secret_here", "xxx", "xxxxxxxx",
+    "todo", "fixme", "replace_me", "insert_here", "put_your_key_here",
+    "akiaiosfodnn7example", "test123", "dummy", "foobar", "example",
+    "sample", "demo", "temp", "tmp"
+  ]
+}

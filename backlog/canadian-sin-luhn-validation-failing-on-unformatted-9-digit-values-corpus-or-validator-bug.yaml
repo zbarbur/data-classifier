@@ -1,21 +1,34 @@
 title: 'Canadian SIN: Luhn validation failing on unformatted 9-digit values (corpus
   or validator bug)'
-status: backlog
+status: done
 priority: P2
 category: bug
-sprint_target: null
+sprint_target: 3
 created: 2026-04-10
-updated: 2026-04-10
+updated: 2026-04-11
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: "Fix Canadian SIN Luhn validator to handle unformatted 9-digit values (no spaces/dashes)\
+  \ \u2014 currently only validates formatted inputs"
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/validators.py \u2014 fix SIN Luhn to strip non-digit\
+  \ chars before checksum"
+- "File: tests/benchmarks/corpus_generator.py \u2014 add unformatted SIN samples to\
+  \ corpus"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Luhn validator strips formatting (spaces, dashes) before validation
+- Both 123-456-789 and 123456789 formats validated correctly
+- Benchmark corpus updated with valid unformatted SIN samples
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_regex_engine.py: test SIN validator with formatted and unformatted inputs'
+- 'tests/test_regex_engine.py: test SIN validator rejects invalid Luhn values in both
+  formats'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

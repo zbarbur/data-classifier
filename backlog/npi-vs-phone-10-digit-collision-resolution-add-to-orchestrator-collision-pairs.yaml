@@ -1,0 +1,25 @@
+title: "NPI vs PHONE 10-digit collision resolution \u2014 add to orchestrator collision\
+  \ pairs"
+status: backlog
+priority: P1
+category: feature
+sprint_target: 4
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags:
+- iter2
+goal: "Resolve NPI vs PHONE 10-digit collision \u2014 2 FPs in current benchmark"
+complexity: S
+technical_specs: []
+description: ''
+acceptance_criteria:
+- NPI and PHONE collision pair added to orchestrator
+- Column benchmark FP count drops by 2
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

@@ -1,0 +1,23 @@
+title: "Document all engines in client-facing docs \u2014 what each engine does, configuration,\
+  \ signals, and how they interact"
+status: backlog
+priority: P2
+category: docs
+sprint_target: null
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags:
+- iter2
+goal: ''
+complexity: null
+technical_specs: []
+description: ''
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
