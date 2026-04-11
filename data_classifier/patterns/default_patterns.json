@@ -322,8 +322,8 @@
       "entity_type": "CREDENTIAL",
       "category": "Credential",
       "sensitivity": "CRITICAL",
-      "confidence": 0.5,
-      "description": "Potential AWS Secret Key (40 chars base64). Low confidence alone \u2014 usually paired with access key context. Validator rejects pure-hex strings (git SHAs, checksums).",
+      "confidence": 0.35,
+      "description": "Potential AWS Secret Key (40 chars base64). Very low confidence alone \u2014 requires context words (aws_secret, secret_access_key) to reach actionable confidence. Validator rejects pure-hex strings (git SHAs, checksums).",
       "validator": "aws_secret_not_hex",
       "examples_match": [
         "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
@@ -332,6 +332,21 @@
       "examples_no_match": [
         "wJalrXUtnFEMI/K7MDENG/bPxRfi",
         "too-short"
+      ],
+      "context_words_boost": [
+        "aws_secret",
+        "secret_access_key",
+        "aws_secret_access_key",
+        "secretaccesskey",
+        "aws_secret_key"
+      ],
+      "context_words_suppress": [
+        "sha",
+        "hash",
+        "checksum",
+        "digest",
+        "commit",
+        "git"
       ],
       "stopwords": [
         "example",

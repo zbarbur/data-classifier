@@ -50,6 +50,55 @@ class TestPatternExamples:
         assert 0.0 < pattern.confidence <= 1.0, f"Confidence must be (0, 1], got {pattern.confidence}"
 
 
+class TestAwsSecretKeyPattern:
+    """Tests for the redesigned aws_secret_key pattern with context requirements."""
+
+    @pytest.fixture(autouse=True)
+    def _load_pattern(self):
+        matches = [p for p in _PATTERNS if p.name == "aws_secret_key"]
+        assert len(matches) == 1, "Expected exactly one aws_secret_key pattern"
+        self.pattern = matches[0]
+
+    def test_base_confidence_is_low(self):
+        """Base confidence should be low enough that it needs context boost to be actionable."""
+        assert self.pattern.confidence <= 0.40, (
+            f"aws_secret_key base confidence {self.pattern.confidence} is too high — "
+            "pattern is too broad without context"
+        )
+
+    def test_has_context_words_boost(self):
+        """Pattern must have context_words_boost to require AWS-specific context."""
+        assert len(self.pattern.context_words_boost) >= 3, (
+            "aws_secret_key needs context_words_boost for AWS-specific keywords"
+        )
+
+    def test_context_words_include_aws_keywords(self):
+        """Context boost words should include common AWS secret key field names."""
+        boost_lower = {w.lower() for w in self.pattern.context_words_boost}
+        for keyword in ["aws_secret", "secret_access_key"]:
+            assert keyword in boost_lower, f"Missing expected context boost word: {keyword}"
+
+    def test_has_context_words_suppress(self):
+        """Pattern should suppress on hash/checksum contexts to reduce FPs."""
+        assert len(self.pattern.context_words_suppress) >= 2, (
+            "aws_secret_key needs context_words_suppress for hash/checksum contexts"
+        )
+
+    def test_suppress_words_include_hash_keywords(self):
+        """Context suppress words should include hash-related terms."""
+        suppress_lower = {w.lower() for w in self.pattern.context_words_suppress}
+        for keyword in ["sha", "hash", "checksum"]:
+            assert keyword in suppress_lower, f"Missing expected context suppress word: {keyword}"
+
+    def test_validator_is_aws_secret_not_hex(self):
+        """Pattern should still use the aws_secret_not_hex validator."""
+        assert self.pattern.validator == "aws_secret_not_hex"
+
+    def test_has_stopwords(self):
+        """Pattern should retain stopwords for placeholder values."""
+        assert len(self.pattern.stopwords) > 0
+
+
 class TestPatternLibraryIntegrity:
     def test_no_duplicate_names(self):
         """All pattern names are unique."""
