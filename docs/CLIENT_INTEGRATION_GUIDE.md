@@ -1,9 +1,9 @@
 # data_classifier — Client Integration Guide
 
 > **Audience:** Connector teams (BigQuery, Snowflake, Postgres, etc.)
-> **Version:** 0.1.0 (Iteration 1 — API freeze draft)
-> **Date:** 2026-04-10
-> **Status:** DRAFT — review and confirm before implementation begins
+> **Version:** 0.5.0 (Sprint 5 — ML engine, ONNX deployment)
+> **Date:** 2026-04-12
+> **Status:** READY — v0.5.0 tagged and available
 
 ---
 
@@ -18,7 +18,50 @@
 - **The connector's job:** collect column metadata + sample values → pass to library → receive findings → persist results
 - **The library's job:** run classification engines → return typed findings with confidence and evidence
 
-Install: `pip install data_classifier` (from GitHub release or local editable install for now)
+---
+
+## 1a. Installation Tiers
+
+Choose the tier that fits your deployment:
+
+| Tier | Install | Size | What you get | Latency |
+|------|---------|------|--------------|---------|
+| **Light** | `pip install data_classifier` | ~5MB | Regex + column name + heuristic engines | ~15ms/col |
+| **Standard (recommended)** | `pip install "data_classifier[ml]"` | ~70MB + 350MB model | + GLiNER NER engine (ONNX) for PERSON_NAME, ADDRESS detection | ~80ms/col |
+| **Full** | `pip install "data_classifier[ml-full]"` | ~2.5GB | + PyTorch for model export/fine-tuning | ~100ms/col |
+| **API** | `pip install "data_classifier[ml-api]"` | ~5MB | + GLiNER hosted API (needs API key, network) | varies |
+
+**For production BQ connector, use Standard tier:**
+
+```bash
+# One-time at build (needs ml-full for export):
+pip install "data_classifier[ml-full]"
+python scripts/export_onnx_model.py --output models/gliner_onnx
+
+# Runtime (Dockerfile):
+pip install "data_classifier[ml]"
+# Copy models/gliner_onnx/ into container
+```
+
+**What Light tier misses:** PERSON_NAME, ADDRESS, and ORGANIZATION detection from sample values. These entity types require NER (ML). If your columns have meaningful names (e.g., `full_name`, `street_address`), the column name engine still detects them without ML. ML is needed when column names are generic or missing.
+
+**Install from private repo** (choose the method your CI/CD uses):
+
+```bash
+# Option A: Git SSH (if CI has deploy key)
+pip install "data_classifier[ml] @ git+ssh://git@github.com/zbarbur/data-classifier.git@v0.5.0"
+
+# Option B: GitHub token (if CI has GH_TOKEN)
+pip install "data_classifier[ml] @ git+https://${GH_TOKEN}@github.com/zbarbur/data-classifier.git@v0.5.0"
+
+# Option C: Local path (monorepo or vendored)
+pip install -e "../data_classifier[ml]"
+
+# Option D: Private PyPI (if published to Artifact Registry / CodeArtifact)
+pip install --index-url https://your-registry/ "data_classifier[ml]==0.5.0"
+```
+
+**Version pinning:** Always pin to a tag (`@v0.5.0`), never track a branch in production.
 
 ---
 
@@ -472,7 +515,76 @@ def findings_to_db_rows(findings: list[ClassificationFinding]) -> list[dict]:
 
 ---
 
-## 5. Confidence Model
+## 5. ML Engine Setup (Standard Tier)
+
+If using the Standard or Full tier, the GLiNER NER engine needs a one-time model setup.
+
+### Option A: ONNX Local (recommended for production)
+
+Pre-export the model at build time, load at runtime without network or PyTorch:
+
+```bash
+# Build step (needs ml-full):
+pip install "data_classifier[ml-full]"
+python scripts/export_onnx_model.py --output models/gliner_onnx
+# Produces: models/gliner_onnx/ (~350MB, quantized INT8 ONNX)
+```
+
+```python
+# Runtime — uses ONNX, no torch, no HuggingFace download
+from data_classifier import classify_columns, load_profile
+# The library auto-detects ONNX model when available.
+# To explicitly set the path:
+import os
+os.environ["GLINER_ONNX_PATH"] = "models/gliner_onnx"
+
+findings = classify_columns(inputs, profile)
+```
+
+### Option B: API Mode (for testing / light workloads)
+
+```python
+import os
+os.environ["PIONEER_API_KEY"] = "your-api-key"
+# The engine falls back to the hosted GLiNER API when local model
+# loading fails or when ml-api tier is installed instead of ml.
+```
+
+### Option C: Skip ML entirely (Light tier)
+
+```python
+# Just don't install [ml]. The library auto-skips the GLiNER engine
+# when the package is not available. No configuration needed.
+# You get regex + column name + heuristic engines only.
+```
+
+### What the ML engine detects
+
+| Entity type | Without ML | With ML |
+|-------------|-----------|---------|
+| PERSON_NAME | Column name only | Column name + sample value NER |
+| ADDRESS | Column name only | Column name + sample value NER |
+| ORGANIZATION | Column name only | Column name + sample value NER |
+| EMAIL | Regex (strong) | Regex + NER reinforcement |
+| PHONE | Regex (US formats) | Regex + NER (international formats) |
+| SSN | Regex (US format) | Regex + NER (international IDs) |
+| All others | Regex + heuristic | Same (ML adds no value on structured patterns) |
+
+### New classify_columns Parameters (v0.5.0)
+
+```python
+findings = classify_columns(
+    inputs,
+    profile,
+    max_findings=1,                # Return only top-1 prediction per column
+    confidence_gap_threshold=0.30, # Suppress secondary findings below gap
+    # ... existing parameters unchanged
+)
+```
+
+---
+
+## 6. Confidence Model (updated v0.5.0)
 
 ### What confidence means
 
@@ -524,7 +636,7 @@ Validation failures reduce confidence: if only 50% of matches pass secondary val
 
 ---
 
-## 6. Migration Plan for BigQuery Connector
+## 7. Migration Plan for BigQuery Connector
 
 ### Scope
 
@@ -532,13 +644,19 @@ This replaces `classifier/engine.py` with the `data_classifier` package. `classi
 
 ### Step-by-step
 
-**1. Add dependency**
+**1. Add dependency (shared workspace)**
 ```toml
-# pyproject.toml
+# pyproject.toml — since we share a workspace:
 dependencies = [
-    "data_classifier>=0.1.0",
+    "data_classifier[ml] @ file:///${PROJECT_ROOT}/../data_classifier",
     # ... existing deps
 ]
+```
+
+Or for the BQ connector (sibling folder):
+```bash
+# From the BigQuery-connector directory:
+pip install -e "../data_classifier[ml]"
 ```
 
 **2. Update runner.py imports**
@@ -622,7 +740,7 @@ Implement `TABLESAMPLE` in the BQ collector to populate `sample_values` on colum
 
 ---
 
-## 7. Testing Contract
+## 8. Testing Contract
 
 The library ships with fixture-based tests ported from the BigQuery connector's test suite. These fixtures are the behavioral contract:
 
@@ -644,18 +762,18 @@ assert findings[0].sensitivity == "HIGH"
 
 ---
 
-## 8. Timeline
+## 9. Timeline
 
-| Milestone | Owner | Target |
+| Milestone | Owner | Status |
 |---|---|---|
-| Library iteration 1 complete (Python API + tests + CI) | data_classifier team | Current sprint |
-| BQ connector sampling implementation | BQ connector team | Can start now (independent) |
-| BQ connector migration to data_classifier | BQ connector team | Sprint 27 |
-| Library iteration 2 (heuristics, NER engines) | data_classifier team | Sprint 28+ |
+| Library v0.5.0 — regex + column name + heuristic + GLiNER ML + ONNX | data_classifier team | Done |
+| BQ connector sampling implementation | BQ connector team | In progress |
+| BQ connector migration to data_classifier | BQ connector team | Current sprint |
+| Library v0.6.0 — meta-classifier, GLiNER2 descriptions, scan depth config | data_classifier team | Next sprint |
 
 ---
 
-## 9. Questions / Open Items
+## 10. Questions / Open Items
 
 1. **Sampling configuration in BQ connector** — what sample size? Configurable per-profile or global? Suggested default: 100 rows per table.
 
@@ -667,7 +785,7 @@ assert findings[0].sensitivity == "HIGH"
 
 ---
 
-## Appendix A: Full Public API Surface
+## Appendix A: Full Public API Surface (v0.5.0)
 
 Everything exported from `data_classifier.__init__`:
 
@@ -682,7 +800,17 @@ ClassificationRule
 RollupResult
 
 # Functions
-classify_columns(columns, profile, *, min_confidence, budget_ms, run_id, config, mask_samples, max_evidence_samples)
+classify_columns(
+    columns, profile, *,
+    min_confidence=0.5,
+    budget_ms=None,
+    run_id=None,
+    config=None,
+    mask_samples=False,
+    max_evidence_samples=5,
+    max_findings=None,                # NEW v0.5.0 — limit findings per column
+    confidence_gap_threshold=0.30,    # NEW v0.5.0 — suppress weak secondary findings
+)
 load_profile(profile_name)
 load_profile_from_yaml(profile_name, yaml_path)
 load_profile_from_dict(profile_name, data)
@@ -692,3 +820,27 @@ rollup_from_rollups(child_rollups, parent_map)
 # Constants
 SENSITIVITY_ORDER
 ```
+
+## Appendix B: Engine Cascade (v0.5.0)
+
+The library runs up to 5 engines in order. Each engine adds findings; the orchestrator merges, calibrates, and deduplicates.
+
+| Order | Engine | What it detects | Requires |
+|-------|--------|----------------|----------|
+| 1 | Column Name | All types from column name matching | Nothing (always runs) |
+| 2 | Regex | Structured patterns (SSN, email, phone, credit card, ...) | `sample_values` |
+| 3 | Heuristic | Statistical signals (cardinality, format distribution) | `sample_values` |
+| 4 | Secret Scanner | Credentials, API keys, secrets in structured text | `sample_values` |
+| 5 | GLiNER NER | PERSON_NAME, ADDRESS, ORGANIZATION + reinforcement | `[ml]` install + ONNX model |
+
+When the `[ml]` extra is not installed, the GLiNER engine is silently skipped.
+
+## Appendix C: Version History
+
+| Version | Sprint | Key additions |
+|---------|--------|--------------|
+| v0.1.0 | 1 | RE2 regex engine, 43 patterns, 234 tests |
+| v0.2.0 | 2 | Column name engine, 59 patterns, 398 tests |
+| v0.3.0 | 3 | Heuristic engine, secret scanner, 603 tests |
+| v0.4.0 | 4 | Collision resolution, model registry, real corpora, 681 tests |
+| v0.5.0 | 5 | GLiNER ML engine, ONNX deployment, engine weighting, calibration, 777 tests |
