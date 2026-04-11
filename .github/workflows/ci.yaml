@@ -34,3 +34,7 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -v
+
+      - name: Docs build check
+        if: matrix.python-version == '3.12'
+        run: mkdocs build --strict

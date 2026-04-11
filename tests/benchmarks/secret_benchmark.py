@@ -526,10 +526,11 @@ def _load_external_secret_corpus() -> list[SampleCase]:
             if not value or value in existing_values:
                 continue
             existing_values.add(value)
+            is_secret = rec.get("is_secret", rec.get("expected_detected", False))
             cases.append(
                 SampleCase(
                     value=value,
-                    expected_detected=rec.get("expected_detected", False),
+                    expected_detected=is_secret,
                     layer=rec.get("layer", "external"),
                     description=rec.get("description", f"External: {source_name}"),
                     detection_layers=[rec.get("layer", "unknown")],
