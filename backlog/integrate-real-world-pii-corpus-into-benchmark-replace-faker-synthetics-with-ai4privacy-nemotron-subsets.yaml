@@ -1,6 +1,6 @@
 title: "Integrate real-world PII corpus into benchmark \u2014 replace Faker synthetics\
   \ with Ai4Privacy/Nemotron subsets"
-status: backlog
+status: doing
 priority: P1
 category: feature
 sprint_target: 4
@@ -9,14 +9,26 @@ updated: 2026-04-11
 depends_on: []
 tags:
 - iter2
-goal: ''
+goal: Integrate at least one real-world PII corpus (Ai4Privacy or Nemotron subset)
+  into benchmark to replace/supplement Faker synthetics
 complexity: M
-technical_specs: []
+technical_specs:
+- "File: tests/benchmarks/corpus_loader.py \u2014 new module to load external corpora"
+- "File: tests/benchmarks/accuracy_benchmark.py \u2014 accept corpus source parameter"
+- "File: tests/fixtures/corpora/ \u2014 downloaded/processed corpus files"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- At least one real-world corpus integrated as benchmark data source
+- ETL pipeline converts external corpus format to our ColumnInput format
+- Benchmark can run with real corpus via flag/config
+- Baseline F1 measured on real corpus and documented
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/benchmarks/: corpus loader returns valid ColumnInput data'
+- 'tests/benchmarks/: accuracy benchmark runs end-to-end with real corpus'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

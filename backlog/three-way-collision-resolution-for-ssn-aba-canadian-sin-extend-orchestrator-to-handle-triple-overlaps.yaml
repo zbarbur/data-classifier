@@ -1,6 +1,6 @@
 title: "Three-way collision resolution for SSN/ABA/CANADIAN_SIN \u2014 extend orchestrator\
   \ to handle triple overlaps"
-status: backlog
+status: doing
 priority: P1
 category: feature
 sprint_target: 4
@@ -9,17 +9,27 @@ updated: 2026-04-11
 depends_on: []
 tags:
 - iter2
-goal: Resolve the 7-FP three-way collision between SSN, ABA_ROUTING, and CANADIAN_SIN
-  on 9-digit columns
+goal: "Resolve three-way SSN/ABA/SIN collision \u2014 when all three co-occur on 9-digit\
+  \ columns, use heuristic signals (cardinality, column name) to pick the winner"
 complexity: S
-technical_specs: []
+technical_specs:
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 add three-way collision\
+  \ handler, extend _resolve_collisions"
+- "File: tests/test_heuristic_engine.py \u2014 add three-way collision test cases"
 description: ''
 acceptance_criteria:
-- When SSN+ABA+SIN co-occur, only the highest-confidence one is kept
-- Column benchmark FP count drops by 5+
-test_plan: []
+- Three-way resolver in orchestrator handles SSN+ABA+SIN co-occurrence
+- Heuristic signals (cardinality ratio, column name match) used as tiebreakers
+- Falls back to confidence ranking when no heuristic signal available
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_heuristic_engine.py: SSN+ABA+SIN with high cardinality \u2192 SSN wins"
+- "tests/test_heuristic_engine.py: SSN+ABA+SIN with low cardinality \u2192 ABA wins"
+- "tests/test_heuristic_engine.py: SSN+ABA+SIN with no heuristic signal \u2192 highest\
+  \ confidence wins"
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

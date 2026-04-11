@@ -1,6 +1,6 @@
 title: "Add unit tests for all collision pairs \u2014 SSN/SIN, ABA/SIN, NPI/PHONE,\
   \ DEA/IBAN"
-status: backlog
+status: doing
 priority: P2
 category: chore
 sprint_target: 4
@@ -9,14 +9,26 @@ updated: 2026-04-11
 depends_on: []
 tags:
 - iter2
-goal: ''
+goal: "Comprehensive unit tests for all collision pairs \u2014 regression protection\
+  \ for existing and new collision resolution logic"
 complexity: S
-technical_specs: []
+technical_specs:
+- "File: tests/test_collision_resolution.py \u2014 new dedicated test file for collision\
+  \ pair tests"
+- "File: tests/conftest.py \u2014 add collision test fixtures if needed"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Unit tests for all 8+ collision pairs (SSN/ABA, SSN/SIN, ABA/SIN, SSN/ABA/SIN three-way,
+  NPI/PHONE, DEA/IBAN, CREDENTIAL suppression)
+- 'Edge cases: equal confidence, missing heuristic signals, single-entity no-collision'
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_collision_resolution.py: parameterized tests for each collision pair'
+- "tests/test_collision_resolution.py: edge cases \u2014 equal confidence, no signal,\
+  \ triple overlap"
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

@@ -1,6 +1,6 @@
 title: 'Benchmark reporting: add macro F1, per-entity-type F1, primary-label accuracy
   alongside current micro F1'
-status: backlog
+status: doing
 priority: P1
 category: feature
 sprint_target: 4
@@ -9,14 +9,25 @@ updated: 2026-04-11
 depends_on: []
 tags:
 - iter2
-goal: ''
+goal: Enhance benchmark report output with macro F1, per-entity F1, confusion matrix,
+  and primary-label accuracy
 complexity: S
-technical_specs: []
+technical_specs:
+- "File: tests/benchmarks/generate_report.py \u2014 add macro F1 and per-entity table\
+  \ to report"
+- "File: tests/benchmarks/accuracy_benchmark.py \u2014 compute and return new metrics"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Report includes macro F1 alongside micro F1
+- Report includes per-entity-type F1 table
+- Report includes primary-label accuracy (top-1 prediction vs ground truth)
+- HTML report updated with new metrics
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/benchmarks/: report output includes all new metric sections'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []
