@@ -134,6 +134,76 @@ _SECRET_PREFIXES: tuple[str, ...] = (
 )
 
 
+# ── Gitleaks placeholder FP suppression (item: gitleaks-fp-analysis) ────────
+# Sprint 4 gitleaks corpus analysis surfaced ~37 false positive cases where
+# the secret scanner fired on obvious placeholder / template values
+# ("YOUR_API_KEY_HERE", "xxxxxxxxxxxx", "<your-token>", etc.).  These regex
+# patterns suppress them without hiding real secrets — the control case
+# (a real-looking AWS access key) still fires.
+#
+# Order matters for performance only (cheap checks first).  Each pattern is
+# applied case-insensitively against the extracted KV value (not the full
+# sample), so it only triggers on the specific field that looked like a
+# secret.
+_PLACEHOLDER_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # 5+ consecutive x/X — e.g. "xxxxxxxxxxxx", "AKIAXXXXXXXXXXXXXXXX"
+    re.compile(r"x{5,}", re.IGNORECASE),
+    # Any character repeated 8+ times — e.g. "glc_111111111111..."
+    re.compile(r"(.)\1{7,}"),
+    # Angle-bracket placeholders — e.g. "<your-api-key>", "<TOKEN>"
+    re.compile(r"<[^>]{1,80}>"),
+    # YOUR_*_KEY / YOUR_*_TOKEN / YOUR_*_SECRET style
+    re.compile(
+        r"your[_\-\s]?(api|access|auth|secret|token|private|aws|gcp|azure)?"
+        r"[_\-\s]?(key|token|secret|password|credential)",
+        re.IGNORECASE,
+    ),
+    # PUT_YOUR_*_HERE style
+    re.compile(r"put[_\-\s]?your", re.IGNORECASE),
+    re.compile(r"insert[_\-\s]?your", re.IGNORECASE),
+    re.compile(r"replace[_\-\s]?(me|with|this)", re.IGNORECASE),
+    # Placeholder sentinel words
+    re.compile(r"placeholder", re.IGNORECASE),
+    re.compile(r"redacted", re.IGNORECASE),
+    re.compile(r"\bexample\b", re.IGNORECASE),
+    re.compile(r"^sample[_\-]", re.IGNORECASE),
+    re.compile(r"^dummy[_\-]?", re.IGNORECASE),
+    # Common templating markers
+    re.compile(r"\{\{.*\}\}"),  # {{VAR}} Jinja / mustache
+    re.compile(r"\$\{[A-Z_]+\}"),  # ${VAR} shell
+    # AWS documentation example keys (all end in "EXAMPLE")
+    re.compile(r"EXAMPLE$"),
+    # Common "here" / "goes here" hints
+    re.compile(r"(key|token|secret|password)[_\-\s]here", re.IGNORECASE),
+    re.compile(r"goes[_\-\s]here", re.IGNORECASE),
+    # "changeme" and common lazy placeholders (word-boundary to avoid
+    # matching real tokens that coincidentally contain these letters)
+    re.compile(r"\bchangeme\b", re.IGNORECASE),
+    re.compile(r"\bfoobar\b", re.IGNORECASE),
+    re.compile(r"\btodo\b", re.IGNORECASE),
+    re.compile(r"\bfixme\b", re.IGNORECASE),
+)
+
+
+def _is_placeholder_value(value: str) -> bool:
+    """Return True if ``value`` looks like a gitleaks-style placeholder.
+
+    Used by the secret scanner to suppress findings on template/example
+    values such as ``"xxxxxxxxxxxxxxxx"``, ``"YOUR_API_KEY_HERE"``,
+    ``"<your-token>"``, ``"{{API_KEY}}"``.
+
+    Args:
+        value: The extracted KV value to test.
+
+    Returns:
+        ``True`` if the value matches any placeholder pattern.
+    """
+    for pat in _PLACEHOLDER_PATTERNS:
+        if pat.search(value):
+            return True
+    return False
+
+
 def _has_secret_indicators(value: str) -> bool:
     """Return True if a value shows any structural hint of carrying a secret.
 
@@ -382,8 +452,13 @@ class SecretScannerEngine(ClassificationEngine):
                 if self._has_anti_indicator(key, value, anti_indicators):
                     continue
 
-                # Known placeholder suppression
+                # Known placeholder suppression (exact match of seeded list)
                 if value.lower() in self._placeholder_values:
+                    continue
+
+                # Gitleaks placeholder pattern suppression (sprint 6):
+                # e.g. "xxxxxxxxxxxx", "YOUR_API_KEY", "<your-token>".
+                if _is_placeholder_value(value):
                     continue
 
                 # Score the key name (returns score and tier)
