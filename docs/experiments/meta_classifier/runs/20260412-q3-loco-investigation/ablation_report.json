@@ -1,0 +1,195 @@
+{
+  "baseline": {
+    "label": "baseline (all 13)",
+    "feature": null,
+    "loco_f1_ai4privacy": 0.2594707635677586,
+    "loco_f1_nemotron": 0.35793817173970377,
+    "mean_loco": 0.30870446765373116
+  },
+  "drop_one": [
+    {
+      "label": "drop top_overall_confidence",
+      "feature": "top_overall_confidence",
+      "loco_f1_ai4privacy": 0.23641166823489673,
+      "loco_f1_nemotron": 0.3628868247969013,
+      "mean_loco": 0.299649246515899
+    },
+    {
+      "label": "drop regex_confidence",
+      "feature": "regex_confidence",
+      "loco_f1_ai4privacy": 0.266564331198845,
+      "loco_f1_nemotron": 0.34682522968867346,
+      "mean_loco": 0.3066947804437592
+    },
+    {
+      "label": "drop column_name_confidence",
+      "feature": "column_name_confidence",
+      "loco_f1_ai4privacy": 0.2714407470839494,
+      "loco_f1_nemotron": 0.34747067620829053,
+      "mean_loco": 0.30945571164611996
+    },
+    {
+      "label": "drop heuristic_confidence",
+      "feature": "heuristic_confidence",
+      "loco_f1_ai4privacy": 0.2602125082013396,
+      "loco_f1_nemotron": 0.37742141065234186,
+      "mean_loco": 0.31881695942684074
+    },
+    {
+      "label": "drop secret_scanner_confidence",
+      "feature": "secret_scanner_confidence",
+      "loco_f1_ai4privacy": 0.24193074583954063,
+      "loco_f1_nemotron": 0.3508892631967441,
+      "mean_loco": 0.29641000451814237
+    },
+    {
+      "label": "drop engines_agreed",
+      "feature": "engines_agreed",
+      "loco_f1_ai4privacy": 0.26211500066200577,
+      "loco_f1_nemotron": 0.3645750661983659,
+      "mean_loco": 0.3133450334301858
+    },
+    {
+      "label": "drop confidence_gap",
+      "feature": "confidence_gap",
+      "loco_f1_ai4privacy": 0.19224079507555925,
+      "loco_f1_nemotron": 0.446330209805524,
+      "mean_loco": 0.31928550244054166
+    },
+    {
+      "label": "drop regex_match_ratio",
+      "feature": "regex_match_ratio",
+      "loco_f1_ai4privacy": 0.19219522228520794,
+      "loco_f1_nemotron": 0.39531418956905384,
+      "mean_loco": 0.2937547059271309
+    },
+    {
+      "label": "drop heuristic_distinct_ratio",
+      "feature": "heuristic_distinct_ratio",
+      "loco_f1_ai4privacy": 0.2757548940773548,
+      "loco_f1_nemotron": 0.320766127331894,
+      "mean_loco": 0.29826051070462445
+    },
+    {
+      "label": "drop heuristic_avg_length",
+      "feature": "heuristic_avg_length",
+      "loco_f1_ai4privacy": 0.30786495611485043,
+      "loco_f1_nemotron": 0.30457867570297337,
+      "mean_loco": 0.3062218159089119
+    },
+    {
+      "label": "drop has_secret_indicators",
+      "feature": "has_secret_indicators",
+      "loco_f1_ai4privacy": 0.27893013210253687,
+      "loco_f1_nemotron": 0.35119361036431124,
+      "mean_loco": 0.31506187123342405
+    },
+    {
+      "label": "drop primary_is_pii",
+      "feature": "primary_is_pii",
+      "loco_f1_ai4privacy": 0.20322742417319367,
+      "loco_f1_nemotron": 0.3261652435949141,
+      "mean_loco": 0.2646963338840539
+    },
+    {
+      "label": "drop primary_is_credential",
+      "feature": "primary_is_credential",
+      "loco_f1_ai4privacy": 0.27216889200844585,
+      "loco_f1_nemotron": 0.32989139613464014,
+      "mean_loco": 0.301030144071543
+    }
+  ],
+  "keep_one": [
+    {
+      "label": "keep only top_overall_confidence",
+      "feature": "top_overall_confidence",
+      "loco_f1_ai4privacy": 0.14485045051198725,
+      "loco_f1_nemotron": 0.08413732690138478,
+      "mean_loco": 0.11449388870668602
+    },
+    {
+      "label": "keep only regex_confidence",
+      "feature": "regex_confidence",
+      "loco_f1_ai4privacy": 0.10770749976867774,
+      "loco_f1_nemotron": 0.0803631797546605,
+      "mean_loco": 0.09403533976166911
+    },
+    {
+      "label": "keep only column_name_confidence",
+      "feature": "column_name_confidence",
+      "loco_f1_ai4privacy": 0.022222222222222223,
+      "loco_f1_nemotron": 0.009523809523809523,
+      "mean_loco": 0.015873015873015872
+    },
+    {
+      "label": "keep only heuristic_confidence",
+      "feature": "heuristic_confidence",
+      "loco_f1_ai4privacy": 0.027777777777777776,
+      "loco_f1_nemotron": 0.033527696793002916,
+      "mean_loco": 0.030652737285390346
+    },
+    {
+      "label": "keep only secret_scanner_confidence",
+      "feature": "secret_scanner_confidence",
+      "loco_f1_ai4privacy": 0.027777777777777776,
+      "loco_f1_nemotron": 0.010989010989010988,
+      "mean_loco": 0.019383394383394384
+    },
+    {
+      "label": "keep only engines_agreed",
+      "feature": "engines_agreed",
+      "loco_f1_ai4privacy": 0.044678815948449455,
+      "loco_f1_nemotron": 0.04513363581131625,
+      "mean_loco": 0.044906225879882855
+    },
+    {
+      "label": "keep only confidence_gap",
+      "feature": "confidence_gap",
+      "loco_f1_ai4privacy": 0.0,
+      "loco_f1_nemotron": 0.01906195740134034,
+      "mean_loco": 0.00953097870067017
+    },
+    {
+      "label": "keep only regex_match_ratio",
+      "feature": "regex_match_ratio",
+      "loco_f1_ai4privacy": 0.09498688172421686,
+      "loco_f1_nemotron": 0.050838444013864864,
+      "mean_loco": 0.07291266286904086
+    },
+    {
+      "label": "keep only heuristic_distinct_ratio",
+      "feature": "heuristic_distinct_ratio",
+      "loco_f1_ai4privacy": 0.027777777777777776,
+      "loco_f1_nemotron": 0.029965159436055107,
+      "mean_loco": 0.02887146860691644
+    },
+    {
+      "label": "keep only heuristic_avg_length",
+      "feature": "heuristic_avg_length",
+      "loco_f1_ai4privacy": 0.030190239867659223,
+      "loco_f1_nemotron": 0.04311316955296013,
+      "mean_loco": 0.03665170471030968
+    },
+    {
+      "label": "keep only has_secret_indicators",
+      "feature": "has_secret_indicators",
+      "loco_f1_ai4privacy": 0.027777777777777776,
+      "loco_f1_nemotron": 0.0,
+      "mean_loco": 0.013888888888888888
+    },
+    {
+      "label": "keep only primary_is_pii",
+      "feature": "primary_is_pii",
+      "loco_f1_ai4privacy": 0.0,
+      "loco_f1_nemotron": 0.017270508729115824,
+      "mean_loco": 0.008635254364557912
+    },
+    {
+      "label": "keep only primary_is_credential",
+      "feature": "primary_is_credential",
+      "loco_f1_ai4privacy": 0.07139265962795376,
+      "loco_f1_nemotron": 0.06740442655935613,
+      "mean_loco": 0.06939854309365495
+    }
+  ]
+}
