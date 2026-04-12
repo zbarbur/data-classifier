@@ -1,27 +1,30 @@
 # data_classifier — Project Context
 
-> **Last updated:** 2026-04-12 (Sprint 6 complete, meta-classifier shipped shadow-only)
+> **Last updated:** 2026-04-13 (Sprint 7 complete, comparators + pattern coverage fixes, M1 docs landed)
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Current sprint | 7 (planning) |
-| Release | **v0.5.2** (BQ integration active) |
-| Tests | **1009 passing** (~10s local) |
+| Current sprint | 8 (planning) |
+| Release | **v0.5.2** (BQ integration active via vendored wheel — see Known Issues) |
+| Tests | **1133 passing** (+1 skipped: Presidio live-engine integration) (~13s local) |
 | CI | Green on main |
-| Patterns | 71 content patterns + 26 profile rules (DATE_OF_BIRTH_EU added) |
-| Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, **gliner2**) + **meta-classifier (shadow)** |
-| Validators | 12 (SSN hardened with SSA post-2011 canonical rules) |
-| Entity types | 33 (DATE_OF_BIRTH_EU added) |
+| Patterns | **73** content patterns + 26 profile rules (random_password, international_phone_local added) |
+| Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, gliner2) + meta-classifier (shadow) |
+| Validators | **13** (random_password added) |
+| Entity types | 33 |
 | Key-name patterns | 88 |
 | Backlog | 70+ items |
-| **Accuracy (blind)** | **Nemotron Macro F1 0.872, Ai4Privacy 0.667** |
+| **Accuracy (blind)** | Nemotron Macro F1 0.872, Ai4Privacy 0.667 (Sprint 6 numbers — re-measure in Sprint 8 with new patterns) |
 | **Accuracy (named)** | Both corpora: 1.000 Macro F1 |
-| **Meta-classifier (CV)** | **Macro F1 0.916 / held-out 0.918 / BCa 95% CI ±0.025** |
-| **Meta-classifier (LOCO)** | 0.27-0.36 — known distribution-shift gap, shipped shadow-only |
+| **Per-column regex coverage** | **Ai4Privacy PHONE: 16.3% → 94.5%** (Sprint 7), **Ai4Privacy CREDENTIAL: 0% → 98.6%** (Sprint 7) |
+| **Meta-classifier (CV)** | **0.916 is a methodology artifact** (see Sprint 6 handover correction note added in Sprint 7); honest LOCO ~0.30 |
+| **Meta-classifier (LOCO)** | 0.27–0.36 — structural gap per Q3 §6 (hypothesis A+C) |
 | **Performance** | 207ms/col (with ML), ~2ms/col (without ML) |
 | **ML share** | GLiNER2 = 99.3% of pipeline latency |
+| **Pattern library new capability** | Column-gated patterns via `requires_column_hint` + `column_hint_keywords` (Sprint 7) |
+| **Benchmark comparators** | Presidio comparator infrastructure shipped (strict + aggressive mappings); Cloud DLP pending |
 
 ## Architecture
 
@@ -110,6 +113,7 @@
 | 4 | Collisions + model registry + real corpora | Complete | 700 | Collision resolution, model registry, honest baseline on real corpora (F1 0.18-0.46 blind) |
 | 5 | Engine weighting + ML engine + production deployment | Complete | 777 | Authority weighting, sibling analysis, GLiNER2 ML engine, ONNX deployment, v0.5.2 → BQ integration |
 | 6 | Hardening + meta-classifier shadow | Complete | 1009 | SSN/NPI validators, DOB_EU split, secret scanner FP fixes, CI install test, meta-classifier (3 phases, shadow-only), parallel research workflow |
+| 7 | Compare & measure | Complete | 1133 | SSN advertising cleanup, international phone 16.3%→94.5%, column-gated random_password 0%→98.6%, Presidio comparator infrastructure, M1 methodology correction (docs), worktree isolation rule |
 
 ## Consumers
 

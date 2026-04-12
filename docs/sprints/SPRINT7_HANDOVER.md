@@ -250,24 +250,38 @@ This means **git-free client deployment works today** — but via a manual copy 
 
 **Proposed Sprint 8 scoping (new backlog item):**
 
-- **Title:** Wheel versioning + automated release to BigQuery-connector vendor path
+- **Title:** Wheel versioning + Google Artifact Registry release pipeline
 - **Priority:** P1 (lifts a blocker for BQ integration and any future client)
-- **Complexity:** M (somewhere between the "upload artifact" option and the "Google Artifact Registry" option)
+- **Complexity:** M
+- **Delivery mechanism (user decision 2026-04-13):** **Google Artifact Registry Python repository.** Chosen because BQ is already on GCP, `BigQuery-connector` has `cloudbuild*.yaml` files (Cloud Build already wired), existing service accounts can be granted `artifactregistry.reader` for client consumption, and the AR free tier (0.5 GB storage + 1 GB network/month) is well above this library's footprint.
 - **Shape:**
   - Bump `pyproject.toml::version` on each sprint close (automate this in the sprint-end skill or via a CI check that fails if the version matches `origin/main`)
-  - Define a semver or sprint-keyed version scheme (`0.7.0` for Sprint 7, `0.8.0` for Sprint 8, etc.)
+  - Define a semver version scheme keyed to sprint numbers (`0.7.0` for Sprint 7, `0.8.0` for Sprint 8, etc.)
   - Add `CHANGELOG.md` with per-sprint entries generated from the handover docs
-  - On tag push (`v*`), CI builds the wheel and uploads it as a GitHub release asset OR to a private PyPI (Google Artifact Registry, if BQ is already on GCP)
-  - Update `docs/CLIENT_INTEGRATION_GUIDE.md` with the new install recipe (`pip install data_classifier @ https://github.com/zbarbur/data-classifier/releases/download/v0.7.0/...` or `pip install --index-url <artifact-registry> data_classifier==0.7.0`)
-  - Optional: a `release.yml` workflow that opens a PR against `BigQuery-connector/vendor/` with the new wheel, so BQ rolls forward with a review step rather than a manual copy
+  - One-time manual (outside CI): `gcloud artifacts repositories create data-classifier --repository-format=python --location=us-central1` + grant CI service account `artifactregistry.writer` and BQ consumer service account `artifactregistry.reader`
+  - New `.github/workflows/release.yml` workflow triggered on `v*` tag push. Steps: `python -m build --wheel` → auth via `google-github-actions/auth@v2` + Workload Identity Federation → `twine upload --repository-url https://us-central1-python.pkg.dev/<project>/data-classifier/`
+  - Install `keyring` + `keyrings.google-artifactregistry-auth` on client side (pip config) so authorized service accounts get transparent wheel installs with no token handling
+  - Update `docs/CLIENT_INTEGRATION_GUIDE.md`: replace the `git+ssh://` and `file:vendor/...` recipes with `pip install --extra-index-url https://us-central1-python.pkg.dev/<project>/data-classifier/simple/ "data_classifier[ml]==0.7.0"`
+  - Coordinate with the BQ session: `BigQuery-connector/pyproject.toml` changes from `"data_classifier[ml] @ file:vendor/..."` to `"data_classifier[ml]==0.7.0"` + adds `.pip.conf` (or equivalent) pointing at the AR extra-index-url
+  - Optional stretch: a `release.yml` step that opens a PR against `BigQuery-connector/pyproject.toml` bumping the pin, so BQ rolls forward via review instead of manual edits
 
-**Why this is urgent for Sprint 8:** Sprint 7 just shipped 3 correctness/coverage wins (phone, credential, SSN) and 1 new infrastructure subsystem (comparators). The BQ project cannot consume any of them until someone manually rebuilds and copies the wheel — and when they do, the version will still say `0.1.0`, so nothing pins it. Every sprint we defer this, the gap between "what's in sprint7/main" and "what BQ actually runs" grows. The fix is tractable (S or M depending on scope) and removes the "BQ coordination" friction from every future sprint.
+**Why this is urgent for Sprint 8:** Sprint 7 just shipped 3 correctness/coverage wins (phone, credential, SSN) and 1 new infrastructure subsystem (comparators). The BQ project cannot consume any of them until someone manually rebuilds and copies the wheel — and when they do, the version will still say `0.1.0`, so nothing pins it. Every sprint we defer this, the gap between "what's in sprint7/main" and "what BQ actually runs" grows. The Artifact Registry setup is ~1 day total and removes the "BQ coordination" friction from every future sprint.
 
-**Non-decision:** the wheel+artifact *strategy* (GitHub release asset vs Google Artifact Registry vs private PyPI) is a policy question the user should decide. Don't pre-commit a direction in the backlog spec — leave the `technical_specs` field with "[chosen delivery mechanism — needs user decision]" and tag the item with `needs-decision`.
+### Sprint 8 items drafted by research-ops (from `docs/experiments/meta_classifier/queue.md` on `research/meta-classifier`)
 
-### Likely Sprint 8 themes (not scoped yet)
+Per the updated `project_active_research.md` memory (2026-04-13), two Sprint 8 items are drafted on the research branch and become real backlog YAML entries at Sprint 8 planning:
 
-- **Research-derived promotions:** Depending on E10's verdict, there may be a "promote meta-classifier v2" item that lands the new model as a live finding (out of shadow).
+- **Item A — Split CREDENTIAL into API_KEY / PRIVATE_KEY / PASSWORD_HASH / OPAQUE_SECRET** (deterministic detection modalities). Prerequisite for Q8 (specialized opaque-secret meta-classifier path). Feeds directly into the credential-precision story and is a natural extension of Sprint 7's column-gate + random_password work.
+- **Item B — Bulk import credential patterns from Kingfisher + gitleaks + Nosey Parker + detect-secrets + LeakTK + ripsecrets.** Target ≥200 net-new patterns, complexity **L**. Primary source: Kingfisher (Apache 2.0, 800+ rules). Landscape survey already exists at `docs/experiments/meta_classifier/pattern_source_landscape.md` on `research/meta-classifier` (authoritative — do not re-survey).
+
+These are independent of the two Sprint 7 carryovers (M1 code+retrain, Cloud DLP) and together could constitute a focused "credential intelligence" theme for Sprint 8.
+
+### Likely Sprint 8 themes (not yet committed)
+
+- **Credential intelligence** (new): Items A + B above plus Sprint 7 carryover. Natural followup to Sprint 7's credential work.
+- **Release engineering**: wheel versioning + BQ delivery automation (new discovery, above).
+- **Research-derived promotions:** If E10 lands with an A-verdict (GLiNER features close the LOCO gap), there may be a "promote meta-classifier v2" item that lands the new model as a live finding (out of shadow). E10 is still running locally as of Sprint 7 close.
+- **Comparator execution session:** The deferred Presidio run + Cloud DLP build+run could be batched into a dedicated session. Low priority if credential work and release engineering dominate Sprint 8.
 - **Backlog items that share infrastructure with Sprint 7:** the column-gate mechanism introduced for random_password is reusable for any "looks like content X but only in column Y" pattern. Candidates in the backlog: `consumer-injectable-custom-patterns`, `dictionary-lookup-engine`.
 
 ### Sprint 7 items not needing any follow-up
