@@ -31,7 +31,7 @@ test_plan:
 - 'Benchmark delta: consolidated report shows Nemotron blind ABA_ROUTING FP count
   drops'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

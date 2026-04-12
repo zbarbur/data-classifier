@@ -35,7 +35,7 @@ test_plan:
   delta computation with 2+ prior sprints'
 - 'Manual: run full consolidated_report --sprint 6, verify JSON + chart rendered'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

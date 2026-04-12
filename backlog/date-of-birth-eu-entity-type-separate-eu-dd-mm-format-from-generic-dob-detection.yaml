@@ -31,7 +31,7 @@ acceptance_criteria:
 test_plan:
 - 'Unit: DD/MM/YYYY match, MM/DD/YYYY match, ambiguous both-match, invalid dates rejected'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

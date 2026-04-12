@@ -29,7 +29,7 @@ test_plan:
 - 'tests/test_primary_label.py: aggressive-mode cases; regress existing default behavior'
 - Consolidated benchmark delta vs Sprint 5 baseline
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

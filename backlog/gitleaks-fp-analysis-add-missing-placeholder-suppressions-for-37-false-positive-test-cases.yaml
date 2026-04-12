@@ -27,7 +27,7 @@ test_plan:
 - 'Parameterized: one case per placeholder pattern, asserts empty findings'
 - 'Control: real-looking API keys still detected'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

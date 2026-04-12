@@ -32,7 +32,7 @@ test_plan:
 - 'Manual: intentionally break package-data in a branch, verify install-test job fails'
 - 'CI: green on main after merge'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
