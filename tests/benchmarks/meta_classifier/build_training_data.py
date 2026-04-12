@@ -31,24 +31,22 @@ os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
 import argparse  # noqa: E402
 import json  # noqa: E402
 import math  # noqa: E402
-import random  # noqa: E402
 import statistics  # noqa: E402
 import sys  # noqa: E402
 from collections import Counter  # noqa: E402
-from dataclasses import replace  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 from data_classifier import load_profile  # noqa: E402
-from data_classifier.core.types import ColumnInput  # noqa: E402
 from tests.benchmarks.corpus_generator import generate_corpus  # noqa: E402
-from tests.benchmarks.corpus_loader import (  # noqa: E402
-    load_ai4privacy_corpus,
-    load_nemotron_corpus,
-)
 from tests.benchmarks.meta_classifier.extract_features import (  # noqa: E402
     FEATURE_NAMES,
     TrainingRow,
     extract_training_row,
+)
+from tests.benchmarks.meta_classifier.shard_builder import (  # noqa: E402
+    ShardSpec,
+    build_shards,
+    summarise_shards,
 )
 
 # Continuous (non-boolean, non-count) features for the stats report.
@@ -64,27 +62,22 @@ _ENGINE_NAMES: tuple[str, ...] = (
 # ── Row assembly helpers ────────────────────────────────────────────────────
 
 
-def _rows_from_real_corpus(
-    loader_name: str,
-    loader_fn,
-    mode: str,
+def _rows_from_shards(
+    shards: list[ShardSpec],
     *,
     profile,
-    blind: bool,
 ) -> list[TrainingRow]:
-    corpus = loader_fn(blind=blind)
+    """Run engines over every shard and produce training rows."""
     rows: list[TrainingRow] = []
-    for idx, (column, ground_truth) in enumerate(corpus):
-        if ground_truth is None:
-            continue
+    for shard in shards:
         row = extract_training_row(
-            column,
-            ground_truth,
+            shard.column,
+            shard.ground_truth,
             profile=profile,
-            column_id=f"{loader_name}_{mode}_col_{idx}",
-            corpus=loader_name,
-            mode=mode,
-            source="real",
+            column_id=shard.column_id,
+            corpus=shard.corpus,
+            mode=shard.mode,
+            source=shard.source,
         )
         rows.append(row)
     return rows
@@ -92,87 +85,27 @@ def _rows_from_real_corpus(
 
 _SYNTHETIC_LOCALES: tuple[str, ...] = ("en_US", "en_GB", "de_DE", "fr_FR", "es_ES")
 
-# Column-name variants used when augmenting synthetic rows. Each synthetic
-# column is re-emitted once with a generic name (like a "blind" run) and
-# once with a semantically obvious name — so the meta-classifier sees both
-# column_name-engine-hit and column_name-engine-miss cases for every type.
-_SYNTHETIC_NAME_VARIANTS: tuple[str, ...] = ("named", "blind")
 
+def _build_synthetic_pool() -> dict[str, list[str]]:
+    """Build a Faker-backed pool keyed by ground-truth entity type.
 
-def _rows_from_synthetic(
-    target_count: int,
-    *,
-    profile,
-) -> list[TrainingRow]:
-    """Produce ``target_count`` synthetic training rows.
-
-    Strategy: call :func:`generate_corpus` once per locale to get a base
-    set of labeled columns (~27 per locale), then repeatedly derive new
-    rows by (a) sub-sampling the sample_values and (b) alternating
-    between the generator's natural column_name and a generic blind name.
-    Continues until ``target_count`` rows have been produced or the
-    locale pool is exhausted.
+    Walks every locale in :data:`_SYNTHETIC_LOCALES`, concatenates the
+    resulting sample values per type.  Locales that lack a provider for
+    a given type are skipped silently.  The returned pool is consumed by
+    :func:`shard_builder.build_shards`, which handles the actual
+    shard/blind-mode/bucketed-M strategy.
     """
-    rng = random.Random(20260412)
-    rows: list[TrainingRow] = []
-
-    # Build a pool of (column, ground_truth, base_name) across all locales.
-    pool: list[tuple[ColumnInput, str, str]] = []
+    pool: dict[str, list[str]] = {}
     for locale in _SYNTHETIC_LOCALES:
         try:
             corpus = generate_corpus(samples_per_type=400, locale=locale, include_embedded=False)
         except Exception:
-            # Some Faker locales may not have every provider.
             continue
         for column, ground_truth in corpus:
             if ground_truth is None:
                 continue
-            pool.append((column, ground_truth, column.column_name))
-
-    if not pool:
-        return rows
-
-    col_idx = 0
-    attempts = 0
-    max_attempts = target_count * 4  # bail-out safety
-    while len(rows) < target_count and attempts < max_attempts:
-        attempts += 1
-        base_column, ground_truth, base_name = pool[col_idx % len(pool)]
-        col_idx += 1
-        variant = _SYNTHETIC_NAME_VARIANTS[col_idx % len(_SYNTHETIC_NAME_VARIANTS)]
-
-        # Subsample the sample values so every derived column is unique.
-        values = base_column.sample_values
-        if len(values) > 60:
-            sample_size = rng.randint(40, min(150, len(values)))
-            subset = rng.sample(values, sample_size)
-        else:
-            subset = list(values)
-
-        if variant == "blind":
-            new_name = f"col_{len(rows)}"
-        else:
-            new_name = base_name
-
-        derived = replace(
-            base_column,
-            column_name=new_name,
-            column_id=f"synthetic_col_{len(rows)}",
-            sample_values=subset,
-        )
-
-        row = extract_training_row(
-            derived,
-            ground_truth,
-            profile=profile,
-            column_id=f"synthetic_col_{len(rows)}",
-            corpus="synthetic",
-            mode="synthetic",
-            source="synthetic",
-        )
-        rows.append(row)
-
-    return rows
+            pool.setdefault(ground_truth, []).extend(column.sample_values)
+    return pool
 
 
 # ── Stats report ────────────────────────────────────────────────────────────
@@ -257,6 +190,18 @@ def _class_balance(rows: list[TrainingRow]) -> list[tuple[str, int]]:
     return sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
+def _per_feature_nonzero_rate(rows: list[TrainingRow]) -> list[tuple[str, float]]:
+    """Return the fraction of rows with a non-zero value per feature."""
+    if not rows:
+        return [(name, 0.0) for name in FEATURE_NAMES]
+    total = len(rows)
+    out: list[tuple[str, float]] = []
+    for i, name in enumerate(FEATURE_NAMES):
+        nonzero = sum(1 for row in rows if row.features[i] != 0.0)
+        out.append((name, nonzero / total))
+    return out
+
+
 def _print_report(rows: list[TrainingRow], *, output: Path, stream=sys.stdout) -> None:
     total = len(rows)
     print("=" * 72, file=stream)
@@ -318,6 +263,30 @@ def _print_report(rows: list[TrainingRow], *, output: Path, stream=sys.stdout) -
         )
     print(file=stream)
 
+    # Per-feature non-zero rate — especially important for Phase 2 to
+    # verify secret_scanner_confidence has moved off constant zero.
+    print("Per-feature non-zero rate (fraction of rows with feature != 0):", file=stream)
+    for name, rate in _per_feature_nonzero_rate(rows):
+        flag = "  <-- CONSTANT ZERO" if rate == 0.0 else ""
+        print(f"  {name:<28} {rate:>6.1%}{flag}", file=stream)
+    print(file=stream)
+
+    # Phase-2-specific signal checks.
+    negative_rows = [r for r in rows if r.ground_truth == "NEGATIVE"]
+    print("NEGATIVE class coverage (Phase 2 supervision signal):", file=stream)
+    print(f"  NEGATIVE rows: {len(negative_rows)}", file=stream)
+    if negative_rows:
+        neg_corp = Counter(r.corpus for r in negative_rows)
+        for corpus, count in sorted(neg_corp.items()):
+            print(f"    from {corpus:<20} {count:>5}", file=stream)
+    real_total = sum(1 for r in rows if r.source == "real")
+    synth_total = sum(1 for r in rows if r.source == "synthetic")
+    ratio_denom = real_total + synth_total
+    real_pct = (real_total / ratio_denom * 100.0) if ratio_denom else 0.0
+    synth_pct = (synth_total / ratio_denom * 100.0) if ratio_denom else 0.0
+    print(f"  real:synthetic ratio = {real_total}:{synth_total} ({real_pct:.1f}% / {synth_pct:.1f}%)", file=stream)
+    print(file=stream)
+
     # Correlations
     print("Top 5 pairwise Pearson correlations (|r|):", file=stream)
     for a, b, r in _top_correlations(rows):
@@ -359,10 +328,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=300,
         help=(
-            "Target number of synthetic training rows. The builder "
-            "cycles through multiple Faker locales and alternates between "
-            "named/blind column names, subsampling values to keep every "
-            "row unique."
+            "DEPRECATED in Phase 2. The shard builder now sizes synthetic "
+            "output using per-type shard counts from "
+            "sharding_strategy.md §4.3 (30 shards for real-backed types, "
+            "150 for synthetic-only types). Retained for CLI compat."
         ),
     )
     return parser.parse_args(argv)
@@ -372,31 +341,23 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     profile = load_profile("standard")
 
-    rows: list[TrainingRow] = []
+    # Sharded training data — real corpora (Ai4Privacy, Nemotron,
+    # SecretBench, gitleaks, detect_secrets) plus Faker-backed synthetic
+    # augmentation.  The shard_builder handles bucketed M, named/blind
+    # doubling, and unique-without-replacement slicing inside each
+    # (type, corpus) combo.
+    synthetic_pool = _build_synthetic_pool()
+    shards = build_shards(synthetic_pool=synthetic_pool, seed=20260412)
 
-    # Real corpora — both named and blind modes.
-    for mode, blind in (("named", False), ("blind", True)):
-        rows.extend(
-            _rows_from_real_corpus(
-                "nemotron",
-                lambda *, blind=blind: load_nemotron_corpus(blind=blind),
-                mode,
-                profile=profile,
-                blind=blind,
-            )
-        )
-        rows.extend(
-            _rows_from_real_corpus(
-                "ai4privacy",
-                lambda *, blind=blind: load_ai4privacy_corpus(blind=blind),
-                mode,
-                profile=profile,
-                blind=blind,
-            )
-        )
+    # Print shard-level summary before engine extraction (cheap to compute
+    # and handy when feature extraction crashes mid-run).
+    shard_summary = summarise_shards(shards)
+    print(f"Shard summary: {shard_summary['total']} shards across {len(shard_summary['per_class'])} classes")
+    print(f"  resampled shards: {shard_summary['resampled']} (will be tagged in row metadata)")
+    print(f"  M range: [{shard_summary['m_min']}, {shard_summary['m_max']}], mean={shard_summary['m_mean']:.1f}")
 
-    # Synthetic augmentation (Faker-backed).
-    rows.extend(_rows_from_synthetic(args.synthetic_count, profile=profile))
+    # Run engines over every shard.
+    rows: list[TrainingRow] = _rows_from_shards(shards, profile=profile)
 
     # Write JSONL.
     args.output.parent.mkdir(parents=True, exist_ok=True)
