@@ -859,7 +859,7 @@ backlog item promotes v1_e10 to production. If outcome C
 
 ### Q6 — Inverted stage 1 / PII-only meta-classifier
 
-**Status:** 🟡 queued
+**Status:** 🟢 in progress
 **Priority:** P0 — probably the cheapest fix that addresses Q5's
 structural finding, should be tried BEFORE promoting E10's changes
 **Estimated time:** 30-60 min (pure data filter + retrain, no
