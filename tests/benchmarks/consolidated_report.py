@@ -18,13 +18,23 @@ No performance benchmark — run perf separately when needed.
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from tests.benchmarks.accuracy_benchmark import run_benchmark
+from tests.benchmarks.benchmark_history_io import (
+    compute_delta,
+    load_recent_sprints,
+    save_sprint_benchmark,
+)
 from tests.benchmarks.corpus_loader import load_corpus
+from tests.benchmarks.schema.benchmark_history import (
+    CorpusResult,
+    SprintBenchmark,
+)
 
 
 @dataclass
@@ -263,9 +273,314 @@ def _failure_section(runs: list[RunResult]) -> str:
     return sections
 
 
-def generate_consolidated_html(sprint: int, runs: list[RunResult]) -> str:
+def _git_short_sha() -> str:
+    """Return the short SHA of HEAD, or 'unknown' if git is unavailable."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return "unknown"
+
+
+def _run_to_corpus_result(r: RunResult) -> CorpusResult:
+    """Convert an in-memory RunResult to a persistable CorpusResult."""
+    return CorpusResult(
+        corpus=r.corpus,
+        mode="blind" if r.blind else "named",
+        macro_f1=round(r.macro_f1, 4),
+        micro_f1=round(r.micro_f1, 4),
+        precision=round(r.precision, 4),
+        recall=round(r.recall, 4),
+        tp_count=r.total_tp,
+        fp_count=r.total_fp,
+        fn_count=r.total_fn,
+        primary_label_pct=round(r.primary_label_accuracy, 4),
+    )
+
+
+def build_sprint_benchmark(sprint: int, runs: list[RunResult], *, git_sha: str | None = None) -> SprintBenchmark:
+    """Construct a persistable SprintBenchmark from live benchmark runs.
+
+    Performance is left unset — the consolidated report does not run the
+    perf benchmark inline. Run ``perf_quick`` separately and merge into the
+    history JSON if/when needed.
+    """
+    return SprintBenchmark(
+        sprint=sprint,
+        date=datetime.now(timezone.utc).date().isoformat(),
+        git_sha=git_sha or _git_short_sha(),
+        accuracy=[_run_to_corpus_result(r) for r in runs],
+        perf=None,
+    )
+
+
+def _render_svg_line_chart(
+    series: list[tuple[int, float]],
+    *,
+    width: int = 420,
+    height: int = 140,
+    color: str = "#2e7d32",
+    y_label: str = "",
+    title: str = "",
+) -> str:
+    """Render an inline SVG line chart. Returns a placeholder if <2 points."""
+    points = [(int(x), float(y)) for x, y in series if y is not None]
+    if len(points) < 2:
+        return f"<div class='trend-placeholder'><em>{title}: need &ge;2 sprints for trend</em></div>"
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+    y_range = (y_max - y_min) or max(abs(y_max), 1.0) * 0.1 or 1.0
+    x_range = (x_max - x_min) or 1
+    pad_left, pad_right, pad_top, pad_bottom = 42, 14, 24, 26
+    plot_w = width - pad_left - pad_right
+    plot_h = height - pad_top - pad_bottom
+
+    def _px(x: int) -> float:
+        return pad_left + (x - x_min) / x_range * plot_w
+
+    def _py(y: float) -> float:
+        return pad_top + plot_h - (y - y_min) / y_range * plot_h
+
+    path = "M " + " L ".join(f"{_px(x):.1f},{_py(y):.1f}" for x, y in points)
+    dots = "".join(f"<circle cx='{_px(x):.1f}' cy='{_py(y):.1f}' r='3' fill='{color}'/>" for x, y in points)
+    x_ticks = "".join(
+        f"<text x='{_px(x):.1f}' y='{height - 8}' font-size='9' text-anchor='middle' fill='#64748b'>S{x}</text>"
+        for x, _ in points
+    )
+    y_top_label = f"{y_max:.3f}" if y_max < 10 else f"{y_max:.0f}"
+    y_bot_label = f"{y_min:.3f}" if y_min < 10 else f"{y_min:.0f}"
+    axis = (
+        f"<line x1='{pad_left}' y1='{pad_top}' x2='{pad_left}' "
+        f"y2='{height - pad_bottom}' stroke='#cbd5e1' stroke-width='1'/>"
+        f"<line x1='{pad_left}' y1='{height - pad_bottom}' x2='{width - pad_right}' "
+        f"y2='{height - pad_bottom}' stroke='#cbd5e1' stroke-width='1'/>"
+    )
+    y_labels = (
+        f"<text x='{pad_left - 4}' y='{pad_top + 4}' font-size='9' "
+        f"text-anchor='end' fill='#64748b'>{y_top_label}</text>"
+        f"<text x='{pad_left - 4}' y='{height - pad_bottom + 2}' font-size='9' "
+        f"text-anchor='end' fill='#64748b'>{y_bot_label}</text>"
+    )
+    title_el = (
+        f"<text x='{width / 2:.0f}' y='14' font-size='11' font-weight='600' "
+        f"text-anchor='middle' fill='#1e293b'>{title}</text>"
+        if title
+        else ""
+    )
+    y_label_el = (
+        f"<text x='8' y='{(pad_top + height - pad_bottom) / 2:.0f}' "
+        f"font-size='9' fill='#94a3b8' "
+        f"transform='rotate(-90 8 {(pad_top + height - pad_bottom) / 2:.0f})'>"
+        f"{y_label}</text>"
+        if y_label
+        else ""
+    )
+    return (
+        f"<svg class='trend-chart' width='{width}' height='{height}' "
+        f"xmlns='http://www.w3.org/2000/svg'>"
+        f"{title_el}{axis}{y_labels}{y_label_el}{x_ticks}"
+        f"<path d='{path}' stroke='{color}' stroke-width='2' fill='none'/>"
+        f"{dots}</svg>"
+    )
+
+
+def _render_trend_section(history: list[SprintBenchmark]) -> str:
+    """Render trend charts for macro F1 and per-column p50 across sprints."""
+    if len(history) < 2:
+        return (
+            "<div class='section'>"
+            "<div class='section-header'><h2>Sprint-over-Sprint Trend</h2>"
+            "<span class='section-badge'>history</span></div>"
+            "<p style='color:var(--text-muted);font-size:0.85rem'>"
+            "Need at least 2 sprints of history to render a trend chart. "
+            "Currently have "
+            f"<strong>{len(history)}</strong> recorded.</p></div>"
+        )
+
+    # One chart per (corpus, mode) for macro_f1
+    charts_html = ""
+    keys: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for sb in history:
+        for r in sb.accuracy:
+            k = (r.corpus, r.mode)
+            if k not in seen:
+                seen.add(k)
+                keys.append(k)
+
+    for corpus, mode in keys:
+        series: list[tuple[int, float]] = []
+        for sb in history:
+            match = next(
+                (r for r in sb.accuracy if r.corpus == corpus and r.mode == mode),
+                None,
+            )
+            if match is not None:
+                series.append((sb.sprint, match.macro_f1))
+        color = "#a855f7" if mode == "blind" else "#3b82f6"
+        charts_html += (
+            "<div class='trend-cell'>"
+            + _render_svg_line_chart(
+                series,
+                color=color,
+                y_label="Macro F1",
+                title=f"{corpus.title()} · {mode.upper()}",
+            )
+            + "</div>"
+        )
+
+    # Perf trend: per_column_p50_ms
+    perf_series: list[tuple[int, float]] = [
+        (sb.sprint, sb.perf.per_column_p50_ms) for sb in history if sb.perf is not None
+    ]
+    perf_chart = _render_svg_line_chart(
+        perf_series,
+        color="#ef4444",
+        y_label="ms/col",
+        title="Per-column p50 latency",
+    )
+
+    return f"""
+<div class="section">
+  <div class="section-header">
+    <h2>Sprint-over-Sprint Trend</h2>
+    <span class="section-badge">{len(history)} sprints</span>
+  </div>
+  <div class="trend-grid">
+    {charts_html}
+  </div>
+  <div class="trend-row">
+    <div class="trend-cell">{perf_chart}</div>
+  </div>
+</div>
+"""
+
+
+def _fmt_delta(val: float, *, is_count: bool = False, invert: bool = False) -> str:
+    """Format a delta value with color: green=improvement, red=regression."""
+    if val == 0:
+        return "<span class='delta-neutral'>0</span>"
+    better = (val < 0) if invert else (val > 0)
+    cls = "delta-good" if better else "delta-bad"
+    sign = "+" if val > 0 else ""
+    if is_count:
+        return f"<span class='{cls}'>{sign}{int(val)}</span>"
+    return f"<span class='{cls}'>{sign}{val:.4f}</span>"
+
+
+def _render_delta_section(current: SprintBenchmark, delta: dict) -> str:
+    """Render the delta table: per (corpus, mode) current values and deltas."""
+    if not delta or not delta.get("accuracy"):
+        return (
+            "<div class='section'>"
+            "<div class='section-header'><h2>Delta vs Previous Sprint</h2>"
+            "<span class='section-badge'>no prior data</span></div>"
+            "<p style='color:var(--text-muted);font-size:0.85rem'>"
+            "No previous sprint snapshot found — deltas will appear once "
+            "two sprints are recorded.</p></div>"
+        )
+
+    acc_deltas = delta["accuracy"]
+    perf_delta = delta.get("perf", {})
+
+    rows = ""
+    for cur in current.accuracy:
+        key = (cur.corpus, cur.mode)
+        if key not in acc_deltas:
+            continue
+        d = acc_deltas[key]
+        rows += f"""
+<tr>
+  <td><strong>{cur.corpus.title()}</strong></td>
+  <td><span class='mode-tag mode-{cur.mode}'>{cur.mode.upper()}</span></td>
+  <td class='num'>{cur.macro_f1:.4f}</td>
+  <td class='num'>{_fmt_delta(d["macro_f1"])}</td>
+  <td class='num'>{cur.precision:.4f}</td>
+  <td class='num'>{_fmt_delta(d["precision"])}</td>
+  <td class='num'>{cur.recall:.4f}</td>
+  <td class='num'>{_fmt_delta(d["recall"])}</td>
+  <td class='num'>{cur.fp_count}</td>
+  <td class='num'>{_fmt_delta(d["fp_count"], is_count=True, invert=True)}</td>
+  <td class='num'>{cur.fn_count}</td>
+  <td class='num'>{_fmt_delta(d["fn_count"], is_count=True, invert=True)}</td>
+</tr>
+"""
+
+    perf_row = ""
+    if perf_delta and current.perf is not None:
+        pc = current.perf.per_column_p50_ms
+        pd = perf_delta.get("per_column_p50_ms", 0)
+        tp = current.perf.total_p50_ms
+        td = perf_delta.get("total_p50_ms", 0)
+        perf_row = f"""
+<tr class='perf-row'>
+  <td colspan='2'><strong>Performance</strong></td>
+  <td class='num'>{pc:.1f} ms/col</td>
+  <td class='num'>{_fmt_delta(pd, invert=True)}</td>
+  <td class='num' colspan='4'>total p50 {tp:.0f} ms</td>
+  <td class='num' colspan='4'>{_fmt_delta(td, invert=True)}</td>
+</tr>
+"""
+
+    return f"""
+<div class="section">
+  <div class="section-header">
+    <h2>Delta vs Previous Sprint</h2>
+    <span class="section-badge">auto-computed</span>
+  </div>
+  <table class='delta-table'>
+  <thead><tr>
+    <th>Corpus</th>
+    <th>Mode</th>
+    <th class='num'>Macro F1</th>
+    <th class='num'>&Delta; F1</th>
+    <th class='num'>Precision</th>
+    <th class='num'>&Delta; P</th>
+    <th class='num'>Recall</th>
+    <th class='num'>&Delta; R</th>
+    <th class='num'>FP</th>
+    <th class='num'>&Delta; FP</th>
+    <th class='num'>FN</th>
+    <th class='num'>&Delta; FN</th>
+  </tr></thead>
+  <tbody>
+    {rows}
+    {perf_row}
+  </tbody>
+  </table>
+  <p style='margin-top:0.6rem;font-size:0.75rem;color:var(--text-muted)'>
+    Green = improvement, red = regression, neutral = no change.
+    For FP/FN and latency, lower is better.
+  </p>
+</div>
+"""
+
+
+def generate_consolidated_html(
+    sprint: int,
+    runs: list[RunResult],
+    *,
+    history: list[SprintBenchmark] | None = None,
+    current_snapshot: SprintBenchmark | None = None,
+    delta: dict | None = None,
+) -> str:
     """Generate consolidated HTML report from all benchmark runs."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    history = history or []
+    delta = delta or {}
+    trend_section = _render_trend_section(history)
+    delta_section = _render_delta_section(current_snapshot, delta) if current_snapshot is not None else ""
 
     # Build table header for per-entity matrix
     run_headers = "".join(
@@ -388,6 +703,18 @@ def generate_consolidated_html(sprint: int, runs: list[RunResult]) -> str:
   details code{{background:var(--border-light);padding:0.1rem 0.3rem;border-radius:3px;
                font-size:0.8rem}}
 
+  /* Trend chart + delta table */
+  .trend-grid{{display:grid;grid-template-columns:repeat(2,1fr);gap:0.8rem;margin-top:0.8rem}}
+  .trend-row{{display:grid;grid-template-columns:1fr;gap:0.8rem;margin-top:0.8rem}}
+  .trend-cell{{background:var(--surface);border:1px solid var(--border-light);
+              border-radius:8px;padding:0.6rem;display:flex;justify-content:center}}
+  .trend-chart{{display:block;max-width:100%}}
+  .trend-placeholder{{color:var(--text-faint);font-size:0.8rem;padding:1rem}}
+  .delta-good{{color:var(--green);font-weight:700}}
+  .delta-bad{{color:var(--red);font-weight:700}}
+  .delta-neutral{{color:var(--text-faint)}}
+  .delta-table tr.perf-row td{{background:var(--border-light);font-size:0.8rem}}
+
   footer{{margin-top:3rem;padding-top:1.2rem;border-top:1px solid var(--border);
          color:var(--text-faint);font-size:0.8rem}}
 
@@ -448,6 +775,10 @@ def generate_consolidated_html(sprint: int, runs: list[RunResult]) -> str:
     {summary_cards}
   </div>
 </div>
+
+{delta_section}
+
+{trend_section}
 
 <div class="section">
   <div class="section-header">
@@ -515,7 +846,27 @@ def main() -> None:
     args = parser.parse_args()
 
     runs = run_all(args.sprint, samples_per_col=args.samples)
-    html = generate_consolidated_html(args.sprint, runs)
+
+    # Build + persist versioned history snapshot, load prior sprints, compute deltas
+    snapshot = build_sprint_benchmark(args.sprint, runs)
+    saved_path = save_sprint_benchmark(snapshot)
+    print(f"History snapshot: {saved_path}", file=sys.stderr)
+
+    history = load_recent_sprints(max_count=5)
+    previous = None
+    for sb in reversed(history):
+        if sb.sprint != snapshot.sprint:
+            previous = sb
+            break
+    delta = compute_delta(snapshot, previous)
+
+    html = generate_consolidated_html(
+        args.sprint,
+        runs,
+        history=history,
+        current_snapshot=snapshot,
+        delta=delta,
+    )
 
     output_path = Path(args.output) if args.output else Path(f"docs/benchmarks/SPRINT{args.sprint}_CONSOLIDATED.html")
     output_path.parent.mkdir(parents=True, exist_ok=True)
