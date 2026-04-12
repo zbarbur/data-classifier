@@ -1,11 +1,11 @@
 title: "Cloud DLP comparator \u2014 benchmark data_classifier against Google Cloud\
   \ DLP on Nemotron + Ai4Privacy corpora"
-status: doing
+status: backlog
 priority: P2
 category: feature
-sprint_target: 7
+sprint_target: 8
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-13
 depends_on: []
 tags: []
 goal: Benchmark data_classifier against Google Cloud DLP on Nemotron + Ai4Privacy
@@ -51,7 +51,7 @@ test_plan:
 - 'Manual: full benchmark with --compare cloud_dlp, verify report + committed JSON
   artifact'
 notes: ''
-phase: plan
+phase: null
 design_reviewed: false
 code_reviewed: false
 comments: []

@@ -1,11 +1,11 @@
 title: "Dead _SSN_ADVERTISING_LIST entries cleanup \u2014 remove 10 unreachable 987-65-43xx\
   \ entries"
-status: doing
+status: done
 priority: P3
 category: chore
 sprint_target: 7
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-13
 depends_on: []
 tags: []
 goal: "Remove 10 unreachable 987-65-4320..4329 entries from _SSN_ADVERTISING_LIST\

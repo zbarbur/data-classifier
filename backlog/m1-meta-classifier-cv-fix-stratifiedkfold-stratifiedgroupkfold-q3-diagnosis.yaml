@@ -1,22 +1,22 @@
 title: "M1 meta-classifier CV fix: StratifiedKFold \u2192 StratifiedGroupKFold (Q3\
   \ diagnosis)"
-status: doing
+status: backlog
 priority: P0
 category: bug
-sprint_target: 7
+sprint_target: 8
 created: 2026-04-12
 updated: 2026-04-13
 depends_on: []
 tags: []
 goal: "Fix the meta-classifier CV splitter from StratifiedKFold to StratifiedGroupKFold\
   \ with groups=corpus so best-C selection stops rewarding corpus fingerprinting.\
-  \ This is a correctness fix: the Sprint 6 headline CV macro F1 = 0.916 is a\
-  \ methodology artifact, and honest generalization estimate is LOCO macro F1 \u2248\
-  \ 0.30. Per Q3 \xA75a, the production CV currently picks C=100 (worst LOCO on\
-  \ the 13-feature schema); GroupKFold selects C\u22481 and raises LOCO to ~0.3427\
-  \ (\u0394 +0.034). This closes ~6% of the 0.55 gap \u2014 a real correctness\
-  \ improvement, NOT a gap collapse. The gap persists because it is structural\
-  \ (Q3 \xA76: hypothesis A+C dominate, weak B)."
+  \ This is a correctness fix: the Sprint 6 headline CV macro F1 = 0.916 is a methodology\
+  \ artifact, and honest generalization estimate is LOCO macro F1 \u2248 0.30. Per\
+  \ Q3 \xA75a, the production CV currently picks C=100 (worst LOCO on the 13-feature\
+  \ schema); GroupKFold selects C\u22481 and raises LOCO to ~0.3427 (\u0394 +0.034).\
+  \ This closes ~6% of the 0.55 gap \u2014 a real correctness improvement, NOT a gap\
+  \ collapse. The gap persists because it is structural (Q3 \xA76: hypothesis A+C\
+  \ dominate, weak B)."
 complexity: S
 technical_specs:
 - "File: scripts/train_meta_classifier.py \u2014 replace StratifiedKFold(...) construction\
@@ -46,22 +46,22 @@ acceptance_criteria:
 - Retrained data_classifier/models/meta_classifier_v1.pkl + metadata.json generated
   from the same training_data.jsonl with the new splitter
 - "New meta_classifier_v1.metadata.json shows best_c \u2264 10 (per Q3 \xA75a, honest\
-  \ C-selection under GroupKFold should pick C\u22481 on the current 13-feature\
-  \ schema; C=10 is acceptable as second-best)"
+  \ C-selection under GroupKFold should pick C\u22481 on the current 13-feature schema;\
+  \ C=10 is acceptable as second-best)"
 - "HONEST LOCO METRIC: new metadata.json loco_mean_macro_f1 improves from the Sprint\
   \ 6 baseline (0.3087 on the mean of ai4privacy+nemotron holdouts, per Q3 baseline\
   \ reproduction \xA71) toward ~0.3427 (\u0394 +0.034, ~6% of the gap). Do NOT expect\
   \ convergence with cv_mean_macro_f1 \u2014 Q3 \xA76 verdict shows the remaining\
   \ gap is structural (hypothesis A+C), not a CV bug"
-- "cv_mean_macro_f1 in the new metadata must DROP meaningfully from 0.916 toward\
-  \ ~0.30-0.45 (the exact honest number under GroupKFold is what Sprint 6 should\
-  \ have reported all along)"
+- cv_mean_macro_f1 in the new metadata must DROP meaningfully from 0.916 toward ~0.30-0.45
+  (the exact honest number under GroupKFold is what Sprint 6 should have reported
+  all along)
 - tests/test_meta_classifier_training.py adds a unit test asserting the training script
   constructs a group-aware CV splitter (StratifiedGroupKFold or GroupKFold)
 - "All existing meta-classifier tests pass (test_meta_classifier_features, test_meta_classifier_training,\
   \ test_meta_classifier_shadow \u2014 feature schema unchanged, only weights change)"
-- "docs/sprints/SPRINT6_HANDOVER.md methodology correction note landed (DONE as\
-  \ docs-only Sprint 7 commit)"
+- docs/sprints/SPRINT6_HANDOVER.md methodology correction note landed (DONE as docs-only
+  Sprint 7 commit)
 - "docs/research/meta_classifier/sharding_strategy.md \xA76 updated to recommend StratifiedGroupKFold\
   \ going forward"
 - Lint clean, full pytest tests/ -v green
@@ -69,8 +69,8 @@ test_plan:
 - "tests/test_meta_classifier_training.py::TestGroupAwareCvSplitter::test_training_uses_stratified_group_kfold\
   \ \u2014 parse or import the training script, assert StratifiedGroupKFold/GroupKFold\
   \ is referenced"
-- "Full pytest tests/ -v \u2014 must stay green (feature schema unchanged means\
-  \ shadow tests stay green)"
+- "Full pytest tests/ -v \u2014 must stay green (feature schema unchanged means shadow\
+  \ tests stay green)"
 - 'Manual: python scripts/train_meta_classifier.py --data training_data.jsonl --output
   data_classifier/models/meta_classifier_v1 and diff the new metadata.json against
   the pre-fix version; confirm best_c drop toward ~1, cv_mean_macro_f1 drop toward
@@ -85,29 +85,28 @@ notes: "Discovered by Q3 (primary source: docs/experiments/meta_classifier/runs/
   Methodology corrections M1 underestimated the structural nature of the LOCO gap:\
   \ it implied CV/LOCO would converge post-fix, but Q3's actual data shows the gap\
   \ is ~0.55 and driven by hypothesis A+C (too few corpora + generator-level i.i.d.\
-  \ violation), not by CV choice. The GroupKFold fix closes ~6% of the gap (real\
-  \ correctness improvement) but does NOT collapse it.\n\nSTATUS (2026-04-13): DOCS-ONLY\
-  \ INCREMENT LANDED as part of Sprint 7 \u2014 SPRINT6_HANDOVER.md methodology correction\
-  \ note added with corrected numbers citing Q3 as primary source (commit lands with\
-  \ this spec update). CODE + RETRAIN DEFERRED to a dedicated session.\n\nDeferral\
-  \ reasons:\n1. E10 (research/e10-gliner-features) is still running locally on\
-  \ ../data_classifier-e10 as of 2026-04-13 and HAS NOT BEEN PUSHED. Its diff against\
-  \ scripts/train_meta_classifier.py is not observable from origin. Rule from project_active_research.md\
-  \ forbids direct reads of that worktree.\n2. Research-ops session (the other Claude)\
-  \ offered coordination on M1 handoff. The right next step is for research-ops to\
-  \ tell us whether E10 modifies scripts/train_meta_classifier.py and what the landing\
-  \ order should be.\n3. Retraining needs the [meta] optional extra (scikit-learn,\
-  \ numpy, scipy) and ~minutes of compute. Better batched with a coordinated session\
-  \ where install cost is amortized across multiple meta-classifier touches.\n\nTo\
-  \ resume M1 in a later session:\n(a) Read research-ops status update on E10's scope.\
-  \ If E10 touches scripts/train_meta_classifier.py, confirm landing order (default:\
-  \ M1 first, E10 rebases).\n(b) pip install '.[meta]'\n(c) Apply the one-line splitter\
-  \ swap (test first) per the technical specs, retrain, run install_smoke_test.py\
-  \ + full pytest suite.\n(d) Update this item to phase=review when metadata shows\
-  \ best_c\u22648, loco_mean_macro_f1 \u2265 0.33, and all tests pass.\n\nDO NOT touch\
-  \ docs/experiments/meta_classifier/queue.md M1/M2/M3 rows from sprint7 \u2014 those\
-  \ are owned by the research thread."
-phase: plan
+  \ violation), not by CV choice. The GroupKFold fix closes ~6% of the gap (real correctness\
+  \ improvement) but does NOT collapse it.\n\nSTATUS (2026-04-13): DOCS-ONLY INCREMENT\
+  \ LANDED as part of Sprint 7 \u2014 SPRINT6_HANDOVER.md methodology correction note\
+  \ added with corrected numbers citing Q3 as primary source (commit lands with this\
+  \ spec update). CODE + RETRAIN DEFERRED to a dedicated session.\n\nDeferral reasons:\n\
+  1. E10 (research/e10-gliner-features) is still running locally on ../data_classifier-e10\
+  \ as of 2026-04-13 and HAS NOT BEEN PUSHED. Its diff against scripts/train_meta_classifier.py\
+  \ is not observable from origin. Rule from project_active_research.md forbids direct\
+  \ reads of that worktree.\n2. Research-ops session (the other Claude) offered coordination\
+  \ on M1 handoff. The right next step is for research-ops to tell us whether E10\
+  \ modifies scripts/train_meta_classifier.py and what the landing order should be.\n\
+  3. Retraining needs the [meta] optional extra (scikit-learn, numpy, scipy) and ~minutes\
+  \ of compute. Better batched with a coordinated session where install cost is amortized\
+  \ across multiple meta-classifier touches.\n\nTo resume M1 in a later session:\n\
+  (a) Read research-ops status update on E10's scope. If E10 touches scripts/train_meta_classifier.py,\
+  \ confirm landing order (default: M1 first, E10 rebases).\n(b) pip install '.[meta]'\n\
+  (c) Apply the one-line splitter swap (test first) per the technical specs, retrain,\
+  \ run install_smoke_test.py + full pytest suite.\n(d) Update this item to phase=review\
+  \ when metadata shows best_c\u22648, loco_mean_macro_f1 \u2265 0.33, and all tests\
+  \ pass.\n\nDO NOT touch docs/experiments/meta_classifier/queue.md M1/M2/M3 rows\
+  \ from sprint7 \u2014 those are owned by the research thread."
+phase: null
 design_reviewed: false
 code_reviewed: false
 comments: []
