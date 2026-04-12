@@ -207,20 +207,26 @@
     },
     {
       "name": "international_phone",
-      "regex": "\\+\\d{1,3}[-.\\s]?\\d{4,14}",
+      "regex": "\\+\\d{1,3}(?:[-.\\s]?\\d{1,10}){1,7}",
       "entity_type": "PHONE",
       "category": "PII",
       "sensitivity": "HIGH",
       "confidence": 0.7,
-      "description": "International phone number with country code",
+      "description": "International phone number with country code, supporting multi-segment mixed-separator formats",
       "validator": "phone_number",
       "examples_match": [
         "+44207946095",
-        "+813123456789"
+        "+813123456789",
+        "+44 20 7946 0958",
+        "+49 30 1234567",
+        "+33 1 42 34 56 78",
+        "+543 51-082.8035",
+        "+51-063-367.7939"
       ],
       "examples_no_match": [
         "+1",
-        "442079460958"
+        "442079460958",
+        "+"
       ],
       "context_words_boost": [
         "phone",
@@ -236,6 +242,48 @@
         "npi",
         "provider",
         "ssn"
+      ]
+    },
+    {
+      "name": "international_phone_local",
+      "regex": "\\b(?:00|0)\\d{1,4}[-.\\s]\\d{2,14}(?:[-.\\s]\\d{1,14}){0,5}\\b",
+      "entity_type": "PHONE",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.6,
+      "description": "Non-plus-prefixed international/local phone — trunk-0 or international-access-00 prefixed multi-segment format (e.g. UK '020 7946 0958', DE '0911 1234567', Ai4Privacy '076 1352.8018')",
+      "validator": "phone_number",
+      "examples_match": [
+        "076 1352.8018",
+        "020 7946 0958",
+        "0911 1234567",
+        "01881.881.151-3030",
+        "00758-30091",
+        "082-1814520"
+      ],
+      "examples_no_match": [
+        "0",
+        "0.5",
+        "01234",
+        "3.14159",
+        "4111 1111 1111 1111"
+      ],
+      "context_words_boost": [
+        "phone",
+        "tel",
+        "telephone",
+        "call",
+        "mobile",
+        "cell",
+        "fax",
+        "contact"
+      ],
+      "context_words_suppress": [
+        "npi",
+        "provider",
+        "ssn",
+        "iban",
+        "account"
       ]
     },
     {
