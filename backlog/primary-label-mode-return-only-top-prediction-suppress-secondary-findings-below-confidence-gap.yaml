@@ -1,11 +1,11 @@
 title: "Primary-label mode \u2014 return only top prediction, suppress secondary findings\
   \ below confidence gap"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 5
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
 goal: "Add max_findings parameter to suppress secondary predictions \u2014 users see\

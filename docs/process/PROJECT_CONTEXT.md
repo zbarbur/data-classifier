@@ -1,21 +1,25 @@
 # data_classifier — Project Context
 
-> **Last updated:** 2026-04-11 (Sprint 3 complete)
+> **Last updated:** 2026-04-12 (Sprint 5 complete, v0.5.2 released)
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Current sprint | 4 (planning) |
-| Tests | 603 passing (1.28s local) |
-| CI | Green on Python 3.11, 3.12, 3.13 |
+| Current sprint | 6 (planning) |
+| Release | **v0.5.2** (BQ integration active) |
+| Tests | **777 passing** (1.46s local) |
+| CI | Green on main |
 | Patterns | 71 content patterns + 25 profile rules |
-| Engines | 4 (column_name, regex, heuristic_stats, secret_scanner) |
+| Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, **gliner2**) |
 | Validators | 12 (+ aws_secret_not_hex) |
 | Entity types | 32 (in column_names.json) |
 | Key-name patterns | 88 (in secret_key_names.json) |
 | Backlog | 70+ items |
-| Benchmark F1 | Column: 0.897, Secret: 0.985 |
+| **Accuracy (blind)** | **Nemotron Macro F1 0.872, Ai4Privacy 0.667** |
+| **Accuracy (named)** | Both corpora: 1.000 Macro F1 |
+| **Performance** | 207ms/col (with ML), ~2ms/col (without ML) |
+| **ML share** | GLiNER2 = 99.3% of pipeline latency |
 
 ## Architecture
 

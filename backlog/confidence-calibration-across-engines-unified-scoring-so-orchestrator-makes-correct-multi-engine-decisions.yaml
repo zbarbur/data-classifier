@@ -1,11 +1,11 @@
 title: "Confidence calibration across engines \u2014 unified scoring so orchestrator\
   \ makes correct multi-engine decisions"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 5
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
 goal: "Unified confidence calibration framework so engines produce comparable scores\

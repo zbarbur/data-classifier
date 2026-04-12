@@ -1,10 +1,10 @@
 title: GLiNER2 engine (205M, NER + text classification)
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 5
 created: 2026-04-10
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags:
 - iter3

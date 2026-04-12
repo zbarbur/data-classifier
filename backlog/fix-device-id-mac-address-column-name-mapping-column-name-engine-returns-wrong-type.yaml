@@ -1,11 +1,11 @@
 title: "Fix DEVICE_ID / MAC_ADDRESS column name mapping \u2014 column name engine\
   \ returns wrong type"
-status: doing
+status: done
 priority: P1
 category: bug
 sprint_target: 5
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
 goal: Fix column name engine mapping so DEVICE_ID and MAC_ADDRESS columns return correct

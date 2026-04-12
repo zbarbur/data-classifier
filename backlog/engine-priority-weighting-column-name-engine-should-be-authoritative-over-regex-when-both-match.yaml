@@ -1,11 +1,11 @@
 title: "Engine priority weighting \u2014 column name engine should be authoritative\
   \ over regex when both match"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 5
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
 goal: "When column name engine and regex engine both match, column name engine is\

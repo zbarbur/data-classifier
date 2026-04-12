@@ -1,10 +1,10 @@
 title: "HEALTH category pattern audit \u2014 ghost FPs on 4-8 columns in real corpora"
-status: doing
+status: done
 priority: P1
 category: bug
 sprint_target: 5
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
 goal: Audit and fix HEALTH category regex patterns that produce ghost FPs on 4-8 non-health

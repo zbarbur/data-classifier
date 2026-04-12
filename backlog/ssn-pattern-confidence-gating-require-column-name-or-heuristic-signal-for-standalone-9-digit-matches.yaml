@@ -1,11 +1,11 @@
 title: "SSN pattern confidence gating \u2014 require column name or heuristic signal\
   \ for standalone 9-digit matches"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 5
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
 goal: "Prevent SSN pattern from firing on any 9-digit number \u2014 require column\
