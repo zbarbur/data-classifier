@@ -1,0 +1,315 @@
+{
+  "q6_model": "data_classifier/models/meta_classifier_v1_q6.pkl",
+  "v1_model": "data_classifier/models/meta_classifier_v1.pkl",
+  "training_rows": 6570,
+  "classes": [
+    "ABA_ROUTING",
+    "ADDRESS",
+    "BITCOIN_ADDRESS",
+    "CANADIAN_SIN",
+    "CREDIT_CARD",
+    "DATE_OF_BIRTH",
+    "DATE_OF_BIRTH_EU",
+    "DEA_NUMBER",
+    "EIN",
+    "EMAIL",
+    "ETHEREUM_ADDRESS",
+    "IBAN",
+    "IP_ADDRESS",
+    "MAC_ADDRESS",
+    "MBI",
+    "NPI",
+    "PERSON_NAME",
+    "PHONE",
+    "SSN",
+    "SWIFT_BIC",
+    "URL",
+    "VIN"
+  ],
+  "best_c": 100.0,
+  "features": [
+    "top_overall_confidence",
+    "regex_confidence",
+    "column_name_confidence",
+    "heuristic_confidence",
+    "engines_agreed",
+    "confidence_gap",
+    "regex_match_ratio",
+    "heuristic_distinct_ratio",
+    "heuristic_avg_length",
+    "primary_is_pii",
+    "primary_is_credential"
+  ],
+  "primary": {
+    "n_test": 1314,
+    "q6_f1": 0.9356328825703376,
+    "q6_ci_low": 0.9233405085530395,
+    "q6_ci_high": 0.9468564496800213,
+    "v1_f1_on_pii_test": 0.858691205488709,
+    "delta": 0.07694167708162858,
+    "mcnemar": {
+      "statistic": 0.08333333333333333,
+      "pvalue": 0.7728299926844475,
+      "a_only": 6,
+      "b_only": 6
+    },
+    "q6_per_class": [
+      [
+        "DATE_OF_BIRTH",
+        0.4915254237288136,
+        72
+      ],
+      [
+        "PHONE",
+        0.7631578947368421,
+        72
+      ],
+      [
+        "DATE_OF_BIRTH_EU",
+        0.8275862068965517,
+        60
+      ],
+      [
+        "IP_ADDRESS",
+        0.8951048951048951,
+        72
+      ],
+      [
+        "URL",
+        0.9090909090909091,
+        42
+      ],
+      [
+        "MAC_ADDRESS",
+        0.9130434782608695,
+        42
+      ],
+      [
+        "SSN",
+        0.9361702127659575,
+        72
+      ],
+      [
+        "CANADIAN_SIN",
+        0.9473684210526315,
+        60
+      ],
+      [
+        "ADDRESS",
+        0.9722222222222222,
+        72
+      ],
+      [
+        "PERSON_NAME",
+        0.9722222222222222,
+        72
+      ],
+      [
+        "CREDIT_CARD",
+        0.9767441860465116,
+        42
+      ],
+      [
+        "SWIFT_BIC",
+        0.9879518072289156,
+        42
+      ],
+      [
+        "NPI",
+        0.9917355371900827,
+        60
+      ],
+      [
+        "ABA_ROUTING",
+        1.0,
+        42
+      ],
+      [
+        "BITCOIN_ADDRESS",
+        1.0,
+        60
+      ],
+      [
+        "DEA_NUMBER",
+        1.0,
+        60
+      ],
+      [
+        "EIN",
+        1.0,
+        60
+      ],
+      [
+        "EMAIL",
+        1.0,
+        72
+      ],
+      [
+        "ETHEREUM_ADDRESS",
+        1.0,
+        60
+      ],
+      [
+        "IBAN",
+        1.0,
+        60
+      ],
+      [
+        "MBI",
+        1.0,
+        60
+      ],
+      [
+        "VIN",
+        1.0,
+        60
+      ]
+    ],
+    "v1_per_class_on_pii_test": [
+      [
+        "ABA_ROUTING",
+        1.0,
+        42
+      ],
+      [
+        "ADDRESS",
+        0.9793103448275862,
+        72
+      ],
+      [
+        "BITCOIN_ADDRESS",
+        1.0,
+        60
+      ],
+      [
+        "CANADIAN_SIN",
+        0.9391304347826087,
+        60
+      ],
+      [
+        "CREDENTIAL",
+        0.0,
+        0
+      ],
+      [
+        "CREDIT_CARD",
+        0.9767441860465116,
+        42
+      ],
+      [
+        "DATE_OF_BIRTH",
+        0.48333333333333334,
+        72
+      ],
+      [
+        "DATE_OF_BIRTH_EU",
+        0.8275862068965517,
+        60
+      ],
+      [
+        "DEA_NUMBER",
+        1.0,
+        60
+      ],
+      [
+        "EIN",
+        1.0,
+        60
+      ],
+      [
+        "EMAIL",
+        1.0,
+        72
+      ],
+      [
+        "ETHEREUM_ADDRESS",
+        1.0,
+        60
+      ],
+      [
+        "IBAN",
+        1.0,
+        60
+      ],
+      [
+        "IP_ADDRESS",
+        0.8951048951048951,
+        72
+      ],
+      [
+        "MAC_ADDRESS",
+        0.9130434782608695,
+        42
+      ],
+      [
+        "MBI",
+        1.0,
+        60
+      ],
+      [
+        "NEGATIVE",
+        0.0,
+        0
+      ],
+      [
+        "NPI",
+        1.0,
+        60
+      ],
+      [
+        "PERSON_NAME",
+        0.9787234042553191,
+        72
+      ],
+      [
+        "PHONE",
+        0.75,
+        72
+      ],
+      [
+        "SSN",
+        0.9565217391304348,
+        72
+      ],
+      [
+        "SWIFT_BIC",
+        1.0,
+        42
+      ],
+      [
+        "URL",
+        0.9090909090909091,
+        42
+      ],
+      [
+        "VIN",
+        1.0,
+        60
+      ]
+    ]
+  },
+  "loco": {
+    "ai4privacy": {
+      "n_test": 1050,
+      "f1": 0.3434686608856902
+    },
+    "nemotron": {
+      "n_test": 1800,
+      "f1": 0.34316619670875975
+    },
+    "synthetic": {
+      "n_test": 3720,
+      "f1": 0.11053869843428926
+    }
+  },
+  "loco_mean": 0.2657245186762464,
+  "v1_loco_reference": {
+    "ai4privacy": 0.26,
+    "nemotron": 0.36,
+    "synthetic": 0.13
+  },
+  "v1_loco_mean_3corpus": 0.25,
+  "loco_delta": 0.015724518676246413,
+  "verdict": "Q6-C",
+  "verdict_text": "LOCO < 0.45 \u2014 label purity was not the dominant issue. Pivot to E10 or E9."
+}
