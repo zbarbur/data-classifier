@@ -1,0 +1,87 @@
+title: "M1 meta-classifier CV fix: StratifiedKFold \u2192 StratifiedGroupKFold (Q3\
+  \ diagnosis)"
+status: doing
+priority: P0
+category: bug
+sprint_target: 7
+created: 2026-04-12
+updated: 2026-04-12
+depends_on: []
+tags: []
+goal: "Fix the meta-classifier CV splitter from StratifiedKFold to StratifiedGroupKFold\
+  \ with groups=corpus so CV stops leaking corpus signatures across folds. Rebuild\
+  \ the v1 artifact, re-evaluate, and reconcile the reported CV/LOCO gap (currently\
+  \ 0.92 vs 0.30 \u2014 a methodology artifact). Discovered by Q3 \xA76."
+complexity: S
+technical_specs:
+- "File: scripts/train_meta_classifier.py \u2014 replace StratifiedKFold(...) construction\
+  \ with StratifiedGroupKFold(...); thread groups parameter through cross_val_score\
+  \ / GridSearchCV calls; groups list must be aligned row-by-row with X, y from the\
+  \ corpus column of training_data.jsonl"
+- "File: data_classifier/models/meta_classifier_v1.pkl + meta_classifier_v1.metadata.json\
+  \ \u2014 regenerated via scripts/train_meta_classifier.py run; install smoke test\
+  \ must still pass (scripts/install_smoke_test.py) confirming bundled artifact reachable\
+  \ via importlib.resources"
+- "File: tests/test_meta_classifier_training.py \u2014 new test TestGroupAwareCvSplitter::test_training_uses_stratified_group_kfold\
+  \ that inspects the splitter class name at training time (no full training required)"
+- "File: docs/sprints/SPRINT6_HANDOVER.md \u2014 add 'Methodology correction \u2014\
+  \ M1' subsection under Known Issues noting the corrected CV number and the fact\
+  \ that the 0.92 headline was a corpus-leakage artifact"
+- "File: docs/research/meta_classifier/sharding_strategy.md \u2014 update \xA76 (CV\
+  \ strategy) to recommend StratifiedGroupKFold; retain the original text as historical\
+  \ record with a superseded note"
+- "File: tests/benchmarks/meta_classifier/evaluate.py \u2014 verify no changes required\
+  \ (LOCO evaluation is independent of CV splitter choice); if M2 lands together,\
+  \ this file may need the model-actual-C fix"
+description: ''
+acceptance_criteria:
+- scripts/train_meta_classifier.py uses sklearn.model_selection.StratifiedGroupKFold(n_splits=5,
+  shuffle=True, random_state=42) with groups=[row.corpus for row in dataset] for the
+  best-C selection grid search
+- grep -q 'StratifiedGroupKFold\|GroupKFold' scripts/train_meta_classifier.py passes
+- Retrained data_classifier/models/meta_classifier_v1.pkl + metadata.json generated
+  from the same training_data.jsonl with the new splitter
+- New meta_classifier_v1.metadata.json has best_c <= 50 (was 100); field is inspectable
+  via python -m json.tool
+- "CONVERGENCE CHECK: new cv_mean_macro_f1 is within 0.10 of loco_mean_macro_f1 in\
+  \ the metadata (was 0.92 vs 0.30 \u2014 a 0.62 gap that the fix should collapse\
+  \ to <=0.10)"
+- tests/test_meta_classifier_training.py adds a unit test asserting the training script
+  constructs a group-aware CV splitter (StratifiedGroupKFold or GroupKFold)
+- "All existing meta-classifier tests pass (test_meta_classifier_features, test_meta_classifier_training,\
+  \ test_meta_classifier_shadow \u2014 feature schema unchanged, only weights change)"
+- docs/sprints/SPRINT6_HANDOVER.md gets a methodology correction note citing the corrected
+  cv_mean_macro_f1 value and linking to Q3 result
+- "docs/research/meta_classifier/sharding_strategy.md \xA76 updated to recommend StratifiedGroupKFold\
+  \ going forward"
+- Lint clean, full pytest tests/ -v green
+test_plan:
+- "tests/test_meta_classifier_training.py::TestGroupAwareCvSplitter::test_training_uses_stratified_group_kfold\
+  \ \u2014 parse or import the training script, assert StratifiedGroupKFold/GroupKFold\
+  \ is referenced"
+- "Full pytest tests/ -v \u2014 1029+ tests must pass (feature schema unchanged means\
+  \ shadow tests stay green)"
+- 'Manual: python scripts/train_meta_classifier.py --data training_data.jsonl --output
+  data_classifier/models/meta_classifier_v1 and diff the new metadata.json against
+  the pre-fix version; confirm best_c drop and cv/loco convergence'
+- "Manual: python scripts/install_smoke_test.py (fresh venv) \u2014 confirms regenerated\
+  \ pkl is packaged correctly"
+- "Benchmark: python3 -m tests.benchmarks.generate_report --sprint 7 \u2014 confirm\
+  \ shadow inference path still fires and no macro F1 regression on live path (shadow\
+  \ only, no live impact expected)"
+notes: "Discovered by Q3 (docs/experiments/meta_classifier/queue.md \xA7Methodology\
+  \ corrections M1, runs/20260412-q3-loco-investigation/result.md \xA76). COORDINATION\
+  \ RISK: E10 (research/e10-gliner-features) also modifies scripts/train_meta_classifier.py\
+  \ to add 5 GLiNER features and rebuild training data. M1 and E10 both retrain meta_classifier_v1.pkl.\
+  \ Suggested merge order: (1) land M1 first on sprint7/main, (2) E10 rebases on main\
+  \ at its close to inherit the corrected CV splitter + retrain with both the group-kfold\
+  \ fix AND the new features, (3) the final v1 artifact incorporates both. If E10\
+  \ lands first, M1 applies the splitter change on top of E10's training code and\
+  \ retrains again. Either order works but requires explicit coordination with the\
+  \ research session. Do NOT touch docs/experiments/meta_classifier/queue.md M1/M2/M3\
+  \ rows from sprint7 \u2014 those are owned by the research thread."
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
