@@ -4,12 +4,28 @@ Supports multiple corpus sources:
 - Synthetic (Faker-based, via corpus_generator.py)
 - Ai4Privacy pii-masking-300k (HuggingFace sample)
 - Nemotron-PII (HuggingFace sample)
+- SecretBench (credential scanner benchmark, TP + TN)
+- Gitleaks fixtures (credential scanner FP-hardening corpus, TP + TN)
+- detect_secrets fixtures (hand-curated credential positives + placeholder
+  negatives)
 
 Sample data ships in tests/fixtures/corpora/ for offline benchmarking.
 
 Usage:
     from tests.benchmarks.corpus_loader import load_corpus
     corpus = load_corpus("ai4privacy", max_rows=500)
+
+``NEGATIVE`` ground-truth label
+-------------------------------
+SecretBench and gitleaks ship hard negative (``is_secret=False``) rows that
+are the *hardest* disagreement cases for a credential classifier.  Rather
+than drop them, the loaders emit those rows with ``ground_truth="NEGATIVE"``
+— a generic sentinel label that the meta-classifier learns as a real class
+(it means "no sensitive entity type fires"). The training pipeline in
+``tests/benchmarks/meta_classifier/build_training_data.py`` treats
+``NEGATIVE`` as a full-fledged class alongside the 22 positive entity
+types. Consumers that only want positive entity types must filter on
+``ground_truth != "NEGATIVE"`` explicitly.
 """
 
 from __future__ import annotations
@@ -210,6 +226,260 @@ def load_nemotron_corpus(
     return _records_to_corpus(records, NEMOTRON_TYPE_MAP, "nemotron", max_rows, blind=blind)
 
 
+#: Generic sentinel for "this column's ground truth is that nothing
+#: sensitive should fire".  Used for SecretBench/gitleaks `is_secret=False`
+#: rows and `detect_secrets` `non_secret`/`false_positive` rows.  The
+#: meta-classifier learns this as a real class.
+NEGATIVE_GROUND_TRUTH: str = "NEGATIVE"
+
+# Map detect_secrets record `type` → positive entity_type.  Anything not in
+# the map (e.g. `non_secret`, `false_positive`) becomes NEGATIVE.
+_DETECT_SECRETS_TYPE_MAP: dict[str, str] = {
+    "aws_access_key": "CREDENTIAL",
+    "slack_token": "CREDENTIAL",
+    "stripe_key": "CREDENTIAL",
+    "basic_auth": "CREDENTIAL",
+    "jwt": "CREDENTIAL",
+    "private_key": "CREDENTIAL",
+    "generic_secret": "CREDENTIAL",
+    "password_in_url": "CREDENTIAL",
+    "github_token": "CREDENTIAL",
+}
+
+
+def _credential_corpus_to_columns(
+    records: list[dict],
+    *,
+    source_name: str,
+    positive_label: str,
+    shard_size: int,
+    blind: bool,
+    extra_metadata_key: str | None = None,
+) -> list[tuple[ColumnInput, str | None]]:
+    """Convert credential-scanner-style records to one-column-per-shard.
+
+    Unlike :func:`_records_to_corpus`, this does NOT collapse to a single
+    column per type: each positive/negative pool is chunked into
+    ``shard_size``-sized ``ColumnInput``s so the meta-classifier sees
+    multiple column-level examples per corpus.  This is the loader-level
+    half of the sharding strategy — the shard_builder does more elaborate
+    stratification on top of these raw records.
+
+    ``positive_label`` is the ground truth for ``is_secret=True`` rows
+    (typically ``"CREDENTIAL"``).  ``is_secret=False`` rows become
+    ``NEGATIVE_GROUND_TRUTH``.
+
+    ``extra_metadata_key`` (optional): if set, the per-record value of
+    that key (e.g. ``source_type`` for gitleaks) is preserved by grouping
+    positive rows by its value.  Negative rows are always grouped as one
+    pool — the sharder can re-slice them later.
+
+    Returns a list of ``(ColumnInput, ground_truth_label)`` tuples.  The
+    raw records remain available to callers that want finer control
+    via :func:`load_secretbench_raw_records`, etc.
+    """
+    positives: list[str] = []
+    negatives: list[str] = []
+    pos_by_key: dict[str, list[str]] = {}
+
+    for rec in records:
+        value = rec.get("value")
+        if not value:
+            continue
+        is_secret = rec.get("is_secret")
+        # Default: treat records with no is_secret flag as positive.
+        if is_secret is False:
+            negatives.append(str(value))
+        else:
+            positives.append(str(value))
+            if extra_metadata_key is not None:
+                key = str(rec.get(extra_metadata_key, "_unknown"))
+                pos_by_key.setdefault(key, []).append(str(value))
+
+    corpus: list[tuple[ColumnInput, str | None]] = []
+    shard_idx = 0
+
+    def _emit(values: list[str], label: str, slug: str) -> None:
+        nonlocal shard_idx
+        for k in range(0, len(values), shard_size):
+            chunk = values[k : k + shard_size]
+            if not chunk:
+                continue
+            if blind:
+                col_name = f"col_{shard_idx}"
+                col_id = f"{source_name}_blind_{slug}_{shard_idx}"
+            else:
+                col_name = f"{source_name}_{slug}"
+                col_id = f"{source_name}_{slug}_{shard_idx}"
+            corpus.append(
+                (
+                    ColumnInput(
+                        column_name=col_name,
+                        column_id=col_id,
+                        data_type="STRING",
+                        sample_values=list(chunk),
+                    ),
+                    label,
+                )
+            )
+            shard_idx += 1
+
+    # Emit positives.  If we have a per-key breakdown preserve it, else
+    # emit as one pool.
+    if pos_by_key:
+        for key, vs in sorted(pos_by_key.items()):
+            _emit(vs, positive_label, f"pos_{key}")
+    elif positives:
+        _emit(positives, positive_label, "pos")
+
+    # Emit negatives as a single pool (sharder can re-stratify).
+    if negatives:
+        _emit(negatives, NEGATIVE_GROUND_TRUTH, "neg")
+
+    return corpus
+
+
+def load_secretbench_corpus(
+    path: Path | str | None = None,
+    *,
+    shard_size: int = 200,
+    blind: bool = False,
+) -> list[tuple[ColumnInput, str | None]]:
+    """Load the SecretBench sample (TP + TN) as sharded columns.
+
+    Emits ``CREDENTIAL`` ground-truth rows for ``is_secret=True`` records
+    and ``NEGATIVE`` ground-truth rows for ``is_secret=False`` records,
+    chunking each pool into ``shard_size``-sized ``ColumnInput``s.
+
+    Args:
+        path: Path to JSON file. Defaults to bundled fixture.
+        shard_size: Sample values per emitted column.
+        blind: If True, use generic column names (col_0, col_1, ...).
+
+    Returns:
+        List of ``(ColumnInput, ground_truth_label)`` tuples where
+        ground_truth is ``"CREDENTIAL"`` or ``"NEGATIVE"``.
+    """
+    if path is None:
+        path = _FIXTURES_DIR / "secretbench_sample.json"
+    else:
+        path = Path(path)
+
+    records = _load_json_corpus(path)
+    if not records:
+        logger.warning("No records loaded from SecretBench corpus at %s", path)
+        return []
+
+    return _credential_corpus_to_columns(
+        records,
+        source_name="secretbench",
+        positive_label="CREDENTIAL",
+        shard_size=shard_size,
+        blind=blind,
+    )
+
+
+def load_gitleaks_corpus(
+    path: Path | str | None = None,
+    *,
+    shard_size: int = 50,
+    blind: bool = False,
+) -> list[tuple[ColumnInput, str | None]]:
+    """Load the gitleaks fixtures (30 TP / 141 TN) as sharded columns.
+
+    Preserves ``source_type`` (gitleaks rule id) as a grouping key for
+    positive rows so the loader emits one column per vendor (gcp, aws,
+    azure, hashicorp, ...) rather than merging all TPs into one bucket.
+    Negatives are emitted as a single pool.
+
+    The hashicorp row (1 row, ``is_secret=False``) is preserved at its
+    original label — this reinforces the XOR-encoded Hashicorp Terraform
+    Cloud suppression behaviour shipped in commit 3773e25.
+
+    Args:
+        path: Path to JSON file. Defaults to bundled fixture.
+        shard_size: Sample values per emitted column. Default 50 keeps
+            even small vendor buckets (1-5 rows) as discoverable columns.
+        blind: If True, use generic column names.
+
+    Returns:
+        List of ``(ColumnInput, ground_truth_label)`` tuples.
+    """
+    if path is None:
+        path = _FIXTURES_DIR / "gitleaks_fixtures.json"
+    else:
+        path = Path(path)
+
+    records = _load_json_corpus(path)
+    if not records:
+        logger.warning("No records loaded from gitleaks corpus at %s", path)
+        return []
+
+    return _credential_corpus_to_columns(
+        records,
+        source_name="gitleaks",
+        positive_label="CREDENTIAL",
+        shard_size=shard_size,
+        blind=blind,
+        extra_metadata_key="source_type",
+    )
+
+
+def load_detect_secrets_corpus(
+    path: Path | str | None = None,
+    *,
+    shard_size: int = 20,
+    blind: bool = False,
+) -> list[tuple[ColumnInput, str | None]]:
+    """Load the detect_secrets fixtures (13 hand-curated rows).
+
+    Schema is different from SecretBench/gitleaks: uses ``type`` (e.g.
+    ``aws_access_key``) and ``expected_detected`` instead of
+    ``is_secret``.  Types in :data:`_DETECT_SECRETS_TYPE_MAP` become
+    ``CREDENTIAL`` rows; ``non_secret`` and ``false_positive`` rows
+    become ``NEGATIVE`` rows.
+
+    Args:
+        path: Path to JSON file. Defaults to bundled fixture.
+        shard_size: Sample values per emitted column.  Default is small
+            because this fixture only has 13 rows.
+        blind: If True, use generic column names.
+
+    Returns:
+        List of ``(ColumnInput, ground_truth_label)`` tuples.
+    """
+    if path is None:
+        path = _FIXTURES_DIR / "detect_secrets_fixtures.json"
+    else:
+        path = Path(path)
+
+    records = _load_json_corpus(path)
+    if not records:
+        logger.warning("No records loaded from detect_secrets corpus at %s", path)
+        return []
+
+    # Normalise into the common {is_secret, value} schema so we can reuse
+    # the _credential_corpus_to_columns helper.
+    normalised: list[dict] = []
+    for rec in records:
+        t = rec.get("type", "")
+        value = rec.get("value")
+        if not value:
+            continue
+        if t in _DETECT_SECRETS_TYPE_MAP:
+            normalised.append({"value": value, "is_secret": True, "source_type": t})
+        else:
+            normalised.append({"value": value, "is_secret": False, "source_type": t})
+
+    return _credential_corpus_to_columns(
+        normalised,
+        source_name="detect_secrets",
+        positive_label="CREDENTIAL",
+        shard_size=shard_size,
+        blind=blind,
+    )
+
+
 def load_synthetic_corpus(
     samples_per_type: int = 200,
 ) -> list[tuple[ColumnInput, str | None]]:
@@ -237,7 +507,9 @@ def load_corpus(
     """Dispatcher — load corpus by source name.
 
     Args:
-        source: One of "synthetic", "ai4privacy", "nemotron", "all".
+        source: One of ``"synthetic"``, ``"ai4privacy"``, ``"nemotron"``,
+            ``"secretbench"``, ``"gitleaks"``, ``"detect_secrets"``, or
+            ``"all"``.
         max_rows: Max rows for real-world corpora.
         path: Optional custom path to corpus file.
         samples_per_type: Samples per type for synthetic corpus.
@@ -245,7 +517,7 @@ def load_corpus(
             test classification from sample values alone.
 
     Returns:
-        List of (ColumnInput, expected_entity_type) tuples.
+        List of ``(ColumnInput, expected_entity_type)`` tuples.
     """
     if source == "synthetic":
         return load_synthetic_corpus(samples_per_type=samples_per_type)
@@ -253,12 +525,24 @@ def load_corpus(
         return load_ai4privacy_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "nemotron":
         return load_nemotron_corpus(path=path, max_rows=max_rows, blind=blind)
+    elif source == "secretbench":
+        return load_secretbench_corpus(path=path, blind=blind)
+    elif source == "gitleaks":
+        return load_gitleaks_corpus(path=path, blind=blind)
+    elif source == "detect_secrets":
+        return load_detect_secrets_corpus(path=path, blind=blind)
     elif source == "all":
         corpus: list[tuple[ColumnInput, str | None]] = []
         corpus.extend(load_synthetic_corpus(samples_per_type=samples_per_type))
         corpus.extend(load_ai4privacy_corpus(max_rows=max_rows, blind=blind))
         corpus.extend(load_nemotron_corpus(max_rows=max_rows, blind=blind))
+        corpus.extend(load_secretbench_corpus(blind=blind))
+        corpus.extend(load_gitleaks_corpus(blind=blind))
+        corpus.extend(load_detect_secrets_corpus(blind=blind))
         return corpus
     else:
-        msg = f"Unknown corpus source: {source!r}. Valid: synthetic, ai4privacy, nemotron, all"
+        msg = (
+            f"Unknown corpus source: {source!r}. Valid: synthetic, "
+            "ai4privacy, nemotron, secretbench, gitleaks, detect_secrets, all"
+        )
         raise ValueError(msg)
