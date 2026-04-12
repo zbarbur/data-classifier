@@ -1,0 +1,23 @@
+title: "BQ vague column corpus \u2014 synthetic test corpus with generic column names\
+  \ (description, data, field_1, value, notes) containing mixed PII content, validate\
+  \ match_ratio semantics"
+status: backlog
+priority: P1
+category: chore
+sprint_target: null
+created: 2026-04-12
+updated: 2026-04-12
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: ''
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
