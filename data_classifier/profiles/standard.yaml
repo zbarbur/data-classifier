@@ -73,6 +73,14 @@ profiles:
         patterns:
           - "(^|_)(dob|date_of_birth|dateofbirth|birth_date|birthdate|birthday|birth_year)(_|$)"
 
+      - entity_type: DATE_OF_BIRTH_EU
+        category: PII
+        sensitivity: HIGH
+        regulatory: [PII, HIPAA, GDPR, COPPA]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(dob_eu|date_of_birth_eu|birth_date_eu|geburtsdatum|date_naissance|fecha_nacimiento|data_nascita)(_|$)"
+
       - entity_type: FINANCIAL
         category: Financial
         sensitivity: HIGH

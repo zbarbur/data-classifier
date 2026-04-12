@@ -86,6 +86,7 @@ _ENTITY_METADATA: dict[str, dict[str, Any]] = {
     "ADDRESS": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA"]},
     "ORGANIZATION": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": []},
     "DATE_OF_BIRTH": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA", "HIPAA"]},
+    "DATE_OF_BIRTH_EU": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "HIPAA"]},
     "PHONE": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR", "CCPA"]},
     "SSN": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA", "HIPAA"]},
     "EMAIL": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR", "CCPA"]},
