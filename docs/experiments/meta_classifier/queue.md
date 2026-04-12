@@ -857,6 +857,189 @@ negative. If outcome A (LOCO closes substantially) a Sprint 7
 backlog item promotes v1_e10 to production. If outcome C
 (GLiNER doesn't help) the meta-classifier direction is likely done.
 
+### Q6 — Inverted stage 1 / PII-only meta-classifier
+
+**Status:** 🟡 queued
+**Priority:** P0 — probably the cheapest fix that addresses Q5's
+structural finding, should be tried BEFORE promoting E10's changes
+**Estimated time:** 30-60 min (pure data filter + retrain, no
+production code changes, no new engines)
+
+**Why it matters:** Q5 (feature distribution audit, see
+`runs/2026-04-12-q5-feature-distribution-audit/result.md`) found
+that the LOCO collapse is only *partially* a feature-leakage
+problem. The deeper issue is **structural label-corpus
+correlation**: three of the six training corpora (gitleaks,
+secretbench, detect_secrets) contain **only** `CREDENTIAL` and
+`NEGATIVE` rows. Under leave-one-corpus-out, holding out a
+credential-pure corpus makes "predict label" mathematically
+equivalent to "predict corpus" for credential rows, because
+within-corpus label diversity does not exist.
+
+No amount of feature engineering on the current 15-feature vector
+can remove this — you cannot learn within-corpus discrimination
+for a label that exists in only one corpus in the training fold.
+
+**The insight:** don't ask the meta-classifier to answer
+"is this a credential or PII?" at all. Invert the question to
+"is this PII?" using positive PII evidence (regex hits, column
+name matches, heuristic confidence — the features Q5 flagged as
+**corpus-invariant**, max KS ≤ 0.500). If yes, route to a
+PII-type classifier trained on PII-only rows. If no, default
+to the existing orchestrator's credential/noise handling (secret
+scanner already answers this well).
+
+The meta-classifier becomes a **pure PII-type arbitrator**, which
+is what it should have been from the start given that the
+orchestrator already has a well-functioning secret scanner engine.
+
+**Training data scope:** 6,870 rows (synthetic 3720 + nemotron
+1950 + ai4privacy 1200), 23 PII classes (the 24 original classes
+minus CREDENTIAL and NEGATIVE). Three corpora, all label-diverse
+(no label-purity problem).
+
+**Task prompt for parallel session:**
+```
+You are running Q6 — the inverted stage 1 / PII-only
+meta-classifier experiment — in a worktree off
+research/meta-classifier.
+
+CONTEXT
+
+Q5 (see docs/experiments/meta_classifier/runs/2026-04-12-q5-
+feature-distribution-audit/result.md) found that the Sprint 6
+meta-classifier LOCO collapse is not fully fixable by feature
+engineering because three of the six training corpora
+(gitleaks, secretbench, detect_secrets) are label-pure on
+{CREDENTIAL, NEGATIVE}. The LR is forced to use "which corpus"
+as a proxy for "which label class" whenever a credential-pure
+corpus is held out in LOCO.
+
+The Q6 hypothesis: don't ask the meta-classifier to decide
+credential vs PII at all. Filter the training data to PII-only
+rows and retrain. The meta-classifier becomes a PII-type
+arbitrator, which matches how the orchestrator's engines
+actually work — the secret scanner already answers
+"is this a credential" with high confidence via its own engine.
+
+READ FIRST
+
+- docs/experiments/meta_classifier/queue.md — the Research
+  Workflow Contract section and the Q6 entry for the full
+  task spec and constraints.
+- docs/experiments/meta_classifier/runs/2026-04-12-q5-feature-
+  distribution-audit/result.md — Q5's verdict. Understand why
+  Q6 exists and what label purity means in this context.
+- data_classifier/models/meta_classifier_v1.metadata.json —
+  current baseline numbers (CV 0.916, LOCO 0.27-0.36).
+- tests/benchmarks/meta_classifier/training_data.jsonl — the
+  full training data you will filter.
+
+COORDINATION
+
+Flip Q6 status from 🟡 to 🟢 and commit as the first action.
+
+WORK
+
+1. Build a filtered training data file:
+   - Read training_data.jsonl
+   - Keep only rows where ground_truth is NOT in
+     {"CREDENTIAL", "NEGATIVE"}
+   - Write to tests/benchmarks/meta_classifier/
+     training_data_q6.jsonl
+   - Expected row count: ~6,870 (7,770 minus 750 CREDENTIAL
+     minus 450 NEGATIVE = 6,570; confirm the actual number)
+   - Expected class count: 22 (24 classes minus CREDENTIAL
+     minus NEGATIVE)
+
+2. Retrain the meta-classifier against the filtered data via
+   scripts/train_meta_classifier.py, pointing at the new
+   filename. Save the model as
+   data_classifier/models/meta_classifier_v1_q6.pkl
+   (do NOT overwrite v1.pkl).
+
+3. Run the standard three-tier evaluation against the live
+   baseline (DATA_CLASSIFIER_DISABLE_ML=1 is fine — Q6 is
+   comparing against the same baseline as Phase 2, isolating
+   the effect of filtering the training data):
+   - 5-fold stratified CV macro F1
+   - Held-out test macro F1 with BCa 95% CI
+   - LOCO macro F1 (now with only 3 corpora in the outer loop)
+   - Per-class F1 breakdown
+   - McNemar's paired test vs Phase 2's v1.pkl on the
+     intersection of predictable rows (PII rows only)
+
+4. Compare against Phase 2's numbers:
+   - Old CV: 0.916 | New CV: ?
+   - Old held-out: 0.918 | New held-out: ?
+   - Old LOCO: 0.27-0.36 | New LOCO: ? (this is the money
+     number — target is ≥ 0.60)
+   - Old per-class F1 on the 22 retained classes vs new
+
+5. Classify outcome:
+   - (Q6-A) LOCO ≥ 0.60: label purity was the whole story.
+     Recommend promoting v1_q6 to production as v2, with a
+     Sprint 7 backlog item that also adds orchestrator-side
+     routing (send credential-confident columns away from
+     the meta-classifier entirely, let the secret scanner
+     handle them).
+   - (Q6-B) LOCO improves to 0.45-0.60: partial fix.
+     Recommend hybrid Q6+E10 (add GLiNER features on top of
+     the filtered training data).
+   - (Q6-C) LOCO barely moves: label purity was NOT the
+     dominant issue. Recommend pursuing E10 (GLiNER
+     features) or E9 (new corpora) instead.
+
+6. Write the result to docs/experiments/meta_classifier/runs/
+   <timestamp>-q6-inverted-stage1/result.md with:
+   - The training data row/class count after filtering
+   - The three-tier evaluation numbers
+   - Per-class F1 comparison vs Phase 2 (on shared classes)
+   - LOCO breakdown per corpus fold
+   - Verdict classification (A / B / C) with the recommended
+     next experiment
+   - Explicit comparison table: v1 vs v1_q6 on CV, held-out,
+     LOCO
+
+7. Flip Q6 status to ✅ and commit.
+
+CONSTRAINTS
+
+- Same research workflow contract as Q3/Q5. You may not
+  touch data_classifier/orchestrator/**,
+  data_classifier/__init__.py, production tests, or
+  existing loader functions. This is a data-filter + retrain
+  experiment, not a schema-widening one.
+- Do NOT overwrite training_data.jsonl or
+  meta_classifier_v1.pkl. Both are production artifacts.
+- Q6 is the PII-only experiment. Do not also add GLiNER
+  features in this run — that would confound the result.
+  If Q6 shows outcome B (partial fix) a followup session
+  can layer GLiNER features on top.
+
+TIME BUDGET
+
+Target: 30-60 min. Training is fast (LogReg on 6,870 rows
+with 22 classes is seconds). Most of the time is in LOCO
+evaluation + result writeup.
+```
+
+**Success criteria:** A concrete LOCO macro F1 number for the
+PII-only retrain. The outcome classification (A/B/C) drives the
+next decision:
+- A → ship v1_q6 as v2 via a Sprint 7 backlog item
+- B → queue a hybrid experiment (Q6+GLiNER)
+- C → label purity was not the dominant issue; pivot to E10 or
+  new corpora
+
+**Relationship to other experiments:**
+- Q6 is cheaper and more targeted than E10. Run Q6 first; E10
+  is either redundant (if Q6-A) or complementary (if Q6-B) or
+  the right answer (if Q6-C).
+- Q6 obsoletes E3 (class collapse to 4 classes): Q6 is a
+  targeted class restriction that matches the orchestrator's
+  existing engine split, whereas E3 was a blind aggregation.
+
 ## Workflow for completed experiments
 
 When a parallel session finishes an experiment:
