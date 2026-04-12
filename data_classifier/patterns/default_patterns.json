@@ -1804,6 +1804,45 @@
         "your_fly_token_here",
         "insert_key_here"
       ]
+    },
+    {
+      "name": "random_password",
+      "regex": "\\S{4,64}",
+      "entity_type": "CREDENTIAL",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.6,
+      "description": "Column-name-gated random password: short mixed-class string in a password/secret column. Only fires when the column name contains a password hint keyword; validator enforces length 4-64, >=3 character classes, and at least one symbol.",
+      "validator": "random_password",
+      "requires_column_hint": true,
+      "column_hint_keywords": [
+        "password",
+        "passwd",
+        "passphrase",
+        "passcode",
+        "secret",
+        "pwd",
+        "pass_code",
+        "user_password",
+        "admin_password"
+      ],
+      "examples_match": [
+        "P@ssw0rd!",
+        "Tr0ub4dor&3"
+      ],
+      "examples_no_match": [
+        "",
+        "   ",
+        "abc"
+      ],
+      "stopwords": [
+        "changeme",
+        "password",
+        "12345678",
+        "qwerty",
+        "letmein",
+        "test"
+      ]
     }
   ]
 }

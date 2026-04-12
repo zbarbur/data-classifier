@@ -137,6 +137,25 @@ def _matches_allowlist(value: str, pattern: ContentPattern) -> bool:
     return False
 
 
+def _column_hint_allows_pattern(column_name: str, pattern: ContentPattern) -> bool:
+    """Check whether the column name satisfies a pattern's column hint gate.
+
+    Patterns with ``requires_column_hint=True`` only fire when the column
+    name contains one of ``column_hint_keywords`` (case-insensitive substring
+    match). This prevents content-based FPs for patterns that cannot be
+    reliably distinguished from similar content in other contexts —
+    e.g. random passwords, which look like any mixed-class short string.
+
+    Patterns without the gate (the default) always pass.
+    """
+    if not pattern.requires_column_hint:
+        return True
+    if not pattern.column_hint_keywords:
+        return False
+    name_lower = column_name.lower()
+    return any(kw.lower() in name_lower for kw in pattern.column_hint_keywords)
+
+
 def _compute_context_adjustment(value: str, pattern: ContentPattern) -> float:
     """Scan text around the match for context words, return confidence adjustment.
 
@@ -408,6 +427,11 @@ class RegexEngine(ClassificationEngine):
             for idx in hit_indices:
                 p = pset.patterns[idx]
                 validator = pset.validators[idx]
+
+                # Column hint gate — some patterns (e.g. random_password)
+                # only fire when the column name hints at them
+                if not _column_hint_allows_pattern(column.column_name, p):
+                    continue
 
                 # Stopword check — known placeholder values → skip entirely
                 if _is_stopword(value, p):
