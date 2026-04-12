@@ -1,0 +1,125 @@
+{
+  "n_rows": 7770,
+  "corpora": {
+    "synthetic": 3720,
+    "nemotron": 1950,
+    "ai4privacy": 1200,
+    "secretbench": 300,
+    "gitleaks": 300,
+    "detect_secrets": 300
+  },
+  "feature_ranking": [
+    {
+      "feature": "secret_scanner_confidence",
+      "max_ks": 1.0,
+      "max_ks_pair": "ai4privacy vs secretbench",
+      "f_statistic": 9892.989937685541,
+      "f_pvalue": 0.0
+    },
+    {
+      "feature": "heuristic_distinct_ratio",
+      "max_ks": 1.0,
+      "max_ks_pair": "ai4privacy vs detect_secrets",
+      "f_statistic": 905.0824994777165,
+      "f_pvalue": 0.0
+    },
+    {
+      "feature": "heuristic_avg_length",
+      "max_ks": 1.0,
+      "max_ks_pair": "ai4privacy vs gitleaks",
+      "f_statistic": 3333.9358162960993,
+      "f_pvalue": 0.0
+    },
+    {
+      "feature": "has_secret_indicators",
+      "max_ks": 1.0,
+      "max_ks_pair": "ai4privacy vs secretbench",
+      "f_statistic": 10157.944713408418,
+      "f_pvalue": 0.0
+    },
+    {
+      "feature": "primary_is_credential",
+      "max_ks": 0.96,
+      "max_ks_pair": "secretbench vs synthetic",
+      "f_statistic": 1880.689646956815,
+      "f_pvalue": 0.0
+    },
+    {
+      "feature": "confidence_gap",
+      "max_ks": 0.8140322580645162,
+      "max_ks_pair": "detect_secrets vs synthetic",
+      "f_statistic": 152.15929729193925,
+      "f_pvalue": 1.2144908976372736e-154
+    },
+    {
+      "feature": "primary_is_pii",
+      "max_ks": 0.7866666666666666,
+      "max_ks_pair": "ai4privacy vs secretbench",
+      "f_statistic": 391.0558828319132,
+      "f_pvalue": 0.0
+    },
+    {
+      "feature": "regex_match_ratio",
+      "max_ks": 0.6846774193548387,
+      "max_ks_pair": "secretbench vs synthetic",
+      "f_statistic": 278.23164907767256,
+      "f_pvalue": 1.4415271261414734e-274
+    },
+    {
+      "feature": "top_overall_confidence",
+      "max_ks": 0.6758333333333333,
+      "max_ks_pair": "ai4privacy vs secretbench",
+      "f_statistic": 210.14071769969092,
+      "f_pvalue": 7.78893293920131e-211
+    },
+    {
+      "feature": "engines_fired",
+      "max_ks": 0.5666666666666667,
+      "max_ks_pair": "ai4privacy vs secretbench",
+      "f_statistic": 195.07733383705414,
+      "f_pvalue": 2.0700612605529186e-196
+    },
+    {
+      "feature": "regex_confidence",
+      "max_ks": 0.5,
+      "max_ks_pair": "detect_secrets vs secretbench",
+      "f_statistic": 188.5673816378283,
+      "f_pvalue": 3.866398771541167e-190
+    },
+    {
+      "feature": "engines_agreed",
+      "max_ks": 0.5,
+      "max_ks_pair": "detect_secrets vs gitleaks",
+      "f_statistic": 44.87237993458954,
+      "f_pvalue": 8.124317126350428e-46
+    },
+    {
+      "feature": "column_name_confidence",
+      "max_ks": 0.25,
+      "max_ks_pair": "ai4privacy vs detect_secrets",
+      "f_statistic": 33.377658620708694,
+      "f_pvalue": 7.893210176823301e-34
+    },
+    {
+      "feature": "has_column_name_hit",
+      "max_ks": 0.25,
+      "max_ks_pair": "ai4privacy vs detect_secrets",
+      "f_statistic": 40.9425147953974,
+      "f_pvalue": 1.0099659877101831e-41
+    },
+    {
+      "feature": "heuristic_confidence",
+      "max_ks": 0.02358974358974359,
+      "max_ks_pair": "ai4privacy vs nemotron",
+      "f_statistic": 9.101535485737468,
+      "f_pvalue": 1.2123438618239322e-08
+    }
+  ],
+  "top5_features": [
+    "secret_scanner_confidence",
+    "heuristic_distinct_ratio",
+    "heuristic_avg_length",
+    "has_secret_indicators",
+    "primary_is_credential"
+  ]
+}

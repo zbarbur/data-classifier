@@ -311,7 +311,7 @@ from the profile (reversing Sprint 6 item 5).
 
 ### Q5 — Feature distribution audit (descriptive stats, no retraining)
 
-**Status:** 🟢 in progress
+**Status:** ✅ complete (see `runs/2026-04-12-q5-feature-distribution-audit/result.md`)
 **Priority:** P1
 **Estimated time:** 15-30 min
 **Complements:** Q3 (pair them — same question, different angle)
