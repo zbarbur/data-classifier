@@ -1,5 +1,5 @@
 title: "DEA vs IBAN collision resolution \u2014 add to orchestrator collision pairs"
-status: backlog
+status: done
 priority: P1
 category: feature
 sprint_target: 4
@@ -8,15 +8,27 @@ updated: 2026-04-11
 depends_on: []
 tags:
 - iter2
-goal: "Resolve DEA vs IBAN alphanumeric collision \u2014 1 FP in current benchmark"
+goal: "Resolve DEA vs IBAN collision \u2014 use structural differences (DEA=2 letters+7\
+  \ digits vs IBAN=2 letters+2 digits+up to 30 alphanumeric) and validators"
 complexity: S
-technical_specs: []
+technical_specs:
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 add DEA/IBAN to _COLLISION_PAIRS\
+  \ with resolver"
+- "File: tests/test_heuristic_engine.py \u2014 DEA/IBAN collision tests"
 description: ''
 acceptance_criteria:
-- DEA and IBAN collision pair added to orchestrator
-test_plan: []
+- DEA/IBAN collision pair added to orchestrator
+- DEA check digit validator used as tiebreaker
+- IBAN mod-97 validator used as tiebreaker
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_heuristic_engine.py: valid DEA number + invalid IBAN mod-97 \u2192 DEA\
+  \ wins"
+- "tests/test_heuristic_engine.py: valid IBAN + invalid DEA check digit \u2192 IBAN\
+  \ wins"
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

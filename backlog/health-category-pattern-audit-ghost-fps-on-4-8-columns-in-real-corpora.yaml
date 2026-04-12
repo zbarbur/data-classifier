@@ -1,0 +1,31 @@
+title: "HEALTH category pattern audit \u2014 ghost FPs on 4-8 columns in real corpora"
+status: doing
+priority: P1
+category: bug
+sprint_target: 5
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags: []
+goal: Audit and fix HEALTH category regex patterns that produce ghost FPs on 4-8 non-health
+  columns in real corpora
+complexity: S
+technical_specs:
+- "File: data_classifier/profiles/standard.yaml \u2014 tighten HEALTH patterns"
+- "File: tests/test_patterns.py \u2014 add HEALTH FP regression tests"
+description: ''
+acceptance_criteria:
+- Identified which HEALTH patterns cause FPs and on what data
+- Patterns tightened or confidence lowered to eliminate ghost FPs
+- Legitimate HEALTH detection unaffected (no recall regression)
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_patterns.py: HEALTH pattern does not match on known FP column values'
+- 'tests/test_patterns.py: HEALTH pattern still matches legitimate health data'
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

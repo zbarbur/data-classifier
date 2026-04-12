@@ -549,22 +549,30 @@
     },
     {
       "name": "icd10_code",
-      "regex": "\\b[A-TV-Z]\\d{2}\\.?\\d{0,4}\\b",
+      "regex": "\\b[A-TV-Z]\\d{2}\\.\\d{1,4}\\b",
       "entity_type": "HEALTH",
       "category": "Health",
       "sensitivity": "HIGH",
-      "confidence": 0.45,
-      "description": "ICD-10 diagnosis code (letter + 2 digits + optional decimal). Low confidence alone \u2014 needs context.",
+      "confidence": 0.30,
+      "description": "ICD-10 diagnosis code (letter + 2 digits + decimal + 1-4 digits). Requires decimal portion to reduce FPs on generic codes. Low confidence alone \u2014 needs column-name context.",
       "validator": "",
       "examples_match": [
         "E11.9",
         "J06.9",
-        "M54.5"
+        "M54.5",
+        "I10.0",
+        "F32.10"
       ],
       "examples_no_match": [
         "U99.9",
-        "ABC"
-      ]
+        "ABC",
+        "A01",
+        "B12",
+        "C99",
+        "SKU123"
+      ],
+      "context_words_boost": ["diagnosis", "icd", "medical", "clinical", "patient", "condition", "disease"],
+      "context_words_suppress": ["product", "sku", "item", "code", "version", "zone", "model", "serial"]
     },
     {
       "name": "mac_address",

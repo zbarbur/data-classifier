@@ -85,7 +85,20 @@ __all__ = [
 
 # ── Module-level engine registry ─────────────────────────────────────────────
 
-_DEFAULT_ENGINES = [ColumnNameEngine(), RegexEngine(), HeuristicEngine(), SecretScannerEngine()]
+
+def _build_default_engines() -> list:
+    """Build default engine list, including GLiNER2 if available."""
+    engines: list = [ColumnNameEngine(), RegexEngine(), HeuristicEngine(), SecretScannerEngine()]
+    try:
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engines.append(GLiNER2Engine())
+    except Exception:  # noqa: BLE001
+        pass  # GLiNER2 engine not available — skipping
+    return engines
+
+
+_DEFAULT_ENGINES = _build_default_engines()
 
 
 def classify_columns(
@@ -94,6 +107,8 @@ def classify_columns(
     *,
     min_confidence: float = 0.5,
     categories: list[str] | None = None,
+    max_findings: int | None = None,
+    confidence_gap_threshold: float = 0.30,
     budget_ms: float | None = None,
     run_id: str | None = None,
     config: dict | None = None,
@@ -117,6 +132,13 @@ def classify_columns(
             ``None`` = all categories.  Example: ``["PII", "Credential"]``
             to skip Financial and Health findings.
             Valid values: ``PII``, ``Financial``, ``Credential``, ``Health``.
+        max_findings: Maximum number of findings to return per column.
+            ``None`` = no limit (all findings returned).
+            ``1`` = primary label mode (only the highest-confidence finding).
+        confidence_gap_threshold: When ``max_findings`` is ``None``,
+            secondary findings whose confidence is more than this gap below
+            the top finding are suppressed.  Default ``0.30``.
+            Set to ``1.0`` to disable gap suppression.
         budget_ms: Latency budget in ms.  ``None`` = no budget, full cascade.
         run_id: Associates findings with a run for telemetry event tagging.
         config: Per-request overrides (custom patterns, dictionaries).
@@ -142,22 +164,62 @@ def classify_columns(
     if categories is not None:
         category_filter = {c for c in categories}
 
+    # Two-pass classification with sibling context (for multiple columns)
+    all_findings = orchestrator.classify_columns(
+        columns,
+        profile,
+        min_confidence=min_confidence,
+        budget_ms=budget_ms,
+        run_id=run_id,
+        mask_samples=mask_samples,
+        max_evidence_samples=max_evidence_samples,
+    )
+
+    # Group findings by column for per-column filtering
+    column_findings_map: dict[str, list[ClassificationFinding]] = {}
+    for f in all_findings:
+        column_findings_map.setdefault(f.column_id, []).append(f)
+
     findings: list[ClassificationFinding] = []
     for column in columns:
-        column_findings = orchestrator.classify_column(
-            column,
-            profile,
-            min_confidence=min_confidence,
-            budget_ms=budget_ms,
-            run_id=run_id,
-            mask_samples=mask_samples,
-            max_evidence_samples=max_evidence_samples,
-        )
+        column_findings = column_findings_map.get(column.column_id, [])
+
         if category_filter is not None:
             column_findings = [f for f in column_findings if f.category in category_filter]
+
+        # Apply max_findings and confidence-gap suppression per column
+        if column_findings:
+            column_findings = _apply_findings_limit(column_findings, max_findings, confidence_gap_threshold)
+
         findings.extend(column_findings)
 
     return findings
+
+
+def _apply_findings_limit(
+    findings: list[ClassificationFinding],
+    max_findings: int | None,
+    confidence_gap_threshold: float,
+) -> list[ClassificationFinding]:
+    """Limit and filter findings per column.
+
+    1. Sort by confidence descending.
+    2. If max_findings is set, truncate to that count.
+    3. Otherwise, apply confidence-gap suppression: drop findings whose
+       confidence is more than ``confidence_gap_threshold`` below the top finding.
+    """
+    if not findings:
+        return findings
+
+    # Sort by confidence descending
+    sorted_findings = sorted(findings, key=lambda f: f.confidence, reverse=True)
+
+    if max_findings is not None:
+        return sorted_findings[:max_findings]
+
+    # Confidence-gap suppression: keep findings within gap of the top
+    top_confidence = sorted_findings[0].confidence
+    return [f for f in sorted_findings if (top_confidence - f.confidence) <= confidence_gap_threshold]
 
 
 # ── Rollup computation ───────────────────────────────────────────────────────

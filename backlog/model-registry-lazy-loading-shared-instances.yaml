@@ -1,21 +1,43 @@
 title: Model registry + lazy loading (shared instances)
-status: backlog
+status: done
 priority: P1
 category: feature
-sprint_target: null
+sprint_target: 4
 created: 2026-04-10
 updated: 2026-04-11
 depends_on: []
 tags:
 - iter3
-goal: ''
-complexity: null
-technical_specs: []
+goal: "Build model registry infrastructure \u2014 lazy loading, shared instances,\
+  \ optional ML dependencies \u2014 to enable ML engine integration in Sprint 5"
+complexity: M
+technical_specs:
+- "File: data_classifier/registry/__init__.py \u2014 ModelRegistry class"
+- "File: data_classifier/registry/model_entry.py \u2014 ModelEntry dataclass (name,\
+  \ loader, instance cache)"
+- "File: data_classifier/engines/interface.py \u2014 add classify_batch() with default\
+  \ single-dispatch"
+- "File: pyproject.toml \u2014 add [ml] optional extras (torch, transformers, tokenizers)"
+- "File: tests/test_model_registry.py \u2014 registry tests with mock models (no real\
+  \ ML deps)"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- ModelRegistry class with register/get/load_on_first_use semantics
+- "Shared instances \u2014 same model ID returns same instance"
+- "Optional dependency structure \u2014 ML extras via pip install data_classifier[ml]"
+- "Import guards \u2014 ML imports fail gracefully with clear error message when deps\
+  \ not installed"
+- Engine interface supports batch classification (classify_batch method)
+- Tests pass without ML dependencies installed (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_model_registry.py: register + get returns same instance'
+- "tests/test_model_registry.py: lazy loading \u2014 model not loaded until first\
+  \ get"
+- 'tests/test_model_registry.py: missing ML deps raises clear ImportError'
+- 'tests/test_model_registry.py: classify_batch default delegates to classify'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

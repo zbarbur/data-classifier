@@ -213,6 +213,7 @@ class ColumnNameEngine(ClassificationEngine):
 
     name = "column_name"
     order = 1
+    authority = 10
     min_confidence = 0.0
     supported_modes = frozenset({"structured"})
 

@@ -141,10 +141,23 @@ def _analyze_samples_for_column(
 # ── Main benchmark ───────────────────────────────────────────────────────────
 
 
+@dataclass
+class BenchmarkResult:
+    """Complete benchmark result including all metrics."""
+
+    column_results: list[ColumnResult]
+    entity_metrics: dict[str, EntityMetrics]
+    micro_f1: float = 0.0
+    macro_f1: float = 0.0
+    primary_label_accuracy: float = 0.0
+    corpus_source: str = "synthetic"
+
+
 def run_benchmark(
     corpus: list[tuple[ColumnInput, str | None]],
     *,
     verbose: bool = False,
+    corpus_source: str = "synthetic",
 ) -> tuple[list[ColumnResult], dict[str, EntityMetrics]]:
     """Run the full accuracy benchmark with per-engine and per-sample analysis."""
     profile = load_profile("standard")
@@ -233,6 +246,47 @@ def run_benchmark(
                 metrics[entity_type].fn += 1
                 metrics[entity_type].fn_columns.append(cr.column_id)
 
+    # ── Step 5: Compute aggregate metrics ──────────────────────────────────
+    total_tp = sum(m.tp for m in metrics.values())
+    total_fp = sum(m.fp for m in metrics.values())
+    total_fn = sum(m.fn for m in metrics.values())
+
+    # Micro F1
+    micro_p = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
+    micro_r = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
+    micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r) if (micro_p + micro_r) > 0 else 0.0
+
+    # Macro F1 — average of per-entity F1
+    entity_f1s = [m.f1 for m in metrics.values() if (m.tp + m.fn) > 0]
+    macro_f1 = sum(entity_f1s) / len(entity_f1s) if entity_f1s else 0.0
+
+    # Primary-label accuracy — is the TOP prediction (highest confidence) correct?
+    # predicted_entity_types comes from findings which are merged by highest confidence,
+    # so we need to find the actual highest-confidence prediction.
+    primary_correct = 0
+    primary_total = 0
+    for cr in column_results:
+        if cr.expected_entity_type is not None:
+            primary_total += 1
+            # Find the highest-confidence finding from the pipeline results
+            col_findings = findings_by_col.get(cr.column_id, [])
+            if col_findings:
+                top_prediction = max(col_findings, key=lambda f: f.confidence)
+                if top_prediction.entity_type == cr.expected_entity_type:
+                    primary_correct += 1
+
+    primary_label_accuracy = primary_correct / primary_total if primary_total > 0 else 0.0
+
+    # Attach aggregate metrics to a module-level cache for report access
+    run_benchmark._last_result = BenchmarkResult(  # type: ignore[attr-defined]
+        column_results=column_results,
+        entity_metrics=metrics,
+        micro_f1=micro_f1,
+        macro_f1=macro_f1,
+        primary_label_accuracy=primary_label_accuracy,
+        corpus_source=corpus_source,
+    )
+
     return column_results, metrics
 
 
@@ -276,10 +330,26 @@ def print_report(
     entity_types_tested = len({e for _, e in corpus if e is not None})
     avg_samples = total_samples / total_columns if total_columns > 0 else 0
 
+    # Retrieve aggregate metrics from last run
+    last_result: BenchmarkResult | None = getattr(run_benchmark, "_last_result", None)
+    macro_f1 = last_result.macro_f1 if last_result else 0.0
+    micro_f1 = last_result.micro_f1 if last_result else 0.0
+    primary_label_acc = last_result.primary_label_accuracy if last_result else 0.0
+    corpus_source = last_result.corpus_source if last_result else "synthetic"
+
     print("=" * 70)  # noqa: T201
     print("ACCURACY BENCHMARK REPORT")  # noqa: T201
     print("=" * 70)  # noqa: T201
     print()  # noqa: T201
+
+    print("KEY METRICS")  # noqa: T201
+    print("-" * 70)  # noqa: T201
+    print(f"  Macro F1:                {macro_f1:.3f}")  # noqa: T201
+    print(f"  Micro F1:                {micro_f1:.3f}")  # noqa: T201
+    print(f"  Primary-Label Accuracy:  {primary_label_acc:.1%}")  # noqa: T201
+    print(f"  Corpus Source:           {corpus_source}")  # noqa: T201
+    print()  # noqa: T201
+
     print("CORPUS STATISTICS")  # noqa: T201
     print(f"  Total columns:      {total_columns}")  # noqa: T201
     print(f"  Positive columns:   {positive_columns} ({entity_types_tested} entity types)")  # noqa: T201
@@ -480,12 +550,36 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run accuracy benchmark")
     parser.add_argument("--samples", type=int, default=100, help="Samples per entity type")
     parser.add_argument("--verbose", action="store_true", help="Include per-sample analysis")
+    parser.add_argument(
+        "--corpus",
+        type=str,
+        default="synthetic",
+        choices=["synthetic", "ai4privacy", "nemotron", "all"],
+        help="Corpus source to use (default: synthetic)",
+    )
+    parser.add_argument("--max-rows", type=int, default=500, help="Max rows for real-world corpora")
+    parser.add_argument(
+        "--blind",
+        action="store_true",
+        help="Use generic column names (col_0, col_1, ...) to test sample-value-only classification",
+    )
     args = parser.parse_args()
 
-    from tests.benchmarks.corpus_generator import generate_corpus
+    corpus_source = args.corpus
 
-    print(f"Generating synthetic corpus ({args.samples} samples/type)...")  # noqa: T201
-    corpus = generate_corpus(samples_per_type=args.samples, locale="en_US")
+    if corpus_source == "synthetic":
+        from tests.benchmarks.corpus_generator import generate_corpus
 
-    results, metrics = run_benchmark(corpus, verbose=args.verbose)
+        print(f"Generating synthetic corpus ({args.samples} samples/type)...")  # noqa: T201
+        corpus = generate_corpus(samples_per_type=args.samples, locale="en_US")
+    else:
+        from tests.benchmarks.corpus_loader import load_corpus
+
+        label = f"{corpus_source} corpus"
+        if args.blind:
+            label += " (BLIND — generic column names)"
+        print(f"Loading {label} (max {args.max_rows} rows)...")  # noqa: T201
+        corpus = load_corpus(corpus_source, max_rows=args.max_rows, blind=args.blind)
+
+    results, metrics = run_benchmark(corpus, verbose=args.verbose, corpus_source=corpus_source)
     print_report(corpus, results, metrics, verbose=args.verbose)

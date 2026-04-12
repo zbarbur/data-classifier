@@ -1,0 +1,22 @@
+title: "Gitleaks FP analysis \u2014 add missing placeholder suppressions for 37 false-positive\
+  \ test cases"
+status: backlog
+priority: P2
+category: bug
+sprint_target: null
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: ''
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

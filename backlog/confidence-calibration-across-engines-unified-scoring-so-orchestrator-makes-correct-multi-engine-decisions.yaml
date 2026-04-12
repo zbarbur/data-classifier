@@ -1,0 +1,40 @@
+title: "Confidence calibration across engines \u2014 unified scoring so orchestrator\
+  \ makes correct multi-engine decisions"
+status: doing
+priority: P1
+category: feature
+sprint_target: 5
+created: 2026-04-11
+updated: 2026-04-11
+depends_on: []
+tags: []
+goal: "Unified confidence calibration framework so engines produce comparable scores\
+  \ \u2014 foundation for correct multi-engine arbitration"
+complexity: M
+technical_specs:
+- "File: data_classifier/orchestrator/calibration.py \u2014 NEW: confidence calibration\
+  \ functions per engine"
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 apply calibration before\
+  \ merging findings"
+- "File: data_classifier/engines/interface.py \u2014 add engine_id property for calibration\
+  \ lookup"
+- "File: tests/test_calibration.py \u2014 NEW: calibration correctness tests"
+description: ''
+acceptance_criteria:
+- Each engine has a calibration function mapping raw confidence to calibrated score
+- Orchestrator uses calibrated scores for engine arbitration
+- Column name engine confidence competitive with regex when match is strong
+- ML engine integration point defined (calibration slot for GLiNER2)
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_calibration.py: regex confidence 0.94 calibrates below column-name 0.90
+  when column name matches'
+- 'tests/test_calibration.py: uncalibrated engines pass through unchanged'
+- "tests/test_calibration.py: calibration is monotonic (higher raw \u2192 higher calibrated)"
+notes: ''
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

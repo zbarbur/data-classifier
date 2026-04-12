@@ -1,21 +1,39 @@
 title: GLiNER2 engine (205M, NER + text classification)
-status: backlog
+status: doing
 priority: P1
 category: feature
-sprint_target: null
+sprint_target: 5
 created: 2026-04-10
 updated: 2026-04-11
 depends_on: []
 tags:
 - iter3
-goal: ''
-complexity: null
-technical_specs: []
+goal: "First ML engine using GLiNER2 for NER \u2014 targets PERSON_NAME and ADDRESS\
+  \ detection from sample values, not just column names"
+complexity: L
+technical_specs:
+- "File: data_classifier/engines/gliner_engine.py \u2014 NEW: GLiNER2Engine implementation"
+- "File: data_classifier/engines/__init__.py \u2014 register GLiNER2 engine"
+- "File: data_classifier/registry/ \u2014 register gliner model with lazy loading"
+- "File: tests/test_gliner_engine.py \u2014 NEW: mock-based engine tests"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- GLiNER2Engine class implements ClassificationEngine interface
+- Registers in ModelRegistry with lazy loading and dependency checks
+- "Detects PERSON_NAME from sample values like 'John Smith', 'Mar\xEDa Garc\xEDa'"
+- Detects ADDRESS from sample values like '123 Main St, Springfield IL'
+- classify_batch() override for efficient batched inference
+- Graceful fallback when gliner not installed (ModelDependencyError)
+- Tests pass with mock model (no ML deps in CI)
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_gliner_engine.py: PERSON_NAME detected from name samples'
+- 'tests/test_gliner_engine.py: ADDRESS detected from address samples'
+- 'tests/test_gliner_engine.py: classify_batch processes multiple columns efficiently'
+- 'tests/test_gliner_engine.py: missing gliner package raises ModelDependencyError'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

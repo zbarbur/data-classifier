@@ -1,6 +1,6 @@
 title: "Benchmark methodology: adopt industry-standard evaluation \u2014 real corpora,\
   \ macro/micro F1, primary-label vs multi-label modes"
-status: backlog
+status: done
 priority: P1
 category: chore
 sprint_target: 4
@@ -9,20 +9,28 @@ updated: 2026-04-11
 depends_on: []
 tags:
 - iter2
-goal: "Align benchmark methodology with industry standards \u2014 Presidio-research\
-  \ evaluation framework, standard metrics, real corpora"
+goal: "Align benchmark methodology with industry standards \u2014 macro/micro F1,\
+  \ primary-label accuracy, per-entity breakdown, documented methodology"
 complexity: M
-technical_specs: []
+technical_specs:
+- "File: tests/benchmarks/accuracy_benchmark.py \u2014 add macro F1, per-entity metrics,\
+  \ primary-label mode"
+- "File: tests/benchmarks/generate_report.py \u2014 update report generation for new\
+  \ metrics"
+- "File: docs/BENCHMARK_METHODOLOGY.md \u2014 document what we measure and why"
 description: ''
 acceptance_criteria:
-- Benchmark reports both micro F1 (current) and macro F1 (per-entity-type average)
-- Benchmark reports primary-label accuracy (top prediction vs expected) alongside
-  multi-label
-- Benchmark corpus includes at least one real-world PII dataset (not just Faker)
-- "Methodology documented \u2014 what we measure, how, and why"
-test_plan: []
+- Benchmark reports both micro F1 and macro F1 (per-entity-type average)
+- Benchmark reports primary-label accuracy (top prediction vs expected)
+- Per-entity-type precision/recall/F1 breakdown in report
+- Methodology documented in docs/
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/benchmarks/: verify macro F1 calculation matches manual calculation'
+- 'tests/benchmarks/: verify per-entity breakdown sums correctly'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

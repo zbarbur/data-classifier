@@ -1,21 +1,39 @@
 title: 'Sibling column analysis: use adjacent columns to disambiguate entity types'
-status: backlog
-priority: P2
+status: doing
+priority: P1
 category: feature
-sprint_target: null
+sprint_target: 5
 created: 2026-04-10
 updated: 2026-04-11
 depends_on: []
 tags:
 - iter3
-goal: ''
-complexity: null
-technical_specs: []
+goal: 'Two-pass classification: first pass classifies independently, second pass uses
+  high-confidence sibling findings to disambiguate collisions'
+complexity: M
+technical_specs:
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 add two-pass logic in\
+  \ classify_columns flow"
+- "File: data_classifier/orchestrator/table_profile.py \u2014 NEW: infer table domain\
+  \ from sibling findings"
+- "File: tests/test_sibling_analysis.py \u2014 NEW: table-level disambiguation tests"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Orchestrator runs two-pass when multiple columns provided
+- High-confidence siblings create table profile (healthcare/financial/customer PII)
+- Table profile boosts/suppresses entity types on ambiguous columns
+- SSN/ABA/NPI disambiguation improved when sibling context available
+- Single-column classification unchanged (backward compatible)
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_sibling_analysis.py: SSN column + person_name/dob siblings \u2192 SSN\
+  \ wins over ABA"
+- "tests/test_sibling_analysis.py: ABA column + account/swift siblings \u2192 ABA\
+  \ wins over SSN"
+- "tests/test_sibling_analysis.py: single column \u2192 no change (backward compat)"
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

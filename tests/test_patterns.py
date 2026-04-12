@@ -50,6 +50,98 @@ class TestPatternExamples:
         assert 0.0 < pattern.confidence <= 1.0, f"Confidence must be (0, 1], got {pattern.confidence}"
 
 
+class TestHealthPatternAudit:
+    """Regression: HEALTH patterns must not fire on non-health data.
+
+    Sprint 5 fix — icd10_code pattern was too broad (matching any letter+2digits),
+    causing ghost FPs on columns with generic alphanumeric codes.
+    """
+
+    def test_icd10_requires_decimal(self):
+        """ICD-10 pattern must require the decimal portion to match."""
+        icd_pattern = next(p for p in _PATTERNS if p.name == "icd10_code")
+        compiled = re2.compile(icd_pattern.regex)
+
+        # Should match full ICD-10 codes with decimal
+        assert compiled.search("E11.9"), "Should match E11.9"
+        assert compiled.search("J06.9"), "Should match J06.9"
+        assert compiled.search("M54.5"), "Should match M54.5"
+        assert compiled.search("I10.0"), "Should match I10.0"
+
+        # Should NOT match bare letter+2digits (too generic)
+        assert not compiled.search("A01"), "Should NOT match A01 (too generic)"
+        assert not compiled.search("B12"), "Should NOT match B12 (too generic)"
+        assert not compiled.search("C99"), "Should NOT match C99 (too generic)"
+
+    def test_icd10_low_confidence(self):
+        """ICD-10 pattern must have low base confidence (needs context)."""
+        icd_pattern = next(p for p in _PATTERNS if p.name == "icd10_code")
+        assert icd_pattern.confidence <= 0.35, (
+            f"ICD-10 confidence {icd_pattern.confidence} too high — should be <= 0.35 to avoid FPs"
+        )
+
+    def test_icd10_has_context_words(self):
+        """ICD-10 pattern should have context words for boosting and suppression."""
+        icd_pattern = next(p for p in _PATTERNS if p.name == "icd10_code")
+        assert len(icd_pattern.context_words_boost) > 0, "Should have boost context words"
+        assert len(icd_pattern.context_words_suppress) > 0, "Should have suppress context words"
+
+    def test_icd10_no_match_on_product_codes(self):
+        """ICD-10 should not match common product/version codes."""
+        icd_pattern = next(p for p in _PATTERNS if p.name == "icd10_code")
+        compiled = re2.compile(icd_pattern.regex)
+        for code in ["SKU123", "V8", "R2D2", "T800"]:
+            assert not compiled.search(code), f"Should NOT match {code}"
+
+
+class TestSsnConfidenceGating:
+    """Regression: SSN pattern must not fire without context.
+
+    Sprint 5 fix — SSN no-dashes pattern must have low base confidence
+    so it stays below min_confidence (0.5) without column-name or format context.
+    The formatted SSN (with dashes) is a strong format signal and surfaces normally.
+    """
+
+    def test_ssn_no_dashes_below_threshold(self):
+        """SSN no-dashes pattern must have confidence below 0.5."""
+        ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_no_dashes")
+        assert ssn_pattern.confidence < 0.5, (
+            f"SSN no-dashes confidence {ssn_pattern.confidence} too high — must be below 0.5"
+        )
+
+    def test_ssn_formatted_has_high_confidence(self):
+        """SSN formatted pattern (with dashes) should have high confidence."""
+        ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_formatted")
+        assert ssn_pattern.confidence >= 0.90, (
+            f"SSN formatted confidence {ssn_pattern.confidence} too low — dashes are a strong signal"
+        )
+
+    def test_ssn_no_dashes_has_context_boost(self):
+        """SSN no-dashes pattern should have context boost words."""
+        ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_no_dashes")
+        assert len(ssn_pattern.context_words_boost) > 0
+        boost_lower = {w.lower() for w in ssn_pattern.context_words_boost}
+        assert "ssn" in boost_lower or "social security" in boost_lower
+
+    def test_ssn_no_dashes_stays_below_with_many_matches(self):
+        """Even with many matches, SSN no-dashes should not exceed 0.5."""
+        from data_classifier.engines.regex_engine import _compute_sample_confidence
+
+        ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_no_dashes")
+        # Test with many matches (>20), which gives the 1.05 multiplier
+        conf = _compute_sample_confidence(ssn_pattern.confidence, matches=50, validated=50)
+        assert conf < 0.50, f"SSN no-dashes with 50 matches: {conf} >= 0.50"
+
+    def test_ssn_formatted_surfaces_with_dashes(self):
+        """SSN with dashes pattern should surface above threshold."""
+        from data_classifier.engines.regex_engine import _compute_sample_confidence
+
+        ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_formatted")
+        # Even with few matches
+        conf = _compute_sample_confidence(ssn_pattern.confidence, matches=3, validated=3)
+        assert conf >= 0.50, f"SSN formatted with 3 matches: {conf} < 0.50"
+
+
 class TestPatternLibraryIntegrity:
     def test_no_duplicate_names(self):
         """All pattern names are unique."""

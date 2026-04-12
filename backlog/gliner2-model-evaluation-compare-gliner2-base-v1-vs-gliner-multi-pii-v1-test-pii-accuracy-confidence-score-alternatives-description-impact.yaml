@@ -1,0 +1,33 @@
+title: "GLiNER2 model evaluation \u2014 compare gliner2-base-v1 vs gliner_multi_pii-v1,\
+  \ test PII accuracy, confidence score alternatives, description impact"
+status: backlog
+priority: P2
+category: feature
+sprint_target: null
+created: 2026-04-12
+updated: 2026-04-12
+depends_on: []
+tags: []
+goal: "Structured evaluation of GLiNER model variants \u2014 v1 PII vs v2 base vs\
+  \ v2 large, with description tuning, label optimization, and threshold sweeps per\
+  \ model"
+complexity: M
+technical_specs:
+- "File: scripts/evaluate_gliner_models.py \u2014 structured evaluation script"
+- "File: docs/research/GLINER_MODEL_EVALUATION.md \u2014 results and recommendation"
+description: ''
+acceptance_criteria:
+- Side-by-side accuracy comparison on blind Ai4Privacy and Nemotron corpora
+- Description impact measured per model (with vs without)
+- Label name sweep for each entity type per model
+- Threshold sweep (0.3-0.8) per model
+- Latency comparison per model
+- Recommendation documented with data
+test_plan:
+- 'Manual: run evaluation script, review results doc'
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

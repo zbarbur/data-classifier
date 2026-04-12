@@ -1,6 +1,6 @@
 title: "NPI vs PHONE 10-digit collision resolution \u2014 add to orchestrator collision\
   \ pairs"
-status: backlog
+status: done
 priority: P1
 category: feature
 sprint_target: 4
@@ -9,16 +9,27 @@ updated: 2026-04-11
 depends_on: []
 tags:
 - iter2
-goal: "Resolve NPI vs PHONE 10-digit collision \u2014 2 FPs in current benchmark"
+goal: "Resolve NPI vs PHONE 10-digit collision \u2014 use column name engine signal\
+  \ and NPI Luhn validation to disambiguate"
 complexity: S
-technical_specs: []
+technical_specs:
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 add NPI/PHONE to _COLLISION_PAIRS\
+  \ with resolver"
+- "File: tests/test_heuristic_engine.py \u2014 NPI/PHONE collision tests"
 description: ''
 acceptance_criteria:
-- NPI and PHONE collision pair added to orchestrator
-- Column benchmark FP count drops by 2
-test_plan: []
+- NPI/PHONE collision pair added to orchestrator
+- Column name signal (npi, provider, prescriber) used as tiebreaker
+- NPI Luhn check applied when both match
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- "tests/test_heuristic_engine.py: NPI column name + 10-digit Luhn-valid \u2192 NPI\
+  \ wins"
+- "tests/test_heuristic_engine.py: no column name signal + 10 digits \u2192 PHONE\
+  \ wins (more common)"
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []
