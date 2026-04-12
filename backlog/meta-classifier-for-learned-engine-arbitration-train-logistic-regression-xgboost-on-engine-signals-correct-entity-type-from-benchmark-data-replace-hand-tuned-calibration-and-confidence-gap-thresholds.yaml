@@ -48,7 +48,7 @@ test_plan:
 - 'Manual: full benchmark run pre-merge, verify F1 delta >= +0.02 on both corpora
   blind mode'
 notes: ''
-phase: plan
+phase: build
 design_reviewed: false
 code_reviewed: false
 comments: []
