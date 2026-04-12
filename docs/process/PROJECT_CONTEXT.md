@@ -12,7 +12,7 @@
 | CI | Green on main |
 | Patterns | **73** content patterns + 26 profile rules (random_password, international_phone_local added) |
 | Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, gliner2) + meta-classifier (shadow) |
-| Validators | **13** (random_password added) |
+| Validators | **14** (random_password added) |
 | Entity types | 33 |
 | Key-name patterns | 88 |
 | Backlog | 70+ items |
@@ -41,12 +41,12 @@
 | `engines/heuristic_engine.py` | Cardinality, entropy, length, char class analysis (Sprint 3) |
 | `engines/secret_scanner.py` | Structured secret scanner — key-name + entropy scoring (Sprint 3) |
 | `engines/parsers.py` | JSON, YAML, env, code literal parsers for secret scanner |
-| `engines/validators.py` | 12 validators (Luhn, SSN, IPv4, NPI, DEA, VIN, EIN, ABA, IBAN, phone, SIN Luhn, AWS not-hex) |
+| `engines/validators.py` | 14 validators (Luhn, SSN, IPv4, NPI, DEA, VIN, EIN, ABA, IBAN, phone, SIN Luhn, AWS not-hex, random_password) |
 | `orchestrator/orchestrator.py` | Engine cascade, collision resolution, CREDENTIAL suppression |
 | `config/engine_defaults.yaml` | All engine thresholds and scoring parameters (Sprint 3) |
 | `profiles/__init__.py` | Profile loading (YAML, dict, bundled) |
 | `profiles/standard.yaml` | Bundled default profile (25 rules, 4 categories) |
-| `patterns/default_patterns.json` | Content pattern library (71 patterns) |
+| `patterns/default_patterns.json` | Content pattern library (73 patterns) |
 | `patterns/column_names.json` | Column name variants (400+, 32 entity types) |
 | `patterns/secret_key_names.json` | Secret key-name dictionary (88 entries, tiered scoring) |
 | `patterns/known_placeholder_values.json` | Known placeholder values for FP suppression (34) |
@@ -55,7 +55,7 @@
 
 ### Key Patterns
 
-- **RE2 Set matching** — all 71 patterns screened in one C++ pass per value
+- **RE2 Set matching** — all 73 patterns screened in one C++ pass per value
 - **Two-phase matching** — Set screens, then individual patterns extract + validate
 - **Context boosting** — per-pattern boost/suppress words adjust confidence ±0.30
 - **Stopword suppression** — global + per-pattern known placeholders → hard zero
