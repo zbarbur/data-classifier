@@ -38,3 +38,45 @@ jobs:
       - name: Docs build check
         if: matrix.python-version == '3.12'
         run: mkdocs build --strict
+
+  install-test:
+    # Builds a wheel from the current checkout and installs it into a fresh
+    # venv (no editable install, no dev extras), then runs a smoke test that
+    # imports the public API, walks bundled YAML/JSON resources via
+    # importlib.resources, and runs an end-to-end EMAIL classification.
+    #
+    # Catches packaging regressions like the Sprint 5 bug where
+    # data_classifier/config/engine_defaults.yaml silently failed to ship in
+    # the wheel because the config/*.yaml package-data glob was missing.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+          python -m build --wheel
+
+      - name: Create fresh venv and install wheel (no dev extras, no editable)
+        run: |
+          python -m venv /tmp/smoke_venv
+          /tmp/smoke_venv/bin/pip install --upgrade pip
+          /tmp/smoke_venv/bin/pip install dist/*.whl
+
+      - name: Run install smoke test (from outside repo)
+        env:
+          REPO_DIR: ${{ github.workspace }}
+        run: |
+          cd /tmp
+          /tmp/smoke_venv/bin/python "$REPO_DIR/scripts/install_smoke_test.py"
