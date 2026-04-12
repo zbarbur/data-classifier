@@ -215,12 +215,15 @@ def test_all_features_are_floats():
     assert all(isinstance(v, float) for v in features)
 
 
-def test_meta_classifier_predict_shadow_raises():
-    # Phase 1 contract: predict_shadow is a stub and must not silently
-    # return None. Phase 3 will replace this.
+def test_meta_classifier_predict_shadow_handles_empty_findings():
+    # Phase 3 contract: predict_shadow never raises. Empty findings
+    # either return None (model unavailable) or a prediction whose
+    # live_entity is blank (model present). Either way, NO exception.
     mc = MetaClassifier()
-    try:
-        mc.predict_shadow([])
-    except NotImplementedError:
-        return
-    raise AssertionError("predict_shadow should raise NotImplementedError in Phase 1")
+    result = mc.predict_shadow([], [])
+    # Model is present in the source tree so we expect a prediction,
+    # but we also accept None so the test is robust in environments
+    # where the [meta] extra is not installed.
+    if result is not None:
+        assert result.live_entity == ""
+        assert result.column_id == ""

@@ -1,27 +1,35 @@
-"""Meta-classifier for learned engine arbitration (Sprint 6 Phase 1 skeleton).
+"""Meta-classifier for learned engine arbitration (Sprint 6).
 
-Phase 1 provides only the class structure and feature extraction helpers
-used by the training-data builder. Training, shadow inference, and
-orchestrator integration are deferred to Phase 2 and Phase 3.
+Phase 1 landed the feature schema and pure ``extract_features`` helper.
+Phase 2 trained a logistic-regression model and serialized it to
+``data_classifier/models/meta_classifier_v1.pkl`` (a trusted build
+artifact shipped inside the wheel). Phase 3 wires shadow inference into
+the orchestrator as an observability-only path — predictions are logged
+via ``MetaClassifierEvent`` but never modify the live classification
+result.
 
-The ``extract_features`` function is intentionally pure (no I/O, no
-logging, no globals) so it can be shared between:
-
-  * offline training-data assembly, and
-  * online shadow inference at classification time (Phase 3).
-
-It operates on a list of ``ClassificationFinding`` objects coming from
-an arbitrary set of engines. Each engine is scored independently; the
-resulting feature vector has a fixed length of :data:`FEATURE_DIM`.
+Design invariants:
+  * ``extract_features`` is pure (no I/O, no logging, no globals) so it
+    is safe to share between offline training and online inference.
+  * The ``MetaClassifier`` class lazy-loads its model on first use. If
+    the optional ``[meta]`` extra is not installed, or if the pickle is
+    missing, ``predict_shadow`` returns ``None`` and emits a single
+    warning. The live classification path is **never** affected.
+  * ``sklearn`` is imported lazily inside :meth:`_ensure_loaded` — the
+    library must import cleanly without the optional extra.
 """
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from data_classifier.core.types import ClassificationFinding
+
+_log = logging.getLogger(__name__)
 
 # ── Feature schema ───────────────────────────────────────────────────────────
 
@@ -74,27 +82,206 @@ class MetaClassifierPrediction:
     agreement: bool
 
 
-class MetaClassifier:
-    """Skeleton meta-classifier.
+_DEFAULT_MODEL_PACKAGE = "data_classifier.models"
+_DEFAULT_MODEL_RESOURCE = "meta_classifier_v1.pkl"
 
-    Phase 1 only exposes the class shape used by the training-data
-    builder (so feature vectors have a documented owner). Phase 2 adds
-    the real trained model, and Phase 3 wires :meth:`predict_shadow`
-    into the orchestrator behind a feature flag.
+
+class MetaClassifier:
+    """Lazy-loaded meta-classifier for shadow inference.
+
+    Loads the pickled model on first use. If the optional ``[meta]``
+    extra is not installed, or if the model artifact is missing,
+    :meth:`predict_shadow` returns ``None`` and logs a warning **once**.
+    The orchestrator's live path is never affected — every failure mode
+    is a graceful no-op.
+
+    Phase 3 wires this into :meth:`Orchestrator.classify_column` to log
+    shadow predictions via ``MetaClassifierEvent`` without modifying the
+    return value.
     """
 
-    def __init__(self, model: object | None = None) -> None:
-        self._model = model
+    def __init__(self, model_path: Path | str | None = None) -> None:
+        self._model_path: Path | None = Path(model_path) if model_path else None
+        self._loaded: bool = False
+        self._available: bool = False
+        self._model: object | None = None
+        self._scaler: object | None = None
+        self._feature_names: tuple[str, ...] = ()
+        self._class_labels: tuple[str, ...] = ()
+        self._dropped_feature_indices: tuple[int, ...] = ()
+        self._load_warning_emitted: bool = False
+
+    # ── Model loading ────────────────────────────────────────────────
+
+    def _get_model_path(self) -> Path:
+        """Resolve the pickle location.
+
+        Prefers an explicit constructor argument (useful for tests),
+        otherwise resolves via :mod:`importlib.resources` against the
+        ``data_classifier.models`` subpackage so it works equally well
+        in editable installs and installed wheels.
+        """
+        if self._model_path is not None:
+            return self._model_path
+        from importlib.resources import as_file, files
+
+        resource = files(_DEFAULT_MODEL_PACKAGE).joinpath(_DEFAULT_MODEL_RESOURCE)
+        with as_file(resource) as path:
+            return Path(path)
+
+    def _ensure_loaded(self) -> bool:
+        """Lazy load. Returns ``True`` if the model is ready, ``False`` if degraded."""
+        if self._loaded:
+            return self._available
+        self._loaded = True
+
+        # sklearn is an optional dependency — import lazily so the
+        # library imports cleanly without the [meta] extra.
+        try:
+            import sklearn  # noqa: F401
+        except ImportError:
+            self._log_load_failure(
+                "scikit-learn not installed; install data_classifier[meta] to enable",
+            )
+            return False
+
+        try:
+            import pickle  # noqa: S403 — loading a trusted in-wheel artifact
+
+            path = self._get_model_path()
+            if not path.exists():
+                self._log_load_failure(f"model artifact not found at {path}")
+                return False
+            with open(path, "rb") as fh:
+                blob = pickle.load(fh)  # noqa: S301 — trusted first-party artifact
+            self._model = blob["model"]
+            self._scaler = blob["scaler"]
+            self._feature_names = tuple(blob["feature_names"])
+            self._class_labels = tuple(blob["class_labels"])
+            # Compute which indices in the FULL 15-feature vector the
+            # trained model was NOT given (so we drop them at inference).
+            self._dropped_feature_indices = self._compute_dropped_indices(
+                kept=self._feature_names,
+                full=FEATURE_NAMES,
+            )
+            self._available = True
+            return True
+        except Exception as exc:  # pragma: no cover — defensive
+            self._log_load_failure(f"failed to load meta-classifier model: {exc}")
+            return False
+
+    @staticmethod
+    def _compute_dropped_indices(
+        kept: tuple[str, ...],
+        full: tuple[str, ...],
+    ) -> tuple[int, ...]:
+        """Return indices in ``full`` whose names are not in ``kept``."""
+        kept_set = set(kept)
+        return tuple(i for i, name in enumerate(full) if name not in kept_set)
+
+    def _log_load_failure(self, msg: str) -> None:
+        if self._load_warning_emitted:
+            return
+        self._load_warning_emitted = True
+        _log.warning("MetaClassifier disabled: %s", msg)
+
+    # ── Shadow inference ─────────────────────────────────────────────
 
     def predict_shadow(
         self,
-        findings: "list[ClassificationFinding]",  # noqa: ARG002 — phase 3
+        findings: "list[ClassificationFinding]",
+        sample_values: "list[str] | None" = None,
     ) -> MetaClassifierPrediction | None:
-        """Return a shadow prediction. Phase 1/2 always return None."""
-        raise NotImplementedError(
-            "MetaClassifier.predict_shadow is implemented in Phase 3. "
-            "Phase 1 only exposes extract_features for offline use."
-        )
+        """Shadow inference. Returns ``None`` on any error or degradation.
+
+        Shadow semantics: the caller logs this prediction for offline
+        comparison against the live pipeline. It must **never** be used
+        to modify ``classify_columns`` return values. Every exception
+        path returns ``None`` so that shadow inference cannot crash the
+        live path.
+        """
+        if not self._ensure_loaded():
+            return None
+
+        values = sample_values or []
+        distinct = _distinct_ratio(values)
+        avg_len = _avg_length_normalized(values)
+
+        try:
+            full_vec = extract_features(
+                findings,
+                heuristic_distinct_ratio=distinct,
+                heuristic_avg_length=avg_len,
+            )
+            dropped = set(self._dropped_feature_indices)
+            kept_vec = [v for i, v in enumerate(full_vec) if i not in dropped]
+            if len(kept_vec) != len(self._feature_names):
+                _log.debug(
+                    "MetaClassifier feature-dim mismatch: got %d, expected %d",
+                    len(kept_vec),
+                    len(self._feature_names),
+                )
+                return None
+
+            import numpy as np
+
+            x = np.asarray([kept_vec], dtype=float)
+            x_scaled = self._scaler.transform(x)  # type: ignore[attr-defined]
+            probs = self._model.predict_proba(x_scaled)[0]  # type: ignore[attr-defined]
+            top_idx = int(probs.argmax())
+            predicted_entity = str(self._class_labels[top_idx])
+            confidence = float(probs[top_idx])
+
+            # Compare against the live pipeline's top finding for agreement
+            live_entity = ""
+            column_id = ""
+            if findings:
+                live_top = max(findings, key=lambda f: f.confidence)
+                live_entity = live_top.entity_type
+                column_id = live_top.column_id
+            agreement = predicted_entity == live_entity
+
+            return MetaClassifierPrediction(
+                column_id=column_id,
+                predicted_entity=predicted_entity,
+                confidence=confidence,
+                live_entity=live_entity,
+                agreement=agreement,
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            _log.debug(
+                "MetaClassifier predict_shadow failed: %s",
+                exc,
+                exc_info=True,
+            )
+            return None
+
+
+# ── Column-statistic helpers (shared with training-data builder) ────────────
+#
+# These intentionally mirror tests/benchmarks/meta_classifier/extract_features.py
+# so offline training and online shadow inference compute identical stats.
+# They live inline here (not imported from tests/) to avoid taking a runtime
+# dependency on the test tree.
+
+
+def _distinct_ratio(values: list[str]) -> float:
+    if not values:
+        return 0.0
+    return len(set(values)) / len(values)
+
+
+def _avg_length_normalized(values: list[str]) -> float:
+    if not values:
+        return 0.0
+    total = sum(len(v) for v in values)
+    mean = total / len(values)
+    normalized = mean / 100.0
+    if normalized < 0.0:
+        return 0.0
+    if normalized > 1.0:
+        return 1.0
+    return normalized
 
 
 # ── Pure feature extraction ─────────────────────────────────────────────────

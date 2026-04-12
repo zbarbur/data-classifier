@@ -18,6 +18,7 @@ Engine priority weighting:
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 from data_classifier.core.types import (
@@ -27,8 +28,13 @@ from data_classifier.core.types import (
 )
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.events.emitter import EventEmitter
-from data_classifier.events.types import ClassificationEvent, TierEvent
+from data_classifier.events.types import (
+    ClassificationEvent,
+    MetaClassifierEvent,
+    TierEvent,
+)
 from data_classifier.orchestrator.calibration import calibrate_finding
+from data_classifier.orchestrator.meta_classifier import MetaClassifier
 from data_classifier.orchestrator.table_profile import (
     TableProfile,
     build_table_profile,
@@ -85,6 +91,17 @@ class Orchestrator:
             [e for e in engines if self.mode in e.supported_modes],
             key=lambda e: e.order,
         )
+
+        # Meta-classifier shadow inference (Sprint 6 Phase 3).
+        # Opt-OUT via DATA_CLASSIFIER_DISABLE_META=1. The instance is
+        # created eagerly but the model load happens lazily on the first
+        # predict_shadow call — instantiation itself is free.
+        self._meta_classifier: MetaClassifier | None
+        disable_meta = os.environ.get("DATA_CLASSIFIER_DISABLE_META", "").lower()
+        if disable_meta in ("1", "true", "yes"):
+            self._meta_classifier = None
+        else:
+            self._meta_classifier = MetaClassifier()
 
     def classify_column(
         self,
@@ -199,6 +216,28 @@ class Orchestrator:
                 run_id=run_id or "",
             )
         )
+
+        # Shadow inference (Sprint 6 Phase 3) — observability only.
+        # The shadow path must NEVER mutate ``result`` or raise. All
+        # failure modes inside predict_shadow already return None, but
+        # we belt-and-suspenders with a broad try/except so no bug in
+        # the shadow path can ever break the live classification API.
+        if self._meta_classifier is not None:
+            try:
+                shadow = self._meta_classifier.predict_shadow(result, column.sample_values)
+                if shadow is not None:
+                    self.emitter.emit(
+                        MetaClassifierEvent(
+                            column_id=shadow.column_id or column.column_id,
+                            predicted_entity=shadow.predicted_entity,
+                            confidence=shadow.confidence,
+                            live_entity=shadow.live_entity,
+                            agreement=shadow.agreement,
+                            run_id=run_id or "",
+                        )
+                    )
+            except Exception:
+                logger.debug("MetaClassifier shadow path failed", exc_info=True)
 
         return result
 

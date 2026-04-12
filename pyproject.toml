@@ -60,6 +60,8 @@ data_classifier = [
     "patterns/*.json",
     "config/*.yaml",
     "models/gliner_onnx/*",
+    "models/*.pkl",
+    "models/*.json",
 ]
 
 [tool.ruff]
