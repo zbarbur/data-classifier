@@ -63,6 +63,39 @@ a post-processing step in the training pipeline (not inside
 sprint backlog item** then promotes the change to production code
 through normal sprint review.
 
+### Exception: feature-schema experiments
+
+There is one narrow exception to "research does not touch
+`data_classifier/orchestrator/meta_classifier.py`": experiments whose
+entire purpose is to **widen the feature schema** (add new engine
+signals as features) are permitted to modify
+`meta_classifier.py`'s `FEATURE_NAMES`, `FEATURE_DIM`, and
+`extract_features` function, subject to these constraints:
+
+1. **Additive only.** New features may be appended to the end of
+   `FEATURE_NAMES`. Existing feature order and names may not change.
+   This preserves `_compute_dropped_indices` compatibility with the
+   shipped `meta_classifier_v1.pkl` — the old model's 13 feature
+   names remain a subset of the widened `FEATURE_NAMES`, so
+   `predict_shadow` still works for v1 by treating new slots as
+   "dropped by this model."
+2. **Signature-compatible.** `extract_features` may take new keyword
+   arguments (defaulted to sensible zeros) but may not remove or
+   rename existing parameters.
+3. **Production test suite must pass.** After the schema change,
+   `pytest tests/test_meta_classifier_*.py` must still be green. The
+   existing shadow-inference tests exercise v1.pkl loading and
+   prediction — they cannot fail.
+4. **Kill switch preserved.** The shadow path must still degrade
+   gracefully when the optional dependency is missing (e.g.
+   `DATA_CLASSIFIER_DISABLE_ML=1` must still work, `[meta]` extra
+   still optional).
+
+E10 (below) is the first experiment to exercise this exception. If it
+succeeds, the code change ships as part of the sprint backlog item
+that promotes the new model. If it fails, the session reverts the
+production edits before finishing.
+
 ### Coordination signal
 
 The **status column** in this file is the only lock. A session:
@@ -585,6 +618,244 @@ existing loader functions.
 corpora. If it does, the problem WAS corpus scarcity and the path
 forward is "pull more sources." If it doesn't, feature engineering
 (Q3/E4) is the right direction after all.
+
+### E10 — Add GLiNER features to the meta-classifier
+
+**Status:** 🟡 queued
+**Priority:** P0 — the single biggest unanswered question about the
+meta-classifier's production value
+**Estimated time:** 3-4 hours wall clock (mostly unattended GLiNER
+inference + retraining)
+**Exercises the "feature-schema experiment" contract exception**
+(see above)
+
+**Why it matters:** Phase 2 deliberately excluded GLiNER2 from the
+meta-classifier's feature set for scope-discipline reasons — the
+non-ML story had to work first. Both
+`tests/benchmarks/meta_classifier/build_training_data.py:29` and
+`tests/benchmarks/meta_classifier/evaluate.py:49` set
+`DATA_CLASSIFIER_DISABLE_ML=1` at the module entrypoint. The
+consequence: the shipped meta-classifier has no access to GLiNER's
+predictions, AND the "+0.25 F1 delta over live baseline" framing is
+measured against a **4-engine baseline**, not the real 5-engine
+production pipeline (which has blind Nemotron macro F1 = 0.872 with
+GLiNER enabled).
+
+This experiment answers the deferred question: does the
+meta-classifier have any production value if it can see GLiNER?
+There are three plausible outcomes:
+
+- **(E10-A) GLiNER closes LOCO massively.** Adding GLiNER features
+  gives the meta-classifier a corpus-invariant signal (pretrained
+  transformer) that the heuristic engines lack. LOCO jumps to 0.7+,
+  held-out stays ~0.92. This would make the meta-classifier a real
+  production improvement against the honest 5-engine baseline.
+- **(E10-B) GLiNER helps but is not enough.** LOCO improves to 0.5
+  but not 0.7. The meta-classifier is mostly a GLiNER parrot with
+  some additional arbitration value. Narrower production win, if
+  any.
+- **(E10-C) GLiNER doesn't help.** LOCO stays at 0.27-0.36 even
+  with GLiNER features. This would mean the meta-classifier can't
+  extract additional value from GLiNER's output beyond what the
+  live orchestrator already does. Meta-classifier should probably
+  be abandoned.
+
+**Prescribed feature set (pin these, do not design-by-trial):**
+
+Append exactly five features after the existing 15 in
+`FEATURE_NAMES` (not replacing — appending):
+
+```
+"gliner_top_confidence",        # float [0,1]: max confidence of GLiNER findings
+"gliner_top_entity_is_pii",     # bool: is the top GLiNER entity in the PII category
+"gliner_agrees_with_regex",     # bool: does top GLiNER entity == top regex entity
+"gliner_agrees_with_column",    # bool: does top GLiNER entity == top column_name entity
+"gliner_confidence_gap",        # float [0,1]: top - second-best GLiNER confidence
+```
+
+Five features keeps the schema at 20 total (up from 15), well within
+the Peduzzi EPV budget for 7770 rows × 24 classes. A richer 24-class
+probability vector would widen the schema too aggressively for this
+dataset size — don't do it.
+
+**Task prompt for parallel session:**
+```
+You are Session C (E10) of a parallel research investigation into
+the data_classifier meta-classifier. You are in worktree
+../data_classifier-e10 on branch research/e10-gliner-features (off
+research/meta-classifier off main).
+
+CONTEXT
+
+The meta-classifier shipped in Sprint 6 (shadow-only) was trained
+without any GLiNER features. Both build_training_data.py and
+evaluate.py set DATA_CLASSIFIER_DISABLE_ML=1 at the module
+entrypoint. This was a scope-discipline decision for Phase 1/2 but
+it means:
+1. The training data never saw GLiNER findings
+2. The "+0.25 F1 delta over live baseline" ship claim was measured
+   against a 4-engine baseline, not the real 5-engine production
+   pipeline
+3. The meta-classifier has no access to what is empirically the
+   highest-signal PII detector we ship (GLiNER blind macro F1 =
+   0.872 on Nemotron, 0.667 on Ai4Privacy)
+
+Your job is to widen the feature schema to include five GLiNER-
+derived features, rebuild the training data with GLiNER enabled,
+retrain, and run the HONEST evaluation against a 5-engine baseline.
+
+READ FIRST
+
+- docs/experiments/meta_classifier/queue.md — the "Research Workflow
+  Contract" section, especially the "Exception: feature-schema
+  experiments" carve-out. You are the first experiment to exercise
+  this exception, so read the constraints carefully.
+- docs/experiments/meta_classifier/queue.md — the full E10 entry
+  below for the prescribed feature set and success criteria.
+- data_classifier/orchestrator/meta_classifier.py — understand
+  FEATURE_NAMES, FEATURE_DIM, extract_features, _compute_dropped_
+  indices. You will modify FEATURE_NAMES, FEATURE_DIM, and
+  extract_features. Do NOT modify predict_shadow or _ensure_loaded.
+- tests/benchmarks/meta_classifier/extract_features.py — the
+  offline training-side extract_features wrapper. You will modify
+  it to take GLiNER findings as input alongside the non-ML findings.
+- tests/benchmarks/meta_classifier/build_training_data.py — has
+  DATA_CLASSIFIER_DISABLE_ML=1 at line 29. You will remove this
+  and update the feature extraction call to pass GLiNER findings.
+- tests/benchmarks/meta_classifier/evaluate.py — has
+  DATA_CLASSIFIER_DISABLE_ML=1 at line 49. You will remove this so
+  the live baseline is the real 5-engine orchestrator.
+- data_classifier/models/meta_classifier_v1.metadata.json — for
+  context on the current 13-feature schema and the F1 numbers the
+  new model must beat.
+
+COORDINATION
+
+Before starting real work, flip E10 status in queue.md from 🟡 to
+🟢 and commit (single commit, just the status flip).
+
+WORK
+
+1. VERIFY GLINER LOADS BEFORE YOU DO ANYTHING ELSE. In an isolated
+   python shell, try:
+      from data_classifier.engines.gliner_engine import GLiNEREngine
+      engine = GLiNEREngine()
+      engine.startup()
+   If this fails (missing ONNX model, missing onnxruntime, missing
+   HF_TOKEN, etc.), STOP and write a short result.md explaining the
+   blocker. Do NOT proceed to step 2 unless GLiNER loads cleanly.
+
+2. Widen the feature schema in
+   data_classifier/orchestrator/meta_classifier.py:
+   - Append these five names to FEATURE_NAMES (after the existing
+     15, in this exact order):
+       "gliner_top_confidence",
+       "gliner_top_entity_is_pii",
+       "gliner_agrees_with_regex",
+       "gliner_agrees_with_column",
+       "gliner_confidence_gap",
+   - Update FEATURE_DIM from 15 to 20
+   - Update extract_features to accept gliner_findings as a new
+     optional parameter (default None). When None, the five GLiNER
+     features default to zero — this keeps backward compatibility
+     with the Phase 3 shadow inference path that currently calls
+     extract_features without GLiNER input.
+
+3. Update the training-side wrapper in
+   tests/benchmarks/meta_classifier/extract_features.py to run
+   GLiNER in addition to the four non-ML engines and pass its
+   findings into the widened extract_features call.
+
+4. Update build_training_data.py: REMOVE the
+   os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1") line so
+   GLiNER runs. Save the resulting training data to a new file:
+   tests/benchmarks/meta_classifier/training_data_e10.jsonl
+   (do NOT overwrite training_data.jsonl — preserve v1's data).
+
+5. Run the training data rebuild. This takes ~30 minutes of GLiNER
+   inference. You can walk away.
+
+6. Verify existing shadow-inference tests still pass with the
+   widened schema:
+      pytest tests/test_meta_classifier_*.py -v
+   All 60+ tests must be green. If any fail, diagnose and fix BEFORE
+   proceeding. The schema-widening must be backward-compatible with
+   v1.pkl loading (predict_shadow must still work on the existing
+   model).
+
+7. Retrain via scripts/train_meta_classifier.py pointing at the new
+   training_data_e10.jsonl file. Save the resulting model to
+   data_classifier/models/meta_classifier_v1_e10.pkl (NOT replacing
+   v1.pkl). The metadata sidecar goes alongside.
+
+8. Update evaluate.py: REMOVE the DATA_CLASSIFIER_DISABLE_ML=1
+   line so the live baseline is the real 5-engine orchestrator.
+
+9. Run evaluation on the new model against the honest 5-engine
+   baseline. Compute:
+   - New CV macro F1 (5-fold stratified, same as v1)
+   - New held-out test macro F1
+   - New BCa 95% CI on the delta
+   - New LOCO macro F1 (leave-one-corpus-out)
+   - Per-class F1 breakdown
+
+10. Write the result to docs/experiments/meta_classifier/runs/
+    <timestamp>-e10-gliner-features/result.md with:
+    - Old (v1) vs new (v1_e10) CV macro F1
+    - Old held-out vs new held-out
+    - Old LOCO vs new LOCO — the money number
+    - Per-class F1 changes — which classes benefited most
+    - Feature importance ranking of the 5 new GLiNER features
+    - Verdict: A / B / C (see the three outcomes in queue.md E10
+      entry)
+    - If A: recommendation to promote v1_e10 to production as v2
+      via a Sprint 7 backlog item
+    - If B: narrower recommendation, suggest further experiments
+    - If C: recommend abandoning the meta-classifier direction
+
+11. Flip E10 status in queue.md from 🟢 to ✅ and commit.
+
+CONSTRAINTS (from the "feature-schema experiments" exception)
+
+- Additive only. Do not reorder or rename existing features in
+  FEATURE_NAMES.
+- extract_features signature must stay backward compatible. New
+  parameter must have a default that preserves current behavior.
+- All tests in tests/test_meta_classifier_*.py must pass after the
+  schema change. Do NOT modify any test to make it pass — if a
+  test fails, fix the implementation.
+- The DATA_CLASSIFIER_DISABLE_ML kill switch must still work. If
+  someone sets it, the build should still complete (with GLiNER
+  features all zero) — don't add a hard dependency on GLiNER being
+  available.
+- Do NOT overwrite meta_classifier_v1.pkl or training_data.jsonl.
+  Both are production artifacts frozen in place.
+- Do NOT touch anything else in data_classifier/engines/** or
+  data_classifier/profiles/** or patterns/**.
+
+IF THINGS GO WRONG
+
+- If tests fail after the schema change and you can't fix them in
+  30 minutes, revert the production file edits and write a result
+  memo explaining the blocker.
+- If GLiNER training data rebuild fails part-way (OOM, crash),
+  resume from the last saved partial output or restart cleanly —
+  do not corrupt the existing training_data.jsonl.
+- If the LOCO number is worse than v1 (0.27-0.36), still write a
+  full result memo. A negative result is a deliverable.
+
+TIME BUDGET
+
+Target: 3-4 hours wall clock. Most of that is GLiNER inference
+during training data rebuild. If you're past 6 hours without having
+finished step 10, stop and write a partial result memo.
+```
+
+**Success criteria:** A definitive answer to "does GLiNER as a
+feature change the meta-classifier's LOCO story?" — positive or
+negative. If outcome A (LOCO closes substantially) a Sprint 7
+backlog item promotes v1_e10 to production. If outcome C
+(GLiNER doesn't help) the meta-classifier direction is likely done.
 
 ## Workflow for completed experiments
 
