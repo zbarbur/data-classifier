@@ -87,14 +87,29 @@ __all__ = [
 
 
 def _build_default_engines() -> list:
-    """Build default engine list, including GLiNER2 if available."""
+    """Build default engine list, including GLiNER2 if available.
+
+    Environment variables (for production deployment):
+        DATA_CLASSIFIER_DISABLE_ML=1 — skip GLiNER2 engine entirely
+        GLINER_ONNX_PATH=<path>      — load GLiNER2 from pre-exported ONNX dir
+                                       (avoids HuggingFace download at runtime)
+        GLINER_API_KEY=<key>         — use GLiNER hosted API as fallback
+    """
+    import os
+
     engines: list = [ColumnNameEngine(), RegexEngine(), HeuristicEngine(), SecretScannerEngine()]
+
+    if os.environ.get("DATA_CLASSIFIER_DISABLE_ML"):
+        return engines
+
     try:
         from data_classifier.engines.gliner_engine import GLiNER2Engine
 
-        engines.append(GLiNER2Engine())
-    except Exception:  # noqa: BLE001
-        pass  # GLiNER2 engine not available — skipping
+        onnx_path = os.environ.get("GLINER_ONNX_PATH")
+        api_key = os.environ.get("GLINER_API_KEY")
+        engines.append(GLiNER2Engine(onnx_path=onnx_path, api_key=api_key))
+    except ImportError:
+        pass  # gliner package not installed — skipping ML engine
     return engines
 
 

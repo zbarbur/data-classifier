@@ -102,6 +102,34 @@ _SAMPLE_SEPARATOR = " ; "
 _SAMPLE_CHUNK_SIZE = 50
 
 
+def _find_bundled_onnx_model() -> str | None:
+    """Search standard locations for a pre-exported ONNX model.
+
+    Returns the first directory containing a GLiNER ONNX model, or None.
+
+    Search order:
+      1. ``{package_dir}/models/gliner_onnx/`` — bundled with the library
+      2. ``~/.cache/data_classifier/models/gliner_onnx/`` — user cache
+      3. ``/var/cache/data_classifier/models/gliner_onnx/`` — system cache
+    """
+    from pathlib import Path
+
+    import data_classifier
+
+    package_dir = Path(data_classifier.__file__).parent
+    candidates = [
+        package_dir / "models" / "gliner_onnx",
+        Path.home() / ".cache" / "data_classifier" / "models" / "gliner_onnx",
+        Path("/var/cache/data_classifier/models/gliner_onnx"),
+    ]
+
+    for path in candidates:
+        if (path / "gliner_config.json").exists():
+            logger.info("Auto-discovered ONNX model at %s", path)
+            return str(path)
+    return None
+
+
 class GLiNER2Engine(ClassificationEngine):
     """GLiNER2-based NER classification engine.
 
@@ -144,6 +172,8 @@ class GLiNER2Engine(ClassificationEngine):
             model_id: HuggingFace model ID.  Defaults to the PII-tuned model.
             onnx_path: Path to pre-exported ONNX model directory.  If set,
                 loads from local ONNX files (faster, no HF download needed).
+                If None, auto-discovers from standard locations (package
+                ``models/`` dir, user cache, system cache).
                 Export with: ``model.export_to_onnx(path, quantize=True)``
             api_key: GLiNER API key for hosted inference fallback.  If set
                 and local model loading fails, falls back to API mode.
@@ -151,7 +181,8 @@ class GLiNER2Engine(ClassificationEngine):
         self._registry = registry or ModelRegistry()
         self._gliner_threshold = gliner_threshold
         self._model_id = model_id
-        self._onnx_path = onnx_path
+        # Auto-discover ONNX model if not explicitly configured
+        self._onnx_path = onnx_path or _find_bundled_onnx_model()
         self._api_key = api_key
         self._is_v2 = model_id.startswith("fastino/")
         self._inference_mode: str | None = None  # set during startup

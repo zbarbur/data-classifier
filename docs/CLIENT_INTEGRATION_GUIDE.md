@@ -519,47 +519,99 @@ def findings_to_db_rows(findings: list[ClassificationFinding]) -> list[dict]:
 
 If using the Standard or Full tier, the GLiNER NER engine needs a one-time model setup.
 
-### Option A: ONNX Local (recommended for production)
+### Option A: Zero-Config Auto-Discovery (recommended)
 
-Pre-export the model at build time, load at runtime without network or PyTorch:
+The library auto-discovers the ONNX model from standard locations — **no
+environment variables, no paths, no code changes**. Export once at build
+time, the engine finds it automatically at runtime.
 
 ```bash
-# Build step (needs ml-full):
+# One-time build step (needs ml-full for export):
 pip install "data_classifier[ml-full]"
-python scripts/export_onnx_model.py --output models/gliner_onnx
-# Produces: models/gliner_onnx/ (~350MB, quantized INT8 ONNX)
+python -m data_classifier.export_onnx
+# Writes to {package_dir}/models/gliner_onnx/ (~350MB)
+# This location is auto-discovered by the library at startup.
 ```
 
 ```python
-# Runtime — uses ONNX, no torch, no HuggingFace download
+# Runtime code — same as Light tier, no GLiNER config needed
 from data_classifier import classify_columns, load_profile
+
+findings = classify_columns(inputs, load_profile("standard"))
+# GLiNER2 engine auto-discovers the bundled ONNX model on first inference
+```
+
+The library searches these locations in order:
+1. `{package_dir}/models/gliner_onnx/` — bundled with the library (default)
+2. `~/.cache/data_classifier/models/gliner_onnx/` — user cache
+3. `/var/cache/data_classifier/models/gliner_onnx/` — system cache
+4. `$GLINER_ONNX_PATH` env var — explicit override
+
+### Option A2: Environment Variable Override
+
+For containers where the model lives outside the package directory:
+
+```bash
+export GLINER_ONNX_PATH=/app/models/gliner_onnx
+```
+
+No code changes required — the library's default engine builder reads
+this env var automatically.
+
+### Option B: API Mode (testing / light workloads)
+
+```bash
+export GLINER_API_KEY=your-api-key
+```
+
+```python
+from data_classifier import classify_columns, load_profile
+findings = classify_columns(inputs, load_profile("standard"))
+# GLiNER2 engine uses hosted API when GLINER_API_KEY is set and no ONNX path
+```
+
+### Option C: Explicit Engine Injection (advanced)
+
+For full control over engine configuration, build your own engine list and
+use `ClassificationOrchestrator` directly:
+
+```python
+from data_classifier.engines.column_name_engine import ColumnNameEngine
+from data_classifier.engines.regex_engine import RegexEngine
+from data_classifier.engines.heuristic_engine import HeuristicEngine
+from data_classifier.engines.secret_scanner import SecretScannerEngine
 from data_classifier.engines.gliner_engine import GLiNER2Engine
+from data_classifier.orchestrator.orchestrator import ClassificationOrchestrator
 
-# Create engine with ONNX path explicitly
-engine = GLiNER2Engine(onnx_path="models/gliner_onnx")
-
-# Then use classify_columns as normal — the library auto-includes
-# the GLiNER engine when the gliner package is installed.
-# For custom engine configuration, pass engines list to the orchestrator.
-findings = classify_columns(inputs, profile)
+engines = [
+    ColumnNameEngine(),
+    RegexEngine(),
+    HeuristicEngine(),
+    SecretScannerEngine(),
+    GLiNER2Engine(onnx_path="/app/models/gliner_onnx", gliner_threshold=0.5),
+]
+orchestrator = ClassificationOrchestrator(engines=engines)
+findings = orchestrator.classify_columns(inputs, load_profile("standard"))
 ```
 
-### Option B: API Mode (for testing / light workloads)
+### Option D: Skip ML entirely (Light tier)
 
-```python
-import os
-os.environ["PIONEER_API_KEY"] = "your-api-key"
-# The engine falls back to the hosted GLiNER API when local model
-# loading fails or when ml-api tier is installed instead of ml.
+```bash
+# Either don't install [ml], or disable at runtime:
+export DATA_CLASSIFIER_DISABLE_ML=1
 ```
 
-### Option C: Skip ML entirely (Light tier)
+The library auto-skips the GLiNER engine when the gliner package is not
+available or when `DATA_CLASSIFIER_DISABLE_ML` is set. You get regex +
+column name + heuristic engines only.
 
-```python
-# Just don't install [ml]. The library auto-skips the GLiNER engine
-# when the package is not available. No configuration needed.
-# You get regex + column name + heuristic engines only.
-```
+### Environment Variables Summary
+
+| Variable | Effect |
+|----------|--------|
+| `GLINER_ONNX_PATH` | Path to pre-exported ONNX model directory |
+| `GLINER_API_KEY` | API key for GLiNER hosted API fallback |
+| `DATA_CLASSIFIER_DISABLE_ML` | If set, skip GLiNER2 engine entirely |
 
 ### What the ML engine detects
 

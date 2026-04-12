@@ -48,3 +48,7 @@ Thumbs.db
 
 site/
 .hypothesis/
+
+# ML models (too large for git, exported via `python -m data_classifier.export_onnx`)
+data_classifier/models/
+models/gliner_onnx/
