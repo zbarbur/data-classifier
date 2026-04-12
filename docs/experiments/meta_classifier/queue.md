@@ -1397,42 +1397,53 @@ how the engines actually detect each subtype.
   Research experiment Q8 handles the specialized opaque-secret
   meta-classifier direction independently once this item lands.
 
-### Item B — Harvest gitleaks + detect-secrets patterns into API_KEY
+### Item B — Harvest Kingfisher + gitleaks + detect-secrets + Nosey Parker patterns into API_KEY
 
-**Complexity:** M (2-3 days)
+**Complexity:** **L (3-5 days)** (upgraded from M after landscape survey)
 **Priority:** P1
 **Category:** feature
 **Dependencies:** Item A must land first (API_KEY entity type
 must exist)
 **Blocks:** nothing — enables immediate credential detection
 improvement
+**Reference:** See `docs/experiments/meta_classifier/pattern_source_landscape.md`
+for the full landscape survey this spec is built on.
 
-**Goal:** Bulk-import 100-200 credential detection regex patterns
-from license-compatible sources (gitleaks MIT, detect-secrets
-Apache 2.0, and patterns re-derived from public service
-documentation) into `data_classifier/patterns/default_patterns.json`,
-all targeting the new `API_KEY` entity type that Item A introduces.
+**Goal:** Bulk-import 200-500 credential detection regex patterns
+from license-compatible sources into
+`data_classifier/patterns/default_patterns.json`, all targeting
+the new `API_KEY` entity type that Item A introduces.
 
 **Rationale:** Service-prefixed API keys are the cleanest possible
 credential signal — regex detection gives near-zero false positive
 risk and zero training data requirement. Our current pattern
 library has a single-digit number of service-specific credential
-patterns; gitleaks alone ships ~100 and detect-secrets adds
-another ~20-30 we don't yet cover. This expansion improves
-blind-mode credential detection accuracy more than any amount of
-meta-classifier work could, and ships immediately without training
-concerns. It also addresses the backlog item "Cloud service token
-expansion: 20+ services from trufflehog reference" at a larger
-scope.
+patterns. A landscape survey (2026-04-13) identified **MongoDB
+Kingfisher** (Apache 2.0, 800+ rules, released 2025) as the single
+highest-value source beyond gitleaks — it covers the
+SaaS/observability/ITSM ecosystem (Datadog, New Relic, Sentry,
+PagerDuty, Auth0, Okta, Jira, Confluence, Salesforce, Shopify,
+Vercel, Cloudflare, and ~30 other categories) that gitleaks
+misses entirely.
+
+Combined with gitleaks, detect-secrets, and Praetorian Nosey
+Parker, the license-compatible harvest can yield an estimated
+**525-660 net-new patterns after deduplication**. This expansion
+improves blind-mode credential detection accuracy more than any
+amount of meta-classifier work could, and ships immediately
+without training concerns. It also supersedes the old backlog
+item "Cloud service token expansion: 20+ services from trufflehog
+reference" at dramatically larger scope.
 
 **Acceptance criteria:**
 
 - `data_classifier/patterns/default_patterns.json` grows by
-  ≥ 100 credential patterns (net-new, after deduplication with
-  existing patterns)
+  **≥ 200 credential patterns** (net-new, after deduplication
+  with existing patterns and cross-source dedup)
 - Each new pattern has:
   - Unique `id` including the service name
-    (e.g., `aws_access_key_id`, `stripe_live_secret_key`)
+    (e.g., `aws_access_key_id`, `stripe_live_secret_key`,
+    `datadog_api_key`, `pagerduty_integration_key`)
   - Regex pattern (RE2-compatible)
   - `entity_type: API_KEY` (Item A must be landed first)
   - `category: credential`
@@ -1447,77 +1458,162 @@ scope.
 - No regression in non-credential benchmark F1 (Nemotron,
   Ai4Privacy)
 - New `docs/LICENSE_AUDIT_credential_patterns.md` file documents
-  the source of each imported pattern and its license
-- CI check fails if any pattern references trufflehog directly or
-  is labeled with an AGPL source
+  the source of each imported pattern and its license. Structure:
+  one table section per source, with (pattern_id, upstream_name,
+  upstream_license, upstream_url, our_confidence) per row.
+- CI check fails if any pattern references trufflehog directly,
+  semgrep-rules, atlassian-sast-ruleset, or secrets-patterns-db
+  (all excluded due to license incompatibility or mixing risk)
 
-**Technical specs:**
+**Technical specs — harvest sources (ranked by yield):**
 
-- **Source 1 (priority):** gitleaks rules at
-  `https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml`
-  - TOML format, convert to our JSON pattern format
-  - License: **MIT** — direct port allowed, include attribution
-    in pattern metadata
-- **Source 2:** detect-secrets plugins at
-  `https://github.com/Yelp/detect-secrets/tree/master/detect_secrets/plugins`
-  - Python code with embedded regex, extract and convert
-  - License: **Apache 2.0** — direct port allowed, include
-    attribution
-- **Source 3:** service-specific public documentation for services
-  only covered by trufflehog (AGPL — cannot copy source, but can
-  re-derive from public security docs)
-  - Minimum targets: Cloudflare, DigitalOcean, Heroku, Atlassian,
-    SendGrid, Mailgun, Twilio, Linode, PagerDuty, Postmark
-  - **Use trufflehog as INSPIRATION only** — consult their
-    detector list to identify which services exist, then re-derive
-    the regex from each service's own public token-format
-    documentation. Never copy trufflehog source code or detector
-    regex.
-- **Additional sources:** a research agent is running in parallel
-  to survey the landscape for other license-compatible sources
-  (cloud provider catalogs, SIEM vendor patterns, newer 2024-2026
-  tools). Its report should be merged into this spec before the
-  Sprint 8 session begins implementation.
-- **Bulk ingestion script:** `scripts/ingest_credential_patterns.py`
-  that reads gitleaks TOML + detect-secrets Python and emits our
-  JSON format. Not a one-off — re-runnable when sources update.
-- **Deduplication:** script detects when a pattern we're importing
-  already exists in our library under a different id and either
-  merges or flags the conflict for manual review.
+1. **MongoDB Kingfisher (PRIMARY):**
+   `https://github.com/mongodb/kingfisher`
+   - **License: Apache 2.0** (verified)
+   - ~800 YAML rules
+   - **Expected net-new yield: 400-500 patterns** after dedup
+   - Covers unique services: Datadog, New Relic, Sentry, Dynatrace,
+     Honeycomb, Sumo Logic, PagerDuty, OpsGenie, Auth0, Okta, Clerk,
+     LaunchDarkly, 1Password, JFrog, SonarCloud, Salesforce,
+     HubSpot, Jira, Confluence, Asana, Linear, Monday, Zendesk,
+     Intercom, Shopify, Cloudflare, Doppler, Mapbox, Twitch,
+     Vercel, and more
+   - Port approach: YAML → our JSON schema via ingestion script
+
+2. **gitleaks:**
+   `https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml`
+   - **License: MIT** (verified)
+   - ~100 TOML rules
+   - **Expected net-new after Kingfisher dedup: 80-90 patterns**
+   - Use as validation baseline — gitleaks rules are
+     production-hardened for years
+
+3. **Praetorian Nosey Parker (PRECISION SUPPLEMENT):**
+   `https://github.com/praetorian-inc/noseyparker`
+   - **License: Apache 2.0** (verified)
+   - 188 YAML rules, precision-curated for low FPR
+   - **Expected net-new after Kingfisher + gitleaks: 20-30**
+   - Use as a **second-opinion filter**: patterns that exist in
+     both Kingfisher and Nosey Parker are high-confidence.
+     Patterns that exist only in Kingfisher should be manually
+     reviewed before import.
+
+4. **detect-secrets:**
+   `https://github.com/Yelp/detect-secrets/tree/master/detect_secrets/plugins`
+   - **License: Apache 2.0**
+   - ~30 Python-embedded regex plugins
+   - **Expected net-new: 10-15 patterns**
+
+5. **LeakTK patterns (OPTIONAL):**
+   `https://github.com/leaktk/patterns`
+   - **License: MIT** (verified)
+   - ~100 rules across tool-version folders
+   - Red Hat curation. **Expected net-new: 10-15 patterns**
+
+6. **ripsecrets (OPTIONAL SANITY BASELINE):**
+   `https://github.com/sirwart/ripsecrets`
+   - **License: MIT**
+   - ~40 rules, near-zero-FP curation
+   - Use as a gap detector: every ripsecrets pattern should
+     have a match in our library. If one doesn't, that's a
+     high-confidence missing service.
+
+7. **GitHub secret scanning partner list (INSPIRATION):**
+   `https://docs.github.com/en/code-security/secret-scanning/introduction/supported-secret-scanning-patterns`
+   - License: CC-BY-4.0 (docs)
+   - 200+ partner services with published token formats
+   - Use as a CROSS-CHECK: after harvest, verify our pattern
+     list covers every service in the partner list. For
+     services in the partner list that we don't cover, follow
+     the vendor's own documentation link and re-derive the
+     pattern from the vendor's native docs (not from GitHub's
+     page). Attribution goes to the vendor.
+
+**Technical specs — EXCLUDED sources:**
+
+- **trufflehog** (`https://github.com/trufflesecurity/trufflehog`)
+  — **AGPL-3.0**, cannot copy source. Use ONLY the DETECTOR LIST
+  (file names in `pkg/detectors/`) as a gap indicator. Never
+  read or copy their regex code.
+- **Semgrep secrets rules** — Semgrep Rules License v1.0
+  (non-OSI, restrictive). Skip.
+- **Atlassian SAST ruleset** — LGPL-2.1, incompatible with
+  static copy. For Atlassian-specific patterns (Jira, Confluence,
+  Bitbucket, Trello), re-derive from Atlassian's own developer
+  documentation, not from this repo.
+- **mazen160/secrets-patterns-db** — 1,600+ rules but contains
+  AGPL-derived trufflehog subset mixed with CC-BY-4.0 main
+  content. Provenance filtering is nontrivial. **Skip for now.**
+  Reconsider only if specific gaps emerge after the Tier 1
+  harvest.
+- **shhgit** — MIT but author-declared unmaintained. Skip.
+- **Rusty-Hog (New Relic)** — trufflehog-derived, dormant. Skip.
+
+**Technical specs — ingestion script:**
+
+- **New file:** `scripts/ingest_credential_patterns.py`
+- **Input:** per-source YAML/TOML/Python files checked out to
+  a temporary directory (the script fetches each repo at a
+  pinned revision, NOT HEAD, so imports are reproducible)
+- **Output:** a patch-format file that updates
+  `data_classifier/patterns/default_patterns.json`
+- **Deduplication:** across sources, identify patterns that
+  match the same service and pick the one with:
+  1. Tightest regex (smallest character class surface)
+  2. Most specific prefix anchoring
+  3. Best attribution (known upstream > derived)
+- **Cross-source precedence order when dedup collapses a
+  match:** Kingfisher → gitleaks → Nosey Parker →
+  detect-secrets → LeakTK → ripsecrets
+- **Attribution metadata:** each imported pattern gets a new
+  `sources` field listing ALL upstreams that had this pattern
+  with their respective licenses
+- **Reproducibility:** script is re-runnable when sources
+  update; diffs are reviewed as normal code changes
 
 **Test plan:**
 
 - Unit: every new pattern has at least one positive fixture (a
-  known valid token example — use the service's own documentation
-  for examples, NOT real credentials) and one negative fixture (a
-  lookalike that should NOT match)
-- Pattern library regression test: iterate over the full pattern
-  list, confirm each compiles and each example matches
-- Benchmark delta report: run accuracy_benchmark before and after
-  the import; confirm ≥ 0.05 improvement on gitleaks corpus
+  known valid token example — use the service's own
+  documentation for examples, NEVER real credentials) and one
+  negative fixture (a lookalike that should NOT match)
+- Pattern library regression test: iterate over the full
+  pattern list, confirm each compiles and each example matches
+- Benchmark delta report: run accuracy_benchmark before and
+  after the import; confirm ≥ 0.05 improvement on gitleaks
+  corpus and ≥ 0.03 on SecretBench
 - License audit test: CI check confirms every pattern in
   `default_patterns.json` has either an attribution field or is
   documented in `docs/LICENSE_AUDIT_credential_patterns.md`
-- No AGPL contamination check: grep for "trufflehog" or AGPL
-  references in pattern metadata; CI fail if found
+- License exclusion check: grep for "trufflehog", "semgrep-rules",
+  "atlassian-sast-ruleset", "secrets-patterns-db" in pattern
+  metadata; CI fail if found
+- Cross-check against GitHub partner list: automated or manual
+  verification that every service in the partner list is either
+  covered or has a tracked gap
 
 **Notes:**
 
 - This item is blocked on Item A because the new patterns need
   `entity_type: API_KEY` to exist.
-- The bulk ingestion script work can start earlier than Item A's
-  schema changes — it only depends on understanding the target
-  JSON format, which is already defined.
-- A parallel research agent is surveying the landscape for
-  additional license-compatible pattern sources beyond gitleaks
-  and detect-secrets. Its findings (if substantive) should be
-  incorporated into this spec before implementation begins.
-- The spec deliberately uses "≥ 100 new patterns" as the
-  acceptance gate rather than a fixed count. The exact count
-  depends on gitleaks rule changes, detect-secrets plugin
-  changes, and how many services we can re-derive from
-  documentation. The bulk import should be as exhaustive as
-  possible within the license-compatible source set.
+- The bulk ingestion script work can start earlier than Item
+  A's schema changes — it only depends on understanding the
+  target JSON format, which is already defined.
+- **Complexity upgraded from M to L** because of the larger
+  source count (4-6 sources instead of 2), the license audit
+  work, and the 200+ patterns needing fixtures.
+- **The landscape survey document**
+  (`docs/experiments/meta_classifier/pattern_source_landscape.md`)
+  is the authoritative reference for this item. Do not
+  re-survey — update that file if sources change.
+- The gap categories identified in the landscape survey
+  (financial/payments credentials, LLM/AI provider keys beyond
+  OpenAI, infrastructure tokens, regional cloud providers,
+  observability stack, enterprise SSO) are NOT covered by any
+  existing license-compatible source and are tracked as
+  Sprint 9+ custom-pattern candidates. Sprint 8 Item B imports
+  everything Tier 1 provides; Sprint 9 writes the custom
+  patterns for the remaining gaps.
 
 ### Relationship between Items A and B
 
