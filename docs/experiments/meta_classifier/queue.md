@@ -621,7 +621,7 @@ forward is "pull more sources." If it doesn't, feature engineering
 
 ### E10 — Add GLiNER features to the meta-classifier
 
-**Status:** 🟡 queued
+**Status:** 🟢 in progress
 **Priority:** P0 — the single biggest unanswered question about the
 meta-classifier's production value
 **Estimated time:** 3-4 hours wall clock (mostly unattended GLiNER
