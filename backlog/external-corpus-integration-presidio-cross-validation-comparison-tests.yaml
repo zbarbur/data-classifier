@@ -40,7 +40,16 @@ test_plan:
 - 'Integration: run presidio adapter on 20-sample Nemotron fixture, assert F1 and
   disagreement output shape'
 - 'Manual: full benchmark with --compare presidio, verify report contents'
-notes: ''
+notes: 'Sprint 7 infrastructure complete (commit a3bb6d1): adapter, strict+aggressive
+  mappings, compute_corpus_metrics, format_side_by_side_table, --compare presidio
+  flag, disagreement JSONL writer, mapping doc, 33 unit tests. DEFERRED: actual Presidio
+  run on benchmark corpora. To complete: (1) pip install ''.[bench-compare]'', (2)
+  python -m spacy download en_core_web_lg, (3) python -m tests.benchmarks.consolidated_report
+  --sprint 7 --compare presidio --compare-mode strict, (4) re-run with --compare-mode
+  aggressive, (5) commit docs/benchmarks/SPRINT7_PRESIDIO_DISAGREEMENTS.jsonl + a
+  summary note in SPRINT7_HANDOVER.md. Reason for deferral: ~700MB of downloads +
+  user wants a dedicated session for the actual comparator runs (likely batched with
+  Cloud DLP when that lands).'
 phase: review
 design_reviewed: false
 code_reviewed: false
