@@ -11,14 +11,14 @@ import typing
 
 # SSA-published SSNs that were inadvertently used in advertising or examples
 # and must never be treated as real PII. Source: SSA Press Office historical
-# record. Includes the two famous advertising SSNs plus the SSA-reserved
-# advertising range 987-65-4320 through 987-65-4329 (10 numbers).
+# record. The SSA-reserved advertising range 987-65-4320..4329 (10 numbers)
+# is intentionally NOT listed here — it sits inside the ITIN area (900-999),
+# which the canonical area rule in ssn_zeros_check rejects first. See
+# tests/test_ssn_validator.py::TestAdvertisingRangeHandledByAreaRule.
 _SSN_ADVERTISING_LIST: frozenset[str] = frozenset(
     {
         "078051120",  # Hilda Schrader Whitcher — Woolworth wallet insert
         "219099999",  # WL Murphy — advertising use
-        # 987-65-4320 through 987-65-4329 — SSA-reserved advertising range
-        *(f"98765{n:04d}" for n in range(4320, 4330)),
     }
 )
 
@@ -261,6 +261,34 @@ def aws_secret_not_hex(value: str) -> bool:
     return has_upper and has_lower
 
 
+def random_password_check(value: str) -> bool:
+    """Accept only mixed-class short random strings.
+
+    A value passes iff:
+      - Length is in [4, 64]
+      - Contains a symbol (non-alphanumeric, non-whitespace)
+      - Uses at least 3 of {lowercase, uppercase, digit, symbol}
+
+    The symbol requirement is load-bearing: plain emails, dates, and IPs
+    all have symbol + digit but only 2 classes total, so they're rejected
+    by the ≥3 classes rule. Mixed-case identifiers with digits (``Hello123``)
+    lack a symbol and are also rejected.
+    """
+    if not 4 <= len(value) <= 64:
+        return False
+
+    has_lower = any(c.islower() for c in value)
+    has_upper = any(c.isupper() for c in value)
+    has_digit = any(c.isdigit() for c in value)
+    has_symbol = any(not c.isalnum() and not c.isspace() for c in value)
+
+    if not has_symbol:
+        return False
+
+    classes = sum([has_lower, has_upper, has_digit, has_symbol])
+    return classes >= 3
+
+
 # Registry mapping validator names to functions
 VALIDATORS: dict[str, typing.Callable] = {
     "luhn": luhn_check,
@@ -276,4 +304,5 @@ VALIDATORS: dict[str, typing.Callable] = {
     "iban_checksum": iban_checksum_check,
     "phone_number": phone_number_check,
     "aws_secret_not_hex": aws_secret_not_hex,
+    "random_password": random_password_check,
 }

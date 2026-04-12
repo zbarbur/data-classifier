@@ -50,6 +50,10 @@ dev = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.25",
 ]
+bench-compare = [
+    "presidio-analyzer>=2.2",
+    "spacy>=3.7",
+]
 
 [tool.setuptools.packages.find]
 include = ["data_classifier*"]

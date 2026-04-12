@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from data_classifier.engines import validators
 from data_classifier.engines.validators import ssn_zeros_check
 
 
@@ -90,6 +91,39 @@ class TestSsnAdvertisingList:
         """
         assert ssn_zeros_check("987-65-4319") is False  # area > 899
         assert ssn_zeros_check("987-65-4330") is False  # area > 899
+
+
+class TestAdvertisingRangeHandledByAreaRule:
+    """The SSA-published advertising range 987-65-4320..4329 lives entirely
+    inside the ITIN area (900-999), which is rejected by the canonical area
+    rule *before* the advertising list check runs. These tests pin down that
+    invariant so the advertising list can shed those 10 dead entries without
+    weakening rejection.
+    """
+
+    @pytest.mark.parametrize(
+        "ssn",
+        [f"98765{n:04d}" for n in range(4320, 4330)],
+    )
+    def test_advertising_range_rejected(self, ssn: str) -> None:
+        """All 10 987-65-43xx values must be rejected — no matter the mechanism."""
+        assert ssn_zeros_check(ssn) is False
+
+    @pytest.mark.parametrize(
+        "ssn",
+        [f"98765{n:04d}" for n in range(4320, 4330)],
+    )
+    def test_advertising_range_rejected_even_with_list_stripped(
+        self, ssn: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Stronger invariant: stripping the 987-65-43xx entries from
+        ``_SSN_ADVERTISING_LIST`` must not change the rejection outcome.
+        This exercises the post-refactor state against current code and
+        catches any future regression that weakens the area rule.
+        """
+        stripped = frozenset({"078051120", "219099999"})
+        monkeypatch.setattr(validators, "_SSN_ADVERTISING_LIST", stripped)
+        assert ssn_zeros_check(ssn) is False
 
 
 class TestSsnMalformed:

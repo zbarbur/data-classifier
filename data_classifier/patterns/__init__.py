@@ -67,6 +67,15 @@ class ContentPattern:
     allowlist_patterns: list[str] = field(default_factory=list)
     """Regex patterns — if any matches the extracted value, confidence → 0."""
 
+    requires_column_hint: bool = False
+    """If True, this pattern only fires when the column name contains one of
+    ``column_hint_keywords``. Used for patterns that would produce catastrophic
+    false positives on content alone (e.g. random password detection)."""
+
+    column_hint_keywords: list[str] = field(default_factory=list)
+    """Case-insensitive substrings to search for in the column name when
+    ``requires_column_hint`` is True. Any match allows the pattern to fire."""
+
 
 _XOR_KEY = 0x5A
 

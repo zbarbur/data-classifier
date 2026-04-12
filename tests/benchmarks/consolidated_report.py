@@ -838,11 +838,119 @@ def generate_consolidated_html(
 </html>"""
 
 
+def _run_presidio_comparison(
+    runs: list[RunResult],
+    sprint: int,
+    samples_per_col: int,
+    mapping_mode: str,
+) -> None:
+    """Run Presidio on the same 4 configurations and print a side-by-side
+    comparison plus a disagreements JSONL file under ``docs/benchmarks/``.
+
+    Fails loudly with an actionable error if ``presidio-analyzer`` is not
+    installed — this mode is explicitly opt-in via ``--compare presidio``.
+    """
+    import json
+
+    from tests.benchmarks.comparators.presidio_comparator import (
+        compute_corpus_metrics,
+        format_side_by_side_table,
+        run_presidio_on_corpus,
+    )
+
+    configs = [
+        ("nemotron", False),
+        ("nemotron", True),
+        ("ai4privacy", False),
+        ("ai4privacy", True),
+    ]
+
+    print(f"\nRunning Presidio comparator ({mapping_mode} mapping)...", file=sys.stderr)
+
+    dc_rows: list[tuple[str, str, float, float, float]] = []
+    pr_rows: list[tuple[str, str, float, float, float]] = []
+    all_disagreements: list[dict] = []
+
+    for run, (corpus_name, blind) in zip(runs, configs, strict=True):
+        mode = "blind" if blind else "named"
+        corpus = load_corpus(corpus_name, max_rows=samples_per_col, blind=blind)
+
+        # Build data_classifier predictions from the existing RunResult
+        # by replaying ground truth alignment.
+        from tests.benchmarks.accuracy_benchmark import run_benchmark as _rb
+
+        dc_column_results, _ = _rb(corpus, corpus_source=corpus_name)
+        dc_predictions: dict[str, list[str]] = {
+            cr.column_id: list(cr.predicted_entity_types) for cr in dc_column_results
+        }
+
+        # Run Presidio on the same corpus
+        presidio_predictions = run_presidio_on_corpus(corpus, mode=mapping_mode)
+
+        comparator_result = compute_corpus_metrics(
+            corpus,
+            dc_predictions,
+            presidio_predictions,
+            corpus_name=corpus_name,
+            blind=blind,
+            mapping_mode=mapping_mode,
+        )
+
+        dc_rows.append((corpus_name, mode, run.precision, run.recall, run.macro_f1))
+        pr_rows.append(
+            (
+                corpus_name,
+                mode,
+                comparator_result.precision,
+                comparator_result.recall,
+                comparator_result.macro_f1,
+            )
+        )
+        for d in comparator_result.disagreements:
+            all_disagreements.append(
+                {
+                    "corpus": corpus_name,
+                    "mode": mode,
+                    "column_id": d.column_id,
+                    "expected": d.expected,
+                    "data_classifier": d.data_classifier_types,
+                    "presidio": d.presidio_types,
+                    "agreement": d.agreement,
+                }
+            )
+
+    table = format_side_by_side_table(dc_rows, pr_rows, comparator_name="Presidio")
+    print(f"\n{table}", file=sys.stderr)
+
+    # Write disagreement JSONL
+    out_path = Path(f"docs/benchmarks/SPRINT{sprint}_PRESIDIO_DISAGREEMENTS.jsonl")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w") as fh:
+        for record in all_disagreements:
+            fh.write(json.dumps(record) + "\n")
+    print(
+        f"Disagreements: {out_path} ({len(all_disagreements)} records)",
+        file=sys.stderr,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate consolidated sprint benchmark report")
     parser.add_argument("--sprint", type=int, required=True, help="Sprint number")
     parser.add_argument("--samples", type=int, default=50, help="Samples per column (default: 50)")
     parser.add_argument("--output", type=str, default=None, help="Output HTML path")
+    parser.add_argument(
+        "--compare",
+        choices=["presidio"],
+        default=None,
+        help="Run an external comparator side-by-side (requires the corresponding optional extra)",
+    )
+    parser.add_argument(
+        "--compare-mode",
+        choices=["strict", "aggressive"],
+        default="strict",
+        help="Entity mapping mode for the comparator (default: strict)",
+    )
     args = parser.parse_args()
 
     runs = run_all(args.sprint, samples_per_col=args.samples)
@@ -882,6 +990,15 @@ def main() -> None:
             f"Primary {r.primary_label_accuracy:.1%}  "
             f"TP={r.total_tp:3d} FP={r.total_fp:3d} FN={r.total_fn:3d}",
             file=sys.stderr,
+        )
+
+    # External comparator (Sprint 7 --compare flag)
+    if args.compare == "presidio":
+        _run_presidio_comparison(
+            runs,
+            args.sprint,
+            samples_per_col=args.samples,
+            mapping_mode=args.compare_mode,
         )
 
 
