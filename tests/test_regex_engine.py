@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from data_classifier import ColumnInput, classify_columns, load_profile
+from data_classifier import ClassificationFinding, ColumnInput, classify_columns, load_profile
+from data_classifier import _apply_findings_limit as apply_findings_limit
 from data_classifier.engines.regex_engine import RegexEngine, _compute_sample_confidence
 
 
@@ -52,7 +53,31 @@ class TestColumnNameMatching:
 
 
 class TestSampleValueMatching:
-    """Sample value regex matching against content pattern library."""
+    """Sample value regex matching against content pattern library.
+
+    Pinned to regex-only semantics via the autouse ``_disable_ml`` fixture.
+    These tests predate the GLiNER2 ML engine (Sprint 5) and assert
+    regex-level match counts / confidences that the ML engine can legitimately
+    suppress via the orchestrator's gap filter when ORGANIZATION fires on
+    numeric inputs under a generic ``data_field`` column name. ML coexistence
+    is pinned separately by :class:`TestApplyFindingsLimit` below.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _disable_ml(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Remove the GLiNER2 engine from the default cascade for this class.
+
+        We monkeypatch ``data_classifier._DEFAULT_ENGINES`` directly rather than
+        setting ``DATA_CLASSIFIER_DISABLE_ML=1``, because ``_DEFAULT_ENGINES``
+        is built at module import time (in ``_build_default_engines()``) and
+        ``tests/conftest.py`` imports ``data_classifier`` before any individual
+        test module runs. A per-test env var fixture therefore arrives too
+        late to affect the cached engine list.
+        """
+        import data_classifier
+
+        non_ml_engines = [e for e in data_classifier._DEFAULT_ENGINES if getattr(e, "name", "") != "gliner2"]
+        monkeypatch.setattr(data_classifier, "_DEFAULT_ENGINES", non_ml_engines)
 
     @pytest.fixture
     def profile(self):
@@ -329,3 +354,81 @@ class TestIntrospection:
         assert len(patterns) >= 40
         assert all("name" in p for p in patterns)
         assert all("regex" in p for p in patterns)
+
+
+class TestApplyFindingsLimit:
+    """Pin the orchestrator's confidence-gap suppression behavior.
+
+    Regression coverage for Sprint 8 Item 2: the GLiNER2 ML engine can
+    legitimately return an ORGANIZATION finding at ~0.74 confidence on
+    numeric dash-formatted inputs under a generic column name. When the
+    regex engine's SSN finding lands at ~0.36 (partial validation penalty
+    from an invalid second sample), the 0.38 gap exceeds the 0.30
+    threshold and SSN is dropped — which is correct per the spec but had
+    silently broken ``test_ssn_in_samples`` for multiple sprints under
+    ML-on env. These tests exercise :func:`_apply_findings_limit` directly
+    with synthetic findings so the invariants are pinned without needing
+    the ML engine running.
+    """
+
+    def _make_finding(self, entity_type: str, confidence: float, engine: str) -> ClassificationFinding:
+        return ClassificationFinding(
+            column_id="test:col",
+            entity_type=entity_type,
+            category="PII",
+            sensitivity="HIGH",
+            confidence=confidence,
+            regulatory=[],
+            engine=engine,
+        )
+
+    def test_regex_ssn_coexists_with_gliner_organization_when_confidence_close(self):
+        """Happy path: SSN (~0.73, all samples valid) + GLiNER2 ORG (~0.74) both survive."""
+        findings = [
+            self._make_finding("SSN", 0.73, "regex"),
+            self._make_finding("ORGANIZATION", 0.74, "gliner2"),
+        ]
+        result = apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=0.30)
+        entity_types = {f.entity_type for f in result}
+        assert "SSN" in entity_types
+        assert "ORGANIZATION" in entity_types
+
+    def test_regex_ssn_dropped_when_partial_validation_widens_gap(self):
+        """Failure path: SSN (~0.36, partial validation) is correctly suppressed by ORG (~0.74).
+
+        This is the exact scenario that broke ``test_ssn_in_samples``:
+        the second sample ``987-65-4321`` is in the ITIN range and fails
+        ``ssn_zeros_check``, halving the regex SSN confidence. The gap
+        (0.38) exceeds the 0.30 threshold and SSN is dropped. Documented
+        as intentional orchestrator behavior, not a bug.
+        """
+        findings = [
+            self._make_finding("SSN", 0.36, "regex"),
+            self._make_finding("ORGANIZATION", 0.74, "gliner2"),
+        ]
+        result = apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=0.30)
+        entity_types = {f.entity_type for f in result}
+        assert "ORGANIZATION" in entity_types
+        assert "SSN" not in entity_types
+
+    def test_gap_exactly_at_threshold_preserves_both(self):
+        """Boundary: a gap of exactly 0.30 preserves both findings (the <= comparison is inclusive)."""
+        findings = [
+            self._make_finding("SSN", 0.44, "regex"),
+            self._make_finding("ORGANIZATION", 0.74, "gliner2"),
+        ]
+        result = apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=0.30)
+        entity_types = {f.entity_type for f in result}
+        assert "SSN" in entity_types
+        assert "ORGANIZATION" in entity_types
+
+    def test_max_findings_truncates_before_gap_logic(self):
+        """When max_findings is set, it short-circuits gap suppression entirely."""
+        findings = [
+            self._make_finding("A", 0.90, "regex"),
+            self._make_finding("B", 0.40, "regex"),  # would be dropped by gap logic
+            self._make_finding("C", 0.30, "regex"),
+        ]
+        result = apply_findings_limit(findings, max_findings=2, confidence_gap_threshold=0.30)
+        assert len(result) == 2
+        assert {f.entity_type for f in result} == {"A", "B"}
