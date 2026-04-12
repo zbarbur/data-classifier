@@ -227,6 +227,44 @@ CI: 1133 passed, 1 skipped (Presidio live-engine integration test, gated on `[be
 - **Cloud DLP comparator benchmark** (P2 feature, M, `sprint_target=8`). Mostly mechanical given Presidio infrastructure. Expected delta: 30–45 min of TDD build + docs + mapping.
 - **Execute the Presidio + Cloud DLP benchmark runs** — the dedicated session (not a separate backlog item today, but worth mentioning). Install `[bench-compare]` + `[bench-compare-cloud]`, download the spaCy model + GCP auth, run `consolidated_report --compare presidio --compare-mode {strict,aggressive}` and `--compare cloud_dlp`, commit the disagreement JSONL files.
 
+### Release engineering — wheel versioning + BQ delivery automation (Sprint 8 candidate)
+
+Discovered during Sprint 7 end: **the BQ connector already consumes `data_classifier` as a vendored wheel**, not via git URL:
+
+```
+BigQuery-connector/vendor/data_classifier-0.1.0-py3-none-any.whl  (93,623 bytes, built 2026-04-13 01:08)
+BigQuery-connector/pyproject.toml:25  "data_classifier[ml] @ file:vendor/data_classifier-0.1.0-py3-none-any.whl"
+```
+
+This means **git-free client deployment works today** — but via a manual copy step that has several problems we should fix in Sprint 8:
+
+1. **Pinned version is permanently `0.1.0`.** `pyproject.toml::version` has said `0.1.0` since Sprint 1 and we never bump it. Every wheel we build is `data_classifier-0.1.0-py3-none-any.whl`. BQ cannot pin to a specific feature set — there's no way to tell "this wheel has the phone expansion from Sprint 7" apart from "this wheel is from Sprint 4" except by file mtime. This is a hard blocker for any multi-client story and even for internal rollback.
+
+2. **No version-bump automation.** Nothing forces us to update the version when we ship. Sprint close is the natural trigger but it's not wired in.
+
+3. **No automated wheel delivery to BQ.** Someone (the BQ session, probably) manually built the wheel at 01:08 AM today and copied it into the `vendor/` dir. Every Sprint ship requires that manual step, which is bug-prone (wrong commit, stale build, forgot to copy).
+
+4. **No release tagging.** Our git tags don't correspond to wheel versions. No CHANGELOG.md. No obvious way for BQ to know "is the vendored wheel current?"
+
+5. **CI already builds the wheel and smoke-tests it** (the Sprint 6 `install-test` job) — but it discards the wheel afterward. The infrastructure that would let us *publish* the wheel artifact already exists; we just need to add 3 lines of `actions/upload-artifact@v4` or an `actions/create-release`-style step.
+
+**Proposed Sprint 8 scoping (new backlog item):**
+
+- **Title:** Wheel versioning + automated release to BigQuery-connector vendor path
+- **Priority:** P1 (lifts a blocker for BQ integration and any future client)
+- **Complexity:** M (somewhere between the "upload artifact" option and the "Google Artifact Registry" option)
+- **Shape:**
+  - Bump `pyproject.toml::version` on each sprint close (automate this in the sprint-end skill or via a CI check that fails if the version matches `origin/main`)
+  - Define a semver or sprint-keyed version scheme (`0.7.0` for Sprint 7, `0.8.0` for Sprint 8, etc.)
+  - Add `CHANGELOG.md` with per-sprint entries generated from the handover docs
+  - On tag push (`v*`), CI builds the wheel and uploads it as a GitHub release asset OR to a private PyPI (Google Artifact Registry, if BQ is already on GCP)
+  - Update `docs/CLIENT_INTEGRATION_GUIDE.md` with the new install recipe (`pip install data_classifier @ https://github.com/zbarbur/data-classifier/releases/download/v0.7.0/...` or `pip install --index-url <artifact-registry> data_classifier==0.7.0`)
+  - Optional: a `release.yml` workflow that opens a PR against `BigQuery-connector/vendor/` with the new wheel, so BQ rolls forward with a review step rather than a manual copy
+
+**Why this is urgent for Sprint 8:** Sprint 7 just shipped 3 correctness/coverage wins (phone, credential, SSN) and 1 new infrastructure subsystem (comparators). The BQ project cannot consume any of them until someone manually rebuilds and copies the wheel — and when they do, the version will still say `0.1.0`, so nothing pins it. Every sprint we defer this, the gap between "what's in sprint7/main" and "what BQ actually runs" grows. The fix is tractable (S or M depending on scope) and removes the "BQ coordination" friction from every future sprint.
+
+**Non-decision:** the wheel+artifact *strategy* (GitHub release asset vs Google Artifact Registry vs private PyPI) is a policy question the user should decide. Don't pre-commit a direction in the backlog spec — leave the `technical_specs` field with "[chosen delivery mechanism — needs user decision]" and tag the item with `needs-decision`.
+
 ### Likely Sprint 8 themes (not scoped yet)
 
 - **Research-derived promotions:** Depending on E10's verdict, there may be a "promote meta-classifier v2" item that lands the new model as a live finding (out of shadow).
