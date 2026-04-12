@@ -12,50 +12,52 @@ engine coverage, feature distributions, and top pairwise correlations.
 Usage (from the repo root)::
 
     python -m tests.benchmarks.meta_classifier.build_training_data \\
-        --output tests/benchmarks/meta_classifier/training_data.jsonl
+        --output tests/benchmarks/meta_classifier/training_data_e10.jsonl
 
-The script disables ML engines before importing the library, so GLiNER2
-is never loaded. The Phase 1 feature set is intentionally non-ML — the
-whole point of Phase 1 is to measure whether non-ML engine signals alone
-carry enough information to learn a useful meta-classifier.
+Phase 1/2 disabled ML engines here because the initial meta-classifier
+was trained on non-ML signals only. E10 flips that — the training data
+is built against the real 5-engine cascade (regex + column_name +
+heuristic_stats + secret_scanner + GLiNER2). GLiNER's contribution is
+captured in five dedicated feature slots (indices 15..19) by
+:mod:`tests.benchmarks.meta_classifier.extract_features`. The kill
+switch (``DATA_CLASSIFIER_DISABLE_ML=1``) is still honored by the
+feature extractor — if the env var is set or GLiNER fails to load, the
+five new slots fall back to zero.
 """
 
 from __future__ import annotations
 
-# NB: set environment BEFORE importing data_classifier — the GLiNER loader
-# checks this on module import.
-import os
+import argparse
+import json
+import math
+import statistics
+import sys
+from collections import Counter
+from pathlib import Path
 
-os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
-
-import argparse  # noqa: E402
-import json  # noqa: E402
-import math  # noqa: E402
-import statistics  # noqa: E402
-import sys  # noqa: E402
-from collections import Counter  # noqa: E402
-from pathlib import Path  # noqa: E402
-
-from data_classifier import load_profile  # noqa: E402
-from tests.benchmarks.corpus_generator import generate_corpus  # noqa: E402
-from tests.benchmarks.meta_classifier.extract_features import (  # noqa: E402
+from data_classifier import load_profile
+from tests.benchmarks.corpus_generator import generate_corpus
+from tests.benchmarks.meta_classifier.extract_features import (
     FEATURE_NAMES,
     TrainingRow,
     extract_training_row,
 )
-from tests.benchmarks.meta_classifier.shard_builder import (  # noqa: E402
+from tests.benchmarks.meta_classifier.shard_builder import (
     ShardSpec,
     build_shards,
     summarise_shards,
 )
 
 # Continuous (non-boolean, non-count) features for the stats report.
-_CONTINUOUS_FEATURE_INDICES: tuple[int, ...] = (0, 1, 2, 3, 4, 7, 8, 9, 10)
+# Indices 15, 19 are GLiNER continuous features; 16, 17, 18 are GLiNER
+# booleans and stay out of the continuous summary.
+_CONTINUOUS_FEATURE_INDICES: tuple[int, ...] = (0, 1, 2, 3, 4, 7, 8, 9, 10, 15, 19)
 _ENGINE_NAMES: tuple[str, ...] = (
     "regex",
     "column_name",
     "heuristic_stats",
     "secret_scanner",
+    "gliner2",
 )
 
 

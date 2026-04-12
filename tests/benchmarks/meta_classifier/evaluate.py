@@ -46,7 +46,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 os.environ.setdefault("PYTHONHASHSEED", "42")
-os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
+
+# E10: the live baseline is the REAL 5-engine orchestrator. Phase 2 set
+# ``DATA_CLASSIFIER_DISABLE_ML=1`` here to keep the live comparison
+# cheap by disabling GLiNER — the 4-engine number is what Phase 2 called
+# the "live baseline". That framing is retired in E10: the ship claim
+# must be measured against the actual production pipeline.
 
 import importlib  # noqa: E402
 
