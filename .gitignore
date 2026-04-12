@@ -50,5 +50,12 @@ site/
 .hypothesis/
 
 # ML models (too large for git, exported via `python -m data_classifier.export_onnx`)
-data_classifier/models/
+# The Phase 2 meta-classifier artifacts are small (~8 KB combined) and
+# committed per decision D5 — everything else in this directory is
+# ignored by default.
+data_classifier/models/*
+!data_classifier/models/__init__.py
+!data_classifier/models/meta_classifier_v1.pkl
+!data_classifier/models/meta_classifier_v1.metadata.json
+!data_classifier/models/meta_classifier_v1.eval.json
 models/gliner_onnx/

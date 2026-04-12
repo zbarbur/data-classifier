@@ -46,3 +46,22 @@ class ClassificationEvent:
     engines_skipped: list[str] = field(default_factory=list)
     run_id: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+@dataclass
+class MetaClassifierEvent:
+    """Emitted after the meta-classifier produces a shadow prediction.
+
+    Shadow events are observability-only — the prediction is NOT used to
+    modify ``classify_columns()`` return values in Phase 3. Consumers can
+    compare the shadow prediction against the live pipeline's top vote
+    via the :attr:`agreement` field.
+    """
+
+    column_id: str
+    predicted_entity: str
+    confidence: float
+    live_entity: str
+    agreement: bool
+    run_id: str = ""
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

@@ -18,6 +18,7 @@ Engine priority weighting:
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 from data_classifier.core.types import (
@@ -27,8 +28,13 @@ from data_classifier.core.types import (
 )
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.events.emitter import EventEmitter
-from data_classifier.events.types import ClassificationEvent, TierEvent
+from data_classifier.events.types import (
+    ClassificationEvent,
+    MetaClassifierEvent,
+    TierEvent,
+)
 from data_classifier.orchestrator.calibration import calibrate_finding
+from data_classifier.orchestrator.meta_classifier import MetaClassifier
 from data_classifier.orchestrator.table_profile import (
     TableProfile,
     build_table_profile,
@@ -85,6 +91,17 @@ class Orchestrator:
             [e for e in engines if self.mode in e.supported_modes],
             key=lambda e: e.order,
         )
+
+        # Meta-classifier shadow inference (Sprint 6 Phase 3).
+        # Opt-OUT via DATA_CLASSIFIER_DISABLE_META=1. The instance is
+        # created eagerly but the model load happens lazily on the first
+        # predict_shadow call — instantiation itself is free.
+        self._meta_classifier: MetaClassifier | None
+        disable_meta = os.environ.get("DATA_CLASSIFIER_DISABLE_META", "").lower()
+        if disable_meta in ("1", "true", "yes"):
+            self._meta_classifier = None
+        else:
+            self._meta_classifier = MetaClassifier()
 
     def classify_column(
         self,
@@ -184,6 +201,9 @@ class Orchestrator:
         # Suppress generic CREDENTIAL when more specific types are found
         all_findings = self._suppress_generic_credential(all_findings)
 
+        # Suppress IP_ADDRESS findings when every matched value is embedded in a URL
+        all_findings = self._suppress_url_embedded_ips(all_findings)
+
         # Emit classification event
         result = list(all_findings.values())
         self.emitter.emit(
@@ -196,6 +216,28 @@ class Orchestrator:
                 run_id=run_id or "",
             )
         )
+
+        # Shadow inference (Sprint 6 Phase 3) — observability only.
+        # The shadow path must NEVER mutate ``result`` or raise. All
+        # failure modes inside predict_shadow already return None, but
+        # we belt-and-suspenders with a broad try/except so no bug in
+        # the shadow path can ever break the live classification API.
+        if self._meta_classifier is not None:
+            try:
+                shadow = self._meta_classifier.predict_shadow(result, column.sample_values)
+                if shadow is not None:
+                    self.emitter.emit(
+                        MetaClassifierEvent(
+                            column_id=shadow.column_id or column.column_id,
+                            predicted_entity=shadow.predicted_entity,
+                            confidence=shadow.confidence,
+                            live_entity=shadow.live_entity,
+                            agreement=shadow.agreement,
+                            run_id=run_id or "",
+                        )
+                    )
+            except Exception:
+                logger.debug("MetaClassifier shadow path failed", exc_info=True)
 
         return result
 
@@ -509,6 +551,50 @@ class Orchestrator:
         for et in ml_only_types:
             logger.debug("Suppressed ML-only %s (non-ML has strong %s)", et, non_ml_types)
         return suppressed
+
+    @staticmethod
+    def _suppress_url_embedded_ips(
+        findings: dict[str, ClassificationFinding],
+    ) -> dict[str, ClassificationFinding]:
+        """Suppress IP_ADDRESS findings whose every matched sample is a URL.
+
+        RE2 doesn't support variable-width lookbehinds, so the ``ipv4_address``
+        regex fires inside URL strings like ``http://192.168.1.1/api``. Worse,
+        the ``url`` regex requires a letter-only TLD (``[a-zA-Z]{2,}``) and
+        therefore does NOT match bare-IP URLs — so we can't rely on a URL
+        co-finding to signal the suppression.
+
+        Instead, inspect the IP_ADDRESS finding's ``sample_analysis.sample_matches``
+        (the original values that matched). If every matched value begins with a
+        URL scheme (``http://`` or ``https://``), the IP is never standalone and
+        the finding is a false positive — drop it.
+
+        A standalone IP ``192.168.1.1`` has no scheme and is preserved.
+        A mixed column with both standalone IPs and IP-in-URL values still has
+        standalone IPs in ``sample_matches``, so the finding is preserved.
+
+        Kills the Sprint 5 Nemotron col_12 URL → IP_ADDRESS blind-mode FP.
+        """
+        ip_finding = findings.get("IP_ADDRESS")
+        if ip_finding is None or ip_finding.sample_analysis is None:
+            return findings
+
+        matches = ip_finding.sample_analysis.sample_matches
+        if not matches:
+            return findings
+
+        def _is_url_embedded(value: str) -> bool:
+            stripped = value.strip().lower()
+            return stripped.startswith("http://") or stripped.startswith("https://")
+
+        if all(_is_url_embedded(v) for v in matches):
+            logger.debug(
+                "Suppressing IP_ADDRESS — all %d matched samples are URL-embedded",
+                len(matches),
+            )
+            filtered = {et: f for et, f in findings.items() if et != "IP_ADDRESS"}
+            return filtered
+        return findings
 
     @staticmethod
     def _suppress_generic_credential(

@@ -101,6 +101,144 @@ def _score_relative_entropy(relative_entropy: float) -> float:
 _DATE_LIKE = re.compile(r"^\d{4}[-/]\d{2}[-/]\d{2}")
 _URL_LIKE = re.compile(r"^https?://", re.IGNORECASE)
 
+# ── Fast-path rejection (item: secret-scanner-fast-path-rejection) ──────────
+# Structural screen for "could this value plausibly contain a secret?".
+# If neither a KV indicator NOR a known secret prefix is present, the value
+# is almost certainly not a secret and we can skip expensive parsing.
+_KV_CHARS: frozenset[str] = frozenset("=\"':")
+
+_SECRET_PREFIXES: tuple[str, ...] = (
+    # Known high-confidence token prefixes — these identify a raw token even
+    # without surrounding KV structure, so their presence disables fast-path.
+    "sk-",
+    "ghp_",
+    "github_pat_",
+    "gho_",
+    "ghs_",
+    "ghr_",
+    "ghu_",
+    "AKIA",
+    "ASIA",
+    "xoxb-",
+    "xoxp-",
+    "xoxa-",
+    "xoxr-",
+    "ssh-rsa",
+    "ssh-ed25519",
+    "-----BEGIN",
+    "Bearer ",
+    "Basic ",
+    "Token ",
+    "Authorization",
+    "eyJ",  # JWT header (base64-encoded {"alg":... starts with eyJ)
+)
+
+
+# ── Gitleaks placeholder FP suppression (item: gitleaks-fp-analysis) ────────
+# Sprint 4 gitleaks corpus analysis surfaced ~37 false positive cases where
+# the secret scanner fired on obvious placeholder / template values
+# ("YOUR_API_KEY_HERE", "xxxxxxxxxxxx", "<your-token>", etc.).  These regex
+# patterns suppress them without hiding real secrets — the control case
+# (a real-looking AWS access key) still fires.
+#
+# Order matters for performance only (cheap checks first).  Each pattern is
+# applied case-insensitively against the extracted KV value (not the full
+# sample), so it only triggers on the specific field that looked like a
+# secret.
+_PLACEHOLDER_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # 5+ consecutive x/X — e.g. "xxxxxxxxxxxx", "AKIAXXXXXXXXXXXXXXXX"
+    re.compile(r"x{5,}", re.IGNORECASE),
+    # Any character repeated 8+ times — e.g. "glc_111111111111..."
+    re.compile(r"(.)\1{7,}"),
+    # Angle-bracket placeholders — e.g. "<your-api-key>", "<TOKEN>"
+    re.compile(r"<[^>]{1,80}>"),
+    # YOUR_*_KEY / YOUR_*_TOKEN / YOUR_*_SECRET style
+    re.compile(
+        r"your[_\-\s]?(api|access|auth|secret|token|private|aws|gcp|azure)?"
+        r"[_\-\s]?(key|token|secret|password|credential)",
+        re.IGNORECASE,
+    ),
+    # PUT_YOUR_*_HERE style
+    re.compile(r"put[_\-\s]?your", re.IGNORECASE),
+    re.compile(r"insert[_\-\s]?your", re.IGNORECASE),
+    re.compile(r"replace[_\-\s]?(me|with|this)", re.IGNORECASE),
+    # Placeholder sentinel words
+    re.compile(r"placeholder", re.IGNORECASE),
+    re.compile(r"redacted", re.IGNORECASE),
+    re.compile(r"\bexample\b", re.IGNORECASE),
+    re.compile(r"^sample[_\-]", re.IGNORECASE),
+    re.compile(r"^dummy[_\-]?", re.IGNORECASE),
+    # Common templating markers
+    re.compile(r"\{\{.*\}\}"),  # {{VAR}} Jinja / mustache
+    re.compile(r"\$\{[A-Z_]+\}"),  # ${VAR} shell
+    # AWS documentation example keys (all end in "EXAMPLE")
+    re.compile(r"EXAMPLE$"),
+    # Common "here" / "goes here" hints
+    re.compile(r"(key|token|secret|password)[_\-\s]here", re.IGNORECASE),
+    re.compile(r"goes[_\-\s]here", re.IGNORECASE),
+    # "changeme" and common lazy placeholders (word-boundary to avoid
+    # matching real tokens that coincidentally contain these letters)
+    re.compile(r"\bchangeme\b", re.IGNORECASE),
+    re.compile(r"\bfoobar\b", re.IGNORECASE),
+    re.compile(r"\btodo\b", re.IGNORECASE),
+    re.compile(r"\bfixme\b", re.IGNORECASE),
+)
+
+
+def _is_placeholder_value(value: str) -> bool:
+    """Return True if ``value`` looks like a gitleaks-style placeholder.
+
+    Used by the secret scanner to suppress findings on template/example
+    values such as ``"xxxxxxxxxxxxxxxx"``, ``"YOUR_API_KEY_HERE"``,
+    ``"<your-token>"``, ``"{{API_KEY}}"``.
+
+    Args:
+        value: The extracted KV value to test.
+
+    Returns:
+        ``True`` if the value matches any placeholder pattern.
+    """
+    for pat in _PLACEHOLDER_PATTERNS:
+        if pat.search(value):
+            return True
+    return False
+
+
+def _has_secret_indicators(value: str) -> bool:
+    """Return True if a value shows any structural hint of carrying a secret.
+
+    Used by the secret scanner as a fast-path gate: when this returns False,
+    the value contains no KV delimiters (``=``, ``:``, quotes) and no known
+    secret prefix (``ghp_``, ``AKIA``, ``ssh-rsa``, ``eyJ`` JWT, ...), so
+    there is nothing for the parser to extract and we can skip it entirely.
+
+    This sharpens both perf (non-secret values skip expensive parsing) and
+    precision (fewer opportunities for regex-style false positives on pure
+    random strings).  Raw secret tokens whose only signal is a known prefix
+    still pass through the full pipeline because their prefix is listed.
+
+    Args:
+        value: The sample value to screen.
+
+    Returns:
+        ``True`` if the value may carry a secret, ``False`` if it can be
+        skipped by the scanner.
+    """
+    if not value:
+        return False
+    # KV chars: fastest check — single pass over the string.
+    for ch in value:
+        if ch in _KV_CHARS:
+            return True
+    # Known secret prefixes — check for presence anywhere so a leading space
+    # or quote doesn't hide the prefix (prefix-at-start is the common case
+    # but substring containment is cheap and more forgiving).
+    for prefix in _SECRET_PREFIXES:
+        if prefix in value:
+            return True
+    return False
+
+
 # Common config values that are not credentials
 _CONFIG_VALUES: frozenset[str] = frozenset(
     {
@@ -294,6 +432,12 @@ class SecretScannerEngine(ClassificationEngine):
                 continue
             samples_scanned += 1
 
+            # Fast-path rejection: skip values with no KV structure and no
+            # known secret prefix. Pure random strings (e.g. "R4nd0mSt1ng")
+            # cannot produce a scanner finding, so we avoid the parser call.
+            if not _has_secret_indicators(sample):
+                continue
+
             # Deduplicate KV pairs (env + code parsers can overlap)
             kv_pairs = list(dict.fromkeys(parse_key_values(sample)))
             if not kv_pairs:
@@ -308,8 +452,13 @@ class SecretScannerEngine(ClassificationEngine):
                 if self._has_anti_indicator(key, value, anti_indicators):
                     continue
 
-                # Known placeholder suppression
+                # Known placeholder suppression (exact match of seeded list)
                 if value.lower() in self._placeholder_values:
+                    continue
+
+                # Gitleaks placeholder pattern suppression (sprint 6):
+                # e.g. "xxxxxxxxxxxx", "YOUR_API_KEY", "<your-token>".
+                if _is_placeholder_value(value):
                     continue
 
                 # Score the key name (returns score and tier)

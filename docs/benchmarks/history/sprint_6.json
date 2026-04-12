@@ -1,0 +1,58 @@
+{
+  "accuracy": [
+    {
+      "corpus": "nemotron",
+      "fn_count": 0,
+      "fp_count": 0,
+      "macro_f1": 1.0,
+      "micro_f1": 1.0,
+      "mode": "named",
+      "precision": 1.0,
+      "primary_label_pct": 1.0,
+      "recall": 1.0,
+      "tp_count": 13
+    },
+    {
+      "corpus": "nemotron",
+      "fn_count": 1,
+      "fp_count": 3,
+      "macro_f1": 0.872,
+      "micro_f1": 0.857,
+      "mode": "blind",
+      "precision": 0.8,
+      "primary_label_pct": 0.923,
+      "recall": 0.9231,
+      "tp_count": 12
+    },
+    {
+      "corpus": "ai4privacy",
+      "fn_count": 0,
+      "fp_count": 0,
+      "macro_f1": 1.0,
+      "micro_f1": 1.0,
+      "mode": "named",
+      "precision": 1.0,
+      "primary_label_pct": 1.0,
+      "recall": 1.0,
+      "tp_count": 8
+    },
+    {
+      "corpus": "ai4privacy",
+      "fn_count": 2,
+      "fp_count": 2,
+      "macro_f1": 0.667,
+      "micro_f1": 0.75,
+      "mode": "blind",
+      "precision": 0.75,
+      "primary_label_pct": 0.75,
+      "recall": 0.75,
+      "tp_count": 6
+    }
+  ],
+  "date": "2026-04-12",
+  "git_sha": "127d07a",
+  "note": "STUBBED — Sprint 6 end-to-end benchmark not rerun during history-infra item; numbers inherited from Sprint 5 baseline. Re-run consolidated_report at sprint close to overwrite with actual Sprint 6 measurements.",
+  "perf": null,
+  "schema_version": 1,
+  "sprint": 6
+}

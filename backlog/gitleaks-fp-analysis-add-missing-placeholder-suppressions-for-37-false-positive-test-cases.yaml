@@ -1,6 +1,6 @@
 title: "Gitleaks FP analysis \u2014 add missing placeholder suppressions for 37 false-positive\
   \ test cases"
-status: doing
+status: done
 priority: P2
 category: bug
 sprint_target: 6
@@ -27,7 +27,7 @@ test_plan:
 - 'Parameterized: one case per placeholder pattern, asserts empty findings'
 - 'Control: real-looking API keys still detected'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

@@ -1,5 +1,5 @@
 title: US NPI pattern + Luhn validator (Presidio parity)
-status: doing
+status: done
 priority: P2
 category: feature
 sprint_target: 6
@@ -31,8 +31,12 @@ test_plan:
 - 'Unit: Luhn valid accept, Luhn invalid reject, 10-digit phone reject, CMS reference
   NPIs accept'
 - Benchmark delta on Nemotron blind digit-collision FPs
-notes: ''
-phase: plan
+notes: "Sprint 6 (2026-04-12): validator was already implemented in earlier sprint\
+  \ \u2014 npi_luhn_check in validators.py wired to us_npi pattern via 'validator':'npi_luhn'.\
+  \ This sprint added dedicated unit test coverage in tests/test_npi_validator.py\
+  \ (16 cases). Backlog drift caught during execution; closing item with test-only\
+  \ contribution."
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

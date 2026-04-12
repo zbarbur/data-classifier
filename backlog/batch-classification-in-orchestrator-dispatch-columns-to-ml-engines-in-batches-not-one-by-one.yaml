@@ -1,9 +1,9 @@
 title: "Batch classification in orchestrator \u2014 dispatch columns to ML engines\
   \ in batches, not one-by-one"
-status: doing
+status: backlog
 priority: P2
 category: feature
-sprint_target: 6
+sprint_target: 0
 created: 2026-04-11
 updated: 2026-04-12
 depends_on: []
@@ -45,8 +45,11 @@ test_plan:
 - "Run pytest tests/ -v \u2014 all 777+ tests pass with batching active"
 - Run perf_quick before/after, compare p50/p95 per column; run consolidated_report
   before/after, diff F1
-notes: ''
-phase: plan
+notes: "Deferred from Sprint 6 (2026-04-12) \u2014 user deprioritized perf optimization\
+  \ vs accuracy work. Full spec retained for Sprint 7 pull. Target: 204ms \u2192 50ms\
+  \ per column via classify_batch dispatch. No code changes needed to pull \u2014\
+  \ just re-tag sprint and move to doing."
+phase: null
 design_reviewed: false
 code_reviewed: false
 comments: []

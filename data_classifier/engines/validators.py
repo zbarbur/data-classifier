@@ -9,6 +9,19 @@ from __future__ import annotations
 import re
 import typing
 
+# SSA-published SSNs that were inadvertently used in advertising or examples
+# and must never be treated as real PII. Source: SSA Press Office historical
+# record. Includes the two famous advertising SSNs plus the SSA-reserved
+# advertising range 987-65-4320 through 987-65-4329 (10 numbers).
+_SSN_ADVERTISING_LIST: frozenset[str] = frozenset(
+    {
+        "078051120",  # Hilda Schrader Whitcher — Woolworth wallet insert
+        "219099999",  # WL Murphy — advertising use
+        # 987-65-4320 through 987-65-4329 — SSA-reserved advertising range
+        *(f"98765{n:04d}" for n in range(4320, 4330)),
+    }
+)
+
 
 def luhn_check(value: str) -> bool:
     """Luhn algorithm checksum for credit card numbers."""
@@ -32,20 +45,41 @@ def luhn_strip_check(value: str) -> bool:
 
 
 def ssn_zeros_check(value: str) -> bool:
-    """Reject SSNs with all-zeros in any group.
+    """Validate a 9-digit sequence against SSA canonical SSN rules.
 
-    Invalid: 000-XX-XXXX, XXX-00-XXXX, XXX-XX-0000
-    Also rejects known test/advertising SSNs (078-05-1120, 219-09-9999).
+    Post-2011 SSA randomized issuance rules:
+      - Area (digits 1-3): 001-899, except 666 is never issued
+      - Group (digits 4-5): 01-99
+      - Serial (digits 6-9): 0001-9999
+      - Area 900-999 is the ITIN range, never issued as SSN
+    Additionally rejects the SSA-published advertising/example list
+    (see ``_SSN_ADVERTISING_LIST``).
+
+    The name is preserved for backward compatibility with
+    ``default_patterns.json`` references; behavior is strictly a
+    superset of the previous zeros-only check.
     """
     digits = value.replace("-", "")
-    if len(digits) != 9:
+    if len(digits) != 9 or not digits.isdigit():
         return False
+
     area, group, serial = digits[:3], digits[3:5], digits[5:]
-    if area == "000" or group == "00" or serial == "0000":
+
+    # Group and serial zero-group rejection (legacy behavior)
+    if group == "00" or serial == "0000":
         return False
-    # Known invalid SSNs
-    if digits in ("078051120", "219099999"):
+
+    # Area rules — canonical post-2011 SSA randomized issuance
+    if area == "000" or area == "666":
         return False
+    area_int = int(area)
+    if 900 <= area_int <= 999:  # ITIN range, never issued as SSN
+        return False
+
+    # SSA-published advertising / example list
+    if digits in _SSN_ADVERTISING_LIST:
+        return False
+
     return True
 
 

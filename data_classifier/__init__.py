@@ -116,6 +116,16 @@ def _build_default_engines() -> list:
 _DEFAULT_ENGINES = _build_default_engines()
 
 
+#: When aggressive_secondary_suppression is enabled, the "primary-dominant"
+#: regime triggers at this confidence — findings above this are treated as
+#: strong enough to crowd out low-confidence secondaries with a tighter gap.
+_AGGRESSIVE_PRIMARY_THRESHOLD = 0.80
+#: Tightened confidence-gap threshold used when the primary finding exceeds
+#: ``_AGGRESSIVE_PRIMARY_THRESHOLD``. Secondaries more than this many points
+#: below the primary are suppressed — stricter than the default 0.30.
+_AGGRESSIVE_GAP_THRESHOLD = 0.15
+
+
 def classify_columns(
     columns: list[ColumnInput],
     profile: ClassificationProfile,
@@ -124,6 +134,7 @@ def classify_columns(
     categories: list[str] | None = None,
     max_findings: int | None = None,
     confidence_gap_threshold: float = 0.30,
+    aggressive_secondary_suppression: bool = False,
     budget_ms: float | None = None,
     run_id: str | None = None,
     config: dict | None = None,
@@ -154,6 +165,13 @@ def classify_columns(
             secondary findings whose confidence is more than this gap below
             the top finding are suppressed.  Default ``0.30``.
             Set to ``1.0`` to disable gap suppression.
+        aggressive_secondary_suppression: When ``True`` and the top finding
+            has confidence greater than ``0.80``, the effective gap
+            threshold tightens to ``0.15`` — dropping more low-confidence
+            secondaries in the "primary-dominant" regime. Useful for
+            precision-sensitive deployments where a strong primary signal
+            should crowd out ambiguous alternates. Default ``False``
+            preserves Sprint 5 behavior exactly.
         budget_ms: Latency budget in ms.  ``None`` = no budget, full cascade.
         run_id: Associates findings with a run for telemetry event tagging.
         config: Per-request overrides (custom patterns, dictionaries).
@@ -204,7 +222,12 @@ def classify_columns(
 
         # Apply max_findings and confidence-gap suppression per column
         if column_findings:
-            column_findings = _apply_findings_limit(column_findings, max_findings, confidence_gap_threshold)
+            column_findings = _apply_findings_limit(
+                column_findings,
+                max_findings,
+                confidence_gap_threshold,
+                aggressive_secondary_suppression=aggressive_secondary_suppression,
+            )
 
         findings.extend(column_findings)
 
@@ -215,6 +238,8 @@ def _apply_findings_limit(
     findings: list[ClassificationFinding],
     max_findings: int | None,
     confidence_gap_threshold: float,
+    *,
+    aggressive_secondary_suppression: bool = False,
 ) -> list[ClassificationFinding]:
     """Limit and filter findings per column.
 
@@ -222,6 +247,9 @@ def _apply_findings_limit(
     2. If max_findings is set, truncate to that count.
     3. Otherwise, apply confidence-gap suppression: drop findings whose
        confidence is more than ``confidence_gap_threshold`` below the top finding.
+    4. When ``aggressive_secondary_suppression`` is True AND the top finding
+       has confidence greater than ``_AGGRESSIVE_PRIMARY_THRESHOLD`` (0.80),
+       the effective gap tightens to ``_AGGRESSIVE_GAP_THRESHOLD`` (0.15).
     """
     if not findings:
         return findings
@@ -232,9 +260,14 @@ def _apply_findings_limit(
     if max_findings is not None:
         return sorted_findings[:max_findings]
 
-    # Confidence-gap suppression: keep findings within gap of the top
     top_confidence = sorted_findings[0].confidence
-    return [f for f in sorted_findings if (top_confidence - f.confidence) <= confidence_gap_threshold]
+
+    # Aggressive suppression: when primary dominates, tighten the gap
+    effective_gap = confidence_gap_threshold
+    if aggressive_secondary_suppression and top_confidence > _AGGRESSIVE_PRIMARY_THRESHOLD:
+        effective_gap = min(effective_gap, _AGGRESSIVE_GAP_THRESHOLD)
+
+    return [f for f in sorted_findings if (top_confidence - f.confidence) <= effective_gap]
 
 
 # ── Rollup computation ───────────────────────────────────────────────────────

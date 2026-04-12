@@ -1,5 +1,5 @@
 title: "URL / IP_ADDRESS collision pair \u2014 URLs containing IPs trigger both patterns"
-status: doing
+status: done
 priority: P2
 category: feature
 sprint_target: 6
@@ -27,7 +27,7 @@ test_plan:
   like //1.2.3.4 (suppress)'
 - Benchmark delta on Nemotron col_12
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
