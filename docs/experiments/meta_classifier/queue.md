@@ -199,7 +199,7 @@ real number (in which case we know how much room we actually have).
 
 ### Q3 — LOCO collapse investigation
 
-**Status:** 🟡 queued
+**Status:** ✅ complete — see `runs/20260412-q3-loco-investigation/result.md`
 **Priority:** P1
 **Estimated time:** 1-2 hours
 **Why it matters:** Phase 2 reported macro F1 = 0.92 on standard CV but only

@@ -58,4 +58,8 @@ data_classifier/models/*
 !data_classifier/models/meta_classifier_v1.pkl
 !data_classifier/models/meta_classifier_v1.metadata.json
 !data_classifier/models/meta_classifier_v1.eval.json
+# Research candidate artifacts from parallel experiments (meta-classifier queue).
+# Same size class as v1; see docs/experiments/meta_classifier/queue.md file-ownership.
+!data_classifier/models/meta_classifier_v1_*.pkl
+!data_classifier/models/meta_classifier_v1_*.metadata.json
 models/gliner_onnx/
