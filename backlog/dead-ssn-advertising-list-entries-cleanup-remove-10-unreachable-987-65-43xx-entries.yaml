@@ -40,7 +40,7 @@ test_plan:
 - "tests/test_ssn_validator.py \u2014 all 18+ existing tests pass"
 - "pytest tests/ -q \u2014 1009+ tests pass, zero warnings regressions"
 notes: ''
-phase: build
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
