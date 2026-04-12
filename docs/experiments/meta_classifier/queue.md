@@ -1051,6 +1051,104 @@ next decision:
   targeted class restriction that matches the orchestrator's
   existing engine split, whereas E3 was a blind aggregation.
 
+### Q8 — Opaque-secret specialized meta-classifier
+
+**Status:** 🔴 blocked (depends on Sprint 8 "CREDENTIAL split" item
+landing — OPAQUE_SECRET label must exist)
+**Priority:** P2
+**Estimated time:** 2-3 hours
+**Depends on:** Sprint 8 production candidate A (CREDENTIAL split)
+
+**Why it matters:** Q3, Q5, and Q6 established that a general-purpose
+meta-classifier over 24 classes fails LOCO because of structural
+label purity and per-corpus feature fingerprinting. But neither
+pathology applies cleanly to the *opaque-secret subset* — rows
+where the engines agree something looks credential-shaped but
+cannot pin down a specific type.
+
+The hypothesis: learned arbitration has real value **only** on
+ambiguous cases, not as a general classifier. This experiment tests
+that by training a specialized classifier on the opaque-secret
+subset alone and comparing it against the Sprint 8 rule-based
+OPAQUE_SECRET heuristic.
+
+**Outcomes:**
+
+- **Q8-A (specialized meta wins):** binary "is it actually a
+  credential" LOCO ≥ 0.80, rule-based is ≤ 0.70. Ship the
+  specialized classifier as an opt-in meta-arbitrator for opaque
+  secrets only.
+- **Q8-B (marginal):** specialized 0.70-0.80, rule-based 0.60-0.70.
+  Consider shipping as optional boost.
+- **Q8-C (rule-based wins or ties):** skip meta entirely, rule-based
+  approach is simpler and more maintainable.
+
+**Task prompt for parallel session (queued until Sprint 8 lands):**
+
+```
+You are running Q8 — specialized opaque-secret meta-classifier —
+on a worktree off research/meta-classifier.
+
+PREREQUISITE: Sprint 8 CREDENTIAL split MUST be landed on main.
+Verify by checking data_classifier/profiles/standard.yaml for the
+OPAQUE_SECRET rule. If it is missing, STOP and report that
+Sprint 8 hasn't landed yet.
+
+READ FIRST:
+- docs/experiments/meta_classifier/queue.md — Research Workflow
+  Contract section + Q8 entry
+- Q5, Q3, Q6 result.md files — context on why general
+  meta-classification failed and why scoping to opaque secrets
+  might work
+
+WORK:
+1. Build a filtered training set from training_data.jsonl (or
+   the post-Sprint-8 retrained version):
+   - Include ONLY rows where at least one of:
+     (a) top engine confidence < 0.7 (ambiguous)
+     (b) multiple engines disagreed on entity type
+     (c) the post-Sprint-8 OPAQUE_SECRET heuristic would fire
+   - Re-label each row with its true entity type (may now be
+     OPAQUE_SECRET or a PII class if the original was right)
+   - Save as training_data_q8.jsonl
+   - Expected row count: 500-1500 (hypothesis — ambiguous
+     subset is small)
+2. Train a binary classifier: is this ambiguous row actually a
+   credential (any of the 4 new credential subtypes) or
+   something else (PII or NEGATIVE)?
+   - LogReg with the existing 13-feature schema first
+   - XGBoost as comparison if LogReg is weak
+3. Evaluate:
+   - Standard 5-fold CV using M1's StratifiedGroupKFold
+   - LOCO over the corpora that contribute opaque-secret
+     candidates
+   - Compare against rule-based baseline: the Sprint 8
+     OPAQUE_SECRET heuristic alone applied to the same rows
+4. Classify outcome Q8-A / Q8-B / Q8-C
+5. Write result.md, flip status, commit
+
+CONSTRAINTS: same research workflow contract as Q3/Q5/Q6. Q8 is
+NOT a feature-schema exception; do not modify production code.
+```
+
+**Success criteria:** a clear verdict on whether the
+meta-classifier direction has any value in a scoped opaque-secret
+role, independent of the general-classifier LOCO failures. Answers
+the question "should meta-classification live on in some reduced
+form or be abandoned entirely."
+
+**Relationship to other experiments:**
+- Q8 is the natural successor to Q3/Q5/Q6 once the Sprint 8
+  taxonomy work has landed. It tests the ONE remaining
+  meta-classifier hypothesis worth testing.
+- Q8 is independent of E10. If E10 succeeds, we'd have two
+  candidate meta-classifiers (general + specialized); they can
+  coexist if each adds value in its scope.
+- Q8 is the alternative hypothesis to "pattern expansion alone
+  solves the credential problem." If Sprint 8 production
+  candidate B (pattern import) closes most of the credential
+  detection gap, Q8 becomes less important.
+
 ## Methodology corrections (Sprint 7 backlog candidates, not experiments)
 
 These are code fixes discovered during research, not experiments.
@@ -1185,6 +1283,258 @@ a per-corpus breakdown table.
 
 Purely informational — doesn't change how models are selected
 or shipped, but makes future research visible in one glance.
+
+## Sprint 8 production candidates (drafted from research discussion)
+
+These are **production backlog items**, not research experiments.
+They are drafted here because they emerged from the research thread
+and are prerequisites to several queued research experiments (Q8
+specifically depends on Item A). When Sprint 7 closes and Sprint 8
+planning begins, hand these specs to the Sprint 8 session — they
+are self-contained and ready to turn into `agile-backlog add` /
+YAML backlog files.
+
+### Item A — Split CREDENTIAL into API_KEY, PRIVATE_KEY, PASSWORD_HASH, OPAQUE_SECRET
+
+**Complexity:** M (1-2 days)
+**Priority:** P1
+**Category:** refactor
+**Dependencies:** none
+**Blocks:** Item B (pattern expansion), Q8 research experiment
+
+**Goal:** Replace the single CREDENTIAL entity type with 4
+deterministic subtypes. Retain CREDENTIAL as a category rollup
+for consumers. Add an OPAQUE_SECRET heuristic for credential-shaped
+values that don't match any specific pattern.
+
+**Rationale:** The current single-class CREDENTIAL label conflates
+six distinct credential subtypes (API keys, passwords, JWTs,
+private keys, hashes, generic secrets) that each have different
+detection profiles, risk profiles, and downstream handling
+requirements. This makes the classification schema wrong at the
+taxonomic level, produces muddled training data, and limits
+downstream routing precision. Splitting into 4 deterministic
+types + a rule-based catch-all heuristic aligns the schema with
+how the engines actually detect each subtype.
+
+**Acceptance criteria:**
+
+- `data_classifier/profiles/standard.yaml` has 4 new credential-
+  category rules (`API_KEY`, `PRIVATE_KEY`, `PASSWORD_HASH`,
+  `OPAQUE_SECRET`); no `CREDENTIAL` rule
+- All 4 rules declare `category: credential` for rollup support
+- `data_classifier/patterns/default_patterns.json`: existing
+  shape-identifiable credential patterns retargeted to their
+  correct subtype (AWS/GitHub/Slack/OpenAI/Stripe etc → API_KEY,
+  PEM markers → PRIVATE_KEY, `$2[aby]$`/`$argon2[id]$`/`$scrypt$`
+  prefixes → PASSWORD_HASH)
+- **PASSWORD_HASH fires ONLY on values with algorithm prefix.** Raw
+  hex strings (unprefixed SHA-256/SHA-1/MD5) are NOT classified as
+  PASSWORD_HASH — they go to OPAQUE_SECRET or stay unclassified,
+  because raw hex collides with ETHEREUM_ADDRESS, transaction
+  hashes, file hashes, and git SHAs.
+- New OPAQUE_SECRET heuristic in
+  `data_classifier/engines/heuristic_engine.py`: detection rule is
+  (entropy > threshold) AND (non-language character frequency) AND
+  (length in range 20-200) AND (high per-column distinct ratio)
+  AND (no other engine claimed the row)
+- `data_classifier/engines/secret_scanner.py` emits the correct
+  subtype based on the matched key name in
+  `secret_key_names.json`, not the generic `CREDENTIAL` label
+- `data_classifier/patterns/column_names.json` credential-related
+  column names split across the 4 subtypes based on semantic intent
+- All existing 1009+ tests pass with fixture updates where
+  CREDENTIAL was asserted
+- New `tests/test_opaque_secret.py` covers positive cases
+  (high-entropy opaque strings) and negative cases (bitcoin
+  addresses, UUIDs, long IDs that are NOT secrets)
+- Benchmark F1 on gitleaks/secretbench/detect_secrets corpora is
+  within 0.02 of pre-split baseline (non-regression gate)
+
+**Technical specs:**
+
+- File: `data_classifier/profiles/standard.yaml` — replace
+  CREDENTIAL rule with 4 new rules, each with `category: credential`
+- File: `data_classifier/patterns/default_patterns.json` —
+  retarget ~10-15 existing credential patterns by `entity_type`
+- File: `data_classifier/patterns/column_names.json` — split
+  credential-related column names
+- File: `data_classifier/patterns/secret_key_names.json` — add
+  subtype field per entry
+- File: `data_classifier/engines/secret_scanner.py` — replace
+  hardcoded CREDENTIAL with subtype emission based on key name
+- File: `data_classifier/engines/heuristic_engine.py` — new
+  `opaque_secret_detection()` function
+- File: `tests/test_opaque_secret.py` — new test module
+- File: `tests/fixtures/` — update golden expectations
+
+**Test plan:**
+
+- Unit: each new entity type has ≥5 positive + ≥5 negative fixtures
+- Integration: end-to-end classification on 3 credential corpora
+  (gitleaks, secretbench, detect_secrets) produces correct subtype
+- Golden fixtures: existing CREDENTIAL expectations remapped
+- Regression: full test suite green
+- Benchmark: pre/post split F1 comparison on credential corpora
+- OPAQUE_SECRET edge cases: bitcoin address NOT classified as
+  OPAQUE_SECRET (BITCOIN_ADDRESS rule should fire first)
+
+**Deliberate scope exclusions:**
+
+- **No PASSWORD entity type.** Passwords need column-name context
+  exclusively (value alone is undetectable). The existing column
+  name engine already handles them via `password`/`pwd` dictionary.
+  They continue to roll up to the credential category via
+  column-name-only detection.
+- **No JWT entity type.** Folded into API_KEY (or OPAQUE_SECRET
+  for non-standard JWT-like strings). PII extraction from JWT
+  payloads is deferred indefinitely.
+- **No ENCRYPTED_BLOB entity type.** Indistinguishable from random
+  high-entropy data without decryption context; falls through to
+  OPAQUE_SECRET or stays unclassified.
+- **No meta-classifier changes in this item.** The existing v1
+  meta-classifier stays shadow-only with its old CREDENTIAL label.
+  Research experiment Q8 handles the specialized opaque-secret
+  meta-classifier direction independently once this item lands.
+
+### Item B — Harvest gitleaks + detect-secrets patterns into API_KEY
+
+**Complexity:** M (2-3 days)
+**Priority:** P1
+**Category:** feature
+**Dependencies:** Item A must land first (API_KEY entity type
+must exist)
+**Blocks:** nothing — enables immediate credential detection
+improvement
+
+**Goal:** Bulk-import 100-200 credential detection regex patterns
+from license-compatible sources (gitleaks MIT, detect-secrets
+Apache 2.0, and patterns re-derived from public service
+documentation) into `data_classifier/patterns/default_patterns.json`,
+all targeting the new `API_KEY` entity type that Item A introduces.
+
+**Rationale:** Service-prefixed API keys are the cleanest possible
+credential signal — regex detection gives near-zero false positive
+risk and zero training data requirement. Our current pattern
+library has a single-digit number of service-specific credential
+patterns; gitleaks alone ships ~100 and detect-secrets adds
+another ~20-30 we don't yet cover. This expansion improves
+blind-mode credential detection accuracy more than any amount of
+meta-classifier work could, and ships immediately without training
+concerns. It also addresses the backlog item "Cloud service token
+expansion: 20+ services from trufflehog reference" at a larger
+scope.
+
+**Acceptance criteria:**
+
+- `data_classifier/patterns/default_patterns.json` grows by
+  ≥ 100 credential patterns (net-new, after deduplication with
+  existing patterns)
+- Each new pattern has:
+  - Unique `id` including the service name
+    (e.g., `aws_access_key_id`, `stripe_live_secret_key`)
+  - Regex pattern (RE2-compatible)
+  - `entity_type: API_KEY` (Item A must be landed first)
+  - `category: credential`
+  - Confidence value appropriate to the specificity of the regex
+    (high for prefix-anchored, lower for pure entropy)
+  - Positive and negative test fixtures in
+    `tests/test_pattern_library.py` or equivalent
+  - Attribution field pointing to the source repo + license
+- Gitleaks benchmark corpus detection F1 improves from current
+  baseline (Sprint 5: macro F1 0.897) by **≥ 0.05**
+- SecretBench detection rate improves by **≥ 0.03**
+- No regression in non-credential benchmark F1 (Nemotron,
+  Ai4Privacy)
+- New `docs/LICENSE_AUDIT_credential_patterns.md` file documents
+  the source of each imported pattern and its license
+- CI check fails if any pattern references trufflehog directly or
+  is labeled with an AGPL source
+
+**Technical specs:**
+
+- **Source 1 (priority):** gitleaks rules at
+  `https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml`
+  - TOML format, convert to our JSON pattern format
+  - License: **MIT** — direct port allowed, include attribution
+    in pattern metadata
+- **Source 2:** detect-secrets plugins at
+  `https://github.com/Yelp/detect-secrets/tree/master/detect_secrets/plugins`
+  - Python code with embedded regex, extract and convert
+  - License: **Apache 2.0** — direct port allowed, include
+    attribution
+- **Source 3:** service-specific public documentation for services
+  only covered by trufflehog (AGPL — cannot copy source, but can
+  re-derive from public security docs)
+  - Minimum targets: Cloudflare, DigitalOcean, Heroku, Atlassian,
+    SendGrid, Mailgun, Twilio, Linode, PagerDuty, Postmark
+  - **Use trufflehog as INSPIRATION only** — consult their
+    detector list to identify which services exist, then re-derive
+    the regex from each service's own public token-format
+    documentation. Never copy trufflehog source code or detector
+    regex.
+- **Additional sources:** a research agent is running in parallel
+  to survey the landscape for other license-compatible sources
+  (cloud provider catalogs, SIEM vendor patterns, newer 2024-2026
+  tools). Its report should be merged into this spec before the
+  Sprint 8 session begins implementation.
+- **Bulk ingestion script:** `scripts/ingest_credential_patterns.py`
+  that reads gitleaks TOML + detect-secrets Python and emits our
+  JSON format. Not a one-off — re-runnable when sources update.
+- **Deduplication:** script detects when a pattern we're importing
+  already exists in our library under a different id and either
+  merges or flags the conflict for manual review.
+
+**Test plan:**
+
+- Unit: every new pattern has at least one positive fixture (a
+  known valid token example — use the service's own documentation
+  for examples, NOT real credentials) and one negative fixture (a
+  lookalike that should NOT match)
+- Pattern library regression test: iterate over the full pattern
+  list, confirm each compiles and each example matches
+- Benchmark delta report: run accuracy_benchmark before and after
+  the import; confirm ≥ 0.05 improvement on gitleaks corpus
+- License audit test: CI check confirms every pattern in
+  `default_patterns.json` has either an attribution field or is
+  documented in `docs/LICENSE_AUDIT_credential_patterns.md`
+- No AGPL contamination check: grep for "trufflehog" or AGPL
+  references in pattern metadata; CI fail if found
+
+**Notes:**
+
+- This item is blocked on Item A because the new patterns need
+  `entity_type: API_KEY` to exist.
+- The bulk ingestion script work can start earlier than Item A's
+  schema changes — it only depends on understanding the target
+  JSON format, which is already defined.
+- A parallel research agent is surveying the landscape for
+  additional license-compatible pattern sources beyond gitleaks
+  and detect-secrets. Its findings (if substantive) should be
+  incorporated into this spec before implementation begins.
+- The spec deliberately uses "≥ 100 new patterns" as the
+  acceptance gate rather than a fixed count. The exact count
+  depends on gitleaks rule changes, detect-secrets plugin
+  changes, and how many services we can re-derive from
+  documentation. The bulk import should be as exhaustive as
+  possible within the license-compatible source set.
+
+### Relationship between Items A and B
+
+These two items are deliberately separated so Item A can ship
+without waiting for the full pattern harvest, but they are
+naturally paired:
+
+| Sequence | Week 1 | Week 2 | Week 3 |
+|---|---|---|---|
+| A then B | Item A ships, new taxonomy live | Item B begins, patterns imported | Benchmark delta, license audit |
+| B then A | (impossible — B depends on A's taxonomy) | | |
+| Combined | Items A + B in one large item | | |
+
+**Recommended:** ship A and B as two separate PRs in the same
+sprint, with A landing first. This gives the sprint a visible
+milestone (new taxonomy is live) mid-sprint before the larger
+pattern import finishes.
 
 ## Workflow for completed experiments
 
