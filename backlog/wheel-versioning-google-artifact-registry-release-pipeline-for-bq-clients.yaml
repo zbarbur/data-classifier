@@ -19,12 +19,22 @@ complexity: M
 technical_specs:
 - "File: pyproject.toml \u2014 bump version; define versioning scheme (semver keyed\
   \ to sprint number: 0.{sprint}.0)"
+- "File: pyproject.toml \u2014 consolidate ML extras. Today there are three overlapping\
+  \ extras: [ml] (gliner+onnxruntime), [ml-full] (adds torch+transformers+onnx), and\
+  \ [ml-api] (gliner2 package, different from gliner). Keep [ml] as the lean production\
+  \ runtime extra (onnxruntime-only; model is baked via Item 8's download_models CLI,\
+  \ not from_pretrained). Keep [ml-full] as the developer/export extra with torch+transformers+onnx\
+  \ (needed by export_onnx.py). Delete [ml-api] (unused package name mismatch). Update\
+  \ gliner_engine.py imports to match the consolidated extras."
 - "File: CHANGELOG.md (new) \u2014 initial entries for Sprints 5, 6, 7 based on handover\
   \ docs"
 - "File: .github/workflows/release.yml (new) \u2014 release pipeline; use google-github-actions/auth@v2\
-  \ with Workload Identity Federation, twine upload, version-from-tag"
+  \ with Workload Identity Federation, twine upload, version-from-tag. This workflow\
+  \ is shared with Item 8 (adds a step to export+publish the ONNX model tarball to\
+  \ AR Generic repo)."
 - "File: docs/CLIENT_INTEGRATION_GUIDE.md \u2014 rewrite install section for AR-based\
-  \ pip install"
+  \ pip install; document the three extras (what [ml] vs [ml-full] vs [dev] each give\
+  \ you)"
 - "BigQuery-connector coordination: pyproject.toml update + .pip.conf for AR index\
   \ (coordinate via the BQ session \u2014 do NOT modify BQ files directly per CLAUDE.md\
   \ rule)"
@@ -60,6 +70,14 @@ acceptance_criteria:
   successfully'
 - "The BigQuery-connector/vendor/ directory is removed (or deprecated with a README\
   \ explaining the migration) \u2014 coordinated via BQ session"
+- "pyproject.toml ML extras consolidated: [ml-api] removed (package-name mismatch with\
+  \ engine code), [ml] remains the lean runtime extra (onnxruntime-only), [ml-full]\
+  \ remains the developer/export extra (torch+transformers+onnx for running export_onnx.py).\
+  \ gliner_engine.py imports updated to match. Docs in CLIENT_INTEGRATION_GUIDE.md\
+  \ explain which extra a consumer needs (runtime vs export vs dev)."
+- "An AR Generic repository 'data-classifier-models' is created alongside the Python\
+  \ repo as part of the same one-time GCP setup step, so Item 8 can publish the ONNX\
+  \ tarball using the same WIF auth."
 test_plan:
 - 'One-time: create AR repo in a dev project, test a test-wheel upload via twine with
   a local service account'

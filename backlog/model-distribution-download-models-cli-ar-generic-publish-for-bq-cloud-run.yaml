@@ -1,0 +1,94 @@
+title: "Model distribution \u2014 download_models CLI + AR Generic publish for BQ\
+  \ Cloud Run"
+status: doing
+priority: P1
+category: chore
+sprint_target: 8
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: Provide a lean CLI (python -m data_classifier.download_models) that fetches
+  a pre-exported GLiNER2 ONNX model tarball from our Artifact Registry Generic repo
+  and unpacks it into ~/.cache/data_classifier/models/gliner_onnx/ so BQ's Dockerfile
+  can bake the model into the container image at build time, eliminating the runtime
+  HuggingFace download that fails on Cloud Run cold starts. Publishes the ONNX tarball
+  to AR Generic repo as part of the release.yml workflow. Complements Item 4 (wheel
+  versioning + AR Python publish) by adding the companion artifact for the ML model.
+complexity: M
+technical_specs:
+- "File: data_classifier/download_models.py (new) \u2014 stdlib-only module (urllib.request\
+  \ + hashlib + tarfile) with main() entry point, --to PATH flag, --version VERSION\
+  \ flag, --url URL override flag. Must import cleanly and run in a container with\
+  \ only [ml] extras installed (no torch, no transformers, no onnx)"
+- "File: data_classifier/__init__.py \u2014 export download_models as a public function"
+- "File: pyproject.toml \u2014 add [project.scripts] entry data-classifier-download-models\
+  \ = 'data_classifier.download_models:main' so the command works after pip install"
+- "File: .github/workflows/release.yml \u2014 after wheel publish, run python -m data_classifier.export_onnx\
+  \ --output /tmp/gliner_onnx (requires [ml-full]), tar+gzip the output as gliner_onnx-${VERSION}.tar.gz,\
+  \ compute SHA256, upload to AR Generic repo data-classifier-models with the matching\
+  \ release version tag"
+- "File: docs/CLIENT_INTEGRATION_GUIDE.md \u2014 new section 'Bundling the ML model\
+  \ for container deployments' with the BQ Dockerfile recipe: RUN pip install data_classifier[ml]==0.8.0\
+  \ && python -m data_classifier.download_models"
+- "File: tests/test_download_models.py (new) \u2014 unit tests with a mock HTTP server\
+  \ serving a fixture tarball; cover success path, SHA mismatch rejection, network\
+  \ failure, invalid URL, missing --to directory creation"
+- "File: .github/workflows/ci.yaml \u2014 extend install-test job to run 'data-classifier-download-models\
+  \ --help' after wheel install (smoke test the CLI plumbing, does NOT download the\
+  \ actual model in CI)"
+description: ''
+acceptance_criteria:
+- python -m data_classifier.download_models exits 0 on success, non-zero with a clear
+  error on failure (network, checksum, extraction)
+- CLI supports --to PATH to override the default install location; default is ~/.cache/data_classifier/models/gliner_onnx/
+  (matches _find_bundled_onnx_model() search path 2)
+- CLI supports --version VERSION to pin a model version; defaults to matching the
+  installed data_classifier package version
+- CLI supports --url URL override for internal mirrors and testing
+- Downloaded tarball is verified via SHA-256 checksum before extraction; mismatch
+  aborts without touching the target dir
+- "After running the CLI, _find_bundled_onnx_model() in gliner_engine.py returns the\
+  \ extracted path (no engine code changes required \u2014 existing function already\
+  \ searches that location)"
+- "The CLI imports and runs successfully in a Python env with ONLY [ml] extras installed\
+  \ (no torch/transformers/onnx/requests \u2014 stdlib urllib.request only). Verified\
+  \ via a fresh venv install test."
+- .github/workflows/release.yml publishes the ONNX tarball to AR Generic repo data-classifier-models
+  with the matching wheel version tag on every v* tag push
+- docs/CLIENT_INTEGRATION_GUIDE.md has a new section showing the BQ Dockerfile recipe
+- 'Unit tests cover: success path via mock server, corrupted tarball rejection (SHA
+  mismatch), network failure handling, invalid URL surfacing, missing target dir auto-creation,
+  15+ tests total'
+- install-test CI job runs 'data-classifier-download-models --help' after wheel install
+  to verify CLI plumbing; exit 0 required
+- 'Lint clean, tests pass: pytest tests/ -v and ruff check'
+test_plan:
+- 'tests/test_download_models.py: mock HTTP server fixture serves a test tarball with
+  known SHA-256; verify CLI downloads, checksums, and unpacks'
+- 'tests/test_download_models.py: corrupted tarball (wrong SHA) aborts download, does
+  NOT touch target dir'
+- 'tests/test_download_models.py: --to PATH creates missing parent dirs, then extracts
+  to the specified location'
+- 'tests/test_download_models.py: --url override is honored'
+- 'CI install-test extension: data-classifier-download-models --help exits 0 after
+  a wheel install with no ML extras loaded'
+- 'Manual end-to-end: run BQ Dockerfile recipe locally in a Docker container (linux_x86_64/py312),
+  verify ''from data_classifier.engines.gliner_engine import GLiNER2Engine; GLiNER2Engine().startup()''
+  works without any HuggingFace network calls after the build step'
+notes: "Replaces Item 7 (Cloud DLP comparator, P2) in Sprint 8 scope \u2014 Cloud\
+  \ DLP deferred to Sprint 9. Discovered 2026-04-13 from BQ session feedback: BQ Cloud\
+  \ Run cold starts fail because GLiNER2 engine falls back to GLiNER.from_pretrained()\
+  \ which downloads from HuggingFace at runtime. Dev machines work only because ~/.cache/huggingface/\
+  \ persists. The engine's _find_bundled_onnx_model() in gliner_engine.py already\
+  \ searches 3 standard locations \u2014 this item just needs to populate one of them\
+  \ (path 2: ~/.cache/data_classifier/models/gliner_onnx/) at Docker build time. export_onnx.py\
+  \ already exists but requires [ml-full] (torch+transformers, ~2GB) \u2014 that's\
+  \ OK for release.yml export step but not OK for BQ runtime. The runtime CLI is a\
+  \ thin download+unpack utility. Depends on Item 4 for AR Generic repo creation (same\
+  \ release.yml workflow)."
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
