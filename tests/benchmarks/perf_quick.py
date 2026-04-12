@@ -63,8 +63,12 @@ def _build_default_corpus() -> list[ColumnInput]:
     ]
 
 
-def run_quick_perf(corpus: list[ColumnInput], iterations: int = 5) -> dict:
-    """Run a minimal performance benchmark."""
+def run_quick_perf(corpus: list[ColumnInput], iterations: int = 5, measure_warmup: bool = False) -> dict:
+    """Run a minimal performance benchmark.
+
+    Assumes a warm environment by default — skips warmup measurement.
+    Pass ``measure_warmup=True`` only if you care about cold-start cost.
+    """
     profile = load_profile("standard")
     total_samples = sum(len(c.sample_values) for c in corpus)
 
@@ -75,10 +79,16 @@ def run_quick_perf(corpus: list[ColumnInput], iterations: int = 5) -> dict:
         "avg_samples_per_col": total_samples / len(corpus),
     }
 
-    # Warmup — first call (compilation + model load)
-    t0 = time.perf_counter()
-    classify_columns(corpus[:1], profile, min_confidence=0.0)
-    results["warmup_ms"] = (time.perf_counter() - t0) * 1000
+    # Always run one call first to warm the engines — this is NOT timed
+    # and ensures subsequent measurements reflect steady-state latency.
+    if measure_warmup:
+        t0 = time.perf_counter()
+        classify_columns(corpus[:1], profile, min_confidence=0.0)
+        results["warmup_ms"] = (time.perf_counter() - t0) * 1000
+    else:
+        # Still warm, but don't time it
+        classify_columns(corpus[:1], profile, min_confidence=0.0)
+        results["warmup_ms"] = None
 
     # Full pipeline latency — N iterations
     latencies_ms: list[float] = []
@@ -133,13 +143,14 @@ def print_report(results: dict) -> None:
     print(f"  Samples/col:        {results['avg_samples_per_col']:.0f}")
     print(f"  Iterations:         {results['iterations']}")
     print()
-    print("LATENCY")
+    print("HOT LATENCY (steady-state, warm environment)")
     print("-" * 60)
-    print(f"  Warmup (cold)       {results['warmup_ms']:>10.1f} ms")
-    print(f"  Total pipeline p50  {results['total_p50_ms']:>10.1f} ms")
-    print(f"  Total pipeline p95  {results['total_p95_ms']:>10.1f} ms")
-    print(f"  Per column (p50)    {results['per_column_p50_ms']:>10.2f} ms")
-    print(f"  Per sample (p50)    {results['per_sample_p50_us']:>10.1f} us")
+    if results.get("warmup_ms") is not None:
+        print(f"  Cold start (one-time)          {results['warmup_ms']:>10.1f} ms")
+    print(f"  Total pipeline p50             {results['total_p50_ms']:>10.1f} ms")
+    print(f"  Total pipeline p95             {results['total_p95_ms']:>10.1f} ms")
+    print(f"  Per column (p50)               {results['per_column_p50_ms']:>10.2f} ms")
+    print(f"  Per sample (p50)               {results['per_sample_p50_us']:>10.1f} us")
     print()
     print("THROUGHPUT")
     print("-" * 60)
@@ -169,6 +180,11 @@ def main() -> None:
         choices=["synthetic", "nemotron", "ai4privacy"],
         help="Corpus to use (default: built-in synthetic)",
     )
+    parser.add_argument(
+        "--measure-warmup",
+        action="store_true",
+        help="Include cold-start warmup measurement (default: warm env assumed)",
+    )
     args = parser.parse_args()
 
     if args.corpus == "synthetic":
@@ -180,7 +196,7 @@ def main() -> None:
         corpus = [col for col, _ in raw]
 
     print(f"Running quick perf on {args.corpus} corpus...", file=sys.stderr)
-    results = run_quick_perf(corpus, iterations=args.iterations)
+    results = run_quick_perf(corpus, iterations=args.iterations, measure_warmup=args.measure_warmup)
     print_report(results)
 
 
