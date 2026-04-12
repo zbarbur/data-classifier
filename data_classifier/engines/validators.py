@@ -11,14 +11,14 @@ import typing
 
 # SSA-published SSNs that were inadvertently used in advertising or examples
 # and must never be treated as real PII. Source: SSA Press Office historical
-# record. Includes the two famous advertising SSNs plus the SSA-reserved
-# advertising range 987-65-4320 through 987-65-4329 (10 numbers).
+# record. The SSA-reserved advertising range 987-65-4320..4329 (10 numbers)
+# is intentionally NOT listed here — it sits inside the ITIN area (900-999),
+# which the canonical area rule in ssn_zeros_check rejects first. See
+# tests/test_ssn_validator.py::TestAdvertisingRangeHandledByAreaRule.
 _SSN_ADVERTISING_LIST: frozenset[str] = frozenset(
     {
         "078051120",  # Hilda Schrader Whitcher — Woolworth wallet insert
         "219099999",  # WL Murphy — advertising use
-        # 987-65-4320 through 987-65-4329 — SSA-reserved advertising range
-        *(f"98765{n:04d}" for n in range(4320, 4330)),
     }
 )
 
