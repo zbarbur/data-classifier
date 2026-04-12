@@ -64,9 +64,19 @@ ALWAYS_DROP_REDUNDANT: tuple[str, ...] = (
 
 # Candidates for dropping only IF they are still constant zero after the
 # corpus expansion.  Phase 1 had these as constant; Phase 2 re-checks.
+#
+# E10 adds the five GLiNER features here: v1's training_data.jsonl was
+# built with DATA_CLASSIFIER_DISABLE_ML=1 so those columns are all zero
+# in v1 data — they drop when training on v1 data and stay when training
+# on e10 data (training_data_e10.jsonl).
 CONDITIONAL_DROP_IF_CONSTANT: tuple[str, ...] = (
     "secret_scanner_confidence",
     "has_secret_indicators",
+    "gliner_top_confidence",
+    "gliner_top_entity_is_pii",
+    "gliner_agrees_with_regex",
+    "gliner_agrees_with_column",
+    "gliner_confidence_gap",
 )
 
 RANDOM_STATE: int = 42
@@ -90,6 +100,22 @@ class LoadedDataset:
 
 
 def load_jsonl(path: Path, feature_names: tuple[str, ...]) -> LoadedDataset:
+    """Load a training-data JSONL and project rows onto ``feature_names``.
+
+    Rows that are narrower than ``feature_names`` (legacy datasets built
+    under an older, narrower schema) are right-padded with zeros so that
+    the returned ``features`` matrix is rectangular. This preserves
+    backward-compat with v1's ``training_data.jsonl`` (15 floats per row)
+    under the E10-widened 20-name schema — the new slots are treated as
+    "feature missing in this dataset" and will be dropped downstream by
+    :func:`resolve_feature_subset` as long as they are listed in
+    :data:`CONDITIONAL_DROP_IF_CONSTANT`.
+
+    Rows that are wider than ``feature_names`` would indicate a real bug
+    (data generated under a wider schema than the caller expects) and
+    are left alone — numpy will raise during downstream coercion.
+    """
+    target_width = len(feature_names)
     features: list[list[float]] = []
     labels: list[str] = []
     column_ids: list[str] = []
@@ -102,7 +128,10 @@ def load_jsonl(path: Path, feature_names: tuple[str, ...]) -> LoadedDataset:
             if not line:
                 continue
             row = json.loads(line)
-            features.append([float(x) for x in row["features"]])
+            row_features = [float(x) for x in row["features"]]
+            if len(row_features) < target_width:
+                row_features.extend([0.0] * (target_width - len(row_features)))
+            features.append(row_features)
             labels.append(row["ground_truth"])
             column_ids.append(row["column_id"])
             corpora.append(row["corpus"])

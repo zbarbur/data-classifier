@@ -33,9 +33,18 @@ _log = logging.getLogger(__name__)
 
 # ── Feature schema ───────────────────────────────────────────────────────────
 
-# 15 features. The order MUST match the order used by
+# 20 features. The order MUST match the order used by
 # tests/benchmarks/meta_classifier/extract_features.py and by any future
 # shadow-inference code path.
+#
+# Schema history:
+#   * v1 (Sprint 6) shipped with the first 15 features only. The shipped
+#     ``meta_classifier_v1.pkl`` was trained on them.
+#   * E10 (feature-schema experiment) appends 5 GLiNER-derived features
+#     after index 14. Existing feature order and names may not change —
+#     ``_compute_dropped_indices`` relies on v1's 15 names being a subset
+#     of this tuple so v1.pkl still loads via the shadow path (the new
+#     slots become "dropped by v1").
 FEATURE_NAMES: tuple[str, ...] = (
     "top_overall_confidence",
     "regex_confidence",
@@ -52,6 +61,12 @@ FEATURE_NAMES: tuple[str, ...] = (
     "has_secret_indicators",
     "primary_is_pii",
     "primary_is_credential",
+    # ── E10: GLiNER features (appended, indices 15..19) ──
+    "gliner_top_confidence",
+    "gliner_top_entity_is_pii",
+    "gliner_agrees_with_regex",
+    "gliner_agrees_with_column",
+    "gliner_confidence_gap",
 )
 FEATURE_DIM: int = len(FEATURE_NAMES)
 
@@ -61,6 +76,7 @@ _ENGINE_REGEX = "regex"
 _ENGINE_COLUMN_NAME = "column_name"
 _ENGINE_HEURISTIC = "heuristic_stats"
 _ENGINE_SECRET_SCANNER = "secret_scanner"
+_ENGINE_GLINER = "gliner2"
 
 
 # ── Phase 2/3 placeholder types ─────────────────────────────────────────────
@@ -318,8 +334,9 @@ def extract_features(
     *,
     heuristic_distinct_ratio: float = 0.0,
     heuristic_avg_length: float = 0.0,
+    gliner_findings: "list[ClassificationFinding] | None" = None,
 ) -> list[float]:
-    """Extract the 15-feature vector from a column's per-engine findings.
+    """Extract the 20-feature vector from a column's per-engine findings.
 
     The caller is expected to supply *all* findings produced for a single
     column, across every engine that ran. This function is pure: no I/O,
@@ -331,6 +348,14 @@ def extract_features(
     when they can't be computed. ``heuristic_avg_length`` is expected to
     already be normalized — the caller should divide by 100 and clip to
     [0, 1] before passing.
+
+    ``gliner_findings`` is an optional separate list of GLiNER engine
+    findings for the same column. When omitted (or ``None``), the five
+    GLiNER-derived features default to zeros — this preserves the
+    Phase 3 shadow-inference contract, where v1.pkl's loaded model only
+    consumes the first 15 features and the new slots are masked away by
+    ``_compute_dropped_indices``. Training and honest evaluation pass
+    GLiNER findings explicitly so the new slots carry real signal.
 
     Features (index → name, see :data:`FEATURE_NAMES`):
 
@@ -349,6 +374,11 @@ def extract_features(
     12 has_secret_indicators     — 1.0 if secret_scanner engine fired, else 0.0
     13 primary_is_pii            — 1.0 if top finding's category == "PII"
     14 primary_is_credential     — 1.0 if top finding's category == "Credential"
+    15 gliner_top_confidence     — max confidence across gliner_findings
+    16 gliner_top_entity_is_pii  — 1.0 if top GLiNER finding's category == "PII"
+    17 gliner_agrees_with_regex  — 1.0 if top GLiNER entity == top regex entity
+    18 gliner_agrees_with_column — 1.0 if top GLiNER entity == top column_name entity
+    19 gliner_confidence_gap     — top − second gliner finding (1.0 if one, 0.0 if none)
     """
     regex_findings = _findings_for_engine(findings, _ENGINE_REGEX)
     column_name_findings = _findings_for_engine(findings, _ENGINE_COLUMN_NAME)
@@ -410,6 +440,44 @@ def extract_features(
         primary_is_pii = 1.0 if top.category == "PII" else 0.0
         primary_is_credential = 1.0 if top.category == "Credential" else 0.0
 
+    # ── E10: GLiNER features ─────────────────────────────────────────────
+    # When gliner_findings is None (the Phase 3 shadow-inference default),
+    # all five features are zero. v1.pkl's loaded feature_names excludes
+    # them so _compute_dropped_indices masks these slots away entirely.
+    gliner_list = gliner_findings or []
+    top_gliner = _top_finding(gliner_list)
+
+    if top_gliner is None:
+        gliner_top_confidence = 0.0
+        gliner_top_entity_is_pii = 0.0
+        gliner_agrees_with_regex = 0.0
+        gliner_agrees_with_column = 0.0
+        gliner_confidence_gap = 0.0
+    else:
+        gliner_top_confidence = top_gliner.confidence
+        gliner_top_entity_is_pii = 1.0 if top_gliner.category == "PII" else 0.0
+
+        top_regex = _top_finding(regex_findings)
+        gliner_agrees_with_regex = (
+            1.0
+            if top_regex is not None and top_gliner.entity_type == top_regex.entity_type
+            else 0.0
+        )
+
+        top_column = _top_finding(column_name_findings)
+        gliner_agrees_with_column = (
+            1.0
+            if top_column is not None and top_gliner.entity_type == top_column.entity_type
+            else 0.0
+        )
+
+        # confidence_gap: top − second. One finding → 1.0 (no ambiguity).
+        if len(gliner_list) == 1:
+            gliner_confidence_gap = 1.0
+        else:
+            sorted_gliner = sorted((f.confidence for f in gliner_list), reverse=True)
+            gliner_confidence_gap = sorted_gliner[0] - sorted_gliner[1]
+
     vector: list[float] = [
         float(top_overall_confidence),
         float(regex_confidence),
@@ -426,6 +494,11 @@ def extract_features(
         float(has_secret_indicators),
         float(primary_is_pii),
         float(primary_is_credential),
+        float(gliner_top_confidence),
+        float(gliner_top_entity_is_pii),
+        float(gliner_agrees_with_regex),
+        float(gliner_agrees_with_column),
+        float(gliner_confidence_gap),
     ]
     assert len(vector) == FEATURE_DIM, f"feature vector length {len(vector)} != {FEATURE_DIM}"
     return vector

@@ -51,12 +51,18 @@ def _make_finding(
 
 
 def test_feature_dim_matches_names():
-    assert FEATURE_DIM == len(FEATURE_NAMES) == 15
+    # E10 widened the schema from 15 → 20 by appending five GLiNER-derived
+    # features. Additive-only: the original 15 names remain at indices 0..14
+    # so v1.pkl still loads via _compute_dropped_indices (new slots become
+    # "dropped by v1").
+    assert FEATURE_DIM == len(FEATURE_NAMES) == 20
 
 
 def test_feature_names_order_stable():
     # If someone reorders FEATURE_NAMES, this test pins the exact order so
-    # the JSONL on disk doesn't silently become garbage.
+    # the JSONL on disk doesn't silently become garbage. E10 appended five
+    # GLiNER features — the first 15 names MUST stay in their original
+    # positions so v1.pkl keeps loading.
     assert FEATURE_NAMES == (
         "top_overall_confidence",
         "regex_confidence",
@@ -73,14 +79,60 @@ def test_feature_names_order_stable():
         "has_secret_indicators",
         "primary_is_pii",
         "primary_is_credential",
+        "gliner_top_confidence",
+        "gliner_top_entity_is_pii",
+        "gliner_agrees_with_regex",
+        "gliner_agrees_with_column",
+        "gliner_confidence_gap",
     )
 
 
 def test_empty_findings_returns_zero_vector():
     features = extract_features([])
-    assert len(features) == 15
+    assert len(features) == 20
     assert all(v == 0.0 for v in features)
     assert all(isinstance(v, float) for v in features)
+
+
+def test_gliner_features_default_to_zero_when_none_passed():
+    # Backward-compat guardrail: when gliner_findings is not supplied (the
+    # Phase 3 shadow-inference default), the five new slots must all be 0.0.
+    # This is what lets v1.pkl's narrower 15-feature model keep working.
+    f = _make_finding(engine="regex", entity_type="EMAIL", confidence=0.95, match_ratio=0.8)
+    features = extract_features([f])
+    assert features[15:] == [0.0, 0.0, 0.0, 0.0, 0.0]
+
+
+def test_gliner_features_populated_when_findings_passed():
+    # When a caller (the offline training pipeline) passes GLiNER findings,
+    # the five new slots get real values.
+    regex_email = _make_finding(engine="regex", entity_type="EMAIL", confidence=0.95, match_ratio=0.8)
+    col_email = _make_finding(engine="column_name", entity_type="EMAIL", confidence=0.85)
+    gliner_top = _make_finding(engine="gliner2", entity_type="EMAIL", confidence=0.9)
+    gliner_second = _make_finding(engine="gliner2", entity_type="PERSON_NAME", confidence=0.4)
+
+    features = extract_features(
+        [regex_email, col_email],
+        gliner_findings=[gliner_top, gliner_second],
+    )
+    assert features[15] == 0.9  # gliner_top_confidence
+    assert features[16] == 1.0  # gliner_top_entity_is_pii (EMAIL category = PII)
+    assert features[17] == 1.0  # gliner_agrees_with_regex (both say EMAIL)
+    assert features[18] == 1.0  # gliner_agrees_with_column (both say EMAIL)
+    assert abs(features[19] - 0.5) < 1e-9  # gliner_confidence_gap = 0.9 - 0.4
+
+
+def test_gliner_confidence_gap_is_one_when_single_finding():
+    gliner_only = _make_finding(engine="gliner2", entity_type="EMAIL", confidence=0.7)
+    features = extract_features([], gliner_findings=[gliner_only])
+    assert features[15] == 0.7
+    assert features[19] == 1.0  # single gliner finding → no ambiguity → 1.0
+
+
+def test_gliner_features_are_pure_when_gliner_findings_empty_list():
+    f = _make_finding(engine="regex", entity_type="EMAIL", confidence=0.95, match_ratio=0.8)
+    features = extract_features([f], gliner_findings=[])
+    assert features[15:] == [0.0, 0.0, 0.0, 0.0, 0.0]
 
 
 def test_empty_findings_respects_heuristic_kwargs():

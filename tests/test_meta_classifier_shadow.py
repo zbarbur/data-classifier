@@ -395,13 +395,37 @@ def test_compute_dropped_indices_canonical() -> None:
 
 
 def test_trained_model_dropped_indices_match_metadata() -> None:
-    """The shipped model must drop exactly engines_fired + has_column_name_hit."""
+    """Shipped v1.pkl must drop engines_fired + has_column_name_hit, plus
+    any feature names the current FEATURE_NAMES has that v1's training
+    never saw (e.g. the five GLiNER features appended in E10).
+
+    This is the canonical backward-compat invariant: v1.pkl was trained
+    on a 13-feature subset of the current FEATURE_NAMES tuple, so the
+    dropped set is everything in FEATURE_NAMES that isn't in v1's own
+    ``feature_names``. The live-schema indices for engines_fired and
+    has_column_name_hit must still appear in that dropped set.
+    """
     mc = MetaClassifier()
     # Force load
     assert mc._ensure_loaded() is True
-    assert set(mc._dropped_feature_indices) == {6, 11}
+    dropped = set(mc._dropped_feature_indices)
+    # The two features that were constant during v1 training must still
+    # be dropped at their original indices.
+    assert FEATURE_NAMES[6] == "engines_fired"
+    assert FEATURE_NAMES[11] == "has_column_name_hit"
+    assert 6 in dropped
+    assert 11 in dropped
     assert "engines_fired" not in mc._feature_names
     assert "has_column_name_hit" not in mc._feature_names
+    # Any feature name in FEATURE_NAMES that post-dates v1 must also be
+    # in the dropped set — this is what lets the 15-feature model keep
+    # inferring against a 20-dim feature vector.
+    for i, name in enumerate(FEATURE_NAMES):
+        if name not in mc._feature_names:
+            assert i in dropped, (
+                f"feature index {i} ({name}) absent from v1 kept-names but "
+                f"not in dropped set — v1.pkl shadow inference would crash"
+            )
 
 
 # ── 14. run_id propagation ──────────────────────────────────────────────────

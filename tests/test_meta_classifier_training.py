@@ -53,6 +53,11 @@ def _fixture_jsonl(tmp_path: Path, rows: list[dict]) -> Path:
 
 
 def _base_feature_vector(**overrides) -> list[float]:
+    # E10 widened the schema from 15 → 20 features. Each entry here must
+    # stay in lockstep with FEATURE_NAMES in
+    # data_classifier/orchestrator/meta_classifier.py — if a new name is
+    # appended there, add it here with a zero default or the dict lookup
+    # below raises KeyError.
     vector: dict[str, float] = {
         "top_overall_confidence": 0.0,
         "regex_confidence": 0.0,
@@ -69,6 +74,11 @@ def _base_feature_vector(**overrides) -> list[float]:
         "has_secret_indicators": 0.0,
         "primary_is_pii": 0.0,
         "primary_is_credential": 0.0,
+        "gliner_top_confidence": 0.0,
+        "gliner_top_entity_is_pii": 0.0,
+        "gliner_agrees_with_regex": 0.0,
+        "gliner_agrees_with_column": 0.0,
+        "gliner_confidence_gap": 0.0,
     }
     vector.update(overrides)
     from data_classifier.orchestrator.meta_classifier import FEATURE_NAMES
