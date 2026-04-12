@@ -4,7 +4,7 @@ priority: P2
 category: feature
 sprint_target: 7
 created: 2026-04-10
-updated: 2026-04-12
+updated: 2026-04-13
 depends_on: []
 tags:
 - iter3
@@ -41,7 +41,7 @@ test_plan:
   disagreement output shape'
 - 'Manual: full benchmark with --compare presidio, verify report contents'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
