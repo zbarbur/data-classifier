@@ -19,8 +19,42 @@ Determine the current sprint number from `current_sprint` in the config, or from
 
 ## Phase 1: Verify & Ship
 
-1. Run `{ci_command}` — report results
+### Pre-flight: verify Python environment
+
+**This step is mandatory — do not skip it.** Before running any tests or benchmarks, verify that the Python interpreter is the project's `.venv` and that the expected optional extras are installed. Sprint 7 shipped with a silently failing ML test because a bare `pytest` command resolved to homebrew's system Python instead of the venv.
+
+```bash
+python -c "import sys; print('Python:', sys.executable)"
+pip list 2>/dev/null | grep -E "gliner|onnxruntime|torch|transformers|presidio" || echo "WARNING: no ML/compare extras loaded"
+```
+
+If `sys.executable` does NOT contain `.venv/`, stop and fix by either:
+- Running all subsequent commands as `.venv/bin/python -m <module>` / `.venv/bin/pytest`, OR
+- Activating the venv: `source .venv/bin/activate`, OR
+- Creating one if the current worktree is a fresh `git worktree add`: `.venv/bin/pip install -e <worktree-path>[dev,meta,ml]` from the main worktree
+
+Report the venv path and extras list as part of Phase 1 output. If `[ml]` or other optional extras that CI tests against are missing, flag them — the test run will silently skip those code paths and a "green" result is not proof of coverage.
+
+See `feedback_verify_venv_before_trusting_tests.md` in memory for background.
+
+### Run the gate
+
+1. Run `{ci_command}` — report results. If the pre-flight found missing extras, also run the subset of tests that exercise those paths from the correct env before declaring green.
 2. Check git status — warn about uncommitted changes
+
+### Sprint benchmarks (mandatory)
+
+Run the accuracy benchmark and compare to the previous sprint's baseline:
+
+```bash
+.venv/bin/python -m tests.benchmarks.consolidated_report --sprint {N} --samples 50
+```
+
+This writes `docs/benchmarks/history/sprint_{N}.json` and the consolidated HTML. The command automatically computes deltas against previous sprints' history files.
+
+If the previous sprint's history file is stubbed (check the `note` field for "STUBBED"), flag it to the user — the delta will be meaningless. Do NOT skip the benchmark run even if the baseline is stubbed; the point is to produce an honest baseline going forward.
+
+If the benchmark was run from the wrong Python env (missing `[ml]`), the numbers will be misleadingly low in blind mode because GLiNER2 isn't contributing. Rerun from the venv.
 
 ## Phase 2: Update Tracking
 
