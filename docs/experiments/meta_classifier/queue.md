@@ -887,6 +887,17 @@ name matches, heuristic confidence — the features Q5 flagged as
 **corpus-invariant**, max KS ≤ 0.500). If yes, route to a
 PII-type classifier trained on PII-only rows. If no, default
 to the existing orchestrator's credential/noise handling (secret
+
+**Q3 independently validates the stage-1 routing signal.** Q3's
+forward ablation (see `runs/20260412-q3-loco-investigation/
+result.md`) found that `primary_is_pii` is **the most
+load-bearing feature for LOCO generalization** — dropping it
+costs Δ = −0.044 mean LOCO, by far the biggest single-feature
+loss. This is exactly the signal Q6 proposes to use as its
+stage-1 routing gate. The LR was already leaning on
+`primary_is_pii` as its most important feature; Q6 just makes
+that reliance explicit at the architectural level rather than
+burying it inside a 13-feature weighted sum.
 scanner already answers this well).
 
 The meta-classifier becomes a **pure PII-type arbitrator**, which
@@ -1039,6 +1050,141 @@ next decision:
 - Q6 obsoletes E3 (class collapse to 4 classes): Q6 is a
   targeted class restriction that matches the orchestrator's
   existing engine split, whereas E3 was a blind aggregation.
+
+## Methodology corrections (Sprint 7 backlog candidates, not experiments)
+
+These are code fixes discovered during research, not experiments.
+They belong in a regular sprint under code review, not in parallel
+research sessions. Landing them is **prerequisite to trusting any
+future meta-classifier number** — including Q6, E10, and any
+promoted v2 model — because the current CV methodology is
+systematically optimistic.
+
+### M1 — CV strategy: StratifiedKFold → StratifiedGroupKFold
+
+**Discovered by:** Q3 (`runs/20260412-q3-loco-investigation/
+result.md` §6)
+**Priority:** P0 — blocking correctness on every meta-classifier
+metric, including the shipped v1 model
+**Effort:** S (one-line code change + retrain + metadata refresh)
+
+**The bug:** `scripts/train_meta_classifier.py` uses
+`sklearn.model_selection.StratifiedKFold(n_splits=5)` for the
+cross-validation that drives best-`C` selection. Because folds
+are built row-wise across *all* corpora, every training fold
+contains rows from every corpus, which lets the model learn
+corpus-specific feature fingerprints and reuse them at evaluation
+time. The "CV macro F1 = 0.916" number is not measuring
+generalization; it's measuring how well the model memorizes
+in-distribution corpus signatures.
+
+**The fix:** use
+`sklearn.model_selection.StratifiedGroupKFold(n_splits=5,
+shuffle=True, random_state=42)` with `groups=[row.corpus for row
+in dataset]`. This gives folds where groups (corpora) don't leak
+across train/test while still preserving class-label stratification.
+With 6 corpora and 5 splits, the split is natural: four folds
+hold out one corpus each, one fold holds out two corpora.
+
+**Expected impact:**
+- Best-`C` selection drops from 100 to 1–10 (Q3 §5a showed C=1
+  was the LOCO-optimal single-knob setting on the current 13
+  features).
+- Reported CV macro F1 drops from ~0.92 to ~0.40–0.50.
+- The CV and LOCO numbers converge — reported CV becomes an
+  honest estimate of generalization.
+- Phase 2's "+0.25 vs live baseline" claim on the 80/20 held-out
+  test set is NOT affected (that split is independent of the
+  CV strategy).
+
+**Sprint item spec:**
+
+- **File:** `scripts/train_meta_classifier.py`
+- **Change:** swap the CV splitter; thread `groups` through
+  `cross_val_score` / `GridSearchCV` calls
+- **Rebuild:** re-run training against
+  `training_data.jsonl`, regenerate the
+  `meta_classifier_v1` artifacts under
+  `data_classifier/models/`
+- **Re-evaluate:** rerun the three-tier eval
+  (`evaluate.py`) and compare v1 (pre-fix) vs v1 (post-fix)
+  numbers
+- **Update docs:**
+  - `docs/sprints/SPRINT6_HANDOVER.md` — add a methodology
+    correction note; cite the corrected CV macro F1
+  - `docs/research/meta_classifier/sharding_strategy.md` —
+    update §6 to recommend StratifiedGroupKFold
+- **Tests:**
+  - `tests/test_meta_classifier_training.py` — add a unit test
+    that the training script uses a group-aware CV splitter
+  - `tests/test_meta_classifier_shadow.py` — existing shadow
+    tests should still pass (feature schema unchanged;
+    different weights but same interface)
+
+**Acceptance criteria:**
+- `grep -q "StratifiedGroupKFold\|GroupKFold"
+  scripts/train_meta_classifier.py`
+- New `meta_classifier_v1.metadata.json` has `best_c ≤ 50`
+  (was 100)
+- New `cv_mean_macro_f1` is within 0.10 of
+  `loco_mean_macro_f1` (convergence check — was 0.92 vs 0.30)
+- All existing meta-classifier tests pass
+- Phase 2's delta claim is re-verified in the new metadata or
+  explicitly corrected if it changed materially
+
+### M2 — LOCO harness uses model's actual `C`
+
+**Discovered by:** Q3 §6
+**Priority:** P1 — correctness, but lower leverage than M1
+**Effort:** XS (two-line fix)
+
+**The bug:** `tests/benchmarks/meta_classifier/evaluate.py::
+_loco_fit_predict` hardcodes
+`LogisticRegression(C=100.0, class_weight="balanced", ...)` when
+refitting on LOCO folds, regardless of what `C` the shipped
+model actually uses. The hardcoded `C=100` also happens to be
+the LOCO-pessimal value (Q3 §5a showed `C=1` gives +0.034 LOCO
+for free). Every LOCO number Phase 2 reported under-represents
+the model's real LOCO performance by ~0.03.
+
+**The fix:** read `C` from the loaded model's metadata sidecar
+and pass it through to the LOCO refit.
+
+**Sprint item spec:**
+- **File:** `tests/benchmarks/meta_classifier/evaluate.py`
+- **Change:** read `best_c` from metadata, pass to the LR
+  constructor in `_loco_fit_predict`
+- **Add CLI flag:** `--c-override` for diagnostic runs
+- **Re-evaluate:** rerun LOCO on v1 with the correct `C`,
+  compare numbers, update metadata
+
+**Acceptance criteria:**
+- LOCO harness does not contain any hardcoded C value
+- Rerunning LOCO on v1 with the fixed harness gives
+  numbers at least 0.01 better than the Phase 2 report
+- The diagnostic `--c-override` flag works for ad-hoc
+  experimentation
+
+### M3 (optional) — Report LOCO per-holdout, not just mean
+
+**Discovered by:** Q3 §5c
+**Priority:** P3 — observability improvement
+**Effort:** XS
+
+**The observation:** Q3's extended LOCO table shows that
+per-corpus holdout F1 varies wildly (ai4privacy 0.26, nemotron
+0.36, synthetic 0.13, gitleaks 0.08, detect_secrets 0.06,
+secretbench 0.33). Reporting only the mean of ai4privacy and
+nemotron hides that the synthetic corpus is load-bearing in a
+way no real corpus is and that the credential corpora are not
+interchangeable at the feature level.
+
+**The fix:** extend `metadata.json` to include
+`loco_per_holdout` as a dict, and make the evaluate.py output
+a per-corpus breakdown table.
+
+Purely informational — doesn't change how models are selected
+or shipped, but makes future research visible in one glance.
 
 ## Workflow for completed experiments
 
