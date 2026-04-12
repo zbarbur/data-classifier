@@ -1,22 +1,54 @@
 title: "Meta-classifier for learned engine arbitration \u2014 train logistic regression\
   \ / XGBoost on (engine signals \u2192 correct entity type) from benchmark data,\
   \ replace hand-tuned calibration and confidence gap thresholds"
-status: backlog
+status: doing
 priority: P1
 category: feature
-sprint_target: null
+sprint_target: 6
 created: 2026-04-12
 updated: 2026-04-12
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Train logistic regression on benchmark engine signals, log predictions as shadow
+  events alongside live pipeline, prove offline F1 improvement of +0.02 or greater
+  on held-out blind benchmarks.
+complexity: L
+technical_specs:
+- "File: data_classifier/orchestrator/meta_classifier.py \u2014 new MetaClassifier\
+  \ class with load_model, predict_shadow, feature extraction symmetric with training"
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 call meta_classifier.predict_shadow\
+  \ after existing merge/conflict resolution, emit event, return unmodified findings"
+- "File: data_classifier/events/types.py \u2014 add MetaClassifierEvent(column_id,\
+  \ predicted_entity, confidence, live_entity, agreement) dataclass"
+- "File: scripts/train_meta_classifier.py \u2014 CLI entry to load benchmark data,\
+  \ extract features, train, save model"
+- "File: pyproject.toml \u2014 new optional extra [meta] pulls scikit-learn; shadow\
+  \ inference imports inside function with ImportError no-op"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Feature extraction produces (engine_signals -> ground_truth_entity) dataset from
+  Nemotron + Ai4Privacy named and blind modes, with per-engine confidence, authority,
+  engine_id, column-name hints, and heuristic stats as features
+- Training pipeline (scripts/train_meta_classifier.py) trains sklearn LogisticRegression
+  with L2 regularization and 5-fold CV, outputs versioned model to data_classifier/models/meta_classifier_v1.pkl
+- Shadow inference in data_classifier/orchestrator/meta_classifier.py loads model
+  at engine init and emits MetaClassifierEvent via event emitter WITHOUT mutating
+  classify_columns return value
+- Offline eval shows macro F1 delta >= +0.02 on BOTH Nemotron blind and Ai4Privacy
+  blind; if not met, item reverts to infrastructure-only ship with decision note
+- 20+ unit tests in tests/test_meta_classifier.py; all existing 777+ tests pass; consolidated
+  benchmark F1 unchanged within +/-0.005 (no live pipeline regression)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_meta_classifier.py: feature extraction on mock signals, model load/save
+  roundtrip, shadow inference emits event without mutating findings, sklearn missing
+  graceful degradation'
+- 'tests/benchmarks/meta_classifier/test_evaluate.py: integration eval on 20-sample
+  fixture, JSON output shape assertion'
+- 'Manual: full benchmark run pre-merge, verify F1 delta >= +0.02 on both corpora
+  blind mode'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

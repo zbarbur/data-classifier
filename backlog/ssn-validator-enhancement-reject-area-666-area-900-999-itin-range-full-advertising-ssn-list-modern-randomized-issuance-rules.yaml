@@ -1,21 +1,37 @@
 title: "SSN validator enhancement \u2014 reject area 666, area 900-999 (ITIN range),\
   \ full advertising SSN list, modern randomized issuance rules"
-status: backlog
+status: doing
 priority: P1
 category: feature
-sprint_target: null
+sprint_target: 6
 created: 2026-04-12
 updated: 2026-04-12
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Harden SSN validator to reject invalid area numbers and advertising SSNs, directly
+  killing the ABA-routing to SSN FP observed in Sprint 5 Nemotron col_0.
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/validators/ssn_validator.py (or equivalent) \u2014\
+  \ add area-number rejection + advertising-list constants"
+- "File: tests/test_patterns.py or test_ssn_validator.py \u2014 parameterized rejection\
+  \ cases for each invalid area + advertising list entry"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Validator rejects area 000, 666, and 900-999 (ITIN range)
+- Validator rejects SSA-published advertising/example SSN list (includes 078-05-1120,
+  219-09-9999, and others from SSA Press Office list)
+- Nemotron col_0 ABA to SSN FP eliminated in blind-mode benchmark (verified via consolidated
+  report diff)
+- No regression on existing SSN pattern tests; all 777+ tests pass
+- Lint clean
+test_plan:
+- Parameterized tests covering 000/666/900-999 rejection, advertising SSN rejection,
+  valid SSN acceptance (control)
+- 'Benchmark delta: consolidated report shows Nemotron blind ABA_ROUTING FP count
+  drops'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

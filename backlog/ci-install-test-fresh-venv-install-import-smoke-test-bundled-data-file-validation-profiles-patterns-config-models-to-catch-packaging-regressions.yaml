@@ -1,21 +1,38 @@
 title: "CI install test \u2014 fresh venv install + import smoke test + bundled data\
   \ file validation (profiles, patterns, config, models) to catch packaging regressions"
-status: backlog
+status: doing
 priority: P1
 category: chore
-sprint_target: null
+sprint_target: 6
 created: 2026-04-12
 updated: 2026-04-12
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Add a CI job that installs data_classifier in a fresh venv, imports all engines,
+  and validates bundled data files (profiles, config, patterns, models) to catch packaging
+  regressions like the Sprint 5 engine_defaults.yaml bug.
+complexity: S
+technical_specs:
+- "File: .github/workflows/ci.yml \u2014 add install-test job with matrix on py3.11,\
+  \ py3.12"
+- "File: scripts/install_smoke_test.py \u2014 smoke test script used by the job (reusable\
+  \ locally)"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- 'New GitHub Actions job install-test runs on every PR: creates fresh venv, pip install
+  ., runs import smoke test, validates bundled data file loading'
+- Smoke test imports classify_columns, ColumnInput, all 5 engines, loads standard
+  profile, classifies a sample column end-to-end
+- Data file validation asserts all YAMLs in data_classifier/profiles and data_classifier/config
+  load without error
+- Job fails if engine_defaults.yaml or any other bundled data file is not included
+  in package-data
+- Job runs in under 3 minutes
+test_plan:
+- 'Manual: intentionally break package-data in a branch, verify install-test job fails'
+- 'CI: green on main after merge'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

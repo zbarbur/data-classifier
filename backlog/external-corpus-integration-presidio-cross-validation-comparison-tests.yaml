@@ -1,19 +1,45 @@
 title: 'External corpus integration: Presidio cross-validation comparison tests'
 status: backlog
-priority: P3
+priority: P2
 category: feature
 sprint_target: null
 created: 2026-04-10
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags:
 - iter3
-goal: ''
-complexity: null
-technical_specs: []
+goal: Benchmark data_classifier against Presidio on Nemotron + Ai4Privacy corpora,
+  emit F1 comparison table and disagreement JSONL with entity taxonomy mapping appendix.
+  Sprint 7 candidate.
+complexity: M
+technical_specs:
+- "File: tests/benchmarks/comparators/__init__.py + presidio_comparator.py \u2014\
+  \ adapter + dual mapping logic (strict/aggressive)"
+- "File: tests/benchmarks/consolidated_report.py \u2014 add --compare flag, call comparator\
+  \ if requested"
+- "File: pyproject.toml \u2014 new optional extra [bench-compare] pulling presidio-analyzer"
+- "File: docs/benchmarks/presidio_mapping.md \u2014 documented mapping decisions with\
+  \ rationale"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- presidio-analyzer installed via new optional extra [bench-compare]; spaCy model
+  downloaded at setup time
+- Adapter (tests/benchmarks/comparators/presidio_comparator.py) translates ColumnInput
+  to text, runs Presidio AnalyzerEngine, maps RecognizerResult to ClassificationFinding
+  with BOTH strict 1:1 and aggressive mappings
+- Entity mapping appendix published in docs/benchmarks/presidio_mapping.md documenting
+  strict and aggressive decisions (LOCATION, DATE_TIME, US_SSN, etc.)
+- Consolidated report supports --compare presidio flag; emits (a) F1 comparison table
+  side-by-side, (b) disagreement JSONL per corpus, (c) mapping appendix reference
+- Runs in CI (no auth required); benchmark run completes in under 5 minutes on GitHub
+  Actions runner
+- 20+ tests for adapter, entity mapping, disagreement computation; lint clean
+test_plan:
+- 'Adapter unit tests: each entity type mapping (strict + aggressive), score normalization,
+  partial match handling'
+- 'Integration: run presidio adapter on 20-sample Nemotron fixture, assert F1 and
+  disagreement output shape'
+- 'Manual: full benchmark with --compare presidio, verify report contents'
 notes: ''
 phase: null
 design_reviewed: false

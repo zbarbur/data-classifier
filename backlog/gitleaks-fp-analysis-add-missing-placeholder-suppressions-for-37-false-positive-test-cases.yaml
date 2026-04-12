@@ -1,21 +1,33 @@
 title: "Gitleaks FP analysis \u2014 add missing placeholder suppressions for 37 false-positive\
   \ test cases"
-status: backlog
+status: doing
 priority: P2
 category: bug
-sprint_target: null
+sprint_target: 6
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Add the 37 missing placeholder suppressions (e.g. token=xxxx, key=YOUR_KEY_HERE)
+  to secret_scanner to eliminate known gitleaks FPs from Sprint 4 analysis.
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/secret_scanner.py \u2014 extend placeholder suppression\
+  \ list/patterns"
+- "File: tests/test_secret_scanner.py \u2014 add 37 parameterized FP cases with expected\
+  \ empty findings"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- All 37 placeholder patterns suppressed in secret_scanner (list from Sprint 4 gitleaks
+  FP analysis)
+- Each suppression covered by a dedicated FP regression test
+- No regression on true-positive secret detection
+- All 777+ tests pass; lint clean
+test_plan:
+- 'Parameterized: one case per placeholder pattern, asserts empty findings'
+- 'Control: real-looking API keys still detected'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

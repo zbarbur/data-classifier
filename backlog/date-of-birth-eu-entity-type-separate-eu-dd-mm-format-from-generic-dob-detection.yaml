@@ -1,22 +1,37 @@
 title: "DATE_OF_BIRTH_EU entity type \u2014 separate EU DD/MM format from generic\
   \ DOB detection"
-status: backlog
+status: doing
 priority: P2
 category: feature
-sprint_target: 4
+sprint_target: 6
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags:
 - iter2
-goal: ''
-complexity: M
-technical_specs: []
+goal: Introduce DATE_OF_BIRTH_EU entity type for DD/MM/YYYY format, separating it
+  from the generic DATE_OF_BIRTH which defaults to US MM/DD/YYYY.
+complexity: S
+technical_specs:
+- "File: data_classifier/profiles/standard.yaml \u2014 add DATE_OF_BIRTH_EU entity\
+  \ type and patterns"
+- "File: data_classifier/core/types.py \u2014 register new entity type constant if\
+  \ applicable"
+- "File: tests/test_patterns.py \u2014 DOB-EU acceptance + disambiguation cases"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- DATE_OF_BIRTH_EU entity type added to profiles/standard.yaml with DD/MM/YYYY and
+  DD.MM.YYYY regex patterns
+- US DATE_OF_BIRTH pattern restricted to unambiguous MM/DD/YYYY (day > 12) or context-flagged
+  US columns
+- Ambiguous format (e.g. 04/03/1990) matches BOTH entity types; orchestrator lets
+  downstream filter by region context
+- 2-sprint carry thread (Sprint 4 DOB-EU) closed
+- All 777+ tests pass; lint clean
+test_plan:
+- 'Unit: DD/MM/YYYY match, MM/DD/YYYY match, ambiguous both-match, invalid dates rejected'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

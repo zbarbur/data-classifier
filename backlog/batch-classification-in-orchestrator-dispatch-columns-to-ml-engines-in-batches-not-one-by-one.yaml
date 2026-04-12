@@ -1,21 +1,52 @@
 title: "Batch classification in orchestrator \u2014 dispatch columns to ML engines\
   \ in batches, not one-by-one"
-status: backlog
+status: doing
 priority: P2
 category: feature
-sprint_target: null
+sprint_target: 6
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Dispatch ML engines in a single batch call instead of per-column loops, cutting
+  per-column GLiNER2 latency from 204ms to <=50ms without changing classification
+  output.
+complexity: L
+technical_specs:
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 refactor classify_columns\
+  \ to build per-engine column lists, call engine.classify_batch for ML engines, loop\
+  \ per-column for non-ML"
+- "File: data_classifier/engines/interface.py \u2014 add is_ml_engine class attribute;\
+  \ default classify_batch impl loops over classify_column so non-overriding engines\
+  \ work unchanged"
+- "File: data_classifier/engines/gliner_engine.py \u2014 set is_ml_engine=True, verify\
+  \ existing classify_batch handles real 10-column flow end-to-end without OOM or\
+  \ shape errors"
+- "File: tests/benchmarks/perf_quick.py \u2014 extend report with per-column-loop-vs-batch\
+  \ ablation when --compare-batch flag passed"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- 'classify_columns splits into two phases: non-ML engines per-column loop (unchanged),
+  ML engines receive single classify_batch call'
+- 'Batch path is transparent: classify_columns returns identical findings to pre-change
+  on every existing test (zero accuracy regression)'
+- perf_quick.py per-column p50 latency <=50ms with GLiNER2 (vs 204ms Sprint 5 baseline,
+  4x improvement target); throughput >=20 col/s
+- Consolidated benchmark Macro F1 delta <=0.01 on all 4 configs (Nemotron/Ai4Privacy
+  x named/blind); any larger delta blocks merge
+- 15+ tests in tests/test_orchestrator_batch.py covering batch dispatch, single-column
+  equivalence, empty input, ML engine disabled, 10-column real GLiNER path, non-ML
+  fallback
+- Lint clean, all 777+ existing tests pass
+test_plan:
+- 'tests/test_orchestrator_batch.py: batch dispatch (5/10/50 cols), single-column
+  equivalence (identical findings), empty input, ML engine disabled, non-overriding
+  engine uses default loop impl'
+- "Run pytest tests/ -v \u2014 all 777+ tests pass with batching active"
+- Run perf_quick before/after, compare p50/p95 per column; run consolidated_report
+  before/after, diff F1
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

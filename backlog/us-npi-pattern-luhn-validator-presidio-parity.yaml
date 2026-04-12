@@ -1,21 +1,38 @@
 title: US NPI pattern + Luhn validator (Presidio parity)
-status: backlog
+status: doing
 priority: P2
 category: feature
-sprint_target: null
+sprint_target: 6
 created: 2026-04-10
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags:
 - iter2
-goal: ''
-complexity: null
-technical_specs: []
+goal: Add Luhn checksum validation to 10-digit NPI pattern to disambiguate from phone
+  numbers and other digit sequences, reaching Presidio parity on NPI detection.
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/validators/npi_validator.py \u2014 new module implementing\
+  \ Luhn with 80840 prefix per CMS spec"
+- "File: data_classifier/engines/regex_engine.py \u2014 wire NPI pattern to Luhn validator"
+- "File: tests/test_patterns.py \u2014 valid/invalid Luhn parameterized cases from\
+  \ CMS reference list"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- NPI pattern validates Luhn checksum with CMS prefix 80840 per Medicare NPI Luhn
+  spec
+- Invalid-Luhn 10-digit sequences no longer classified as NPI (e.g. 1234567890)
+- Valid NPIs from CMS test list (e.g. 1234567893) still classified as NPI with boosted
+  confidence
+- Reduces 9/10-digit collision FPs on Nemotron blind (measured delta)
+- No regression on existing NPI tests; all 777+ tests pass
+- Lint clean
+test_plan:
+- 'Unit: Luhn valid accept, Luhn invalid reject, 10-digit phone reject, CMS reference
+  NPIs accept'
+- Benchmark delta on Nemotron blind digit-collision FPs
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

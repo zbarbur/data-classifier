@@ -1,20 +1,33 @@
 title: "URL / IP_ADDRESS collision pair \u2014 URLs containing IPs trigger both patterns"
-status: backlog
+status: doing
 priority: P2
 category: feature
-sprint_target: null
+sprint_target: 6
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Suppress IP_ADDRESS findings when surrounding context matches a URL, eliminating
+  the URL to IP FP observed in Sprint 5 Nemotron col_12.
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/regex_engine.py or collision_resolver.py \u2014 add\
+  \ URL-context check for IP_ADDRESS matches"
+- "File: tests/test_collision_resolution.py \u2014 add URL+IP collision cases"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Collision resolver detects URL context (http://, https://, //, domain before IP)
+  and suppresses the IP_ADDRESS secondary match
+- Nemotron col_12 URL to IP_ADDRESS FP eliminated in blind-mode benchmark
+- Standalone IP addresses (no URL context) still classified as IP_ADDRESS
+- No regression on existing URL or IP_ADDRESS tests; all 777+ tests pass
+- Lint clean
+test_plan:
+- 'Unit tests: URL with embedded IP (suppress IP), standalone IP (keep), partial URL
+  like //1.2.3.4 (suppress)'
+- Benchmark delta on Nemotron col_12
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

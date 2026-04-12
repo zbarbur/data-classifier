@@ -1,0 +1,58 @@
+title: "Cloud DLP comparator \u2014 benchmark data_classifier against Google Cloud\
+  \ DLP on Nemotron + Ai4Privacy corpora"
+status: backlog
+priority: P2
+category: feature
+sprint_target: null
+created: 2026-04-12
+updated: 2026-04-12
+depends_on: []
+tags: []
+goal: Benchmark data_classifier against Google Cloud DLP on Nemotron + Ai4Privacy
+  corpora, emit F1 comparison table and disagreement JSONL with InfoType mapping appendix.
+  Sprint 7 candidate. GCP auth already configured on dev machine per user 2026-04-12.
+complexity: M
+technical_specs:
+- "File: tests/benchmarks/comparators/cloud_dlp_comparator.py \u2014 adapter with\
+  \ mock-friendly DLP client wrapper"
+- "File: tests/benchmarks/consolidated_report.py \u2014 wire --compare cloud_dlp flag,\
+  \ compose with --compare presidio"
+- "File: pyproject.toml \u2014 new optional extra [bench-compare-cloud] pulling google-cloud-dlp"
+- "File: docs/benchmarks/cloud_dlp_mapping.md \u2014 InfoType mapping with rationale"
+- "File: docs/benchmarks/history/dlp_comparison_sprint_{N}.json \u2014 committed comparison\
+  \ artifact"
+description: ''
+acceptance_criteria:
+- google-cloud-dlp installed via new optional extra [bench-compare-cloud] (sibling
+  of [bench-compare])
+- Adapter (tests/benchmarks/comparators/cloud_dlp_comparator.py) translates ColumnInput
+  to DLP inspect_content call, maps Finding.info_type + likelihood enum to ClassificationFinding
+  with BOTH strict 1:1 and aggressive mappings
+- 'Likelihood enum quantized to float scores: VERY_LIKELY=0.95, LIKELY=0.80, POSSIBLE=0.55,
+  UNLIKELY=0.30, VERY_UNLIKELY=0.10 (documented)'
+- InfoType mapping appendix published in docs/benchmarks/cloud_dlp_mapping.md documenting
+  strict and aggressive decisions for the ~30 mapped InfoTypes (PERSON_NAME, EMAIL_ADDRESS,
+  US_SOCIAL_SECURITY_NUMBER, US_HEALTHCARE_NPI, BANK_ROUTING, etc.)
+- Consolidated report supports --compare cloud_dlp flag (composable with --compare
+  presidio)
+- Runs LOCAL ONLY (not in CI); comparison result JSON committed to docs/benchmarks/history/dlp_comparison_sprint_{N}.json
+  for reproducibility
+- Benchmark run cost well under DLP free tier (1GB/month) for 50 samples x 10 cols
+  x few-KB payloads; cost tracking note in report
+- 'Graceful failure when GOOGLE_APPLICATION_CREDENTIALS not set: comparator exits
+  with clear error, does not break default benchmark run'
+- 15+ tests for adapter, InfoType mapping, likelihood normalization (can mock DLP
+  client for tests)
+- Lint clean
+test_plan:
+- 'Unit tests (mocked DLP client): InfoType mapping (strict + aggressive), likelihood
+  enum quantization, empty findings handling, auth error surfacing'
+- 'Integration: 20-sample fixture run against real DLP (local only, manual gate)'
+- 'Manual: full benchmark with --compare cloud_dlp, verify report + committed JSON
+  artifact'
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

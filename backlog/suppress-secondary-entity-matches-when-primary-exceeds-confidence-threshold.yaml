@@ -1,20 +1,35 @@
 title: Suppress secondary entity matches when primary exceeds confidence threshold
-status: backlog
+status: doing
 priority: P2
 category: feature
-sprint_target: null
+sprint_target: 6
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Tighten confidence-gap suppression of secondary findings when primary is high-confidence,
+  reducing cross-corpus noise from ambiguous entity pairs.
+complexity: S
+technical_specs:
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 extend _apply_findings_limit\
+  \ with high-primary-confidence gating"
+- "File: data_classifier/__init__.py \u2014 expose aggressive_gap_threshold param\
+  \ (optional, default None for backward compatibility)"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- When primary finding confidence > 0.80, secondary findings with confidence_gap <
+  0.40 are suppressed (stricter than current 0.30 default)
+- Threshold configurable via classify_columns parameter (backward compatible, default
+  preserves Sprint 5 behavior; aggressive mode opt-in)
+- Reduces total FP count on consolidated blind-mode benchmark by >=2 FPs (measured
+  delta)
+- No regression on existing test_primary_label.py tests; all 777+ tests pass
+- Lint clean
+test_plan:
+- 'tests/test_primary_label.py: aggressive-mode cases; regress existing default behavior'
+- Consolidated benchmark delta vs Sprint 5 baseline
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

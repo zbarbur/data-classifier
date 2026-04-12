@@ -1,21 +1,41 @@
 title: "Sprint-over-sprint benchmark history \u2014 persist accuracy/perf results\
   \ as JSON per sprint, trend chart in consolidated report, auto-compute deltas"
-status: backlog
+status: doing
 priority: P2
 category: chore
-sprint_target: null
+sprint_target: 6
 created: 2026-04-12
 updated: 2026-04-12
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Persist accuracy and perf benchmark results as JSON per sprint, add a sprint-over-sprint
+  trend chart to the consolidated report, and auto-compute deltas vs the previous
+  sprint.
+complexity: S
+technical_specs:
+- "File: tests/benchmarks/consolidated_report.py \u2014 emit JSON artifact + read\
+  \ prior history for delta computation"
+- "File: docs/benchmarks/history/ \u2014 new directory, commit JSON for long-term\
+  \ trend"
+- "File: tests/benchmarks/schema/benchmark_history_v1.py \u2014 schema dataclass +\
+  \ validator"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Consolidated report writes a JSON artifact to docs/benchmarks/history/sprint_{N}.json
+  with schema versioned in the file
+- Report reads prior sprint JSONs (up to last 5) and renders a trend chart (inline
+  SVG or Chart.js) for macro F1 and p50 latency
+- Delta column shows (current - previous) for F1, precision, recall, and p50 per column
+- 'Schema includes: sprint, date, git_sha, corpus, mode, macro_f1, precision, recall,
+  fp/fn counts, p50_col_ms, per_engine_times'
+- Sprint 6 run populates history/sprint_6.json; Sprint 5 backfilled from existing
+  SPRINT5_CONSOLIDATED data
+test_plan:
+- 'Unit: schema validation, delta computation with missing prior sprint (first run),
+  delta computation with 2+ prior sprints'
+- 'Manual: run full consolidated_report --sprint 6, verify JSON + chart rendered'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []
