@@ -1,21 +1,52 @@
 title: "International phone format expansion \u2014 Ai4Privacy PHONE column 0% match\
   \ on non-US formats"
-status: backlog
+status: doing
 priority: P2
 category: feature
-sprint_target: null
+sprint_target: 7
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-12
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Lift Ai4Privacy PHONE column match rate from 0% to >=70% by extending international_phone
+  regex to cover multi-segment mixed-separator formats and adding column-name-gated
+  non-plus formats, without regressing macro F1 on existing benchmark configs.
+complexity: S
+technical_specs:
+- "File: data_classifier/patterns/default_patterns.json \u2014 expand 'international_phone'\
+  \ regex to allow 1-6 mixed-separator groups after country code; add new 'international_phone_local'\
+  \ pattern with column-hint-only authority"
+- "File: data_classifier/engines/validators.py \u2014 phone_number_check already delegates\
+  \ to Google phonenumbers library which handles all regions; no validator change\
+  \ expected, but verify non-+ strings dont spuriously pass via region='US' default"
+- "File: tests/test_phone_international.py (new) \u2014 20+ cases covering UK/DE/FR/AU/JP/AR/PE/IT\
+  \ phone formats, mixed separators, extensions, column-name gating, negative cases\
+  \ (credit cards, IDs)"
+- "File: tests/benchmarks/accuracy_benchmark.py \u2014 rerun post-change, confirm\
+  \ PHONE column match_ratio lift on Ai4Privacy fixture"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- 'international_phone regex matches multi-segment mixed-separator formats: +CC DD-DDD.DDDD
+  style (e.g. +543 51-082.8035, +51-063-367.7939, +1322380 4181 from real Ai4Privacy
+  samples)'
+- New column-name-gated pattern international_phone_local (authority via column_name
+  hint only) matches non-+ local formats like '076 1352.8018' when col name is phone/tel/mobile/cellphone
+- Ai4Privacy PHONE column match_ratio >= 0.70 on the full 45568-row PHONE split (from
+  current 0%)
+- Macro F1 delta <= 0.01 on all 4 consolidated benchmark configs (Nemotron/Ai4Privacy
+  x named/blind); any larger delta blocks merge
+- No regression on test_regex_engine.py and test_golden_fixtures.py (all existing
+  1009 tests pass)
+- Lint clean (ruff check . --exclude .claude/worktrees && ruff format --check .)
+test_plan:
+- 'tests/test_phone_international.py: multi-segment international (+543 51-082.8035),
+  non-+ local with col hint (076 1352.8018 with col=''phone''), non-+ without col
+  hint (must NOT match), extension formats (x1234, ext 123), country variants'
+- "pytest tests/ -v \u2014 all 1009+ tests pass"
+- "python3 -m tests.benchmarks.accuracy_benchmark \u2014 PHONE column match_ratio\
+  \ >= 0.70 on Ai4Privacy"
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []
