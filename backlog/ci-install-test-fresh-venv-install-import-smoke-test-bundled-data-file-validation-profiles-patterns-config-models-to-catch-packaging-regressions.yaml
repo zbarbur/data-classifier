@@ -1,6 +1,6 @@
 title: "CI install test \u2014 fresh venv install + import smoke test + bundled data\
   \ file validation (profiles, patterns, config, models) to catch packaging regressions"
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 6

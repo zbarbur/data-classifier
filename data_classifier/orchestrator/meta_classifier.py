@@ -113,21 +113,23 @@ class MetaClassifier:
 
     # ── Model loading ────────────────────────────────────────────────
 
-    def _get_model_path(self) -> Path:
-        """Resolve the pickle location.
+    def _read_model_bytes(self) -> bytes:
+        """Return the pickle bytes.
 
         Prefers an explicit constructor argument (useful for tests),
         otherwise resolves via :mod:`importlib.resources` against the
-        ``data_classifier.models`` subpackage so it works equally well
-        in editable installs and installed wheels.
+        ``data_classifier.models`` subpackage. Reading bytes inside the
+        ``as_file`` context is required — the contract only guarantees
+        the path is live inside the ``with`` block, which matters for
+        zipapp/pex/frozen deployments.
         """
         if self._model_path is not None:
-            return self._model_path
+            return self._model_path.read_bytes()
         from importlib.resources import as_file, files
 
         resource = files(_DEFAULT_MODEL_PACKAGE).joinpath(_DEFAULT_MODEL_RESOURCE)
         with as_file(resource) as path:
-            return Path(path)
+            return Path(path).read_bytes()
 
     def _ensure_loaded(self) -> bool:
         """Lazy load. Returns ``True`` if the model is ready, ``False`` if degraded."""
@@ -148,12 +150,12 @@ class MetaClassifier:
         try:
             import pickle  # noqa: S403 — loading a trusted in-wheel artifact
 
-            path = self._get_model_path()
-            if not path.exists():
-                self._log_load_failure(f"model artifact not found at {path}")
+            try:
+                raw = self._read_model_bytes()
+            except FileNotFoundError as exc:
+                self._log_load_failure(f"model artifact not found: {exc}")
                 return False
-            with open(path, "rb") as fh:
-                blob = pickle.load(fh)  # noqa: S301 — trusted first-party artifact
+            blob = pickle.loads(raw)  # noqa: S301 — trusted first-party artifact
             self._model = blob["model"]
             self._scaler = blob["scaler"]
             self._feature_names = tuple(blob["feature_names"])

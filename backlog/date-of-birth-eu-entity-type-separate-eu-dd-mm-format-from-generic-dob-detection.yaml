@@ -1,6 +1,6 @@
 title: "DATE_OF_BIRTH_EU entity type \u2014 separate EU DD/MM format from generic\
   \ DOB detection"
-status: doing
+status: done
 priority: P2
 category: feature
 sprint_target: 6

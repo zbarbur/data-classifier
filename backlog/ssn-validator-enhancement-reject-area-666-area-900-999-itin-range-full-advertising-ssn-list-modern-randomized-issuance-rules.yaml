@@ -1,6 +1,6 @@
 title: "SSN validator enhancement \u2014 reject area 666, area 900-999 (ITIN range),\
   \ full advertising SSN list, modern randomized issuance rules"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 6

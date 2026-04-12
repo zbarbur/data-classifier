@@ -1,7 +1,7 @@
 title: "Meta-classifier for learned engine arbitration \u2014 train logistic regression\
   \ / XGBoost on (engine signals \u2192 correct entity type) from benchmark data,\
   \ replace hand-tuned calibration and confidence gap thresholds"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 6

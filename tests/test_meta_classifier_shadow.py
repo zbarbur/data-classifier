@@ -155,7 +155,7 @@ def test_constructor_does_not_load_model() -> None:
     """Instantiating MetaClassifier must not touch the model artifact."""
     import pickle as _mod
 
-    with mock.patch.object(_mod, "load", side_effect=AssertionError("loader called in __init__")):
+    with mock.patch.object(_mod, "loads", side_effect=AssertionError("loader called in __init__")):
         mc = MetaClassifier()
         assert mc._loaded is False
         assert mc._available is False
@@ -174,7 +174,7 @@ def test_first_predict_loads_then_cached() -> None:
     assert mc._available is True
 
     # Second call must not reload — patch the loader and assert not called.
-    with mock.patch.object(mc, "_get_model_path", side_effect=AssertionError("reload attempted")):
+    with mock.patch.object(mc, "_read_model_bytes", side_effect=AssertionError("reload attempted")):
         pred2 = mc.predict_shadow(findings, ["a@b.com"])
     assert pred2 is not None
 

@@ -1,6 +1,6 @@
 title: "Sprint-over-sprint benchmark history \u2014 persist accuracy/perf results\
   \ as JSON per sprint, trend chart in consolidated report, auto-compute deltas"
-status: doing
+status: done
 priority: P2
 category: chore
 sprint_target: 6

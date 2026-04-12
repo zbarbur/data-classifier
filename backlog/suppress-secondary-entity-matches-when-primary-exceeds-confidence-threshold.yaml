@@ -1,5 +1,5 @@
 title: Suppress secondary entity matches when primary exceeds confidence threshold
-status: doing
+status: done
 priority: P2
 category: feature
 sprint_target: 6

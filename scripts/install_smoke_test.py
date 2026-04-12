@@ -168,6 +168,44 @@ def check_profile_loads() -> CheckResult:
         return CheckResult("load_profile('standard')", False, f"{type(exc).__name__}: {exc}")
 
 
+def check_meta_classifier_model() -> CheckResult:
+    """Verify the bundled meta-classifier pkl ships and loads.
+
+    This is specifically the kind of regression the smoke test exists to
+    catch: the pkl is a binary artifact loaded via importlib.resources,
+    and a broken ``as_file`` context or a missing ``models/*.pkl`` glob
+    would silently disable the meta-classifier in installed wheels. We
+    skip cleanly if the ``[meta]`` extra is not installed.
+    """
+    try:
+        import sklearn  # noqa: F401
+    except ImportError:
+        return CheckResult(
+            "meta_classifier model load",
+            True,
+            "skipped — sklearn not installed (optional [meta] extra)",
+        )
+
+    try:
+        from data_classifier.orchestrator.meta_classifier import MetaClassifier
+
+        mc = MetaClassifier()
+        loaded = mc._ensure_loaded()
+        if not loaded:
+            return CheckResult(
+                "meta_classifier model load",
+                False,
+                "MetaClassifier._ensure_loaded returned False — pkl missing or unreadable",
+            )
+        return CheckResult(
+            "meta_classifier model load",
+            True,
+            f"{len(mc._class_labels)} classes, {len(mc._feature_names)} features",
+        )
+    except Exception as exc:
+        return CheckResult("meta_classifier model load", False, f"{type(exc).__name__}: {exc}")
+
+
 def check_end_to_end_email() -> CheckResult:
     """Classify a sample column containing real email addresses end-to-end."""
     try:
@@ -219,6 +257,7 @@ def run_all() -> list[CheckResult]:
     results.extend(check_yaml_resources())
     results.extend(check_json_resources())
     results.append(check_profile_loads())
+    results.append(check_meta_classifier_model())
     results.append(check_end_to_end_email())
     return results
 

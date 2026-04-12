@@ -1,6 +1,6 @@
 title: "Gitleaks FP analysis \u2014 add missing placeholder suppressions for 37 false-positive\
   \ test cases"
-status: doing
+status: done
 priority: P2
 category: bug
 sprint_target: 6

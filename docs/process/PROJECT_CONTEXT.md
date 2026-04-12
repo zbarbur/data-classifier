@@ -1,23 +1,25 @@
 # data_classifier — Project Context
 
-> **Last updated:** 2026-04-12 (Sprint 5 complete, v0.5.2 released)
+> **Last updated:** 2026-04-12 (Sprint 6 complete, meta-classifier shipped shadow-only)
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Current sprint | 6 (planning) |
+| Current sprint | 7 (planning) |
 | Release | **v0.5.2** (BQ integration active) |
-| Tests | **777 passing** (1.46s local) |
+| Tests | **1009 passing** (~10s local) |
 | CI | Green on main |
-| Patterns | 71 content patterns + 25 profile rules |
-| Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, **gliner2**) |
-| Validators | 12 (+ aws_secret_not_hex) |
-| Entity types | 32 (in column_names.json) |
-| Key-name patterns | 88 (in secret_key_names.json) |
+| Patterns | 71 content patterns + 26 profile rules (DATE_OF_BIRTH_EU added) |
+| Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, **gliner2**) + **meta-classifier (shadow)** |
+| Validators | 12 (SSN hardened with SSA post-2011 canonical rules) |
+| Entity types | 33 (DATE_OF_BIRTH_EU added) |
+| Key-name patterns | 88 |
 | Backlog | 70+ items |
 | **Accuracy (blind)** | **Nemotron Macro F1 0.872, Ai4Privacy 0.667** |
 | **Accuracy (named)** | Both corpora: 1.000 Macro F1 |
+| **Meta-classifier (CV)** | **Macro F1 0.916 / held-out 0.918 / BCa 95% CI ±0.025** |
+| **Meta-classifier (LOCO)** | 0.27-0.36 — known distribution-shift gap, shipped shadow-only |
 | **Performance** | 207ms/col (with ML), ~2ms/col (without ML) |
 | **ML share** | GLiNER2 = 99.3% of pipeline latency |
 
@@ -105,6 +107,9 @@
 | 1 | Bootstrap + RE2 engine | Complete | 234 | Package, RE2 engine, 43 patterns, 4 validators, orchestrator, events, CI |
 | 2 | Regex hardening + column name engine + testing | Complete | 398 | 59 patterns, 11 validators, column name engine, context boosting, stopwords, benchmarks, mkdocs |
 | 3 | Disambiguation + new engines + secret detection | Complete | 603 | 71 patterns, 12 validators, heuristic + secret scanner engines, collision resolution, F1 0.897 |
+| 4 | Collisions + model registry + real corpora | Complete | 700 | Collision resolution, model registry, honest baseline on real corpora (F1 0.18-0.46 blind) |
+| 5 | Engine weighting + ML engine + production deployment | Complete | 777 | Authority weighting, sibling analysis, GLiNER2 ML engine, ONNX deployment, v0.5.2 → BQ integration |
+| 6 | Hardening + meta-classifier shadow | Complete | 1009 | SSN/NPI validators, DOB_EU split, secret scanner FP fixes, CI install test, meta-classifier (3 phases, shadow-only), parallel research workflow |
 
 ## Consumers
 
