@@ -184,6 +184,9 @@ class Orchestrator:
         # Suppress generic CREDENTIAL when more specific types are found
         all_findings = self._suppress_generic_credential(all_findings)
 
+        # Suppress IP_ADDRESS findings when every matched value is embedded in a URL
+        all_findings = self._suppress_url_embedded_ips(all_findings)
+
         # Emit classification event
         result = list(all_findings.values())
         self.emitter.emit(
@@ -509,6 +512,50 @@ class Orchestrator:
         for et in ml_only_types:
             logger.debug("Suppressed ML-only %s (non-ML has strong %s)", et, non_ml_types)
         return suppressed
+
+    @staticmethod
+    def _suppress_url_embedded_ips(
+        findings: dict[str, ClassificationFinding],
+    ) -> dict[str, ClassificationFinding]:
+        """Suppress IP_ADDRESS findings whose every matched sample is a URL.
+
+        RE2 doesn't support variable-width lookbehinds, so the ``ipv4_address``
+        regex fires inside URL strings like ``http://192.168.1.1/api``. Worse,
+        the ``url`` regex requires a letter-only TLD (``[a-zA-Z]{2,}``) and
+        therefore does NOT match bare-IP URLs — so we can't rely on a URL
+        co-finding to signal the suppression.
+
+        Instead, inspect the IP_ADDRESS finding's ``sample_analysis.sample_matches``
+        (the original values that matched). If every matched value begins with a
+        URL scheme (``http://`` or ``https://``), the IP is never standalone and
+        the finding is a false positive — drop it.
+
+        A standalone IP ``192.168.1.1`` has no scheme and is preserved.
+        A mixed column with both standalone IPs and IP-in-URL values still has
+        standalone IPs in ``sample_matches``, so the finding is preserved.
+
+        Kills the Sprint 5 Nemotron col_12 URL → IP_ADDRESS blind-mode FP.
+        """
+        ip_finding = findings.get("IP_ADDRESS")
+        if ip_finding is None or ip_finding.sample_analysis is None:
+            return findings
+
+        matches = ip_finding.sample_analysis.sample_matches
+        if not matches:
+            return findings
+
+        def _is_url_embedded(value: str) -> bool:
+            stripped = value.strip().lower()
+            return stripped.startswith("http://") or stripped.startswith("https://")
+
+        if all(_is_url_embedded(v) for v in matches):
+            logger.debug(
+                "Suppressing IP_ADDRESS — all %d matched samples are URL-embedded",
+                len(matches),
+            )
+            filtered = {et: f for et, f in findings.items() if et != "IP_ADDRESS"}
+            return filtered
+        return findings
 
     @staticmethod
     def _suppress_generic_credential(
