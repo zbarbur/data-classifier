@@ -111,6 +111,79 @@
 3. **Phase 2 model predicts PERSON_NAME for canonical email columns.** Training data quality issue. Acceptable because shadow-only. Documented in queue.md.
 4. **DATE_OF_BIRTH / DATE_OF_BIRTH_EU confusion pair.** Per-class F1 on held-out test: DOB = 0.527, DOB_EU = 0.828. Worst confusion pair in the 24-class output space. Q4 experiment queued to measure whether merging the labels improves macro F1.
 
+### Methodology correction — M1 (added Sprint 7, 2026-04-13)
+
+The Sprint 6 headline **"CV macro F1 = 0.916"** is a methodology artifact,
+not a generalization estimate. `scripts/train_meta_classifier.py` uses
+`sklearn.model_selection.StratifiedKFold(n_splits=5)` for best-`C` selection,
+which builds folds row-wise across all 6 training corpora. Every training
+fold therefore contains rows from every corpus, which lets the model learn
+corpus-specific feature fingerprints and reuse them at evaluation time. On
+the *same* data the LOCO evaluator reports **macro F1 = 0.30** — the
+**honest generalization number**.
+
+Primary source: `docs/experiments/meta_classifier/runs/20260412-q3-loco-investigation/result.md`
+(Q3 session A, on `research/meta-classifier`). Key findings from §5a and §6:
+
+- **Regularization sweep on the 13-feature schema:**
+
+  | C | ai4p LOCO F1 | nemo LOCO F1 | mean |
+  |---|---|---|---|
+  | 0.01  | 0.1792 | 0.2159 | 0.1976 |
+  | 0.1   | 0.2254 | 0.3376 | 0.2815 |
+  | **1.0**   | **0.3237** | **0.3617** | **0.3427** |
+  | 10.0  | 0.2678 | 0.3681 | 0.3179 |
+  | 100.0 (prod-selected) | 0.2595 | 0.3579 | **0.3087** |
+
+  The production CV picked **C=100** (worst LOCO) because i.i.d. 5-fold CV
+  rewards corpus fingerprinting — the model that memorizes within-corpus
+  quirks also scores highest on held-out rows from the same corpora.
+
+- **Expected impact of the M1 fix** (`StratifiedKFold → StratifiedGroupKFold`
+  with `groups=[row.corpus for row in dataset]`): honest C-selection picks
+  C≈1, LOCO mean rises from 0.3087 → **~0.3427** (Δ ≈ +0.034). This closes
+  about **6.2%** of the 0.55 gap — a *real* correctness improvement, but
+  **not** a gap collapse.
+
+- **Why the gap mostly stays:** Q3 §6 verdict is **A + C dominate, weak B.**
+  - (A) Inherent to 6-corpus training: only 2 of 6 corpora support a
+    meaningful LOCO holdout; the rest have <2 classes or collapse to
+    <0.14 F1.
+  - (C) Generator-level i.i.d. violation: extended LOCO shows `synthetic`,
+    `gitleaks`, `detect_secrets` holdouts collapse to 0.05–0.13 F1 —
+    each corpus carries its own distribution fingerprint that the model
+    cannot generalize past without more sources or features.
+  - (B) No single feature is doing the leaking. Forward drop-one max
+    Δ = +0.011. A 3-feature drop `{confidence_gap, engines_agreed,
+    heuristic_confidence}` + refit at C=10 recovers +0.13 LOCO, about
+    21% of the gap — real but far from closing it.
+
+**What this means for earlier Sprint 6 claims:**
+
+- The **CV macro F1 = 0.916** headline stands as a CV number but should
+  always be reported alongside LOCO (~0.30) going forward. The CV number
+  measured memorization, not generalization.
+- The **"+0.25 Phase 2 delta" held-out test claim** (80/20 random split)
+  is a separate metric from LOCO and is **not** directly affected by
+  this CV fix — the 80/20 test split is also i.i.d. across corpora, so
+  it has the same corpus-fingerprinting ceiling.
+- Q6 (inverted stage 1, same branch, 2026-04-13) confirms the A+C
+  dominance independently: filtering CREDENTIAL+NEGATIVE rows and
+  retraining on PII-only moves LOCO from 0.250 to 0.266 (+0.016),
+  McNemar p = 0.77. Structural problem, not a label-purity problem.
+
+**Sprint 7 delivery:** M1 is tracked as a P0 bug backlog item
+(`m1-meta-classifier-cv-fix-stratifiedkfold-stratifiedgroupkfold-q3-diagnosis`).
+The code change + retrain + install smoke test updates are deferred to a
+dedicated session, pending visibility into E10's scope
+(`research/e10-gliner-features` is still running locally on
+`../data_classifier-e10` as of 2026-04-13 and has not been pushed, so
+its diff against `scripts/train_meta_classifier.py` is not observable
+from `origin`). The Sprint 7 backlog item's acceptance criteria have
+been updated to reflect the ~0.34 honest target, replacing the original
+"convergence within 0.10" criterion which was based on a queue.md
+summary that did not match Q3's primary numbers.
+
 ## Lessons Learned
 
 1. **Parallel research sessions beat serial execution for long investigations.** Two sessions producing independent research docs in parallel (sharding + corpus diversity) delivered converging recommendations that reshaped Phase 2's training design. Cost: ~15 min of coordination overhead. Benefit: didn't block the main sprint thread and got peer-review-quality analysis for free.
