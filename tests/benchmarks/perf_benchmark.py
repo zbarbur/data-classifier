@@ -1,7 +1,7 @@
 """Performance benchmark — pattern matching and engine performance on real data.
 
 NOT part of the CI test suite. Run manually:
-    python -m tests.benchmarks.perf_benchmark [--samples N] [--iterations N]
+    python -m tests.benchmarks.perf_benchmark [--samples N] [--iterations N] [--quick]
 
 Reports:
     - Corpus statistics (total data processed)
@@ -11,6 +11,15 @@ Reports:
     - Pattern matching throughput (samples/sec, not just columns/sec)
     - RE2 Set screening time vs extraction time
     - Validator execution overhead
+
+Phases 2 (input-type variation) and 5 (sample-count scaling) honor
+``--iterations``. Phase 6 (string-length scaling) and phase 7 (direct
+pattern matching) use derived iteration counts so the total wall-clock
+scales linearly with ``--iterations``.
+
+Use ``--quick`` to run a reduced phase subset with small corpora so the
+full suite finishes in <90s — intended for CI smoke and local sanity
+checks, not for publishing numbers.
 """
 
 from __future__ import annotations
@@ -43,8 +52,20 @@ def _timed_classify(columns: list[ColumnInput], profile, emitter=None) -> tuple[
 def run_perf_benchmark(
     corpus: list[tuple[ColumnInput, str | None]],
     iterations: int = 50,
+    *,
+    quick: bool = False,
 ) -> dict:
-    """Run comprehensive performance benchmark."""
+    """Run comprehensive performance benchmark.
+
+    Args:
+        corpus: labeled corpus from ``generate_corpus``.
+        iterations: number of iterations for phase 2 (input-type variation)
+            and phase 5 (sample-count scaling). Phases 1/3 also use this.
+        quick: if True, drop the two expensive scaling phases (string length
+            + direct pattern matching) and shrink the phase-2 input-type and
+            phase-5 sample-size sweeps so the full benchmark finishes in
+            <90s on a laptop. Intended for CI smoke.
+    """
     profile = load_profile("standard")
     columns = [col for col, _ in corpus]
     total_samples = sum(len(c.sample_values) for c in columns)
@@ -56,6 +77,7 @@ def run_perf_benchmark(
             "avg_samples_per_col": total_samples / len(columns) if columns else 0,
         },
         "iterations": iterations,
+        "quick": quick,
     }
 
     # ── 1. Warmup + compilation time ─────────────────────────────────────
@@ -109,13 +131,20 @@ def run_perf_benchmark(
         }
 
     # ── 3b. Input-type variation — different engines have different cost profiles ──
+    # Sample count per input type: shrink in quick mode so the sweep stays
+    # snappy even on the slow (heuristic/secret_scanner) engines.
+    input_samples_n = 20 if quick else 100
     input_types = {
-        "plain_digits": [str(100000000 + i) for i in range(100)],
-        "plain_text": [f"word_{i}" for i in range(100)],
-        "kv_json": ['{"password": "test123", "host": "localhost"}'] * 100,
-        "kv_env": ["DB_PASSWORD=SuperSecret123\nDB_HOST=localhost"] * 100,
+        "plain_digits": [str(100000000 + i) for i in range(input_samples_n)],
+        "plain_text": [f"word_{i}" for i in range(input_samples_n)],
+        "kv_json": ['{"password": "test123", "host": "localhost"}'] * input_samples_n,
+        "kv_env": ["DB_PASSWORD=SuperSecret123\nDB_HOST=localhost"] * input_samples_n,
     }
+    # Iterations for phase 2: honor --iterations (previously hardcoded to 50,
+    # which ignored the CLI flag and dominated wall-clock time).
+    input_type_iters = max(iterations, 1)
     results["input_type_latency"] = {}
+    results["input_type_samples_n"] = input_samples_n
     for input_label, sample_values in input_types.items():
         test_col = ColumnInput(
             column_name="__input_type_test__",
@@ -127,7 +156,7 @@ def run_perf_benchmark(
         for engine_cls, engine_name in all_engines:
             engine = engine_cls()
             timings = []
-            for _ in range(50):
+            for _ in range(input_type_iters):
                 t0 = time.perf_counter()
                 engine.classify_column(test_col, profile=profile, min_confidence=0.0)
                 timings.append((time.perf_counter() - t0) * 1000)
@@ -157,11 +186,16 @@ def run_perf_benchmark(
         }
 
     # ── 5. Scaling test — how does latency grow with sample count ────────
+    # Iterations for phase 5: honor --iterations (previously hardcoded to 20,
+    # which ignored the CLI flag). In --quick mode, also drop the 500-sample
+    # size which dominated wall-clock time.
+    scale_iters = max(iterations, 1)
+    sample_sizes = [10, 50] if quick else [10, 50, 100, 500]
+    n_scale_columns = 3 if quick else 5
     scaling: list[dict] = []
-    sample_sizes = [10, 50, 100, 500]
     for size in sample_sizes:
         scaled_columns = []
-        for col in columns[:5]:  # Use 5 columns for scaling test
+        for col in columns[:n_scale_columns]:
             scaled_col = ColumnInput(
                 column_name=col.column_name,
                 column_id=f"scale_{col.column_id}_{size}",
@@ -177,7 +211,7 @@ def run_perf_benchmark(
             scaled_columns.append(scaled_col)
 
         scale_latencies = []
-        for _ in range(20):
+        for _ in range(scale_iters):
             t0 = time.perf_counter()
             classify_columns(scaled_columns, profile, min_confidence=0.0)
             elapsed = (time.perf_counter() - t0) * 1000
@@ -194,6 +228,13 @@ def run_perf_benchmark(
 
     results["scaling_samples"] = scaling
 
+    if quick:
+        # Skip string-length scaling (phase 6) and direct pattern matching
+        # (phase 7) in quick mode — they are the longest phases and are
+        # primarily useful for release-engineering perf deep-dives, not
+        # smoke tests.
+        return results
+
     # ── 6. String-length scaling — does RE2 scale linearly with input size? ──
     from tests.benchmarks.corpus_generator import generate_length_scaling_data
 
@@ -201,6 +242,9 @@ def run_perf_benchmark(
     engine = RegexEngine()
     length_scaling: list[dict] = []
 
+    # Inner-iteration count derived from --iterations so the phase also
+    # shrinks when the caller shrinks the rest of the benchmark.
+    length_iters = max(iterations * 2, 1)
     for text, text_len in length_data:
         test_col = ColumnInput(
             column_name="__length_test__",
@@ -209,7 +253,7 @@ def run_perf_benchmark(
             sample_values=[text],
         )
         timings = []
-        for _ in range(100):
+        for _ in range(length_iters):
             t0 = time.perf_counter()
             engine.classify_column(test_col, profile=profile, min_confidence=0.0)
             timings.append((time.perf_counter() - t0) * 1_000_000)  # microseconds
@@ -253,6 +297,7 @@ def run_perf_benchmark(
         sample_values=[mixed_text] * 100,
     )
 
+    engine = RegexEngine()
     t0 = time.perf_counter()
     findings = engine.classify_column(test_col, profile=profile, min_confidence=0.0)
     pattern_match_ms = (time.perf_counter() - t0) * 1000
@@ -317,8 +362,9 @@ def print_report(results: dict) -> None:
 
     input_type_data = results.get("input_type_latency", {})
     if input_type_data:
+        input_samples_n = results.get("input_type_samples_n", 100)
         print()  # noqa: T201
-        print("PER-ENGINE BY INPUT TYPE (ms, 100 samples)")  # noqa: T201
+        print(f"PER-ENGINE BY INPUT TYPE (ms, {input_samples_n} samples)")  # noqa: T201
         print("-" * w)  # noqa: T201
         engine_names = list(next(iter(input_type_data.values())).keys())
         header = f"  {'Input Type':<18}" + "".join(f"{e:>16}" for e in engine_names)
@@ -344,11 +390,11 @@ def print_report(results: dict) -> None:
         bar = "#" * min(int(s["per_column_p50_ms"] * 100), 40)
         print(f"  {s['samples_per_col']:>5} samples → {s['per_column_p50_ms']:.3f} ms/col  {bar}")  # noqa: T201
 
-    print()  # noqa: T201
-    print("SCALING: INPUT LENGTH (RE2 time vs string length, single sample)")  # noqa: T201
-    print("-" * w)  # noqa: T201
     length_data = results.get("scaling_length", [])
     if length_data:
+        print()  # noqa: T201
+        print("SCALING: INPUT LENGTH (RE2 time vs string length, single sample)")  # noqa: T201
+        print("-" * w)  # noqa: T201
         base_us = length_data[0]["p50_us"]
         for s in length_data:
             ratio = s["p50_us"] / base_us if base_us > 0 else 0
@@ -378,12 +424,25 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run performance benchmark")
     parser.add_argument("--samples", type=int, default=100, help="Samples per entity type")
     parser.add_argument("--iterations", type=int, default=50, help="Benchmark iterations")
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Run a reduced phase subset (skips phases 6+7, shrinks 2+5) so the full "
+        "benchmark finishes in <90s on a laptop. Intended for CI smoke, not "
+        "publishing numbers.",
+    )
     args = parser.parse_args()
 
     from tests.benchmarks.corpus_generator import generate_corpus
 
-    print(f"Generating corpus ({args.samples} samples/type)...")  # noqa: T201
-    corpus = generate_corpus(samples_per_type=args.samples, locale="en_US")
+    # In --quick mode, clamp samples and iterations to safe defaults so a naive
+    # caller can run `python -m tests.benchmarks.perf_benchmark --quick` and
+    # get a <90s result without also passing --samples/--iterations.
+    samples = min(args.samples, 10) if args.quick else args.samples
+    iterations = min(args.iterations, 3) if args.quick else args.iterations
 
-    results = run_perf_benchmark(corpus, iterations=args.iterations)
+    print(f"Generating corpus ({samples} samples/type)...")  # noqa: T201
+    corpus = generate_corpus(samples_per_type=samples, locale="en_US")
+
+    results = run_perf_benchmark(corpus, iterations=iterations, quick=args.quick)
     print_report(results)

@@ -177,7 +177,7 @@ def main() -> None:
     parser.add_argument(
         "--corpus",
         default="synthetic",
-        choices=["synthetic", "nemotron", "ai4privacy"],
+        choices=["synthetic", "nemotron", "gretel_en"],
         help="Corpus to use (default: built-in synthetic)",
     )
     parser.add_argument(

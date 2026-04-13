@@ -2,18 +2,20 @@
 
 Supports multiple corpus sources:
 - Synthetic (Faker-based, via corpus_generator.py)
-- Ai4Privacy pii-masking-300k (HuggingFace sample)
 - Nemotron-PII (HuggingFace sample)
 - SecretBench (credential scanner benchmark, TP + TN)
 - Gitleaks fixtures (credential scanner FP-hardening corpus, TP + TN)
 - detect_secrets fixtures (hand-curated credential positives + placeholder
   negatives)
+- Gretel-PII-masking-en-v1 (HuggingFace sample; Apache 2.0 mixed-label
+  corpus, 60k rows / 47 domains) — replaced a retired 300k-row corpus
+  in Sprint 9 (license non-OSS, see docs/process/LICENSE_AUDIT.md).
 
 Sample data ships in tests/fixtures/corpora/ for offline benchmarking.
 
 Usage:
     from tests.benchmarks.corpus_loader import load_corpus
-    corpus = load_corpus("ai4privacy", max_rows=500)
+    corpus = load_corpus("nemotron", max_rows=500)
 
 ``NEGATIVE`` ground-truth label
 -------------------------------
@@ -42,30 +44,51 @@ _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "corpora"
 
 # ── Entity type mappings from external corpora to our types ──────────────────
 
-# Verified label names from actual datasets (see scripts/download_corpora.py)
-AI4PRIVACY_TYPE_MAP: dict[str, str] = {
-    "EMAIL": "EMAIL",
-    "TEL": "PHONE",
-    "IP": "IP_ADDRESS",
-    "SOCIALNUMBER": "SSN",
-    "PASS": "CREDENTIAL",
-    "BOD": "DATE_OF_BIRTH",
-    "DATE": "DATE_OF_BIRTH",
-    "GIVENNAME1": "PERSON_NAME",
-    "GIVENNAME2": "PERSON_NAME",
-    "LASTNAME1": "PERSON_NAME",
-    "LASTNAME2": "PERSON_NAME",
-    "LASTNAME3": "PERSON_NAME",
-    "STREET": "ADDRESS",
-    "SECADDRESS": "ADDRESS",
-    "ADDRESS": "ADDRESS",
-    "PHONE": "PHONE",
-    "SSN": "SSN",
-    "CREDENTIAL": "CREDENTIAL",
-    "IP_ADDRESS": "IP_ADDRESS",
-    "PERSON_NAME": "PERSON_NAME",
-    "DATE_OF_BIRTH": "DATE_OF_BIRTH",
+# Gretel-PII-masking-EN-v1 label map (locked 2026-04-13, path-(d) decision).
+#
+# Only the 17 Gretel labels below are mapped to data_classifier types.
+# Dropped Gretel labels (``date`` [generic], ``customer_id``, ``employee_id``,
+# ``license_plate``, ``company_name``, ``device_identifier``,
+# ``biometric_identifier``, ``unique_identifier``, ``time``, ``user_name``,
+# ``coordinate``, ``country``, ``date_time``, ``city``, ``url``, ``cvv``,
+# ``certificate_license_number``) are deferred to a Sprint 10 taxonomy
+# expansion item — do NOT add new entity classes here without updating that
+# decision. Target coverage: ~71% of labeled Gretel instances, by design.
+GRETEL_EN_TYPE_MAP: dict[str, str] = {
+    # PII
+    "date_of_birth": "DATE_OF_BIRTH",
+    "ssn": "SSN",
+    "first_name": "PERSON_NAME",
+    "name": "PERSON_NAME",
+    "last_name": "PERSON_NAME",
+    "email": "EMAIL",
+    "phone_number": "PHONE",
+    # Address family
+    "address": "ADDRESS",
+    "street_address": "ADDRESS",
+    # Financial
+    "credit_card_number": "CREDIT_CARD",
+    "bank_routing_number": "ABA_ROUTING",
+    "account_number": "BANK_ACCOUNT",
+    # Network
+    "ipv4": "IP_ADDRESS",
+    "ipv6": "IP_ADDRESS",
+    # Vehicle
+    "vehicle_identifier": "VIN",
+    # Health — coarse bucket for MRN (largest single Gretel label in the
+    # discovery sample).
+    "medical_record_number": "HEALTH",
 }
+
+# The fixture shipped in tests/fixtures/corpora/gretel_en_sample.json is
+# ALREADY flattened into the ``{entity_type, value}`` schema the loader
+# expects.  The downstream data_classifier taxonomy labels (e.g.
+# ``DATE_OF_BIRTH``, ``PERSON_NAME``) are already applied during
+# download; so the loader only needs an identity map over the post-ETL
+# labels.  We do not re-map from the raw Gretel labels here because the
+# raw labels never appear in the fixture.
+_GRETEL_EN_POST_ETL_IDENTITY: dict[str, str] = {label: label for label in set(GRETEL_EN_TYPE_MAP.values())}
+
 
 NEMOTRON_TYPE_MAP: dict[str, str] = {
     "first_name": "PERSON_NAME",
@@ -170,34 +193,6 @@ def _records_to_corpus(
     return corpus
 
 
-def load_ai4privacy_corpus(
-    path: Path | str | None = None,
-    max_rows: int = 500,
-    *,
-    blind: bool = False,
-) -> list[tuple[ColumnInput, str | None]]:
-    """Load Ai4Privacy corpus sample and convert to our format.
-
-    Args:
-        path: Path to JSON sample file. Defaults to bundled fixture.
-        max_rows: Maximum sample values per entity type.
-
-    Returns:
-        List of (ColumnInput, expected_entity_type) tuples.
-    """
-    if path is None:
-        path = _FIXTURES_DIR / "ai4privacy_sample.json"
-    else:
-        path = Path(path)
-
-    records = _load_json_corpus(path)
-    if not records:
-        logger.warning("No records loaded from Ai4Privacy corpus at %s", path)
-        return []
-
-    return _records_to_corpus(records, AI4PRIVACY_TYPE_MAP, "ai4privacy", max_rows, blind=blind)
-
-
 def load_nemotron_corpus(
     path: Path | str | None = None,
     max_rows: int = 500,
@@ -224,6 +219,45 @@ def load_nemotron_corpus(
         return []
 
     return _records_to_corpus(records, NEMOTRON_TYPE_MAP, "nemotron", max_rows, blind=blind)
+
+
+def load_gretel_en_corpus(
+    path: Path | str | None = None,
+    max_rows: int = 500,
+    *,
+    blind: bool = False,
+) -> list[tuple[ColumnInput, str | None]]:
+    """Load Gretel-PII-masking-EN-v1 corpus sample and convert to our format.
+
+    The bundled fixture (``tests/fixtures/corpora/gretel_en_sample.json``)
+    is **already flattened**: each record is ``{"entity_type": <data_classifier
+    type>, "value": <raw value>}``.  The downloader in
+    ``scripts/download_corpora.py`` performs the raw-span ETL via
+    :func:`ast.literal_eval` over Gretel's Python-repr ``entities`` field,
+    maps labels through :data:`GRETEL_EN_TYPE_MAP`, and writes the mapped
+    post-ETL labels to disk.  The loader therefore uses an identity map
+    over the already-mapped taxonomy labels.
+
+    Args:
+        path: Path to JSON sample file. Defaults to bundled fixture.
+        max_rows: Maximum sample values per entity type.
+        blind: If True, use generic column names (col_0, col_1, ...) so
+            the column name engine cannot cheat.
+
+    Returns:
+        List of ``(ColumnInput, expected_entity_type)`` tuples.
+    """
+    if path is None:
+        path = _FIXTURES_DIR / "gretel_en_sample.json"
+    else:
+        path = Path(path)
+
+    records = _load_json_corpus(path)
+    if not records:
+        logger.warning("No records loaded from Gretel-EN corpus at %s", path)
+        return []
+
+    return _records_to_corpus(records, _GRETEL_EN_POST_ETL_IDENTITY, "gretel_en", max_rows, blind=blind)
 
 
 #: Generic sentinel for "this column's ground truth is that nothing
@@ -507,9 +541,9 @@ def load_corpus(
     """Dispatcher — load corpus by source name.
 
     Args:
-        source: One of ``"synthetic"``, ``"ai4privacy"``, ``"nemotron"``,
-            ``"secretbench"``, ``"gitleaks"``, ``"detect_secrets"``, or
-            ``"all"``.
+        source: One of ``"synthetic"``, ``"nemotron"``,
+            ``"secretbench"``, ``"gitleaks"``, ``"detect_secrets"``,
+            ``"gretel_en"``, or ``"all"``.
         max_rows: Max rows for real-world corpora.
         path: Optional custom path to corpus file.
         samples_per_type: Samples per type for synthetic corpus.
@@ -521,8 +555,6 @@ def load_corpus(
     """
     if source == "synthetic":
         return load_synthetic_corpus(samples_per_type=samples_per_type)
-    elif source == "ai4privacy":
-        return load_ai4privacy_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "nemotron":
         return load_nemotron_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "secretbench":
@@ -531,18 +563,21 @@ def load_corpus(
         return load_gitleaks_corpus(path=path, blind=blind)
     elif source == "detect_secrets":
         return load_detect_secrets_corpus(path=path, blind=blind)
+    elif source == "gretel_en":
+        return load_gretel_en_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "all":
         corpus: list[tuple[ColumnInput, str | None]] = []
         corpus.extend(load_synthetic_corpus(samples_per_type=samples_per_type))
-        corpus.extend(load_ai4privacy_corpus(max_rows=max_rows, blind=blind))
         corpus.extend(load_nemotron_corpus(max_rows=max_rows, blind=blind))
         corpus.extend(load_secretbench_corpus(blind=blind))
         corpus.extend(load_gitleaks_corpus(blind=blind))
         corpus.extend(load_detect_secrets_corpus(blind=blind))
+        corpus.extend(load_gretel_en_corpus(max_rows=max_rows, blind=blind))
         return corpus
     else:
         msg = (
             f"Unknown corpus source: {source!r}. Valid: synthetic, "
-            "ai4privacy, nemotron, secretbench, gitleaks, detect_secrets, all"
+            "nemotron, secretbench, gitleaks, detect_secrets, "
+            "gretel_en, all"
         )
         raise ValueError(msg)

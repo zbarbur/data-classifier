@@ -1,11 +1,11 @@
 title: "test_download_models \u2014 add positive test for metadata-SA happy path (tier\
   \ 3 of _get_access_token)"
-status: backlog
+status: done
 priority: P1
 category: chore
 sprint_target: 9
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
 goal: 'Close the test coverage gap surfaced by the Sprint 8 post-hoc code review:
@@ -33,7 +33,7 @@ test_plan:
   the new test exists, passes, and does NOT touch the real metadata service or gcloud
   subprocess.
 notes: ''
-phase: null
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

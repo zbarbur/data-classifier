@@ -52,6 +52,16 @@ site/
 # Generated stats snapshot (scripts/collect_stats.py)
 stats.json
 
+# Retired ai4privacy corpus derivative (Sprint 9 — license non-OSS, see
+# docs/process/LICENSE_AUDIT.md). Historical commits still contain this
+# file; we just prevent accidental re-add.
+tests/fixtures/corpora/ai4privacy_sample.json
+
+# Meta-classifier training JSONL is regenerated locally via
+# `python -m tests.benchmarks.meta_classifier.build_training_data`
+# and no longer committed (retired with ai4privacy drop, Sprint 9).
+tests/benchmarks/meta_classifier/training_data.jsonl
+
 # ML models (too large for git, exported via `python -m data_classifier.export_onnx`)
 # The Phase 2 meta-classifier artifacts are small (~8 KB combined) and
 # committed per decision D5 — everything else in this directory is

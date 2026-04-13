@@ -309,4 +309,9 @@ def test_sprint_5_backfill_exists_and_loads() -> None:
     assert len(sb.accuracy) == 4
     by_key = {(r.corpus, r.mode): r for r in sb.accuracy}
     assert by_key[("nemotron", "blind")].tp_count == 12
-    assert by_key[("ai4privacy", "blind")].fp_count == 2
+    # Sprint 5 also backfilled a retired-corpus blind row (see
+    # docs/process/LICENSE_AUDIT.md).  We verify it still parses without
+    # naming the corpus, so this test survives the Sprint 9 retirement.
+    retired_blind = [r for (c, m), r in by_key.items() if m == "blind" and c != "nemotron"]
+    assert len(retired_blind) == 1
+    assert retired_blind[0].fp_count == 2

@@ -560,3 +560,186 @@ class TestDeduplication:
         # Both EMAIL and PHONE have specificity 3 — both kept
         assert "EMAIL" in entity_types
         assert "PHONE" in entity_types
+
+
+# ── Test: Sprint 9 v2 infrastructure hardening ────────────────────────────
+#
+# These tests cover infrastructure added in Sprint 9 ahead of the fastino
+# model swap (blocked on blind-corpus regression, deferred to Sprint 10
+# pending research/gliner-context context-injection work).  The
+# infrastructure itself ships now because:
+#   1. The v2 inference path was silently ignoring the configured
+#      threshold — a latent correctness bug that affected any v2
+#      deployment, not just fastino.
+#   2. The descriptions_enabled flag + ONNX auto-discovery guard provide
+#      the seam for a future fastino promotion without further code
+#      changes once the input-format work on research/gliner-context lands.
+
+
+class TestDescriptionsEnabledFlag:
+    """descriptions_enabled init flag — default selection and override."""
+
+    def test_v1_model_defaults_descriptions_on(self):
+        """Urchade (v1) engines default to descriptions_enabled=True.
+
+        v1 ignores the flag at inference time (it only accepts a label
+        list via ``predict_entities``), but the flag is still set for
+        consistency and testability.
+        """
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engine = GLiNER2Engine(model_id="urchade/gliner_multi_pii-v1")
+        assert engine._is_v2 is False
+        assert engine._descriptions_enabled is True
+
+    def test_fastino_model_defaults_descriptions_off(self):
+        """Fastino (v2) engines default to descriptions_enabled=False.
+
+        Per the Sprint 9 GLiNER eval memo, fastino regresses by -0.062
+        to -0.093 macro F1 when descriptions are enabled, so the auto
+        selection ships with descriptions off for any ``fastino/*``
+        model_id.
+        """
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engine = GLiNER2Engine(model_id="fastino/gliner2-base-v1")
+        assert engine._is_v2 is True
+        assert engine._descriptions_enabled is False
+
+    def test_explicit_override_wins_over_auto_selection(self):
+        """Caller can force descriptions_enabled regardless of model_id."""
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engine = GLiNER2Engine(
+            model_id="fastino/gliner2-base-v1",
+            descriptions_enabled=True,
+        )
+        assert engine._descriptions_enabled is True
+
+        engine = GLiNER2Engine(
+            model_id="urchade/gliner_multi_pii-v1",
+            descriptions_enabled=False,
+        )
+        assert engine._descriptions_enabled is False
+
+
+class TestV2InferencePathThresholdPlumbing:
+    """v2 extract_entities call shape — threshold passed, spec form correct.
+
+    Regression guard for a latent bug discovered Sprint 9: the v2 path
+    was calling ``model.extract_entities(text, spec, include_confidence=True)``
+    without forwarding ``self._gliner_threshold``, so the gliner2
+    internal default threshold was used regardless of how the engine
+    was constructed.  Any downstream threshold tuning was silently
+    ignored for v2 deployments.
+    """
+
+    def _make_v2_engine(
+        self,
+        mock_registry,
+        mock_model,
+        *,
+        descriptions_enabled: bool | None = None,
+        gliner_threshold: float = 0.80,
+    ):
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engine = GLiNER2Engine(
+            registry=mock_registry,
+            model_id="fastino/gliner2-base-v1",
+            gliner_threshold=gliner_threshold,
+            descriptions_enabled=descriptions_enabled,
+        )
+        mock_registry.register(
+            "gliner2-ner",
+            loader=lambda: mock_model,
+            model_class="gliner2.GLiNER2",
+            requires=[],
+        )
+        engine._registered = True
+        return engine
+
+    def test_v2_descriptions_off_passes_label_list_with_threshold(self, mock_registry):
+        """When descriptions_enabled=False, engine passes a list[str] spec
+        AND forwards the configured threshold to extract_entities."""
+        mock_model = MagicMock()
+        mock_model.extract_entities = MagicMock(
+            return_value={"entities": {"person": [{"text": "Jane Doe", "confidence": 0.91}]}}
+        )
+        engine = self._make_v2_engine(mock_registry, mock_model, gliner_threshold=0.80)
+
+        column = ColumnInput(column_name="name", column_id="c1", sample_values=["Jane Doe"])
+        findings = engine.classify_column(column, min_confidence=0.0)
+
+        assert len(findings) == 1
+        assert findings[0].entity_type == "PERSON_NAME"
+
+        assert mock_model.extract_entities.called
+        call = mock_model.extract_entities.call_args
+        entity_spec = call.args[1] if len(call.args) > 1 else call.kwargs.get("entity_types")
+        assert isinstance(entity_spec, list), (
+            f"Expected list[str] when descriptions_enabled=False, got {type(entity_spec).__name__}"
+        )
+        assert "person" in entity_spec
+        # Threshold must be forwarded — this is the latent bug the fix closes.
+        assert call.kwargs.get("threshold") == 0.80
+
+    def test_v2_descriptions_on_passes_label_dict_with_threshold(self, mock_registry):
+        """When descriptions_enabled=True, engine passes dict[str, str]
+        AND still forwards the configured threshold."""
+        mock_model = MagicMock()
+        mock_model.extract_entities = MagicMock(return_value={"entities": {}})
+        engine = self._make_v2_engine(
+            mock_registry,
+            mock_model,
+            descriptions_enabled=True,
+            gliner_threshold=0.65,
+        )
+
+        column = ColumnInput(column_name="x", column_id="c1", sample_values=["something"])
+        engine.classify_column(column, min_confidence=0.0)
+
+        call = mock_model.extract_entities.call_args
+        entity_spec = call.args[1] if len(call.args) > 1 else call.kwargs.get("entity_types")
+        assert isinstance(entity_spec, dict), (
+            f"Expected dict[str, str] when descriptions_enabled=True, got {type(entity_spec).__name__}"
+        )
+        assert "person" in entity_spec
+        # Descriptions must be non-empty in the dict form.
+        assert entity_spec["person"]
+        assert call.kwargs.get("threshold") == 0.65
+
+
+class TestOnnxAutoDiscoveryGuardForV2:
+    """ONNX auto-discovery must NOT serve a v1 export to a v2 engine.
+
+    The standard ONNX search paths (package models/, ~/.cache/..., etc.)
+    hold v1 exports from Sprint 5 onwards.  Before Sprint 9, constructing
+    a GLiNER2Engine with ``model_id="fastino/gliner2-base-v1"`` would
+    auto-discover the v1 bundle and load it with the v1 gliner package,
+    silently serving the wrong model.  The guard ensures auto-discovery
+    only runs for v1 engines.
+    """
+
+    def test_v2_engine_skips_auto_discovery_when_onnx_path_unset(self):
+        """fastino engine without explicit onnx_path must NOT pick up
+        a bundled v1 model from the auto-discovery paths."""
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engine = GLiNER2Engine(model_id="fastino/gliner2-base-v1")
+        assert engine._onnx_path is None, (
+            "v2 engine auto-discovered an ONNX bundle; v2 must fall through to "
+            "PyTorch loading or require an explicit onnx_path"
+        )
+
+    def test_v2_engine_honors_explicit_onnx_path(self, tmp_path):
+        """If caller explicitly sets onnx_path on a v2 engine, the guard
+        must NOT override it — hand-exported fastino bundles should work."""
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        explicit_path = str(tmp_path / "fake_fastino_onnx_dir")
+        engine = GLiNER2Engine(
+            model_id="fastino/gliner2-base-v1",
+            onnx_path=explicit_path,
+        )
+        assert engine._onnx_path == explicit_path

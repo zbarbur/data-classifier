@@ -1,11 +1,11 @@
 title: "_disable_ml fixture \u2014 list-copy + teardown guard in TestSampleValueMatching\
   \ against in-place _DEFAULT_ENGINES mutation"
-status: backlog
+status: done
 priority: P2
 category: chore
 sprint_target: 9
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
 goal: "Sprint 8 post-hoc review flagged that tests/test_regex_engine.py::TestSampleValueMatching._disable_ml\
@@ -33,7 +33,7 @@ test_plan:
 - Run pytest tests/test_regex_engine.py -v and confirm the new guard exists. Manually
   break a test (have it append to _DEFAULT_ENGINES) and confirm the guard fires.
 notes: ''
-phase: null
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

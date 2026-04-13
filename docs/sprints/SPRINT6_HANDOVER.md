@@ -1,5 +1,7 @@
 # Sprint 6 Handover — Hardening + Meta-Classifier Shadow Ship
 
+> **NOTE (2026-04-13):** This document cites F1 numbers measured against the `ai4privacy/pii-masking-300k` corpus, which has since been retired due to license non-compatibility. Historical numbers are preserved as records of what was measured at the time. See `docs/process/LICENSE_AUDIT.md` for context.
+
 > **Date:** 2026-04-12
 > **Theme:** Engine precision hardening, entity split, CI install test, meta-classifier (3 phases, shipped shadow-only)
 > **Branch:** sprint6/main → merged to main

@@ -1,5 +1,7 @@
 # Sprint 3 Handover — Disambiguation, New Engines, Secret Detection
 
+> **NOTE (2026-04-13):** This document cites F1 numbers measured against the `ai4privacy/pii-masking-300k` corpus, which has since been retired due to license non-compatibility. Historical numbers are preserved as records of what was measured at the time. See `docs/process/LICENSE_AUDIT.md` for context.
+
 > **Date:** 2026-04-11
 > **Theme:** SSN/ABA disambiguation, heuristic statistics engine, structured secret scanner, benchmark hardening
 > **Branch:** sprint3/main (13 commits)

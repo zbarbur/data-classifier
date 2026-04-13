@@ -1,5 +1,7 @@
 # Sprint 4 Handover — Benchmarks, Collisions & ML Prep
 
+> **NOTE (2026-04-13):** This document cites F1 numbers measured against the `ai4privacy/pii-masking-300k` corpus, which has since been retired due to license non-compatibility. Historical numbers are preserved as records of what was measured at the time. See `docs/process/LICENSE_AUDIT.md` for context.
+
 > **Date:** 2026-04-11
 > **Theme:** Iteration 2 closure — benchmark methodology, real-world corpora, collision resolution, model registry
 > **Branch:** sprint4/main (6 commits, 3 parallel worktree streams)

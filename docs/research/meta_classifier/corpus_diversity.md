@@ -1,5 +1,7 @@
 # Meta-Classifier Corpus Diversity — Closing the Secret-Scanner Signal Gap
 
+> **NOTE (2026-04-13):** This document cites F1 numbers measured against the `ai4privacy/pii-masking-300k` corpus, which has since been retired due to license non-compatibility. Historical numbers are preserved as records of what was measured at the time. See `docs/process/LICENSE_AUDIT.md` for context.
+
 > **Date:** 2026-04-12
 > **Sprint:** 6, Phase 2 (meta-classifier training)
 > **Author:** research pass for item `meta-classifier-for-learned-engine-arbitration...`

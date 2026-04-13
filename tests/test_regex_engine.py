@@ -11,9 +11,47 @@ from __future__ import annotations
 
 import pytest
 
+import data_classifier
 from data_classifier import ClassificationFinding, ColumnInput, classify_columns, load_profile
 from data_classifier import _apply_findings_limit as apply_findings_limit
 from data_classifier.engines.regex_engine import RegexEngine, _compute_sample_confidence
+
+# Snapshot ``_DEFAULT_ENGINES`` at module import time so the module-teardown
+# guard below can detect any in-place mutation leaked by a test. We capture the
+# *names* (not the engine objects themselves) because the fixture below
+# monkeypatches the attribute with a pruned list, and monkeypatch teardown only
+# restores the original reference — it does not detect in-place appends /
+# removes against that original list.
+_INITIAL_DEFAULT_ENGINE_NAMES: tuple[str, ...] = tuple(getattr(e, "name", "") for e in data_classifier._DEFAULT_ENGINES)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _assert_default_engines_unchanged_at_module_teardown():
+    """Module-teardown guard: fail loudly if any test mutated ``_DEFAULT_ENGINES`` in place.
+
+    The ``_disable_ml`` fixture below uses ``monkeypatch.setattr`` which
+    rebinds the attribute and restores it at teardown. That restoration only
+    protects against *rebinding* — not against a test doing
+    ``data_classifier._DEFAULT_ENGINES.append(...)`` or ``.remove(...)``. This
+    guard asserts the structural shape (names + order) is identical to the
+    module-import snapshot and names which engine went missing / got added.
+    """
+    yield
+    final_names = tuple(getattr(e, "name", "") for e in data_classifier._DEFAULT_ENGINES)
+    if final_names != _INITIAL_DEFAULT_ENGINE_NAMES:
+        initial = set(_INITIAL_DEFAULT_ENGINE_NAMES)
+        final = set(final_names)
+        missing = sorted(initial - final)
+        added = sorted(final - initial)
+        raise AssertionError(
+            "data_classifier._DEFAULT_ENGINES was mutated in place during "
+            "tests/test_regex_engine.py run. "
+            f"initial={list(_INITIAL_DEFAULT_ENGINE_NAMES)} "
+            f"final={list(final_names)} "
+            f"missing={missing} added={added}. "
+            "Some test likely appended/removed from the list instead of rebinding it; "
+            "monkeypatch.setattr only restores references, not list contents."
+        )
 
 
 class TestColumnNameMatching:
@@ -74,9 +112,11 @@ class TestSampleValueMatching:
         test module runs. A per-test env var fixture therefore arrives too
         late to affect the cached engine list.
         """
-        import data_classifier
-
-        non_ml_engines = [e for e in data_classifier._DEFAULT_ENGINES if getattr(e, "name", "") != "gliner2"]
+        # ``list(...)`` ensures the monkeypatched value is a fresh copy so that
+        # any accidental in-place mutation cannot alias back to the original
+        # ``_DEFAULT_ENGINES`` list. monkeypatch.setattr only restores the
+        # reference at teardown, not list contents.
+        non_ml_engines = list(e for e in data_classifier._DEFAULT_ENGINES if getattr(e, "name", "") != "gliner2")
         monkeypatch.setattr(data_classifier, "_DEFAULT_ENGINES", non_ml_engines)
 
     @pytest.fixture

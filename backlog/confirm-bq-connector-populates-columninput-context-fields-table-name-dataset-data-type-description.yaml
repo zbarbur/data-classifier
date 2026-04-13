@@ -1,0 +1,66 @@
+title: Confirm BQ connector populates ColumnInput context fields (table_name, dataset,
+  data_type, description)
+status: backlog
+priority: P1
+category: chore
+sprint_target: 10
+created: 2026-04-13
+updated: 2026-04-14
+depends_on: []
+tags:
+- bq,coordination,sprint9,docs
+goal: "Coordination chore: confirm whether the BQ connector currently populates ColumnInput's\
+  \ 5 context fields (table_name, dataset, schema_name, data_type, description) when\
+  \ calling data_classifier v0.8.0. The library-side schema surface has existed since\
+  \ Sprint 3, but Sprint 8 diagnosis revealed that 4 of the 5 fields are read by zero\
+  \ engines today \u2014 only table_name is consumed (via column_name_engine._table_context_boost).\
+  \ Sprint 9's gliner-data-type-prefilter item activates data_type consumption for\
+  \ the first time. If BQ is not populating these fields, Sprint 9 library-side detection\
+  \ gains are theoretical until BQ coordinates with the pipeline. No code changes\
+  \ in this repo \u2014 this is an async verification + documentation task."
+complexity: S
+technical_specs:
+- "File: docs/process/BQ_INTEGRATION_STATUS.md (NEW) \u2014 record which context fields\
+  \ BQ populates today, which fields BQ has committed to populate, any naming/type\
+  \ mismatches between BQ's internal metadata and data_classifier's ColumnInput schema,\
+  \ date-stamped and signed by the BQ contact"
+- "File: docs/CLIENT_INTEGRATION_GUIDE.md \xA71b \u2014 once status is known, annotate\
+  \ each context field row in the 'Column context' table with the BQ integration status\
+  \ (populated / planned / blocked)"
+- 'External coordination: BQ team confirmation via Slack / issue / doc review. Expected
+  outcome is a short doc (20-50 lines) or a linked issue comment, not a code change.'
+- "No data_classifier code changes. If BQ has a gap that requires a library-side change\
+  \ (field rename, type coercion, new context field), file that as a SEPARATE backlog\
+  \ item \u2014 do not extend this chore's scope."
+description: ''
+acceptance_criteria:
+- BQ team (via Slack, issue, or review doc) confirms which of the 5 context fields
+  they currently populate when calling classify_columns from the v0.8.0 wheel
+- 'docs/process/BQ_INTEGRATION_STATUS.md exists and records the verified state per
+  field, including: populated (y/n), BQ-side source of the value, any transformation
+  applied, the date of verification, and the confirming BQ contact'
+- "docs/CLIENT_INTEGRATION_GUIDE.md \xA71b context-fields table annotated with per-field\
+  \ BQ status"
+- If BQ is NOT populating a field that a Sprint 9 item depends on, a new backlog item
+  is filed (either in this repo or in the BQ connector project) and linked from BQ_INTEGRATION_STATUS.md
+- Lint clean (no code changes expected, but docs must pass markdown linting if configured)
+test_plan:
+- "No automated tests \u2014 this is a status verification chore. Acceptance is documentation-based."
+- 'Manual: confirm the status doc is readable, date-stamped, and identifies a specific
+  BQ contact by name or handle'
+- 'Manual: spot-check by creating a ColumnInput with the 5 fields populated as BQ
+  would, running classify_columns, and verifying the findings include the expected
+  context-driven signals (e.g. table_name boost from _table_context_boost, data_type
+  prefilter from the sprint9 gliner item if landed)'
+notes: "2026-04-13 verbal confirmation from BQ team: they populate the ColumnInput\
+  \ context fields (table_name, dataset, schema_name, data_type, description) when\
+  \ calling classify_columns in the v0.8.0 integration. Written verification and docs/process/BQ_INTEGRATION_STATUS.md\
+  \ stub deferred to later in Sprint 9 or Sprint 10 \u2014 user (2026-04-13) said\
+  \ 'we can verify later'. Sprint 9 library-side work that consumes these fields (gliner-data-type-pre-filter,\
+  \ _table_context_boost) can proceed on the assumption that BQ populates them. If\
+  \ downstream BQ integration debugging reveals a gap, file it as a bug."
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

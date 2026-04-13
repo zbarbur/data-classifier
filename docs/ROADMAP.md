@@ -109,7 +109,7 @@
 |---|---|
 | External corpus: Nemotron-PII ETL | Extract column values from 100K structured records, 55+ types (CC BY 4.0) |
 | External corpus: SecretBench + FPSecretBench | Data agreement + ETL for 97K labeled secrets + FP corpus from 9 tools (MIT + agreement) |
-| External corpus: Ai4Privacy pii-masking-300k | NER spans → column values ETL, 225K rows, 27+ PII types (custom license, research OK) |
+| External corpus: Ai4Privacy pii-masking-300k | **PENDING REMOVAL Sprint 9** — custom non-OSI license (see `docs/process/LICENSE_AUDIT.md`). Being replaced by `gretelai/gretel-pii-masking-en-v1` (Apache 2.0). |
 | External corpus: StarPII | 20K annotated secrets in code snippets, credential testing (gated access) |
 | External corpus: Nightfall samples | Curated CSVs for PII + credentials + explicit negative lookalikes (free eval) |
 | Presidio cross-validation comparison | Run same inputs through Presidio + us, compare precision/recall |

@@ -1,10 +1,10 @@
 """Tests for column-name-gated random password pattern (Sprint 7).
 
-Sprint 4/5 benchmarks showed the Ai4Privacy CREDENTIAL column (37,738 rows
-of short random passwords like ``r]iD1#8``, ``q4R\\``, ``2iGk^``) at 0%
-content regex match rate. The 18 existing Sprint 3/5 CREDENTIAL patterns
-target specific formats (AWS keys, GitHub tokens, JWTs) — none catch
-generic random passwords.
+Sprint 4/5 benchmarks showed a CREDENTIAL column (37,738 rows of short
+random passwords like ``r]iD1#8``, ``q4R\\``, ``2iGk^``) at 0% content
+regex match rate. The 18 existing Sprint 3/5 CREDENTIAL patterns target
+specific formats (AWS keys, GitHub tokens, JWTs) — none catch generic
+random passwords.
 
 Sprint 7 adds a new ``random_password`` pattern gated by the column name
 hint. It only fires when the column name contains a keyword like
@@ -17,13 +17,14 @@ The gate is a new ``ContentPattern.requires_column_hint`` mechanism:
 - ``column_hint_keywords: list[str]`` — substrings to look for in column name
 - Checked before validator runs in ``_match_sample_values`` Phase 2
 
-Real samples come from ``tests/fixtures/corpora/ai4privacy_sample.json``.
+The Sprint 7 end-to-end coverage test against the original 300k-row
+corpus sample was retired in Sprint 9 when that corpus was dropped for
+license non-compatibility; see ``docs/process/LICENSE_AUDIT.md``. The
+hand-picked sample values below still exercise the validator and
+column-gate paths.
 """
 
 from __future__ import annotations
-
-import json
-from pathlib import Path
 
 import pytest
 
@@ -35,13 +36,6 @@ from data_classifier.patterns import load_default_patterns
 @pytest.fixture(scope="module")
 def profile():
     return load_profile("standard")
-
-
-@pytest.fixture(scope="module")
-def ai4privacy_credentials() -> list[str]:
-    fixture = Path(__file__).parent / "fixtures" / "corpora" / "ai4privacy_sample.json"
-    data = json.loads(fixture.read_text())
-    return [r["value"] for r in data if r.get("entity_type") == "CREDENTIAL"]
 
 
 class TestRandomPasswordPatternExists:
@@ -81,7 +75,7 @@ class TestRandomPasswordValidator:
     @pytest.mark.parametrize(
         "value",
         [
-            # Real Ai4Privacy samples — all have upper+lower+digit+symbol
+            # Representative real-corpus samples — all have upper+lower+digit+symbol
             "r]iD1#8",
             "q4R\\",  # raw backslash
             'Be~o}.zq8^1"',
@@ -217,20 +211,10 @@ class TestColumnGatePreventsFalsePositives:
         )
 
 
-class TestAi4PrivacyCredentialCoverage:
-    """Full Ai4Privacy CREDENTIAL corpus coverage test.
-
-    Matches the Sprint 7 acceptance criterion: per-value match_ratio >= 0.50.
-    """
-
-    def test_coverage_exceeds_50_percent(self, ai4privacy_credentials: list[str]) -> None:
-        assert len(ai4privacy_credentials) >= 1000, (
-            f"Expected >=1000 CREDENTIAL rows in Ai4Privacy sample, got {len(ai4privacy_credentials)}"
-        )
-        check = VALIDATORS["random_password"]
-        matched = sum(1 for v in ai4privacy_credentials if check(v))
-        match_ratio = matched / len(ai4privacy_credentials)
-        assert match_ratio >= 0.50, (
-            f"Ai4Privacy CREDENTIAL validator coverage {match_ratio:.1%} "
-            f"below 50% target ({matched}/{len(ai4privacy_credentials)})"
-        )
+# NOTE: The Sprint 7 end-to-end CREDENTIAL coverage class was retired in
+# Sprint 9 when the underlying 300k-row corpus fixture was removed for
+# license non-compatibility; see ``docs/process/LICENSE_AUDIT.md``. The
+# +98.6% coverage headline from Sprint 7 is preserved as a historical
+# record in PROJECT_CONTEXT.md and SPRINT7_HANDOVER.md; the validator
+# unit tests above still exercise the same code paths against
+# representative samples.

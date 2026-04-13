@@ -335,7 +335,7 @@ class TestFormatSideBySideTable:
 
     def test_raises_on_row_alignment_mismatch(self) -> None:
         dc_rows = [("nemotron", "named", 0.9, 0.9, 0.9)]
-        pr_rows = [("ai4privacy", "named", 0.7, 0.7, 0.7)]  # different corpus
+        pr_rows = [("gretel_en", "named", 0.7, 0.7, 0.7)]  # different corpus
         with pytest.raises(ValueError, match="row alignment mismatch"):
             format_side_by_side_table(dc_rows, pr_rows)
 

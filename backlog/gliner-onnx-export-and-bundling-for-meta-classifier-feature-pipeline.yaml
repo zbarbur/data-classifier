@@ -1,10 +1,10 @@
 title: GLiNER ONNX export and bundling for meta-classifier feature pipeline
-status: backlog
+status: done
 priority: P1
 category: chore
 sprint_target: 9
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
 goal: Export the production gliner_multi_pii-v1 model to quantized ONNX and bundle
@@ -34,8 +34,16 @@ test_plan:
 - 'scripts/install_smoke_test.py: bundled ONNX path resolves on a fresh wheel install'
 - 'Manual: rerun build_training_data with GLiNER enabled, measure wall time, compare
   to E10 baseline of 4 hours'
-notes: ''
-phase: null
+notes: STALE / REDUNDANT as discovered 2026-04-13. Sprint 8 Item 5 (data-classifier-download-models
+  CLI + AR Generic repo + _find_bundled_onnx_model auto-discovery) already solved
+  the real need. The 333MB model.onnx exceeds GitHub's 100MB per-file limit, making
+  the 'bundle in the repo' acceptance criterion impossible. data_classifier/models/gliner_onnx/README.md
+  (committed Sprint 8) explicitly documents the dir is 'intentionally empty in the
+  source tree' and the model ships via the download_models CLI. No work to do here
+  unless the meta-classifier feature pipeline actually gains a dependency on bundled
+  ONNX that the download_models CLI can't satisfy. Recommend closing as won't-do in
+  sprint-end triage.
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

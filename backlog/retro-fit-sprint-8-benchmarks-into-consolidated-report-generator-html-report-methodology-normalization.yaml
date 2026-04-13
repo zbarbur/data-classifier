@@ -1,11 +1,11 @@
 title: "Retro-fit Sprint 8 benchmarks into consolidated_report generator \u2014 HTML\
   \ report + methodology normalization"
-status: backlog
+status: done
 priority: P2
 category: chore
 sprint_target: 9
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
 goal: Bring Sprint 8 benchmarks into the consolidated_report.py pipeline so Sprint
@@ -41,7 +41,7 @@ test_plan:
   5 finishes in <90s (current behavior: stalls past 10 CPU min). tests/test_consolidated_report.py:
   existing tests should still pass after the Sprint 8 retro-fit.'
 notes: ''
-phase: null
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

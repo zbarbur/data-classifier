@@ -155,6 +155,7 @@ class GLiNER2Engine(ClassificationEngine):
         model_id: str = _MODEL_ID,
         onnx_path: str | None = None,
         api_key: str | None = None,
+        descriptions_enabled: bool | None = None,
     ) -> None:
         """Initialize the GLiNER2 engine.
 
@@ -178,16 +179,47 @@ class GLiNER2Engine(ClassificationEngine):
                 Export with: ``model.export_to_onnx(path, quantize=True)``
             api_key: GLiNER API key for hosted inference fallback.  If set
                 and local model loading fails, falls back to API mode.
+            descriptions_enabled: Controls whether entity descriptions are
+                passed to the underlying model's v2 ``extract_entities``
+                schema.  ``None`` (the default) auto-selects: ``False``
+                for ``fastino/*`` (v2) models, ``True`` for all other
+                models.  The Sprint 9 GLiNER eval memo showed fastino
+                regresses by -0.062 to -0.093 macro F1 when descriptions
+                are enabled, so the infrastructure supports running
+                fastino without them.  v1 (``gliner``) models ignore this
+                flag because they only accept a label list.  Infrastructure
+                shipped Sprint 9 ahead of the fastino model swap (blocked
+                on blind-corpus regression pending the research/gliner-context
+                work).
         """
         self._registry = registry or ModelRegistry()
         self._gliner_threshold = gliner_threshold
         self._model_id = model_id
-        # Auto-discover ONNX model if not explicitly configured
-        self._onnx_path = onnx_path or _find_bundled_onnx_model()
         self._api_key = api_key
         self._is_v2 = model_id.startswith("fastino/")
+        # Auto-discover ONNX model if not explicitly configured.
+        # Sprint 9: skip auto-discovery for v2 (fastino) models — the
+        # bundled/cached ONNX bundles in the standard search paths are
+        # v1 exports (``urchade/gliner_multi_pii-v1``) and would be
+        # loaded by the v1 ``gliner`` package, silently serving the
+        # wrong model.  An explicitly-provided ``onnx_path`` still wins
+        # (escape hatch for a hand-exported fastino bundle).
+        if onnx_path:
+            self._onnx_path: str | None = onnx_path
+        elif self._is_v2:
+            self._onnx_path = None
+        else:
+            self._onnx_path = _find_bundled_onnx_model()
         self._inference_mode: str | None = None  # set during startup
         self._registered = False
+
+        # Sprint 9: descriptions-off default for fastino per the eval memo.
+        # v1 models ignore this flag at inference time (they only accept a
+        # label list via ``predict_entities``), but it's still set for
+        # consistency and testability.
+        if descriptions_enabled is None:
+            descriptions_enabled = not self._is_v2
+        self._descriptions_enabled = descriptions_enabled
 
         # Filter to requested entity types (must be in our mapping)
         if entity_types is not None:
@@ -195,12 +227,19 @@ class GLiNER2Engine(ClassificationEngine):
         else:
             self._entity_types = list(ENTITY_LABEL_DESCRIPTIONS.keys())
 
-        # Build labels — v1 uses plain list, v2 uses dict with descriptions
+        # Build labels.
+        #
+        # v1 (gliner) uses a plain label list via ``predict_entities``.
+        #
+        # v2 (gliner2) ``extract_entities`` accepts either a list[str]
+        # (no descriptions) or dict[str, str] (label -> description).
+        # Prepare BOTH forms and pick at inference time based on
+        # ``self._descriptions_enabled``.
+        self._gliner_labels: list[str] = [ENTITY_LABEL_DESCRIPTIONS[et][0] for et in self._entity_types]
         if self._is_v2:
             self._gliner_labels_v2: dict[str, str] = {
                 ENTITY_LABEL_DESCRIPTIONS[et][0]: ENTITY_LABEL_DESCRIPTIONS[et][1] for et in self._entity_types
             }
-        self._gliner_labels: list[str] = [ENTITY_LABEL_DESCRIPTIONS[et][0] for et in self._entity_types]
 
     def startup(self) -> None:
         """Register the model in the registry for lazy loading.
@@ -356,7 +395,22 @@ class GLiNER2Engine(ClassificationEngine):
 
             try:
                 if self._is_v2:
-                    result = model.extract_entities(text, self._gliner_labels_v2, include_confidence=True)
+                    # Sprint 9: pick label spec form based on descriptions_enabled.
+                    # - descriptions_enabled=True  -> dict[label, description]
+                    # - descriptions_enabled=False -> list[label] (fastino default)
+                    # Also plumb threshold through — the v2 path previously
+                    # silently ignored self._gliner_threshold and used
+                    # extract_entities' internal default, which was a latent
+                    # correctness bug affecting any v2 deployment.
+                    v2_entity_spec: list[str] | dict[str, str] = (
+                        self._gliner_labels_v2 if self._descriptions_enabled else self._gliner_labels
+                    )
+                    result = model.extract_entities(
+                        text,
+                        v2_entity_spec,
+                        threshold=self._gliner_threshold,
+                        include_confidence=True,
+                    )
                     for gliner_label, matches in result.get("entities", {}).items():
                         entity_type = GLINER_LABEL_TO_ENTITY.get(gliner_label)
                         if entity_type is None:
