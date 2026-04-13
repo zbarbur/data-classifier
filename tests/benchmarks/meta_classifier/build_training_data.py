@@ -3,6 +3,8 @@
 Assembles training rows from:
   * Nemotron-PII (named + blind modes)
   * Ai4Privacy pii-masking-300k (named + blind modes)
+  * Gretel-PII-masking-EN-v1 (Sprint 9 mixed-label add, named + blind)
+  * Credential corpora: SecretBench / gitleaks / detect_secrets
   * Faker-based synthetic corpus (via tests.benchmarks.corpus_generator)
 
 and writes them as newline-delimited JSON to the ``--output`` path. Also
@@ -342,10 +344,10 @@ def main(argv: list[str] | None = None) -> int:
     profile = load_profile("standard")
 
     # Sharded training data — real corpora (Ai4Privacy, Nemotron,
-    # SecretBench, gitleaks, detect_secrets) plus Faker-backed synthetic
-    # augmentation.  The shard_builder handles bucketed M, named/blind
-    # doubling, and unique-without-replacement slicing inside each
-    # (type, corpus) combo.
+    # Gretel-EN, SecretBench, gitleaks, detect_secrets) plus Faker-backed
+    # synthetic augmentation.  The shard_builder handles bucketed M,
+    # named/blind doubling, and unique-without-replacement slicing
+    # inside each (type, corpus) combo.
     synthetic_pool = _build_synthetic_pool()
     shards = build_shards(synthetic_pool=synthetic_pool, seed=20260412)
 

@@ -9,6 +9,7 @@ Usage:
     python3 scripts/download_corpora.py --corpus nemotron
     python3 scripts/download_corpora.py --corpus secretbench
     python3 scripts/download_corpora.py --corpus gitleaks
+    python3 scripts/download_corpora.py --corpus gretel_en
     python3 scripts/download_corpora.py --corpus all
 """
 
@@ -119,6 +120,43 @@ NEMOTRON_TYPE_MAP: dict[str, str] = {
     "gender": None,
     "age": None,
     "political_view": None,
+}
+
+
+# Gretel-PII-masking-EN label map (locked 2026-04-13, path-(d) decision).
+#
+# Only the 17 Gretel labels below are mapped to data_classifier types. Dropped
+# Gretel labels (``date`` [generic], ``customer_id``, ``employee_id``,
+# ``license_plate``, ``company_name``, ``device_identifier``,
+# ``biometric_identifier``, ``unique_identifier``, ``time``, ``user_name``,
+# ``coordinate``, ``country``, ``date_time``, ``city``, ``url``, ``cvv``,
+# ``certificate_license_number``) will be revisited in a Sprint 10 taxonomy
+# expansion item. Do not extend this map without updating the dispatcher
+# decision. Target coverage: ~71% of labeled Gretel instances, by design.
+GRETEL_EN_TYPE_MAP: dict[str, str] = {
+    # PII
+    "date_of_birth": "DATE_OF_BIRTH",
+    "ssn": "SSN",
+    "first_name": "PERSON_NAME",
+    "name": "PERSON_NAME",
+    "last_name": "PERSON_NAME",
+    "email": "EMAIL",
+    "phone_number": "PHONE",
+    # Address family
+    "address": "ADDRESS",
+    "street_address": "ADDRESS",
+    # Financial
+    "credit_card_number": "CREDIT_CARD",
+    "bank_routing_number": "ABA_ROUTING",
+    "account_number": "BANK_ACCOUNT",
+    # Network
+    "ipv4": "IP_ADDRESS",
+    "ipv6": "IP_ADDRESS",
+    # Vehicle
+    "vehicle_identifier": "VIN",
+    # Health — coarse bucket for MRN (largest single Gretel label in the
+    # discovery sample).
+    "medical_record_number": "HEALTH",
 }
 
 
@@ -399,6 +437,125 @@ def download_gitleaks(max_per_type: int = 1000) -> list[dict]:
     return records
 
 
+# ── Gretel PII masking EN v1 ─────────────────────────────────────────────────
+
+
+def download_gretel_en(max_per_type: int = 1000) -> list[dict]:
+    """Download gretelai/gretel-pii-masking-en-v1 and extract PII values.
+
+    Apache 2.0, 60k rows, 47 domains, mixed-label documents. Each row has
+    an ``entities`` column that is a **Python repr** of a list of dicts
+    (single quotes, not JSON -- use :func:`ast.literal_eval`, never
+    :func:`json.loads`). Each span dict has keys ``entity`` (raw value)
+    and ``types`` (list of one or more type strings, first element is the
+    primary label).
+
+    Transport preference:
+    1. ``datasets`` library (fastest, streams locally via Arrow).
+    2. HuggingFace datasets-server REST API (``/rows`` endpoint) --
+       returns JSON directly in 100-row pages, no dependency beyond
+       :mod:`urllib`. Used when ``datasets`` is not installed.
+
+    Returns flattened records ``[{"entity_type": types[0], "value":
+    entity}, ...]``, deduplicated and capped at ``max_per_type`` per
+    mapped type. Labels not in :data:`GRETEL_EN_TYPE_MAP` are dropped.
+    """
+    logger.info("Downloading gretelai/gretel-pii-masking-en-v1...")
+
+    records_by_type: dict[str, list[str]] = {}
+
+    def _consume_row(row: dict) -> None:
+        raw = row.get("entities", "")
+        if not raw or not isinstance(raw, str):
+            return
+        try:
+            spans = ast.literal_eval(raw)  # noqa: S307 -- literal parsing only
+        except (ValueError, SyntaxError):
+            return
+        if not isinstance(spans, list):
+            return
+        for span in spans:
+            if not isinstance(span, dict):
+                continue
+            value = span.get("entity", "")
+            types = span.get("types") or []
+            if not value or not types:
+                continue
+            label = str(types[0])
+            our_type = GRETEL_EN_TYPE_MAP.get(label)
+            if our_type is None:
+                continue
+            records_by_type.setdefault(our_type, []).append(str(value))
+
+    # Attempt 1: native datasets library.
+    try:
+        from datasets import load_dataset  # type: ignore[import-not-found]
+
+        ds = load_dataset("gretelai/gretel-pii-masking-en-v1", split="train")
+        logger.info("Loaded %d rows via datasets library", len(ds))
+        for row in ds:
+            _consume_row(row)
+    except ImportError:
+        logger.info("datasets library not installed -- falling back to datasets-server REST API")
+        _fetch_gretel_en_via_rest_api(_consume_row, max_per_type=max_per_type)
+    except Exception as exc:
+        logger.warning("datasets library failed (%s) -- falling back to REST API", exc)
+        _fetch_gretel_en_via_rest_api(_consume_row, max_per_type=max_per_type)
+
+    # Deduplicate and cap per type.
+    records: list[dict] = []
+    for entity_type, values in sorted(records_by_type.items()):
+        unique = list(dict.fromkeys(values))[:max_per_type]
+        logger.info("  %s: %d unique values (from %d total)", entity_type, len(unique), len(values))
+        for v in unique:
+            records.append({"entity_type": entity_type, "value": v})
+
+    return records
+
+
+def _fetch_gretel_en_via_rest_api(consumer, *, max_per_type: int) -> None:
+    """Page through the HuggingFace datasets-server ``/rows`` endpoint.
+
+    Stops early once every mapped type has at least ``max_per_type``
+    raw values queued -- the caller deduplicates and caps afterwards so
+    we overshoot modestly to give dedup some slack.
+    """
+    import urllib.request
+
+    base = (
+        "https://datasets-server.huggingface.co/rows"
+        "?dataset=gretelai/gretel-pii-masking-en-v1&config=default&split=train"
+    )
+    page_size = 100
+    offset = 0
+    # Target enough unique rows to cover max_per_type post-dedup without
+    # slamming the API.  Each row contributes ~5-8 spans on average; we
+    # cap total rows at 10x max_per_type as a safety upper bound.
+    hard_cap_rows = max(500, max_per_type * 10)
+
+    while offset < hard_cap_rows:
+        url = f"{base}&offset={offset}&length={page_size}"
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            response = urllib.request.urlopen(req, timeout=30)
+            payload = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            logger.error("datasets-server fetch failed at offset=%d: %s", offset, exc)
+            return
+
+        rows = payload.get("rows", [])
+        if not rows:
+            return
+
+        for entry in rows:
+            row = entry.get("row", {})
+            consumer(row)
+
+        if len(rows) < page_size:
+            return
+        offset += page_size
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
@@ -418,7 +575,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Download and process benchmark corpora")
     parser.add_argument(
         "--corpus",
-        choices=["ai4privacy", "nemotron", "secretbench", "gitleaks", "all"],
+        choices=["ai4privacy", "nemotron", "secretbench", "gitleaks", "gretel_en", "all"],
         default="all",
         help="Which corpus to download",
     )
@@ -427,7 +584,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    corpora = [args.corpus] if args.corpus != "all" else ["ai4privacy", "nemotron", "secretbench", "gitleaks"]
+    corpora = (
+        [args.corpus] if args.corpus != "all" else ["ai4privacy", "nemotron", "secretbench", "gitleaks", "gretel_en"]
+    )
     total_records = 0
 
     for corpus_name in corpora:
@@ -457,6 +616,12 @@ def main() -> None:
             records = download_gitleaks(max_per_type=args.max_per_type)
             if records:
                 save_corpus(records, "gitleaks_fixtures.json")
+                total_records += len(records)
+
+        elif corpus_name == "gretel_en":
+            records = download_gretel_en(max_per_type=args.max_per_type)
+            if records:
+                save_corpus(records, "gretel_en_sample.json")
                 total_records += len(records)
 
     logger.info("=" * 60)

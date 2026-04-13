@@ -257,6 +257,7 @@ All patterns in this library are **original implementations**. We did NOT copy r
 | Nemotron-PII ETL | NVIDIA | CC BY 4.0 | 100K records, 55+ types | Extract entity values from structured records |
 | SecretBench + FPSecretBench | Academic | MIT + data agreement | 97K labeled + FP corpus | Gold standard for credential accuracy |
 | Ai4Privacy pii-masking-300k | Ai4Privacy | **Custom non-OSI — PENDING REMOVAL Sprint 9** | 225K rows, 27+ types | License prohibits commercial use and redistribution. See `docs/process/LICENSE_AUDIT.md`. Being replaced by Gretel-EN (Apache 2.0). |
+| Gretel-PII-masking-EN-v1 | gretelai (HuggingFace) | Apache 2.0 | 60K rows, 47 domains, 43+ entity types | Sprint 9 ingest (2026-04-13, data_classifier ≥ v0.9.0). Mixed-label corpus (credentials + PII + financial + health co-occur in single documents) to break credential-pure-corpus bias in the meta-classifier. `entities` field is a Python repr (single quotes) — parse via `ast.literal_eval`, never `json.loads`. Path-(d) type map covers 16 raw labels → 12 data_classifier classes at ~71% sample coverage; dropped labels deferred to Sprint 10 taxonomy expansion. Source: https://huggingface.co/datasets/gretelai/gretel-pii-masking-en-v1 |
 | StarPII | BigCode | Gated access | 20K secrets in code | Credential testing in code context |
 | Nightfall expanded | Nightfall AI | Free eval | Small curated | CSV samples + negative lookalikes |
 | Presidio cross-validation | Microsoft | MIT | Generated | Run same inputs through Presidio + us, compare |

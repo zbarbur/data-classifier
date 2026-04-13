@@ -4,19 +4,66 @@ Focuses on the three Phase 2 loaders (SecretBench, gitleaks,
 detect_secrets) and the ``NEGATIVE`` ground-truth plumbing they emit.
 The existing Ai4Privacy/Nemotron loaders remain covered by the end-to-end
 benchmarks.
+
+Also covers the Sprint 9 Gretel-EN loader (mixed-label corpus).
 """
 
 from __future__ import annotations
 
+import json
 from collections import Counter
+from pathlib import Path
 
 from data_classifier.core.types import ColumnInput
 from tests.benchmarks.corpus_loader import (
+    GRETEL_EN_TYPE_MAP,
     NEGATIVE_GROUND_TRUTH,
     load_corpus,
     load_detect_secrets_corpus,
     load_gitleaks_corpus,
+    load_gretel_en_corpus,
     load_secretbench_corpus,
+)
+
+# Target entity types produced by the Gretel-EN loader (post-ETL
+# data_classifier taxonomy labels).
+_GRETEL_EN_TARGET_TYPES: frozenset[str] = frozenset(
+    {
+        "DATE_OF_BIRTH",
+        "SSN",
+        "PERSON_NAME",
+        "EMAIL",
+        "PHONE",
+        "ADDRESS",
+        "CREDIT_CARD",
+        "ABA_ROUTING",
+        "BANK_ACCOUNT",
+        "IP_ADDRESS",
+        "VIN",
+        "HEALTH",
+    }
+)
+
+# Exact Gretel raw labels pre-locked by the Sprint 9 path-(d) decision.
+_GRETEL_EN_EXPECTED_RAW_LABELS: frozenset[str] = frozenset(
+    {
+        "date_of_birth",
+        "ssn",
+        "first_name",
+        "name",
+        "last_name",
+        "email",
+        "phone_number",
+        "address",
+        "street_address",
+        "credit_card_number",
+        "bank_routing_number",
+        "account_number",
+        "ipv4",
+        "ipv6",
+        "vehicle_identifier",
+        "medical_record_number",
+    }
 )
 
 
@@ -99,9 +146,55 @@ class TestDetectSecretsLoader:
         assert total == 13
 
 
+class TestGretelEnLoader:
+    def test_load_gretel_en_corpus(self) -> None:
+        corpus = load_gretel_en_corpus()
+        assert corpus, "Gretel-EN sample fixture should not be empty"
+        assert isinstance(corpus, list)
+        for column, ground_truth in corpus:
+            assert isinstance(column, ColumnInput)
+            assert column.data_type == "STRING"
+            assert column.sample_values, "every emitted column should have samples"
+            assert ground_truth in _GRETEL_EN_TARGET_TYPES, (
+                f"unexpected Gretel-EN ground truth {ground_truth!r}; must be in {_GRETEL_EN_TARGET_TYPES}"
+            )
+
+    def test_gretel_en_type_map_coverage(self) -> None:
+        # The Sprint 9 path-(d) decision locked exactly 16 raw Gretel
+        # labels -> 12 data_classifier targets.  No more, no less: any
+        # widening needs a new backlog item (Sprint 10 taxonomy expansion).
+        assert set(GRETEL_EN_TYPE_MAP.keys()) == _GRETEL_EN_EXPECTED_RAW_LABELS, (
+            "GRETEL_EN_TYPE_MAP drifted — update Sprint 9 backlog doc before changing"
+        )
+        assert set(GRETEL_EN_TYPE_MAP.values()) == _GRETEL_EN_TARGET_TYPES
+
+    def test_load_gretel_en_blind_mode(self) -> None:
+        corpus = load_gretel_en_corpus(blind=True)
+        assert corpus
+        for column, _ in corpus:
+            assert column.column_name.startswith("col_"), (
+                f"blind mode must use generic col_* names; got {column.column_name!r}"
+            )
+
+    def test_gretel_en_sample_fixture_exists(self) -> None:
+        fixture = Path(__file__).parent / "fixtures" / "corpora" / "gretel_en_sample.json"
+        assert fixture.exists(), f"Gretel-EN fixture missing at {fixture}"
+        assert fixture.stat().st_size > 0
+        assert fixture.stat().st_size < 100 * 1024, "fixture must stay under 100KB for git"
+        with fixture.open(encoding="utf-8") as f:
+            records = json.load(f)
+        assert isinstance(records, list)
+        assert records, "fixture must contain at least one record"
+        # Every record must already be in the flattened schema.
+        for rec in records:
+            assert "entity_type" in rec
+            assert "value" in rec
+            assert rec["entity_type"] in _GRETEL_EN_TARGET_TYPES
+
+
 class TestDispatcher:
     def test_dispatcher_accepts_new_sources(self) -> None:
-        sources = ("secretbench", "gitleaks", "detect_secrets")
+        sources = ("secretbench", "gitleaks", "detect_secrets", "gretel_en")
         for source in sources:
             corpus = load_corpus(source)
             assert corpus, f"{source} loaded via dispatcher should be non-empty"

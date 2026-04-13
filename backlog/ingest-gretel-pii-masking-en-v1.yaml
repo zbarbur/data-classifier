@@ -83,7 +83,7 @@ notes: "Source: docs/experiments/meta_classifier/dataset_landscape.md on\nresear
   \ backlog YAMLs):\n- ingest-gretel-finance-multilingual.yaml (depends on this)\n\
   - generate-synthea-100k-patient-corpus.yaml (parallel to this)\n- ingest-beki-privy-sql-traces.yaml\
   \ (second-pass, depends on this)\n"
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
