@@ -49,6 +49,9 @@ Thumbs.db
 site/
 .hypothesis/
 
+# Generated stats snapshot (scripts/collect_stats.py)
+stats.json
+
 # ML models (too large for git, exported via `python -m data_classifier.export_onnx`)
 # The Phase 2 meta-classifier artifacts are small (~8 KB combined) and
 # committed per decision D5 — everything else in this directory is
