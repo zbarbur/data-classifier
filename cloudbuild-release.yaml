@@ -94,12 +94,12 @@ steps:
         WHEEL_VERSION=$(python -c "import tomllib,sys; \
           data=tomllib.loads(open('pyproject.toml','rb').read().decode()); \
           sys.stdout.write(data['project']['version'])")
-        echo "pyproject version: ${WHEEL_VERSION}"
-        ls dist/data_classifier-${WHEEL_VERSION}-*.whl >/dev/null
+        echo "pyproject version: $${WHEEL_VERSION}"
+        ls dist/data_classifier-$${WHEEL_VERSION}-*.whl >/dev/null
 
         # Persist the version so subsequent steps can use it without re-reading
         # pyproject.toml. Cloud Build copies /workspace between steps.
-        echo "${WHEEL_VERSION}" > /workspace/VERSION
+        echo "$${WHEEL_VERSION}" > /workspace/VERSION
 
   # Step 2: publish the wheel to Artifact Registry Python repo
   - name: python:3.12-slim
@@ -145,7 +145,7 @@ steps:
       - |
         set -euo pipefail
         VERSION=$(cat /workspace/VERSION)
-        echo "Publishing ONNX model for data_classifier v${VERSION}"
+        echo "Publishing ONNX model for data_classifier v$${VERSION}"
 
         echo "::group::Install [ml-full] extras for export_onnx"
         pip install --upgrade pip
@@ -163,12 +163,12 @@ steps:
         echo "::endgroup::"
 
         echo "::group::Pack and checksum tarball"
-        TARBALL="gliner_onnx-${VERSION}.tar.gz"
+        TARBALL="gliner_onnx-$${VERSION}.tar.gz"
         # Single top-level gliner_onnx/ directory — download_models.py
         # detects this layout and flattens it on extract.
-        tar czf "${TARBALL}" -C /tmp gliner_onnx/
-        sha256sum "${TARBALL}" > "${TARBALL}.sha256"
-        ls -la "${TARBALL}" "${TARBALL}.sha256"
+        tar czf "$${TARBALL}" -C /tmp gliner_onnx/
+        sha256sum "$${TARBALL}" > "$${TARBALL}.sha256"
+        ls -la "$${TARBALL}" "$${TARBALL}.sha256"
         echo "::endgroup::"
 
         echo "::group::Upload to Generic Artifact Registry"
@@ -181,19 +181,19 @@ steps:
           | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
 
         curl -sSf -X POST \
-          -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+          -H "Authorization: Bearer $${ACCESS_TOKEN}" \
           -H "Content-Type: application/octet-stream" \
-          --data-binary @"${TARBALL}" \
-          "${GENERIC_URL}/${TARBALL}"
+          --data-binary @"$${TARBALL}" \
+          "$${GENERIC_URL}/$${TARBALL}"
 
         curl -sSf -X POST \
-          -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+          -H "Authorization: Bearer $${ACCESS_TOKEN}" \
           -H "Content-Type: text/plain" \
-          --data-binary @"${TARBALL}.sha256" \
-          "${GENERIC_URL}/${TARBALL}.sha256"
+          --data-binary @"$${TARBALL}.sha256" \
+          "$${GENERIC_URL}/$${TARBALL}.sha256"
         echo "::endgroup::"
 
-        echo "Model tarball + checksum published to ${GENERIC_URL}/${TARBALL}"
+        echo "Model tarball + checksum published to $${GENERIC_URL}/$${TARBALL}"
 
 # Log to Cloud Logging only; skip the default per-build GCS log bucket
 # so we do not require a storage bucket in the project.
