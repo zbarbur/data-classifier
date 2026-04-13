@@ -1,0 +1,707 @@
+{
+  "meta": {
+    "baseline_labels": {
+      "ADDRESS": "street address",
+      "DATE_OF_BIRTH": "date of birth",
+      "EMAIL": "email",
+      "IP_ADDRESS": "ip address",
+      "ORGANIZATION": "organization",
+      "PERSON_NAME": "person",
+      "PHONE": "phone number",
+      "SSN": "national identification number"
+    },
+    "corpora": [
+      "ai4privacy",
+      "nemotron"
+    ],
+    "label_alternatives": {
+      "ADDRESS": [
+        "physical address",
+        "mailing address",
+        "home address"
+      ],
+      "DATE_OF_BIRTH": [
+        "birthday",
+        "birth date"
+      ],
+      "EMAIL": [
+        "email address",
+        "e-mail"
+      ],
+      "IP_ADDRESS": [
+        "internet protocol address",
+        "ipv4 address"
+      ],
+      "ORGANIZATION": [
+        "company",
+        "institution",
+        "business name"
+      ],
+      "PERSON_NAME": [
+        "person name",
+        "full name",
+        "individual name"
+      ],
+      "PHONE": [
+        "telephone",
+        "phone",
+        "contact number"
+      ],
+      "SSN": [
+        "social security number",
+        "government id",
+        "tax id"
+      ]
+    },
+    "label_sweep_types": [
+      "PERSON_NAME",
+      "ADDRESS",
+      "ORGANIZATION",
+      "DATE_OF_BIRTH",
+      "PHONE",
+      "SSN",
+      "EMAIL",
+      "IP_ADDRESS"
+    ],
+    "max_rows": 500,
+    "mode": "full",
+    "models": [
+      "urchade/gliner_multi_pii-v1",
+      "fastino/gliner2-base-v1"
+    ],
+    "thresholds": [
+      0.3,
+      0.4,
+      0.5,
+      0.55,
+      0.6,
+      0.7,
+      0.8
+    ],
+    "wall_time_seconds": 1585.9
+  },
+  "model_statuses": [
+    {
+      "loaded": true,
+      "message": "",
+      "model_id": "urchade/gliner_multi_pii-v1"
+    },
+    {
+      "loaded": true,
+      "message": "",
+      "model_id": "fastino/gliner2-base-v1"
+    }
+  ],
+  "phase_a_best_per_model_corpus": [
+    {
+      "corpus": "ai4privacy",
+      "label_variant": "baseline",
+      "macro_f1": 0.5095,
+      "mean_latency_ms_per_col": 2618.25,
+      "model_id": "urchade/gliner_multi_pii-v1",
+      "n_columns": 7,
+      "per_type": {
+        "ADDRESS": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "DATE_OF_BIRTH": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "EMAIL": {
+          "f1": 0.5,
+          "fn": 0,
+          "fp": 2,
+          "precision": 0.3333,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "IP_ADDRESS": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "ORGANIZATION": {
+          "f1": 0.0,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "PERSON_NAME": {
+          "f1": 0.4,
+          "fn": 0,
+          "fp": 3,
+          "precision": 0.25,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "PHONE": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "SSN": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        }
+      },
+      "threshold": 0.4,
+      "use_descriptions": null
+    },
+    {
+      "corpus": "nemotron",
+      "label_variant": "baseline",
+      "macro_f1": 0.5714,
+      "mean_latency_ms_per_col": 2293.78,
+      "model_id": "urchade/gliner_multi_pii-v1",
+      "n_columns": 7,
+      "per_type": {
+        "ADDRESS": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "DATE_OF_BIRTH": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "EMAIL": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "IP_ADDRESS": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "ORGANIZATION": {
+          "f1": 0.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "PERSON_NAME": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "PHONE": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "SSN": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        }
+      },
+      "threshold": 0.4,
+      "use_descriptions": null
+    },
+    {
+      "corpus": "ai4privacy",
+      "label_variant": "baseline",
+      "macro_f1": 0.5048,
+      "mean_latency_ms_per_col": 2615.72,
+      "model_id": "fastino/gliner2-base-v1",
+      "n_columns": 7,
+      "per_type": {
+        "ADDRESS": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "DATE_OF_BIRTH": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "EMAIL": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "IP_ADDRESS": {
+          "f1": 0.4,
+          "fn": 0,
+          "fp": 3,
+          "precision": 0.25,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "ORGANIZATION": {
+          "f1": 0.0,
+          "fn": 0,
+          "fp": 2,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "PERSON_NAME": {
+          "f1": 0.4,
+          "fn": 0,
+          "fp": 3,
+          "precision": 0.25,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "PHONE": {
+          "f1": 0.4,
+          "fn": 0,
+          "fp": 3,
+          "precision": 0.25,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "SSN": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        }
+      },
+      "threshold": 0.8,
+      "use_descriptions": false
+    },
+    {
+      "corpus": "nemotron",
+      "label_variant": "baseline",
+      "macro_f1": 0.6048,
+      "mean_latency_ms_per_col": 2241.53,
+      "model_id": "fastino/gliner2-base-v1",
+      "n_columns": 7,
+      "per_type": {
+        "ADDRESS": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "DATE_OF_BIRTH": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "EMAIL": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "IP_ADDRESS": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "ORGANIZATION": {
+          "f1": 0.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "PERSON_NAME": {
+          "f1": 0.4,
+          "fn": 0,
+          "fp": 3,
+          "precision": 0.25,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "PHONE": {
+          "f1": 0.5,
+          "fn": 0,
+          "fp": 2,
+          "precision": 0.3333,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "SSN": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        }
+      },
+      "threshold": 0.8,
+      "use_descriptions": false
+    }
+  ],
+  "phase_b_best_per_model_corpus": [
+    {
+      "corpus": "ai4privacy",
+      "label_variant": "swap:PERSON_NAME=person name",
+      "macro_f1": 0.5238,
+      "mean_latency_ms_per_col": 2591.29,
+      "model_id": "urchade/gliner_multi_pii-v1",
+      "n_columns": 7,
+      "per_type": {
+        "ADDRESS": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "DATE_OF_BIRTH": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "EMAIL": {
+          "f1": 0.5,
+          "fn": 0,
+          "fp": 2,
+          "precision": 0.3333,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "IP_ADDRESS": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "ORGANIZATION": {
+          "f1": 0.0,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "PERSON_NAME": {
+          "f1": 0.5,
+          "fn": 0,
+          "fp": 2,
+          "precision": 0.3333,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "PHONE": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "SSN": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        }
+      },
+      "threshold": 0.4,
+      "use_descriptions": null
+    },
+    {
+      "corpus": "nemotron",
+      "label_variant": "swap:ADDRESS=physical address",
+      "macro_f1": 0.5714,
+      "mean_latency_ms_per_col": 2279.63,
+      "model_id": "urchade/gliner_multi_pii-v1",
+      "n_columns": 7,
+      "per_type": {
+        "ADDRESS": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "DATE_OF_BIRTH": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "EMAIL": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "IP_ADDRESS": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "ORGANIZATION": {
+          "f1": 0.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "PERSON_NAME": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "PHONE": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "SSN": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        }
+      },
+      "threshold": 0.4,
+      "use_descriptions": null
+    },
+    {
+      "corpus": "ai4privacy",
+      "label_variant": "swap:SSN=social security number",
+      "macro_f1": 0.6,
+      "mean_latency_ms_per_col": 2567.7,
+      "model_id": "fastino/gliner2-base-v1",
+      "n_columns": 7,
+      "per_type": {
+        "ADDRESS": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "DATE_OF_BIRTH": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "EMAIL": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "IP_ADDRESS": {
+          "f1": 0.4,
+          "fn": 0,
+          "fp": 3,
+          "precision": 0.25,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "ORGANIZATION": {
+          "f1": 0.0,
+          "fn": 0,
+          "fp": 3,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "PERSON_NAME": {
+          "f1": 0.4,
+          "fn": 0,
+          "fp": 3,
+          "precision": 0.25,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "PHONE": {
+          "f1": 0.4,
+          "fn": 0,
+          "fp": 3,
+          "precision": 0.25,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "SSN": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        }
+      },
+      "threshold": 0.8,
+      "use_descriptions": false
+    },
+    {
+      "corpus": "nemotron",
+      "label_variant": "swap:PERSON_NAME=full name",
+      "macro_f1": 0.6429,
+      "mean_latency_ms_per_col": 2250.82,
+      "model_id": "fastino/gliner2-base-v1",
+      "n_columns": 7,
+      "per_type": {
+        "ADDRESS": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "DATE_OF_BIRTH": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "EMAIL": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "IP_ADDRESS": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "ORGANIZATION": {
+          "f1": 0.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        },
+        "PERSON_NAME": {
+          "f1": 0.6667,
+          "fn": 0,
+          "fp": 1,
+          "precision": 0.5,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "PHONE": {
+          "f1": 0.5,
+          "fn": 0,
+          "fp": 2,
+          "precision": 0.3333,
+          "recall": 1.0,
+          "tp": 1
+        },
+        "SSN": {
+          "f1": 0.0,
+          "fn": 1,
+          "fp": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "tp": 0
+        }
+      },
+      "threshold": 0.8,
+      "use_descriptions": false
+    }
+  ]
+}
