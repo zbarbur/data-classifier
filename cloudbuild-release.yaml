@@ -116,13 +116,14 @@ steps:
         # lookup and resolves credentials from the Cloud Build service
         # account's Application Default Credentials transparently.
         #
-        # --skip-existing makes the upload idempotent: re-pushing a tag
-        # that points at the same commit (e.g. v0.8.0 after v0.8.0-rc1)
-        # is a no-op instead of failing on "file already exists".
+        # NOTE: --skip-existing is NOT supported by Google Artifact Registry
+        # ("UnsupportedConfiguration" error from twine). If you need to
+        # re-tag a version that is already published, delete the existing
+        # version via `gcloud artifacts versions delete` first, or bump
+        # the pyproject version.
         twine upload \
           --repository-url "https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/" \
           --non-interactive \
-          --skip-existing \
           dist/data_classifier-*.whl
         echo "::endgroup::"
 
