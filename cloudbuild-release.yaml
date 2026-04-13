@@ -1,0 +1,119 @@
+# Cloud Build release pipeline for data_classifier.
+#
+# Triggered manually or by a GitHub tag push (v*). Builds the Python wheel,
+# publishes it to the private Artifact Registry Python repo, exports the
+# GLiNER2 ONNX model, packs it into a versioned tarball, and publishes that
+# tarball + SHA-256 checksum to the Artifact Registry Generic repo so that
+# downstream containers can bake the model into their images at build time
+# via `python -m data_classifier.download_models`.
+#
+# Required substitutions:
+#   _VERSION            — release version (e.g. 0.6.0)
+#   _AR_REGION          — Artifact Registry region (e.g. us-central1)
+#   _AR_PYTHON_REPO     — Python repo name (e.g. data-classifier-python)
+#   _AR_MODELS_REPO     — Generic repo name (e.g. data-classifier-models)
+#
+# ${PROJECT_ID} is provided automatically by Cloud Build.
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+substitutions:
+  _VERSION: "0.1.0"
+  _AR_REGION: "us-central1"
+  _AR_PYTHON_REPO: "data-classifier-python"
+  _AR_MODELS_REPO: "data-classifier-models"
+
+steps:
+  # ── 1. Build the wheel ─────────────────────────────────────────────────────
+  - id: build-wheel
+    name: python:3.11-slim
+    entrypoint: bash
+    timeout: 600s
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        python -m pip install --upgrade pip build
+        python -m build --wheel --outdir dist/
+        ls -la dist/
+
+  # ── 2. Publish the wheel to Artifact Registry Python repo ──────────────────
+  - id: publish-wheel
+    name: python:3.11-slim
+    entrypoint: bash
+    timeout: 600s
+    waitFor: ["build-wheel"]
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        python -m pip install --upgrade pip twine keyring keyrings.google-artifactregistry-auth
+        python -m twine upload \
+          --repository-url https://${_AR_REGION}-python.pkg.dev/${PROJECT_ID}/${_AR_PYTHON_REPO}/ \
+          dist/*.whl
+
+  # ── 3. Export GLiNER2 ONNX model and publish as a tarball ──────────────────
+  #
+  # This step needs [ml-full] extras because export_onnx.py imports torch,
+  # transformers, and onnx to perform the export. Budget ~15 minutes because
+  # loading the HF weights + quantizing the ONNX graph takes a few minutes.
+  - id: publish-model
+    name: python:3.11-slim
+    entrypoint: bash
+    timeout: 900s
+    waitFor: ["publish-wheel"]
+    args:
+      - -c
+      - |
+        set -euo pipefail
+
+        # Install ml-full so we can run export_onnx.py (torch + transformers + onnx).
+        python -m pip install --upgrade pip
+        python -m pip install ".[ml-full]"
+
+        # Export the GLiNER model to ONNX into a staging dir. The export tool
+        # writes gliner_config.json + the quantized ONNX graph + tokenizer
+        # assets — matching what _find_bundled_onnx_model() expects.
+        rm -rf /tmp/gliner_onnx
+        mkdir -p /tmp/gliner_onnx
+        python -m data_classifier.export_onnx --output /tmp/gliner_onnx
+
+        # Pack it into a versioned tarball. The tarball has a single top-level
+        # gliner_onnx/ directory that download_models.py flattens on extract.
+        TARBALL="gliner_onnx-${_VERSION}.tar.gz"
+        tar czf "${TARBALL}" -C /tmp gliner_onnx/
+        sha256sum "${TARBALL}" > "${TARBALL}.sha256"
+
+        # Publish both files to the Generic Artifact Registry repo.
+        python -m pip install --upgrade keyring keyrings.google-artifactregistry-auth google-cloud-artifact-registry
+
+        GENERIC_URL="https://${_AR_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_MODELS_REPO}"
+        echo "Publishing ${TARBALL} to ${GENERIC_URL}"
+
+        # gcloud is available via the gcloud builder image on subsequent steps,
+        # but here we shell out to the AR REST API using the Cloud Build
+        # service account's metadata token so we do not need a separate step.
+        ACCESS_TOKEN=$(curl -sSf -H "Metadata-Flavor: Google" \
+          http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
+          | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+
+        curl -sSf -X POST \
+          -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+          -H "Content-Type: application/octet-stream" \
+          --data-binary @"${TARBALL}" \
+          "${GENERIC_URL}/${TARBALL}"
+
+        curl -sSf -X POST \
+          -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+          -H "Content-Type: text/plain" \
+          --data-binary @"${TARBALL}.sha256" \
+          "${GENERIC_URL}/${TARBALL}.sha256"
+
+        echo "Model tarball + checksum published to ${GENERIC_URL}"
+
+artifacts:
+  objects:
+    location: gs://${PROJECT_ID}-releases/data_classifier/${_VERSION}/
+    paths:
+      - dist/*.whl

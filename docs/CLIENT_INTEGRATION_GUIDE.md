@@ -65,6 +65,72 @@ pip install --index-url https://your-registry/ "data_classifier[ml]==0.5.0"
 
 ---
 
+## 1c. Baking the ONNX model into a container image
+
+Production container deployments (Cloud Run, GKE, ECS, etc.) should
+**never** download the GLiNER model from HuggingFace at runtime — we
+observed HTTP 429 rate-limit failures on Cloud Run cold starts, and
+the first-request latency spike is unacceptable for a classification
+service. Instead, bake the pre-exported ONNX tarball into the image at
+build time using the `data-classifier-download-models` CLI.
+
+This CLI is **stdlib-only** — it does not import `torch`,
+`transformers`, `onnx`, or `requests`, so it is safe to run in a lean
+`[ml]`-extras container. It downloads a versioned tarball from our
+Google Artifact Registry Generic repo, verifies its SHA-256 checksum,
+and unpacks it into `~/.cache/data_classifier/models/gliner_onnx/`,
+which is one of the three paths that `GLiNER2Engine` auto-discovers at
+startup.
+
+**Dockerfile recipe:**
+
+```dockerfile
+FROM python:3.11-slim
+
+# Install the library with ML runtime extras only (onnxruntime + gliner,
+# no torch, no transformers).
+RUN pip install --no-cache-dir "data_classifier[ml]==0.5.0"
+
+# Bake the ONNX model into the image at build time. The CLI defaults to
+# ~/.cache/data_classifier/models/gliner_onnx/ which is where
+# GLiNER2Engine auto-discovers it at startup — no env vars needed.
+RUN data-classifier-download-models
+
+# ...your application setup...
+CMD ["python", "-m", "your_app"]
+```
+
+**CLI flags:**
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--to PATH` | `~/.cache/data_classifier/models/gliner_onnx/` | Destination directory. Parent dirs are created automatically. |
+| `--version VERSION` | Installed `data_classifier` version | Model version to fetch (tied to library version). |
+| `--url URL` | Artifact Registry URL derived from `--version` | Override the full download URL (internal mirrors, testing). |
+| `--checksum-url URL` | `<url>.sha256` | Override the SHA-256 checksum URL. |
+| `--force` | off | Re-download even if the target path already exists. |
+| `--quiet` | off | Suppress progress output on stdout. |
+
+**Behavior guarantees:**
+
+- Exits 0 on success, non-zero on any failure (no raw tracebacks — you
+  get a one-line `error: ...` message on stderr).
+- Downloads are SHA-256 verified before extraction. A checksum
+  mismatch aborts the download **without touching the target
+  directory**, so a corrupt retry cannot leave the container in a
+  half-installed state.
+- The CLI is idempotent: running it twice is a no-op the second time
+  unless you pass `--force`.
+- Tar extraction is path-traversal safe (CVE-2007-4559 mitigations).
+
+**Alternatives for air-gapped / internal networks:** use `--url` to
+point at an internal mirror of the tarball, or provide a
+`--checksum-url` that references your internal checksum file. The CLI
+makes no assumptions about DNS or the default Artifact Registry
+hostname beyond what you tell it.
+
+---
+
 ## 2. What Changes for Connectors
 
 ### Before (current BigQuery connector)

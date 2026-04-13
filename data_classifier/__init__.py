@@ -73,6 +73,7 @@ __all__ = [
     "load_profile_from_dict",
     "compute_rollups",
     "rollup_from_rollups",
+    "download_models",
     # Introspection
     "get_supported_categories",
     "get_supported_entity_types",
@@ -81,6 +82,33 @@ __all__ = [
     # Constants
     "SENSITIVITY_ORDER",
 ]
+
+
+def download_models(argv: list[str] | None = None) -> int:
+    """Download the pre-exported GLiNER ONNX model tarball (lazy wrapper).
+
+    This is a thin wrapper around
+    :func:`data_classifier.download_models.main` that imports the module
+    lazily so ``import data_classifier`` never pulls in ``urllib``,
+    ``tarfile``, ``hashlib``, etc. until a caller actually needs the
+    downloader. Returns the CLI exit code.
+
+    Note: importing ``data_classifier.download_models`` as a submodule
+    rebinds ``data_classifier.download_models`` to the module object,
+    shadowing this function. We immediately restore the function binding
+    so repeated calls via ``data_classifier.download_models(...)`` keep
+    working. Callers that do ``from data_classifier import download_models``
+    are unaffected because they captured the function reference at
+    import time.
+    """
+    import sys as _sys
+
+    import data_classifier.download_models as _dm_module
+
+    exit_code = _dm_module.main(argv)
+    # Restore the function binding so the symbol stays callable.
+    _sys.modules[__name__].download_models = download_models
+    return exit_code
 
 
 # ── Module-level engine registry ─────────────────────────────────────────────
