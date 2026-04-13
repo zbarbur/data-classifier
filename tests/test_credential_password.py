@@ -51,7 +51,10 @@ class TestRandomPasswordPatternExists:
         patterns = {p.name: p for p in load_default_patterns()}
         assert "random_password" in patterns, "Pattern 'random_password' must be added to default_patterns.json"
         p = patterns["random_password"]
-        assert p.entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: random_password retargeted to OPAQUE_SECRET subtype
+        # (shape-detector, not a specific credential format).
+        assert p.entity_type == "OPAQUE_SECRET"
+        assert p.category == "Credential"
 
     def test_pattern_is_column_gated(self) -> None:
         patterns = {p.name: p for p in load_default_patterns()}
@@ -145,9 +148,14 @@ class TestPasswordColumnClassification:
             ],
         )
         findings = classify_columns([col], profile)
-        credential = next((f for f in findings if f.entity_type == "CREDENTIAL"), None)
+        # Sprint 8 Item 4: password column → credential category (any of the 4
+        # subtypes); in practice OPAQUE_SECRET for shape-matched values.
+        credential = next((f for f in findings if f.category == "Credential"), None)
         assert credential is not None, (
-            f"Expected CREDENTIAL finding for password column, got {[f.entity_type for f in findings]}"
+            f"Expected a Credential-category finding for password column, got {[f.entity_type for f in findings]}"
+        )
+        assert credential.entity_type == "OPAQUE_SECRET", (
+            f"Expected OPAQUE_SECRET for password column, got {credential.entity_type}"
         )
         # The content match_ratio must reflect regex matches, not just
         # the column_name engine's identification
@@ -175,13 +183,12 @@ class TestColumnGatePreventsFalsePositives:
             ],
         )
         findings = classify_columns([col], profile)
-        # The random_password pattern must not fire under 'notes'
-        # (column name engine won't fire either — 'notes' isn't a
-        # credential hint in standard.yaml)
+        # Sprint 8 Item 4: random_password → OPAQUE_SECRET, and the column-gate
+        # must still suppress it when the column name has no credential hint.
         credentials_from_random_password = [
             f
             for f in findings
-            if f.entity_type == "CREDENTIAL"
+            if f.category == "Credential"
             and f.engine == "regex"
             and f.sample_analysis is not None
             and f.sample_analysis.match_ratio > 0
@@ -191,7 +198,10 @@ class TestColumnGatePreventsFalsePositives:
         )
 
     def test_uuid_under_id_column_not_credential(self, profile) -> None:
-        """UUIDs under 'id' column have 4 classes but must not be CREDENTIAL."""
+        """UUIDs under 'id' column have 4 classes but must not land in the
+        Credential category (Sprint 8 Item 4: credential category = API_KEY,
+        PRIVATE_KEY, PASSWORD_HASH, or OPAQUE_SECRET).
+        """
         col = ColumnInput(
             column_id="c1",
             column_name="user_id",
@@ -201,8 +211,10 @@ class TestColumnGatePreventsFalsePositives:
             ],
         )
         findings = classify_columns([col], profile)
-        credential_findings = [f for f in findings if f.entity_type == "CREDENTIAL"]
-        assert not credential_findings, f"UUIDs under 'user_id' should not be CREDENTIAL, got {credential_findings}"
+        credential_findings = [f for f in findings if f.category == "Credential"]
+        assert not credential_findings, (
+            f"UUIDs under 'user_id' should not be Credential category, got {credential_findings}"
+        )
 
 
 class TestAi4PrivacyCredentialCoverage:

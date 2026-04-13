@@ -68,7 +68,9 @@ class TestDirectMatch:
     def test_password(self, engine: ColumnNameEngine) -> None:
         findings = _classify(engine, "password")
         assert len(findings) == 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: password → OPAQUE_SECRET subtype (Credential category)
+        assert findings[0].entity_type == "OPAQUE_SECRET"
+        assert findings[0].category == "Credential"
 
     def test_salary(self, engine: ColumnNameEngine) -> None:
         findings = _classify(engine, "salary")
@@ -213,10 +215,11 @@ class TestAbbreviationExpansion:
         assert findings[0].entity_type == "DRIVERS_LICENSE"
 
     def test_pwd(self, engine: ColumnNameEngine) -> None:
-        # "pwd" is a direct variant in CREDENTIAL
+        # Sprint 8 Item 4: "pwd" is a direct variant in OPAQUE_SECRET
         findings = _classify(engine, "pwd")
         assert len(findings) == 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        assert findings[0].entity_type == "OPAQUE_SECRET"
+        assert findings[0].category == "Credential"
 
     def test_fname(self, engine: ColumnNameEngine) -> None:
         # "fname" is a direct variant in PERSON_NAME
@@ -410,7 +413,7 @@ class TestGoldenFixtureCompatibility:
             ("phone_number", "PHONE"),
             ("date_of_birth", "DATE_OF_BIRTH"),
             ("credit_card_number", "CREDIT_CARD"),
-            ("password", "CREDENTIAL"),
+            ("password", "OPAQUE_SECRET"),  # Sprint 8 Item 4: CREDENTIAL split
             ("salary", "FINANCIAL"),
             ("diagnosis", "HEALTH"),
             ("bank_account", "BANK_ACCOUNT"),

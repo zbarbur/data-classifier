@@ -440,32 +440,64 @@
       ]
     },
     {
-      "entity_type": "CREDENTIAL",
+      "entity_type": "PRIVATE_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "variants": [
-        "password",
-        "passwd",
-        "passcode",
-        "secret",
+        "private_key",
+        "ssh_key",
+        "pgp_key",
+        "certificate_key",
+        "signing_key"
+      ]
+    },
+    {
+      "entity_type": "PASSWORD_HASH",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "variants": [
+        "password_hash",
+        "hashed_password",
+        "pwd_hash"
+      ]
+    },
+    {
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "variants": [
         "api_key",
         "apikey",
-        "auth_token",
+        "api_secret",
         "access_token",
-        "private_key",
+        "auth_token",
         "client_secret",
-        "pwd",
-        "pass",
-        "credential",
-        "credentials",
-        "secret_key",
-        "encryption_key",
-        "session_token",
         "refresh_token",
         "bearer_token",
         "oauth_token",
         "jwt_token",
+        "session_token",
+        "encryption_key"
+      ]
+    },
+    {
+      "entity_type": "OPAQUE_SECRET",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.9,
+      "variants": [
+        "password",
+        "passwd",
+        "passcode",
+        "pwd",
+        "pass",
+        "secret",
+        "credential",
+        "credentials",
+        "secret_key",
         "token_secret",
         "key_secret",
         "master_password",
@@ -474,12 +506,7 @@
         "login_password",
         "db_password",
         "database_password",
-        "connection_string",
-        "api_secret",
-        "signing_key",
-        "ssh_key",
-        "pgp_key",
-        "certificate_key"
+        "connection_string"
       ]
     },
     {

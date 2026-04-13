@@ -323,23 +323,30 @@ def _match_key_pattern(key_lower: str, pattern: str, match_type: str) -> bool:
     return pattern in key_lower
 
 
-def _score_key_name(key: str, key_entries: list[dict]) -> tuple[float, str]:
+_DEFAULT_SUBTYPE = "OPAQUE_SECRET"
+
+
+def _score_key_name(key: str, key_entries: list[dict]) -> tuple[float, str, str]:
     """Score a key name against the secret key-name dictionary.
 
     Performs matching according to each entry's ``match_type``: substring,
-    word_boundary, or suffix.  Returns the highest matching score and its tier.
+    word_boundary, or suffix.  Returns the highest matching score, its tier,
+    and its credential subtype (one of ``API_KEY``, ``PRIVATE_KEY``,
+    ``PASSWORD_HASH``, or ``OPAQUE_SECRET``).
 
     Args:
         key: The key name to score (e.g. ``"DB_PASSWORD"``).
         key_entries: List of dicts with ``pattern``, ``score``, ``match_type``,
-            and ``tier`` keys.
+            ``tier``, and ``subtype`` keys.
 
     Returns:
-        Tuple of (score, tier).  ``(0.0, "")`` if no pattern matches.
+        Tuple of (score, tier, subtype).  ``(0.0, "", "OPAQUE_SECRET")`` if no
+        pattern matches.
     """
     key_lower = key.lower()
     best_score = 0.0
     best_tier = ""
+    best_subtype = _DEFAULT_SUBTYPE
     for entry in key_entries:
         pattern = entry["pattern"]
         match_type = entry.get("match_type", "substring")
@@ -347,7 +354,8 @@ def _score_key_name(key: str, key_entries: list[dict]) -> tuple[float, str]:
             if entry["score"] > best_score:
                 best_score = entry["score"]
                 best_tier = entry.get("tier", _tier_from_score(entry["score"]))
-    return best_score, best_tier
+                best_subtype = entry.get("subtype", _DEFAULT_SUBTYPE)
+    return best_score, best_tier, best_subtype
 
 
 def _tier_from_score(score: float) -> str:
@@ -425,6 +433,7 @@ class SecretScannerEngine(ClassificationEngine):
         matched_sample_indices: set[int] = set()
         best_confidence = 0.0
         best_evidence = ""
+        best_subtype = _DEFAULT_SUBTYPE
         samples_scanned = 0
 
         for idx, sample in enumerate(column.sample_values):
@@ -461,8 +470,8 @@ class SecretScannerEngine(ClassificationEngine):
                 if _is_placeholder_value(value):
                     continue
 
-                # Score the key name (returns score and tier)
-                key_score, tier = _score_key_name(key, self._key_entries)
+                # Score the key name (returns score, tier, and credential subtype)
+                key_score, tier, subtype = _score_key_name(key, self._key_entries)
                 if key_score <= 0.0:
                     continue
 
@@ -475,12 +484,13 @@ class SecretScannerEngine(ClassificationEngine):
                     matched_sample_indices.add(idx)
                     if composite > best_confidence:
                         best_confidence = composite
+                        best_subtype = subtype
                         rel_entropy = _compute_relative_entropy(value)
                         charset = _detect_charset(value)
                         best_evidence = (
-                            f"Secret scanner: key '{key}' (score={key_score:.2f}, tier={tier}) "
-                            f"with {charset} relative_entropy={rel_entropy:.2f} "
-                            f"composite={composite:.2f}"
+                            f"Secret scanner: key '{key}' (score={key_score:.2f}, tier={tier}, "
+                            f"subtype={subtype}) with {charset} "
+                            f"relative_entropy={rel_entropy:.2f} composite={composite:.2f}"
                         )
                     if len(matched_evidence) < max_evidence_samples:
                         display_value = _mask_value(value) if mask_samples else value
@@ -501,7 +511,7 @@ class SecretScannerEngine(ClassificationEngine):
         return [
             ClassificationFinding(
                 column_id=column.column_id,
-                entity_type="CREDENTIAL",
+                entity_type=best_subtype,
                 category="Credential",
                 sensitivity="CRITICAL",
                 confidence=round(best_confidence, 4),
