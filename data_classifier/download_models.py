@@ -239,6 +239,13 @@ def _default_checksum_url(tarball_url: str) -> str:
     For plain HTTP URLs (mirrors, test fixtures, ``--url`` overrides
     pointing at a simple static host), we just append ``.sha256`` to
     the end.
+
+    .. warning::
+        The plain-URL branch does not handle query strings — a mirror
+        URL like ``https://example.com/model.tar.gz?token=xyz`` would
+        be rewritten to ``https://example.com/model.tar.gz?token=xyz.sha256``,
+        which is broken. Pass ``--checksum-url`` explicitly when using
+        a mirror that needs query-string auth.
     """
     ar_suffix = ":download?alt=media"
     if ar_suffix in tarball_url:

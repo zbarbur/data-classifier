@@ -19,10 +19,9 @@ cherry-picks as `0.{sprint}.{patch}`.
 
 ## [Unreleased]
 
-Sprint 8 work in progress on `sprint8/main`. Entries will land here as
-each item ships and be promoted to the `[0.8.0]` section at sprint close.
+No unreleased changes. Sprint 9 work will land here.
 
-## [0.8.0] — Sprint 8 (in progress)
+## [0.8.0] — Sprint 8, "Ship it: stabilize, release, prep credentials" (2026-04-13)
 
 ### Added
 
@@ -49,6 +48,18 @@ each item ships and be promoted to the `[0.8.0]` section at sprint close.
 - Cloud Build trigger `data-classifier-release` (2nd gen, on the
   `zbarbur-data-classifier` Cloud Build repository connection) that
   fires on any `^v.*$` tag push and runs the release pipeline.
+- `data-classifier-download-models` console script entry in
+  `pyproject.toml` `[project.scripts]`. Lets consumers run
+  `data-classifier-download-models` directly without `python -m ...`.
+  Smoke-tested in CI by `install-test`'s new "Smoke test download_models
+  CLI entry point" step.
+- `OPAQUE_SECRET` entity-type detection in
+  `data_classifier/engines/heuristic_engine.py`. The heuristic engine
+  emits the new fallback subtype when a column-gated random-password
+  pattern hits and no more-specific subtype (`API_KEY`,
+  `PRIVATE_KEY`, `PASSWORD_HASH`) wins. Threads `best_subtype`
+  through `secret_scanner.py:436+,514+` so the four-way credential
+  split lands end-to-end.
 
 ### Changed
 
@@ -84,9 +95,15 @@ each item ships and be promoted to the `[0.8.0]` section at sprint close.
        loader hardcodes that filename, so `model_quantized.onnx` is
        renamed to `model.onnx` in the tarball layout). The
        unquantized 1.1GB file is dropped entirely.
-    6. `cloudbuild-release.yaml`'s `twine upload` gains `--skip-existing`
-       so re-tagging (e.g. `v0.8.0-rc1` → `v0.8.0`) is idempotent
-       instead of failing with "file already exists".
+    6. **`twine --skip-existing` is unsupported by Google Artifact
+       Registry** (`UnsupportedConfiguration` error). The publish-wheel
+       step instead does an explicit preflight `curl` against the AR
+       `files.get` REST endpoint with the build's metadata-SA token,
+       and exits 0 if the wheel filename + version is already present.
+       This makes re-tags (e.g. `v0.8.0-rc1` → `v0.8.0`) and trigger
+       re-runs idempotent without `--skip-existing`. See
+       `cloudbuild-release.yaml` `publish-wheel` step + commits
+       `e182cb2` (drop `--skip-existing`) and `40ced63` (add preflight).
     7. `cloudbuild-release.yaml`'s overall timeout drops from 1500s to
        300s to reflect the smaller scope.
 

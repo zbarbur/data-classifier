@@ -1,0 +1,44 @@
+title: "tar safety on Python 3.11 \u2014 explicit symlink rejection in _safe_extract\
+  \ pre-scan loop (or drop 3.11 from CI matrix)"
+status: backlog
+priority: P2
+category: chore
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: Sprint 8 post-hoc review flagged that download_models.py::_safe_extract relies
+  on tarfile.data_filter (Python 3.12+) as the second line of defense against tar
+  escape via symlinks. The pre-scan loop only checks _is_within_directory which can
+  be defeated by a symlink member extracted before a later relative-path member. On
+  Python 3.11 (still in our CI matrix per .github/workflows/ci.yaml:14) data_filter
+  doesn't exist, so the pre-scan is the ONLY defense. Either add explicit symlink
+  rejection to the pre-scan loop or drop Python 3.11 from the support matrix.
+complexity: S
+technical_specs:
+- "File: data_classifier/download_models.py \u2014 _safe_extract pre-scan loop around\
+  \ line 360-370"
+- "File: tests/test_download_models.py \u2014 add TestSafeExtractSymlinkRejection\
+  \ class with at least 2 cases (symlink member, hardlink member)"
+- 'Decision factor: BQ Cloud Run uses Python 3.12 in their build image. If no other
+  consumer needs 3.11, dropping it is the simpler call.'
+description: ''
+acceptance_criteria:
+- 'Decision documented: keep 3.11 with hardened pre-scan, OR drop 3.11'
+- 'If keeping 3.11: _safe_extract pre-scan loop rejects any tar member with member.issym()
+  or member.islnk() unconditionally, with a TarExtractionError that names the offending
+  member'
+- 'If dropping 3.11: pyproject.toml requires-python bumps to >=3.12, ci.yaml matrix
+  drops 3.11, install-test job drops 3.11'
+- test_download_models.py gains a test that tries to extract a tarball containing
+  a symlink member and asserts it is rejected on every Python version
+test_plan:
+- 'tests/test_download_models.py::TestSafeExtractSymlinkRejection: build a tar in
+  /tmp with a symlink pointing outside the dest, call _safe_extract, assert TarExtractionError.'
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
