@@ -589,6 +589,45 @@ class TestAccessTokenDiscovery:
         monkeypatch.setattr(_sh, "which", lambda _: None)
         assert dm._get_access_token() is None
 
+    def test_metadata_sa_token_returned_from_metadata_service(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Tier 3 happy path: metadata service returns a valid token JSON.
+
+        Pins the BQ Cloud Build / Cloud Run production auth path: when the
+        explicit arg and ``GCP_ACCESS_TOKEN`` env var are both unset, a
+        successful response from the GCP metadata service must be parsed
+        and its ``access_token`` returned without ever falling through to
+        the gcloud subprocess.
+        """
+        import json
+        import subprocess
+        from unittest.mock import MagicMock
+
+        # Tier 1 (explicit) and tier 2 (env) both unavailable.
+        monkeypatch.delenv("GCP_ACCESS_TOKEN", raising=False)
+
+        # Build a context-manager-capable mock response so the
+        # ``with urllib.request.urlopen(req, timeout=...) as response`` block
+        # in _get_access_token resolves to our fake response object.
+        fake_response = MagicMock()
+        fake_response.read.return_value = json.dumps({"access_token": "fake-token-abc123"}).encode("utf-8")
+        fake_cm = MagicMock()
+        fake_cm.__enter__.return_value = fake_response
+        fake_cm.__exit__.return_value = False
+
+        def fake_urlopen(*args: object, **kwargs: object) -> object:
+            return fake_cm
+
+        monkeypatch.setattr(dm.urllib.request, "urlopen", fake_urlopen)
+
+        # Guard: tier 4 (gcloud subprocess) must NEVER be reached. Patch
+        # subprocess.run to raise so any accidental fallthrough fails loudly.
+        def _exploding_run(*args: object, **kwargs: object) -> object:
+            raise AssertionError("subprocess.run must not be invoked when metadata service succeeds")
+
+        monkeypatch.setattr(subprocess, "run", _exploding_run)
+
+        assert dm._get_access_token(None) == "fake-token-abc123"
+
 
 class TestLeanRuntime:
     """Sanity checks that the module never imports heavy ML deps at top level.
