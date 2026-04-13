@@ -256,7 +256,7 @@ All patterns in this library are **original implementations**. We did NOT copy r
 |---|---|---|---|---|
 | Nemotron-PII ETL | NVIDIA | CC BY 4.0 | 100K records, 55+ types | Extract entity values from structured records |
 | SecretBench + FPSecretBench | Academic | MIT + data agreement | 97K labeled + FP corpus | Gold standard for credential accuracy |
-| Ai4Privacy pii-masking-300k | Ai4Privacy | Custom (research OK) | 225K rows, 27+ types | NER spans → column values ETL |
+| Ai4Privacy pii-masking-300k | Ai4Privacy | **Custom non-OSI — PENDING REMOVAL Sprint 9** | 225K rows, 27+ types | License prohibits commercial use and redistribution. See `docs/process/LICENSE_AUDIT.md`. Being replaced by Gretel-EN (Apache 2.0). |
 | StarPII | BigCode | Gated access | 20K secrets in code | Credential testing in code context |
 | Nightfall expanded | Nightfall AI | Free eval | Small curated | CSV samples + negative lookalikes |
 | Presidio cross-validation | Microsoft | MIT | Generated | Run same inputs through Presidio + us, compare |
