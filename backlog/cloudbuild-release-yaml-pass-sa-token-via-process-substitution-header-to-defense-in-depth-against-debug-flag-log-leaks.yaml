@@ -37,7 +37,7 @@ test_plan:
   manual build via gcloud builds submit, confirm the build is green and the publish-wheel
   step's logs do not show ACCESS_TOKEN anywhere.
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

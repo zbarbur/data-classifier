@@ -33,7 +33,7 @@ test_plan:
   the new test exists, passes, and does NOT touch the real metadata service or gcloud
   subprocess.
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
