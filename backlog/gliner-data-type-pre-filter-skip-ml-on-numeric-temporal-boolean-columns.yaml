@@ -1,10 +1,10 @@
 title: "GLiNER data_type pre-filter \u2014 skip ML on numeric/temporal/boolean columns"
-status: doing
+status: backlog
 priority: P1
 category: feature
-sprint_target: 9
+sprint_target: 10
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags:
 - gliner,accuracy,sprint9,latency
@@ -65,7 +65,7 @@ test_plan:
   mixed data_types before and after the change, capture median per-col latency delta
   in the commit message'
 notes: ''
-phase: plan
+phase: null
 design_reviewed: false
 code_reviewed: false
 comments: []

@@ -1,11 +1,11 @@
 title: "GLiNER2 over-fires ORGANIZATION on numeric-dash inputs (SSN-format) \u2014\
   \ audit prompt/descriptions or add content-shape filter"
-status: doing
+status: backlog
 priority: P2
 category: bug
-sprint_target: 9
+sprint_target: 10
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
 goal: 'Audit and fix the GLiNER2 false-positive where the model returns ORGANIZATION
@@ -50,7 +50,7 @@ notes: "Filed 2026-04-13 during Sprint 8 Item 2 execution. The Item 2 fix in tes
   \ in the orchestrator as a workaround \u2014 that would paper over the model issue.\
   \ Root cause is either the description prompt being too loose, or GLiNER2 lacking\
   \ training data for numeric-code inputs."
-phase: plan
+phase: null
 design_reviewed: false
 code_reviewed: false
 comments: []
