@@ -39,6 +39,69 @@ jobs:
         if: matrix.python-version == '3.12'
         run: mkdocs build --strict
 
+  lint-and-test-ml:
+    # Sprint 8 Item 1 (Phase 1) — installs the [ml] extra so CI catches
+    # ML-package-installation regressions and Python-env-specific import
+    # failures that the default [dev,meta] job would miss. Sprint 7 close
+    # discovered that tests calling classify_columns from an [ml]-enabled
+    # venv can silently drop findings that regex-only CI never sees, and
+    # that pattern needs a CI gate.
+    #
+    # PHASE 1 (this commit): DATA_CLASSIFIER_DISABLE_ML=1 is set at the
+    # job level so the full pytest suite runs without actually loading
+    # GLiNER2 at runtime. This catches package-install failures, ML
+    # extras conflicts, and import errors — but does NOT exercise the
+    # real inference path. The reason for the kill-switch is BQ reported
+    # 429 rate limits from HuggingFace when GLiNER tries to download
+    # urchade/gliner_multi_pii-v1 at runtime; we do not want CI to depend
+    # on HF reachability until Item 5 (model distribution via
+    # download_models CLI + AR Generic repo) lands.
+    #
+    # PHASE 2 (follow-up commit in this sprint, after Item 5 lands):
+    # remove DATA_CLASSIFIER_DISABLE_ML, add a setup step that runs
+    # "python -m data_classifier.download_models" to bake the ONNX model
+    # into the runner's cache, then run the suite exercising real
+    # inference. The branch-protection gate is also added at that point.
+    runs-on: ubuntu-latest
+    env:
+      DATA_CLASSIFIER_DISABLE_ML: "1"
+    strategy:
+      matrix:
+        # Python 3.12 only — gliner's build dependencies may not have
+        # wheels for py3.13 yet, and py3.11 adds no signal beyond 3.12
+        # for the install-verification value this job delivers.
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies including ml extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,meta,ml]"
+
+      - name: Diagnostics venv and ml package versions
+        run: |
+          python -c "import sys; print('python:', sys.executable)"
+          python -c "import sys; print('version:', sys.version)"
+          pip list | grep -E '^(gliner|onnxruntime|data_classifier|scikit-learn|numpy)' || true
+
+      - name: Verify ML engine imports and constructs
+        # Does NOT load the model — just confirms the GLiNER2Engine class
+        # can be instantiated with the installed [ml] extras. This is the
+        # Sprint 5 regression guard: an engine that imports but cannot
+        # construct means a runtime ImportError in consumer deployments.
+        run: |
+          python -c "from data_classifier.engines.gliner_engine import GLiNER2Engine; e = GLiNER2Engine(); print('gliner2 engine constructed; name:', e.name, 'order:', e.order)"
+
+      - name: Run tests with ml disabled at runtime
+        run: pytest tests/ -v
+
   install-test:
     # Builds a wheel from the current checkout and installs it into a fresh
     # venv (no editable install, no dev extras), then runs a smoke test that
