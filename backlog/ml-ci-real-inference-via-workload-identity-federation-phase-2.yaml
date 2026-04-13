@@ -1,0 +1,38 @@
+title: ml-ci-real-inference-via-workload-identity-federation-phase-2
+status: backlog
+priority: P2
+category: chore
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: Replace the DATA_CLASSIFIER_DISABLE_ML=1 kill-switch in the lint-and-test-ml
+  CI job with a real-inference path gated by Workload Identity Federation.
+complexity: M
+technical_specs:
+- 'GCP: create WIF pool + provider for github.com/zbarbur; create SA ar-reader-data-classifier
+  with roles/artifactregistry.reader on data-classifier-models'
+- "File: .github/workflows/ci.yaml \u2014 add auth step before install, remove DATA_CLASSIFIER_DISABLE_ML\
+  \ env, add download_models step, cache ~/.cache/data_classifier via actions/cache\
+  \ keyed on DEFAULT_MODEL_VERSION"
+- "Doc: docs/process/PROJECT_CONTEXT.md \u2014 update CI section explaining the WIF\
+  \ trust chain"
+description: ''
+acceptance_criteria:
+- GitHub Actions lint-and-test-ml job authenticates to GCP via google-github-actions/auth@v2
+  with WIF (no long-lived SA key)
+- Setup step runs 'python -m data_classifier.download_models' and populates ~/.cache/data_classifier/models/gliner_onnx/
+- DATA_CLASSIFIER_DISABLE_ML=1 removed from the job env block; full pytest suite runs
+  with real GLiNER inference
+- Job is added to branch-protection required checks on main
+test_plan:
+- 'Verify end-to-end on a throwaway branch: push, confirm auth step succeeds, download_models
+  populates the cache, pytest runs with ML enabled and gliner2-related findings appear
+  in test output'
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

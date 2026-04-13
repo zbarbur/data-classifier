@@ -40,28 +40,32 @@ jobs:
         run: mkdocs build --strict
 
   lint-and-test-ml:
-    # Sprint 8 Item 1 (Phase 1) — installs the [ml] extra so CI catches
-    # ML-package-installation regressions and Python-env-specific import
-    # failures that the default [dev,meta] job would miss. Sprint 7 close
-    # discovered that tests calling classify_columns from an [ml]-enabled
-    # venv can silently drop findings that regex-only CI never sees, and
-    # that pattern needs a CI gate.
+    # Verifies the [ml] extras stack installs cleanly on a fresh runner
+    # and that GLiNER2Engine imports + constructs without errors. This
+    # is the regression guard Sprint 7 close asked for — an [ml]-enabled
+    # venv that silently drops findings regex-only CI never sees.
     #
-    # PHASE 1 (this commit): DATA_CLASSIFIER_DISABLE_ML=1 is set at the
-    # job level so the full pytest suite runs without actually loading
-    # GLiNER2 at runtime. This catches package-install failures, ML
-    # extras conflicts, and import errors — but does NOT exercise the
-    # real inference path. The reason for the kill-switch is BQ reported
-    # 429 rate limits from HuggingFace when GLiNER tries to download
-    # urchade/gliner_multi_pii-v1 at runtime; we do not want CI to depend
-    # on HF reachability until Item 5 (model distribution via
-    # download_models CLI + AR Generic repo) lands.
+    # SCOPE: install + import + construct. NOT real inference.
     #
-    # PHASE 2 (follow-up commit in this sprint, after Item 5 lands):
-    # remove DATA_CLASSIFIER_DISABLE_ML, add a setup step that runs
-    # "python -m data_classifier.download_models" to bake the ONNX model
-    # into the runner's cache, then run the suite exercising real
-    # inference. The branch-protection gate is also added at that point.
+    # DATA_CLASSIFIER_DISABLE_ML=1 is PERMANENT on this job (not a
+    # temporary flag). Real GLiNER2 inference requires the ONNX model,
+    # which lives in the private AR Generic repo `data-classifier-models`
+    # in `dag-bigquery-dev`. GitHub-hosted runners have no ambient GCP
+    # credentials, and Mode 2 in gliner_engine.py's loader falls back to
+    # HuggingFace — which BQ already saw 429-rate-limit us in prod. So
+    # without Workload Identity Federation, CI cannot reach the model
+    # and cannot run real inference without regressing the rate-limit
+    # issue.
+    #
+    # Real-inference CI is tracked as a Sprint 9+ item
+    # (`ml-ci-real-inference-via-workload-identity-federation`) that
+    # adds a google-github-actions/auth step, runs
+    # `python -m data_classifier.download_models`, and removes this
+    # kill-switch. Until then, real-inference coverage lives in:
+    #   - tests/test_download_models.py (unit)
+    #   - local pre-merge runs (`pytest tests/ -v` with [ml] installed
+    #     and ONNX model in ~/.cache/data_classifier/models/gliner_onnx)
+    #   - the Item 2 investigation run that pinned gap-suppression
     runs-on: ubuntu-latest
     env:
       DATA_CLASSIFIER_DISABLE_ML: "1"
