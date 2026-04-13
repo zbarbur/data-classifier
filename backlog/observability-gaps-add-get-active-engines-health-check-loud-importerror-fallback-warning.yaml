@@ -65,7 +65,7 @@ notes: 'Filed 2026-04-13 from Sprint 8 Item 3 investigation. BQ hit the silent-d
   noticed. The logger.warning fix alone would have caught this at startup. Priority
   P1 because the observability gap is actively burning a production consumer. Sprint
   9 fit: small, self-contained (one module), 30-45 min of build + tests + docs.'
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

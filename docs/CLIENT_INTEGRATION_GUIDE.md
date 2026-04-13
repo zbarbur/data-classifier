@@ -241,53 +241,65 @@ findings = classify_columns(
 
 The `run_id` you pass to `classify_columns()` is echoed on every event, so multi-column scans can be grouped and aggregated in dashboards.
 
-#### Startup health probe (recommended pattern)
-
-The library does not ship a built-in `health_check()` function yet — that's on the Sprint 9 roadmap. For now, consumers should run a one-column smoke test at service startup to verify the cascade is live:
+#### Engine introspection — `get_active_engines()`
 
 ```python
-from data_classifier import ColumnInput, classify_columns, load_profile
-from data_classifier.events.emitter import EventEmitter, CallbackHandler
-from data_classifier.events.types import ClassificationEvent
+from data_classifier import get_active_engines
 
-def startup_health_check() -> dict[str, list[str]]:
-    """Runs a canned classification and returns which engines executed.
-
-    Call this from your health endpoint or service startup code to verify
-    the cascade is functioning BEFORE taking traffic. Raises RuntimeError
-    if no engines executed (e.g. broken install).
-    """
-    engines_seen: list[str] = []
-
-    def capture(ev):
-        if isinstance(ev, ClassificationEvent):
-            engines_seen.extend(ev.engines_executed)
-
-    emitter = EventEmitter()
-    emitter.add_handler(CallbackHandler(capture))
-
-    probe = ColumnInput(
-        column_name="email_address",
-        column_id="healthcheck:probe",
-        sample_values=["alice@example.com"],
-    )
-    classify_columns([probe], load_profile("standard"), event_emitter=emitter)
-
-    if not engines_seen:
-        raise RuntimeError("data_classifier: no engines executed on probe")
-
-    return {"engines_executed": engines_seen}
+for entry in get_active_engines():
+    print(entry)
+# {'name': 'column_name',      'order': 1, 'class': 'ColumnNameEngine'}
+# {'name': 'regex',            'order': 2, 'class': 'RegexEngine'}
+# {'name': 'heuristic_stats',  'order': 3, 'class': 'HeuristicEngine'}
+# {'name': 'secret_scanner',   'order': 4, 'class': 'SecretScannerEngine'}
+# {'name': 'gliner2',          'order': 5, 'class': 'GLiNER2Engine'}
 ```
 
-#### Known gaps (Sprint 9 backlog)
+Returns the list of engines currently loaded into the default cascade, in execution order. Use this at startup to assert the expected engine set before taking traffic — in particular, `gliner2` will be absent when the `[ml]` extras are not installed or when `DATA_CLASSIFIER_DISABLE_ML=1` is set, and you want to fail loud instead of silently running regex-only.
 
-As of v0.8.0 there are three observability gaps you may hit in production:
+Note that when GLiNER2 fails to import, the library also logs a `WARNING` via the `data_classifier` logger (`GLiNER2 engine disabled — install [ml] extras to enable: …`). Wire that logger into your aggregator per the "Python logging" section above and you will see the degradation in real time.
 
-1. **Silent `[ml]` missing fallback.** `_build_default_engines()` (in `data_classifier/__init__.py`) catches `ImportError` and silently skips the GLiNER2 engine when the `gliner` package is not installed. If your container accidentally ships without `[ml]` extras, there is **no warning log** at startup — classification silently degrades to regex-only. Mitigation: run the startup health check above, which will report `gliner2` absent from `engines_executed`.
-2. **No `get_active_engines()` helper.** There is no public introspection function that returns "which engines are loaded and ready". The workaround is the event-emitter probe shown above.
-3. **No built-in `health_check()` function.** Each consumer implements its own probe (as shown above). A canonical helper will ship in a future sprint so consumers can drop their own implementation.
+#### Startup health probe — `health_check()`
 
-These are tracked under the Sprint 9 backlog item `observability-gaps-get-active-engines-health-check-loud-import-error`.
+```python
+from data_classifier import health_check
+
+result = health_check()
+# {
+#     "healthy": True,
+#     "engines_executed": ["column_name", "regex", "heuristic_stats",
+#                          "secret_scanner", "gliner2"],
+#     "engines_skipped": [],
+#     "latency_ms": 42.7,
+#     "findings": [{"entity_type": "EMAIL", "category": "PII",
+#                   "sensitivity": "HIGH", "confidence": 1.0}],
+#     "error": None,
+# }
+```
+
+`health_check()` runs a canned one-column probe (`column_name="email_address"`, `sample_values=["alice@example.com"]`) through the standard profile and returns a structured result dict. It is the canonical "is `data_classifier` alive?" check — wire it directly into your `/health` endpoint or service startup code.
+
+Key properties:
+
+- **Never raises.** Any exception inside the probe is caught; the returned dict has `healthy=False` and `error` populated with the exception text. Safe to call from a liveness probe without guard `try/except`.
+- **`engines_executed`** is the authoritative answer to "which engines actually ran on the probe". If it omits `gliner2` in a deployment that expects ML, treat it as a deployment error — the wheel was installed without `[ml]` extras, or `DATA_CLASSIFIER_DISABLE_ML` was set, or the ONNX model failed to load.
+- **`findings`** confirms the cascade actually produced a result on the canned email — if this list is empty the engine wiring is broken even though nothing raised.
+- **Accepts an explicit profile** via `health_check(profile=my_profile)` if you want to probe against a non-standard rule set.
+
+Recommended integration pattern:
+
+```python
+from data_classifier import health_check
+
+def readiness() -> tuple[int, dict]:
+    result = health_check()
+    if not result["healthy"]:
+        return 503, result
+    if "gliner2" not in result["engines_executed"]:
+        # Optional: treat missing ML engine as a hard failure in prod.
+        result["warning"] = "gliner2 engine absent — check [ml] extras install"
+    return 200, result
+```
 
 ---
 
@@ -708,6 +720,36 @@ def rollup_from_rollups(
     parent_map: dict[str, str],
 ) -> dict[str, RollupResult]:
     """Aggregate child rollups into grandparent rollups (table → dataset)."""
+    ...
+
+
+def get_active_engines() -> list[dict]:
+    """Return the engines currently loaded into the default cascade.
+
+    Each entry is a dict with keys ``name``, ``order``, ``class``.
+    Use this at startup to assert which engines are live — in particular
+    to catch the case where the ``[ml]`` extras are missing and the
+    GLiNER2 engine has silently dropped out of the cascade.
+    """
+    ...
+
+
+def health_check(
+    profile: ClassificationProfile | None = None,
+) -> dict:
+    """Run a canned single-column classification probe and report status.
+
+    Returns a dict with keys:
+
+        healthy          — bool
+        engines_executed — list[str]
+        engines_skipped  — list[str]
+        latency_ms       — float
+        findings         — list[dict] (subset of ClassificationFinding)
+        error            — str | None (populated on failure)
+
+    Never raises. Safe to call from /health endpoints and startup hooks.
+    """
     ...
 ```
 
@@ -1164,6 +1206,14 @@ load_profile_from_dict(profile_name, data)
 compute_rollups(findings, parent_map)
 rollup_from_rollups(child_rollups, parent_map)
 
+# Introspection / observability
+get_supported_categories()
+get_supported_entity_types()
+get_supported_sensitivity_levels()
+get_pattern_library()
+get_active_engines()               # NEW Sprint 9 — engine cascade introspection
+health_check(profile=None)         # NEW Sprint 9 — canonical /health probe
+
 # Constants
 SENSITIVITY_ORDER
 ```
@@ -1180,7 +1230,7 @@ The library runs up to 5 engines in order. Each engine adds findings; the orches
 | 4 | Secret Scanner | Credentials, API keys, secrets in structured text | `sample_values` |
 | 5 | GLiNER NER | PERSON_NAME, ADDRESS, ORGANIZATION + reinforcement | `[ml]` install + ONNX model |
 
-When the `[ml]` extra is not installed, the GLiNER engine is silently skipped.
+When the `[ml]` extra is not installed, the GLiNER engine is skipped and the `data_classifier` logger emits a `WARNING` at import time (`GLiNER2 engine disabled — install [ml] extras to enable: …`). Use `get_active_engines()` or `health_check()` to assert the expected engine set at startup.
 
 ## Appendix C: Version History
 
