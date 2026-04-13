@@ -260,8 +260,10 @@ def main() -> None:
     stats = build_stats()
     indent = 2 if args.pretty else None
     args.out.write_text(json.dumps(stats, indent=indent, sort_keys=False) + "\n")
-    print(f"wrote {args.out} ({len(stats['entity_types']['types'])} entity types, "
-          f"{stats['quality']['tests']} tests, {stats['quality']['patterns']} patterns)")
+    print(
+        f"wrote {args.out} ({len(stats['entity_types']['types'])} entity types, "
+        f"{stats['quality']['tests']} tests, {stats['quality']['patterns']} patterns)"
+    )
 
 
 if __name__ == "__main__":
