@@ -20,7 +20,8 @@
 | **Accuracy (named)** | Both corpora: 1.000 Macro F1 |
 | **Per-column regex coverage** | **Ai4Privacy PHONE: 16.3% → 94.5%** (Sprint 7), **Ai4Privacy CREDENTIAL: 0% → 98.6%** (Sprint 7) |
 | **Meta-classifier (CV)** | **0.916 is a methodology artifact** (see Sprint 6 handover correction note added in Sprint 7); honest LOCO ~0.30 |
-| **Meta-classifier (LOCO)** | 0.27–0.36 — structural gap per Q3 §6 (hypothesis A+C) |
+| **Meta-classifier (LOCO)** | 0.27–0.36 — structural gap per Q3 §6 (hypothesis A+C); E10 GLiNER-features experiment regressed LOCO further (−0.031 mean) — NOT promoted |
+| **Meta-classifier (honest blind delta)** | **+0.191** vs 5-engine live baseline (E10, 2026-04-13). The Sprint 6 "+0.257" number was vs a 4-engine baseline with GLiNER disabled — see SPRINT6_HANDOVER.md "Honest baseline correction — E10" |
 | **Performance** | 207ms/col (with ML), ~2ms/col (without ML) |
 | **ML share** | GLiNER2 = 99.3% of pipeline latency |
 | **Pattern library new capability** | Column-gated patterns via `requires_column_hint` + `column_hint_keywords` (Sprint 7) |

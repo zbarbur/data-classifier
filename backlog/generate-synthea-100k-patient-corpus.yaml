@@ -1,0 +1,81 @@
+title: "Generate Synthea 100k-patient synthetic healthcare corpus — schema-labeled CSV tables, no NER ETL needed"
+status: backlog
+priority: P2
+category: feature
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags:
+  - corpora
+  - healthcare
+  - sprint9-candidate
+goal: "Generate a 100k-patient Synthea (MITRE) synthetic healthcare dataset and integrate as the 9th training corpus. Synthea is uniquely valuable because it produces structured CSV tables with column names already labeled by semantic type (e.g. patients.SSN, patients.DRIVERS, observations.VALUE) — no NER-span-to-column ETL needed. This is the only open corpus that structurally matches data_classifier's per-column classification API."
+complexity: S
+technical_specs:
+  - "File: scripts/download_corpora.py — add Synthea generation entry: clone github.com/synthetichealth/synthea, run with -p 100000 to generate 100k patients, output to local data dir"
+  - "File: tests/benchmarks/corpus_loader.py — add load_synthea_corpus() function. UNLIKE other corpus loaders, this one reads CSV tables directly: patients.csv, conditions.csv, medications.csv, observations.csv, encounters.csv, providers.csv, payers.csv, claims.csv"
+  - "File: tests/benchmarks/corpus_loader.py — add SYNTHEA_SCHEMA_MAP dict mapping CSV column names to data_classifier entity types. e.g. patients.SSN -> SSN, patients.DRIVERS -> DRIVER_LICENSE, conditions.CODE -> ICD_CODE (need to add ICD_CODE entity type), observations.VALUE -> dynamic per row"
+  - "File: data_classifier/core/types.py OR profiles/standard.yaml — possibly add new entity types for healthcare: MEDICAL_RECORD_NUMBER, ICD_CODE, NPI (already exists), MEDICATION_NAME, INSURANCE_NUMBER. Discuss before adding — entity-type expansion has knock-on effects on the 24-class meta-classifier label space."
+  - "File: tests/fixtures/synthea_sample/ — small generated sample (10 patients) committed for unit tests"
+  - "File: tests/benchmarks/meta_classifier/build_training_data.py — wire synthea corpus in"
+description: ''
+acceptance_criteria:
+  - "Synthea 100k-patient generation runs successfully via scripts/download_corpora.py command"
+  - "load_synthea_corpus(blind=True/False) returns Corpus shape from CSV tables (NOT from NER spans — different code path from existing loaders)"
+  - "SYNTHEA_SCHEMA_MAP covers all major columns in patients.csv + observations.csv + medications.csv + conditions.csv"
+  - "Decision documented (in the item or a follow-up): which new entity types to add for healthcare-specific columns vs which to map to existing categories"
+  - "If new entity types added: profiles/standard.yaml updated, validators added if applicable, all existing tests pass"
+  - "Full benchmark suite runs with synthea corpus added"
+  - "Meta-classifier training data rebuilt with synthea rows included"
+  - "License attribution: Apache 2.0 attribution for Synthea + MITRE in PATTERN_SOURCES.md"
+  - "Lint clean, full pytest tests/ -v green"
+test_plan:
+  - "tests/test_corpus_loader.py: test_load_synthea_corpus loads sample fixture and asserts CSV-table shape"
+  - "Manual: full Synthea generation run on dev machine (~30 min for 100k patients)"
+  - "Manual: full benchmark suite before/after"
+notes: |
+  Source: docs/experiments/meta_classifier/dataset_landscape.md, Tier 4 healthcare.
+
+  Synthea is structurally different from every other corpus we have. It
+  produces ACTUAL TABULAR DATA with column-name-as-label semantics. Our
+  existing ETL (NER spans → column values) is upside-down for this case:
+  we read CSV columns directly and emit them as column values per the
+  existing ColumnInput shape.
+
+  WHY THIS MATTERS: data_classifier's API is "given column samples, classify
+  the column." Synthea data is the most authentic possible match for that
+  API — it's literally column samples from real-shaped tables. Every other
+  training corpus required us to fake column boundaries from NER spans.
+
+  ENTITY TYPES SYNTHEA SUPPLIES that we currently lack:
+  - MEDICAL_RECORD_NUMBER (MRN)
+  - ICD diagnosis codes
+  - Medication names
+  - Insurance / payer IDs
+  - Provider IDs (NPI is already supported but Synthea's provider table
+    has more provider-side fields)
+  - Encounter IDs
+
+  DECISION POINT: do we add these as new entity types in our taxonomy?
+  Pros: more accurate classification of healthcare columns, supports
+  HIPAA-relevant detection use cases. Cons: more output classes for the
+  meta-classifier (currently 24, would grow to ~30), more validators to
+  maintain, may break existing fixture tests.
+
+  Recommend: file a sub-item to decide on healthcare entity type expansion
+  separately. This item just gets the data ingested and adds the schema
+  map; the entity type expansion can come second.
+
+  ETL EFFORT IS S because we don't need NER processing. Read CSV → map
+  column name to entity type → emit as column samples. Trivial.
+
+  Synthea generation is independent of Sprint 8 work AND independent of
+  the gretel ingestion. Can run in parallel with anything.
+
+  License: Apache 2.0 verified at https://github.com/synthetichealth/synthea/blob/master/LICENSE
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

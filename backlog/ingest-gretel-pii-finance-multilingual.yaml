@@ -1,0 +1,78 @@
+title: "Ingest gretelai/synthetic_pii_finance_multilingual — credentials labeled inside financial paperwork (7 languages)"
+status: backlog
+priority: P2
+category: feature
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-13
+depends_on:
+  - ingest-gretel-pii-masking-en-v1
+tags:
+  - meta-classifier
+  - corpora
+  - sprint9-candidate
+  - multilingual
+goal: "Add gretelai/synthetic_pii_finance_multilingual (Apache 2.0, 56k rows, 7 languages) as the 8th training corpus. This is the only open dataset found where API keys, passwords, and account_pin are labeled INSIDE real-looking financial paperwork contexts (loan agreements, bank statements, tax forms, SWIFT messages, insurance claim forms) — directly attacking the heuristic_avg_length corpus fingerprint by placing credentials in long-form prose contexts instead of credential-only lines."
+complexity: S
+technical_specs:
+  - "File: tests/benchmarks/corpus_loader.py — add load_gretel_finance_corpus() function. Reuses the schema from gretel-en (depends_on: gretel-en ingestion) so most of the ETL boilerplate is already in place."
+  - "File: tests/benchmarks/corpus_loader.py — add GRETEL_FINANCE_TYPE_MAP dict mapping the dataset's 29+ entity types to data_classifier taxonomy. Note new entity types: account_pin, api_key, password, customer_id, employee_id, swift_bic_code, bban, driver_license_number"
+  - "File: tests/fixtures/gretel_finance_sample.json — sample slice for unit tests"
+  - "File: tests/benchmarks/meta_classifier/build_training_data.py — wire gretel-finance into the corpus list"
+  - "File: tests/test_corpus_loader.py — add test_load_gretel_finance_corpus + test multilingual handling"
+description: ''
+acceptance_criteria:
+  - "load_gretel_finance_corpus(blind=True/False, max_rows=N, language='en') returns Corpus object; language=None returns all 7 languages mixed"
+  - "GRETEL_FINANCE_TYPE_MAP covers ≥80% of the dataset's entity types"
+  - "Per-language row counts documented (EN, FR, DE, NL, ES, IT, SV)"
+  - "Full benchmark suite runs with gretel-finance corpus added: no crashes, no regressions"
+  - "Meta-classifier training data rebuilt with gretel-finance rows included"
+  - "License attribution updated"
+  - "Lint clean, full pytest tests/ -v green"
+test_plan:
+  - "tests/test_corpus_loader.py: test_load_gretel_finance_corpus, test_per_language_row_counts, test_credentials_present_in_financial_documents"
+  - "Manual: full benchmark suite before/after"
+  - "Manual: train_meta_classifier.py rebuild with the 8-corpus training set; verify per-feature stats show credentials with HIGHER avg-length than current label-pure credential corpora (this is the bias-breaking signal)"
+notes: |
+  Source: docs/experiments/meta_classifier/dataset_landscape.md, Tier 1 #2.
+
+  WHY THIS IS DISTINCT FROM gretel-en: this dataset places credentials in
+  REAL-LOOKING FINANCIAL DOCUMENT CONTEXTS, not in source code or config
+  files. The ai4privacy/nemotron/gitleaks/secretbench/detect_secrets
+  corpora ALL share the property that credentials appear in short,
+  isolated, code-like contexts. This dataset is the only one in the open
+  data landscape where credentials live inside long-form prose
+  (mortgage applications, insurance claims, SWIFT messages).
+
+  The heuristic_avg_length feature has been the dominant corpus-fingerprint
+  feature in every meta-classifier experiment (Q3, Q5, Q6, E10) because
+  credential corpora produce short avg-length, PII corpora produce long
+  avg-length. This dataset breaks that pattern at the data source: it
+  contains LONG-AVG-LENGTH credentials (because they're embedded in prose).
+
+  EXPECTED IMPACT: this should be the single most effective intervention
+  on the heuristic_avg_length corpus-leaking problem. If the bias-breaking
+  hypothesis is correct, after both gretel-en + gretel-finance land:
+  - heuristic_avg_length should drop in feature importance (currently
+    rank 1 with |coef|=493)
+  - LOCO macro F1 on credential corpora should improve
+  - The "predict CREDENTIAL whenever corpus is gitleaks/secretbench/
+    detect_secrets" shortcut should weaken
+
+  Quantify this in the LOCO re-measurement after both Gretel corpora land.
+
+  ETL effort is S (NOT M) because this dataset shares the schema with
+  gretel-en — the corpus_loader logic from the gretel-en ingestion
+  largely transfers. The new work is the type map and per-language
+  handling.
+
+  Multilingual support is a free win: data_classifier currently has no
+  non-English training data (all corpora are EN-only). 7 European
+  languages here add multilingual generalization at no extra ETL cost.
+
+  License: Apache 2.0 verified at dataset metadata.
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
