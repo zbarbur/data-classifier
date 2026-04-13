@@ -124,16 +124,41 @@ steps:
         # the AR v1 files.get endpoint — see commit message for URL test.
         CHECK_URL="https://artifactregistry.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/repositories/data-classifier/files/data-classifier%2F$${WHEEL_FILENAME}"
 
+        # Defense-in-depth against a future `set -x` / `bash -x` / --trace
+        # flag echoing the SA bearer token to build logs:
+        #
+        #   1. Save the current xtrace state and locally suppress it around
+        #      the token fetch + preflight curl via `{ set +x; } 2>/dev/null`.
+        #      Cloud Build runs this step without xtrace today, but a future
+        #      debug flag would otherwise echo both the ACCESS_TOKEN=...
+        #      assignment and any process-substitution subshells (bash
+        #      propagates xtrace into `<(...)` subshells, so the `printf`
+        #      inside would still dump the token otherwise).
+        #
+        #   2. Pass the Authorization header to curl via process substitution
+        #      rather than `-H "Authorization: Bearer $TOKEN"` so the token
+        #      never lands on the curl command line — keeps it out of `ps`
+        #      / `/proc/*/cmdline` / any command-echo log. Requires bash
+        #      (entrypoint: bash above); `<(...)` is not POSIX.
+        #
+        #   3. Unset ACCESS_TOKEN as soon as the preflight is done so nothing
+        #      downstream can accidentally re-expose it, then restore the
+        #      previously-saved xtrace state.
+        #
         # Cloud Build injects a default service account token via the
         # metadata service — same auth path that download_models.py uses
         # for the consumer side.
+        case $- in *x*) _DC_XTRACE_WAS_ON=1;; *) _DC_XTRACE_WAS_ON=0;; esac
+        { set +x; } 2>/dev/null
         ACCESS_TOKEN=$(curl -sSf -H "Metadata-Flavor: Google" \
           http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
           | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
-
         STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-          -H "Authorization: Bearer $${ACCESS_TOKEN}" \
+          --header @<(printf 'Authorization: Bearer %s\n' "$${ACCESS_TOKEN}") \
           "$${CHECK_URL}")
+        unset ACCESS_TOKEN
+        if [ "$${_DC_XTRACE_WAS_ON}" = "1" ]; then set -x; fi
+        unset _DC_XTRACE_WAS_ON
 
         if [ "$${STATUS}" = "200" ]; then
           echo "Wheel $${WHEEL_FILENAME} is already present in AR — skipping upload."
