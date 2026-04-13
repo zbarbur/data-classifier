@@ -156,7 +156,7 @@ def train(
     import numpy as np
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import classification_report, f1_score
-    from sklearn.model_selection import StratifiedGroupKFold, train_test_split
+    from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold, train_test_split
     from sklearn.preprocessing import StandardScaler
 
     X_full = np.asarray(dataset.features, dtype=np.float64)[:, kept_indices]
@@ -191,15 +191,31 @@ def train(
     # picked C=100 (worst LOCO). GroupKFold picks a smaller C and raises
     # LOCO. See docs/experiments/meta_classifier/runs/m1-2026-04-13/result.md
     # on research/meta-classifier for the honest-CV analysis.
+    #
+    # Adaptive fallback: when the training data has fewer unique corpora
+    # than CV_FOLDS (e.g., single-corpus test fixtures), StratifiedGroupKFold
+    # can't produce enough distinct folds. In that case fall back to plain
+    # StratifiedKFold — there's no cross-corpus leakage to prevent when
+    # there's only one corpus.
+    n_unique_groups = len(np.unique(corpora_train))
+    use_group_kfold = n_unique_groups >= CV_FOLDS
+    if use_group_kfold:
+        kf = StratifiedGroupKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
+    else:
+        kf = StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
     best_c = 1.0
     best_cv_mean = -1.0
     best_cv_std = 0.0
     cv_history: list[dict[str, float]] = []
-    kf = StratifiedGroupKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
 
     for C in C_GRID:
         fold_f1s: list[float] = []
-        for tr_idx, va_idx in kf.split(X_train_s, y_train, groups=corpora_train):
+        split_iter = (
+            kf.split(X_train_s, y_train, groups=corpora_train)
+            if use_group_kfold
+            else kf.split(X_train_s, y_train)
+        )
+        for tr_idx, va_idx in split_iter:
             clf = LogisticRegression(
                 C=C,
                 solver="lbfgs",
