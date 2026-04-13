@@ -1,0 +1,48 @@
+title: "Retro-fit Sprint 8 benchmarks into consolidated_report generator \u2014 HTML\
+  \ report + methodology normalization"
+status: backlog
+priority: P2
+category: chore
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: Bring Sprint 8 benchmarks into the consolidated_report.py pipeline so Sprint
+  8 has a SPRINT8_CONSOLIDATED.html artifact matching the Sprint 5 + Sprint 7 pattern.
+  Also fix tests/benchmarks/perf_benchmark.py so its --samples and --iterations flags
+  actually gate phases 2 + 5 (currently hardcoded loops produce ~50K GLiNER inputs
+  regardless of CLI args, which is why Sprint 8 close fell back to a 30-line ad-hoc
+  snapshot script).
+complexity: M
+technical_specs:
+- "File: tests/benchmarks/perf_benchmark.py \u2014 refactor hardcoded for _ in range(50)\
+  \ (line 130) and for _ in range(20) (line 180) into helpers gated by args.iterations\
+  \ or a new args.quick flag"
+- "File: tests/benchmarks/consolidated_report.py \u2014 add a code path that reads\
+  \ docs/benchmarks/history/sprint_N.json directly when the live benchmark phases\
+  \ are absent or skipped"
+- "File: docs/benchmarks/SPRINT8_CONSOLIDATED.html \u2014 produced by the generator,\
+  \ committed at sprint close"
+- "File: tests/benchmarks/sprint8/ raw logs \u2014 keep as audit trail; the consolidated\
+  \ report should reference but not re-parse them"
+description: ''
+acceptance_criteria:
+- tests/benchmarks/perf_benchmark.py honors --iterations on phase 2 (input-type variation,
+  line ~130) and phase 5 (scaling test, line ~180); a --quick mode runs in <60s end-to-end
+- tests/benchmarks/consolidated_report.py can produce SPRINT8_CONSOLIDATED.html from
+  sprint_8.json + the raw logs in docs/benchmarks/sprint8/
+- docs/benchmarks/SPRINT8_CONSOLIDATED.html committed and matches the Sprint 5/7 visual
+  pattern (summary cards, per-engine timing tables, accuracy F1 breakdown)
+- "Sprint 9 close uses consolidated_report.py end-to-end (no ad-hoc scripts) \u2014\
+  \ proves the regression doesn't recur"
+test_plan:
+- 'tests/test_perf_benchmark_smoke.py: assert that perf_benchmark --iterations 2 --samples
+  5 finishes in <90s (current behavior: stalls past 10 CPU min). tests/test_consolidated_report.py:
+  existing tests should still pass after the Sprint 8 retro-fit.'
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
