@@ -37,7 +37,7 @@ test_plan:
 - 'tests/test_download_models.py::TestSafeExtractSymlinkRejection: build a tar in
   /tmp with a symlink pointing outside the dest, call _safe_extract, assert TarExtractionError.'
 notes: ''
-phase: null
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
