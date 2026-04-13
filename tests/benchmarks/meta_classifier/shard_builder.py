@@ -37,6 +37,9 @@ from tests.benchmarks.corpus_loader import (
     NEGATIVE_GROUND_TRUTH,
     NEMOTRON_TYPE_MAP,
 )
+from tests.benchmarks.corpus_loader import (
+    _GRETEL_EN_POST_ETL_IDENTITY as _GRETEL_EN_POOL_IDENTITY,
+)
 
 # ── Sharding parameters (Session A §7 TL;DR) ───────────────────────────────
 
@@ -112,6 +115,27 @@ def _ai4privacy_pool() -> dict[str, list[str]]:
         if not value or not ext:
             continue
         mapped = AI4PRIVACY_TYPE_MAP.get(ext)
+        if mapped is None:
+            continue
+        pool.setdefault(mapped, []).append(str(value))
+    return pool
+
+
+def _gretel_en_pool() -> dict[str, list[str]]:
+    """Return ``{mapped_type: [values...]}`` for the Gretel-EN sample.
+
+    The fixture is already flattened with post-ETL data_classifier labels
+    (see ``corpus_loader.load_gretel_en_corpus``), so ``entity_type``
+    values are passed through an identity map.
+    """
+    records = _load_raw_records(_FIXTURES_DIR / "gretel_en_sample.json")
+    pool: dict[str, list[str]] = {}
+    for rec in records:
+        ext = rec.get("entity_type", rec.get("type", ""))
+        value = rec.get("value", "")
+        if not value or not ext:
+            continue
+        mapped = _GRETEL_EN_POOL_IDENTITY.get(ext)
         if mapped is None:
             continue
         pool.setdefault(mapped, []).append(str(value))
@@ -368,6 +392,23 @@ def build_real_corpus_shards(
                 values=values,
                 ground_truth=gt,
                 corpus="nemotron",
+                source="real",
+                num_shards=shards_per_type,
+                rng=rng,
+            )
+        )
+
+    # Gretel-PII-masking-EN-v1 — mixed-label corpus (Sprint 9).  Schema
+    # is already normalised via scripts/download_corpora.py:download_gretel_en,
+    # so we treat it like ai4privacy/nemotron: positives only, one
+    # ground-truth per column shard.
+    pool_gretel_en = _gretel_en_pool()
+    for gt, values in sorted(pool_gretel_en.items()):
+        shards.extend(
+            _emit_shards_for_type(
+                values=values,
+                ground_truth=gt,
+                corpus="gretel_en",
                 source="real",
                 num_shards=shards_per_type,
                 rng=rng,
