@@ -1,13 +1,19 @@
-"""CLI for the gliner-context research harness.
+"""CLI for the gliner-context research harness (Pass 1).
 
 Usage:
     .venv/bin/python -m tests.benchmarks.gliner_context \\
         --strategies baseline,s1_nl_prompt,s2_per_column_descriptions,s3_label_narrowing \\
+        --seeds 42,7,101 \\
+        --thresholds 0.5,0.7,0.8 \\
         --samples-per-column 30 \\
-        --threshold 0.5 \\
-        --out docs/experiments/gliner_context/runs/20260413-1445-first-f1/
+        --out docs/experiments/gliner_context/runs/pass1/
 
-Outputs a JSON summary + a markdown table to the given output dir.
+Pass 1 adds:
+  - Multi-seed value-slice replication (--seeds)
+  - Threshold sweep (--thresholds)
+  - Paired McNemar exact test per variant vs baseline
+  - BCa 95% bootstrap CI on each strategy's macro F1
+  - BCa 95% bootstrap CI on each variant's paired Δ F1 vs baseline
 """
 from __future__ import annotations
 
@@ -19,7 +25,9 @@ from pathlib import Path
 
 from tests.benchmarks.gliner_context.harness import (
     STRATEGIES,
-    build_corpus,
+    bootstrap_f1_ci,
+    build_multi_seed_corpus,
+    compare_strategies,
     load_ai4privacy_value_pools,
     run_strategy_on_corpus,
     stratify_by_context_kind,
@@ -28,29 +36,37 @@ from tests.benchmarks.gliner_context.harness import (
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="GLiNER context-injection measurement harness")
+    parser = argparse.ArgumentParser(description="GLiNER context-injection harness (Pass 1)")
     parser.add_argument(
         "--strategies",
         default="baseline,s1_nl_prompt,s2_per_column_descriptions,s3_label_narrowing",
-        help="Comma-separated list of strategy names (see harness.STRATEGIES).",
     )
     parser.add_argument(
         "--fixture",
         default="tests/fixtures/corpora/ai4privacy_sample.json",
-        help="Path to Ai4Privacy fixture JSON.",
     )
     parser.add_argument("--samples-per-column", type=int, default=30)
-    parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument(
-        "--model",
-        default="fastino/gliner2-base-v1",
-        help="HuggingFace repo ID to load from local cache.",
+        "--seeds",
+        default="42,7,101",
+        help="Comma-separated value-slice seeds for replication.",
     )
+    parser.add_argument(
+        "--thresholds",
+        default="0.5,0.7,0.8",
+        help="Comma-separated GLiNER thresholds to sweep.",
+    )
+    parser.add_argument(
+        "--n-resamples",
+        type=int,
+        default=1000,
+        help="Bootstrap resample count. 1000 is standard; 5000 is paranoid.",
+    )
+    parser.add_argument("--model", default="fastino/gliner2-base-v1")
     parser.add_argument(
         "--out",
         type=Path,
-        default=Path("docs/experiments/gliner_context/runs") / time.strftime("%Y%m%d-%H%M"),
-        help="Output directory for summary JSON and markdown.",
+        default=Path("docs/experiments/gliner_context/runs") / time.strftime("%Y%m%d-%H%M-pass1"),
     )
     args = parser.parse_args(argv)
 
@@ -59,109 +75,166 @@ def main(argv: list[str] | None = None) -> int:
         if name not in STRATEGIES:
             print(f"Unknown strategy: {name}. Available: {list(STRATEGIES)}", file=sys.stderr)
             return 2
+    if "baseline" not in strategy_names:
+        print("baseline strategy is required as the paired comparison anchor", file=sys.stderr)
+        return 2
 
+    seeds = [int(s) for s in args.seeds.split(",") if s.strip()]
+    thresholds = [float(t) for t in args.thresholds.split(",") if t.strip()]
     args.out.mkdir(parents=True, exist_ok=True)
 
-    # 1. Build corpus
-    print(f"[1/4] Loading Ai4Privacy value pools from {args.fixture}")
+    print(f"[1/5] Loading Ai4Privacy value pools from {args.fixture}")
     pools = load_ai4privacy_value_pools(Path(args.fixture))
-    print(f"      got {len(pools)} entity types with usable pools: {sorted(pools)}")
-    for gt, pool in sorted(pools.items()):
-        print(f"        {gt}: {len(pool)} values")
+    print(f"      got {len(pools)} entity types with usable pools")
 
-    corpus = build_corpus(pools, samples_per_column=args.samples_per_column)
-    print(f"      built {len(corpus)} corpus rows")
+    print(f"[2/5] Building multi-seed corpus with seeds={seeds}")
+    corpus = build_multi_seed_corpus(
+        pools,
+        samples_per_column=args.samples_per_column,
+        rng_seeds=seeds,
+    )
+    print(f"      built {len(corpus)} corpus rows "
+          f"({len(corpus) // len(seeds)} templates × {len(seeds)} seeds)")
 
-    # 2. Load model
-    print(f"[2/4] Loading {args.model} from local HF cache")
+    print(f"[3/5] Loading {args.model} from local HF cache")
     t0 = time.perf_counter()
     from gliner2 import GLiNER2
     model = GLiNER2.from_pretrained(args.model)
     print(f"      loaded in {time.perf_counter() - t0:.2f}s")
 
-    # 3. Run each strategy
+    # Structure: out[threshold][strategy] = {overall, by_context_kind, wall_s, f1_ci, compare}
     all_results: dict[str, dict] = {}
-    per_strategy_raw = {}
-    for name in strategy_names:
-        print(f"[3/4] Running strategy {name!r} on {len(corpus)} columns...")
-        t0 = time.perf_counter()
-        results = run_strategy_on_corpus(
-            model=model,
-            strategy_name=name,
-            strategy_fn=STRATEGIES[name],
-            corpus=corpus,
-            threshold=args.threshold,
-        )
-        wall = time.perf_counter() - t0
-        print(f"      done in {wall:.1f}s")
-        all_results[name] = {
-            "overall": summarize(results),
-            "by_context_kind": stratify_by_context_kind(results),
-            "wall_s": round(wall, 2),
-        }
-        per_strategy_raw[name] = [
-            {
-                "column_id": r.column_id,
-                "ground_truth": r.ground_truth,
-                "context_kind": r.context_kind,
-                "predicted": sorted(r.predicted_entity_types),
-                "top_confidence_by_type": {k: round(v, 4) for k, v in r.top_confidence_by_type.items()},
-                "latency_ms": round(r.latency_s * 1000, 1),
+
+    for threshold in thresholds:
+        print(f"\n[4/5] Threshold = {threshold}")
+        per_strategy_raw = {}
+        strategy_results: dict[str, list] = {}
+
+        for name in strategy_names:
+            t0 = time.perf_counter()
+            results = run_strategy_on_corpus(
+                model=model,
+                strategy_name=name,
+                strategy_fn=STRATEGIES[name],
+                corpus=corpus,
+                threshold=threshold,
+            )
+            wall = time.perf_counter() - t0
+            print(f"        {name!r}: {wall:.1f}s")
+            strategy_results[name] = results
+            per_strategy_raw[name] = [
+                {
+                    "column_id": r.column_id,
+                    "ground_truth": r.ground_truth,
+                    "context_kind": r.context_kind,
+                    "predicted": sorted(r.predicted_entity_types),
+                    "top_confidence_by_type": {k: round(v, 4) for k, v in r.top_confidence_by_type.items()},
+                    "latency_ms": round(r.latency_s * 1000, 1),
+                }
+                for r in results
+            ]
+
+        # Summary + bootstrap F1 CIs + paired comparisons vs baseline
+        threshold_summary: dict[str, dict] = {}
+        baseline_results = strategy_results["baseline"]
+        for name in strategy_names:
+            results = strategy_results[name]
+            summary_block = {
+                "overall": summarize(results),
+                "by_context_kind": stratify_by_context_kind(results),
+                "f1_ci": bootstrap_f1_ci(results, n_resamples=args.n_resamples, rng_seed=0),
             }
-            for r in results
-        ]
+            if name != "baseline":
+                summary_block["compare_vs_baseline"] = compare_strategies(
+                    baseline_results,
+                    results,
+                    variant_name=name,
+                    n_resamples=args.n_resamples,
+                    rng_seed=0,
+                )
+            threshold_summary[name] = summary_block
 
-    # 4. Write outputs
-    print(f"[4/4] Writing summary to {args.out}")
+        all_results[f"threshold_{threshold}"] = threshold_summary
+
+        # Raw per-column JSON for this threshold
+        per_thr_path = args.out / f"per_column_thr{threshold}.json"
+        per_thr_path.write_text(json.dumps(per_strategy_raw, indent=2))
+
+    # 5. Write summary JSON + markdown
+    print(f"\n[5/5] Writing summary to {args.out}")
     (args.out / "summary.json").write_text(json.dumps(all_results, indent=2))
-    (args.out / "per_column.json").write_text(json.dumps(per_strategy_raw, indent=2))
 
-    # Markdown table
     md_lines = [
-        "# GLiNER context injection — measurement run",
+        "# GLiNER context injection — Pass 1",
         "",
         f"- Model: `{args.model}`",
-        f"- Corpus: Ai4Privacy fixture, {len(corpus)} columns, {args.samples_per_column} values each",
-        f"- Threshold: {args.threshold}",
-        f"- Strategies: {', '.join(strategy_names)}",
+        f"- Corpus: Ai4Privacy, {len(corpus)} rows "
+        f"({len(corpus) // len(seeds)} templates × {len(seeds)} seeds)",
+        f"- Seeds: {seeds}",
+        f"- Thresholds: {thresholds}",
+        f"- Bootstrap resamples: {args.n_resamples} (BCa 95%)",
         "",
-        "## Overall macro F1",
+    ]
+
+    for threshold in thresholds:
+        key = f"threshold_{threshold}"
+        md_lines += [f"## Threshold {threshold}", ""]
+        md_lines += [
+            "| Strategy | Macro F1 | 95% CI | vs baseline Δ | Δ 95% CI | Excl 0 | Excl +0.02 | McNemar p | (b, c) |",
+            "|---|---:|---|---:|---|:-:|:-:|---:|---:|",
+        ]
+        baseline_f1 = all_results[key]["baseline"]["f1_ci"]["point"]
+        baseline_ci = all_results[key]["baseline"]["f1_ci"]
+        md_lines.append(
+            f"| `baseline` | **{baseline_f1:.4f}** | "
+            f"[{baseline_ci['ci_low']:.3f}, {baseline_ci['ci_high']:.3f}] "
+            f"(w={baseline_ci['ci_width']:.3f}) | — | — | — | — | — | — |"
+        )
+        for name in strategy_names:
+            if name == "baseline":
+                continue
+            block = all_results[key][name]
+            ci = block["f1_ci"]
+            cmp = block["compare_vs_baseline"]
+            dci = cmp["delta_ci"]
+            mc = cmp["mcnemar"]
+            ez = "✓" if dci["excludes_zero"] else "×"
+            ez02 = "✓" if dci["excludes_plus_02"] else "×"
+            md_lines.append(
+                f"| `{name}` | {ci['point']:.4f} | "
+                f"[{ci['ci_low']:.3f}, {ci['ci_high']:.3f}] "
+                f"(w={ci['ci_width']:.3f}) | "
+                f"{dci['point']:+.4f} | "
+                f"[{dci['ci_low']:+.3f}, {dci['ci_high']:+.3f}] "
+                f"(w={dci['ci_width']:.3f}) | "
+                f"{ez} | {ez02} | "
+                f"{mc['p_value']:.4f} | "
+                f"({mc['b']}, {mc['c']}) |"
+            )
+        md_lines += [""]
+
+    # Context-kind stratification at the Sprint 9 target threshold
+    target_thr = thresholds[-1]
+    target_key = f"threshold_{target_thr}"
+    md_lines += [
+        f"## Context-kind stratification (threshold={target_thr})",
         "",
-        "| Strategy | Macro F1 | Columns | Latency p50 (ms) | Latency p95 (ms) | Wall (s) |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| Strategy | empty | helpful | misleading |",
+        "|---|---:|---:|---:|",
     ]
     for name in strategy_names:
-        summary = all_results[name]["overall"]
-        md_lines.append(
-            f"| `{name}` | **{summary['macro_f1']:.4f}** | {summary['column_count']} | "
-            f"{summary['latency_p50_ms']} | {summary['latency_p95_ms']} | {all_results[name]['wall_s']} |"
-        )
-
-    md_lines += ["", "## Per context-kind stratification (macro F1)", ""]
-    kinds = sorted({k for r in all_results.values() for k in r["by_context_kind"]})
-    md_lines.append("| Strategy | " + " | ".join(kinds) + " |")
-    md_lines.append("|---|" + "|".join(["---:"] * len(kinds)) + "|")
-    for name in strategy_names:
+        by = all_results[target_key][name]["by_context_kind"]
         row = [f"`{name}`"]
-        for k in kinds:
-            by = all_results[name]["by_context_kind"].get(k, {})
-            f1 = by.get("macro_f1", 0.0)
-            row.append(f"**{f1:.4f}**")
+        for kind in ("empty", "helpful", "misleading"):
+            f1 = by.get(kind, {}).get("macro_f1", 0.0)
+            row.append(f"{f1:.4f}")
         md_lines.append("| " + " | ".join(row) + " |")
-
-    md_lines += ["", "## Per-entity F1 (baseline strategy only)", ""]
-    base_per = all_results[strategy_names[0]]["overall"]["per_entity"]
-    md_lines.append("| Entity | P | R | F1 | TP | FP | FN |")
-    md_lines.append("|---|---:|---:|---:|---:|---:|---:|")
-    for ent, m in base_per.items():
-        md_lines.append(
-            f"| {ent} | {m['p']:.3f} | {m['r']:.3f} | **{m['f1']:.3f}** | "
-            f"{m['tp']} | {m['fp']} | {m['fn']} |"
-        )
+    md_lines += [""]
 
     (args.out / "RESULTS.md").write_text("\n".join(md_lines) + "\n")
 
-    print("\n" + "\n".join(md_lines[: 20 + len(strategy_names) * 2]))
+    # Print abbreviated headline to stdout
+    print("\n" + "\n".join(md_lines[:30]))
     print(f"\nFull results: {args.out}/")
     return 0
 

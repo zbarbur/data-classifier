@@ -110,49 +110,150 @@ class ContextTemplate:
     description: str
 
 
-#: Per-entity-type context template panels. Each entity type has three
-#: templates — one per kind — which lets us stratify the final F1 by
-#: "context helpfulness".
+#: Per-entity-type context template panels. Each entity type has templates
+#: across three kinds (helpful / empty / misleading) which lets us
+#: stratify the final F1 by "context helpfulness". Pass 1 expands this to
+#: ~5 templates per kind to grow the corpus without more hand-authoring
+#: bias per cell.
 CONTEXT_TEMPLATES: dict[str, list[ContextTemplate]] = {
     "EMAIL": [
+        # helpful
         ContextTemplate("helpful", "email_address", "users", "user's primary contact email, required, unique"),
+        ContextTemplate("helpful", "contact_email", "crm_contacts", "primary email address for the contact"),
+        ContextTemplate("helpful", "notification_email", "preferences", "email where user notifications are sent"),
+        ContextTemplate("helpful", "work_email", "employees", "corporate email assigned to the employee"),
+        ContextTemplate("helpful", "recovery_email", "auth", "secondary email used for account recovery"),
+        # empty
         ContextTemplate("empty", "col_17", "t", ""),
+        ContextTemplate("empty", "val", "raw", ""),
+        ContextTemplate("empty", "c1", "staging", ""),
+        ContextTemplate("empty", "data_field", "imports", ""),
+        ContextTemplate("empty", "f42", "x", ""),
+        # misleading
         ContextTemplate("misleading", "invoice_number", "billing", "sequential invoice identifier"),
+        ContextTemplate("misleading", "tracking_code", "shipments", "parcel tracking identifier"),
+        ContextTemplate("misleading", "sku", "inventory", "stock-keeping unit code"),
+        ContextTemplate("misleading", "order_id", "orders", "unique order identifier"),
+        ContextTemplate("misleading", "license_plate", "vehicles", "vehicle license plate number"),
     ],
     "PHONE": [
         ContextTemplate("helpful", "phone_number", "customers", "customer contact phone, E.164 format"),
+        ContextTemplate("helpful", "mobile_number", "users", "user's mobile phone number"),
+        ContextTemplate("helpful", "contact_phone", "leads", "primary phone number for the lead"),
+        ContextTemplate("helpful", "emergency_contact_phone", "hr", "emergency contact phone on file"),
+        ContextTemplate("helpful", "support_phone", "tickets", "phone number attached to the support ticket"),
         ContextTemplate("empty", "col_42", "t", ""),
+        ContextTemplate("empty", "v7", "raw", ""),
+        ContextTemplate("empty", "field_b", "staging", ""),
+        ContextTemplate("empty", "value_col", "imports", ""),
+        ContextTemplate("empty", "c12", "y", ""),
         ContextTemplate("misleading", "employee_id", "hr", "internal HR employee identifier"),
+        ContextTemplate("misleading", "serial_number", "devices", "hardware serial number"),
+        ContextTemplate("misleading", "zipcode", "addresses", "postal zip code"),
+        ContextTemplate("misleading", "pin_code", "auth", "numeric PIN code"),
+        ContextTemplate("misleading", "version_build", "releases", "build number for the release"),
     ],
     "SSN": [
         ContextTemplate("helpful", "national_id", "applicants", "applicant's national identification number"),
+        ContextTemplate("helpful", "ssn", "patients", "patient social security number"),
+        ContextTemplate("helpful", "tax_id", "vendors", "vendor's tax identification number"),
+        ContextTemplate("helpful", "social_security", "payroll", "employee social security number for payroll"),
+        ContextTemplate("helpful", "government_id", "kyc", "government-issued ID from KYC intake"),
         ContextTemplate("empty", "col_03", "t", ""),
+        ContextTemplate("empty", "v_id", "raw", ""),
+        ContextTemplate("empty", "num_col", "staging", ""),
+        ContextTemplate("empty", "field_c", "imports", ""),
+        ContextTemplate("empty", "data_11", "z", ""),
         ContextTemplate("misleading", "account_number", "accounts", "internal account reference"),
+        ContextTemplate("misleading", "customer_id", "customers", "unique customer identifier"),
+        ContextTemplate("misleading", "invoice_ref", "billing", "invoice reference number"),
+        ContextTemplate("misleading", "routing_number", "banking", "bank routing number"),
+        ContextTemplate("misleading", "employee_number", "hr", "corporate employee number"),
     ],
     "PERSON_NAME": [
         ContextTemplate("helpful", "full_name", "contacts", "contact's full name, first and last"),
+        ContextTemplate("helpful", "customer_name", "customers", "customer's legal name on file"),
+        ContextTemplate("helpful", "patient_name", "patients", "patient full name from admission record"),
+        ContextTemplate("helpful", "employee_name", "hr", "employee full name for HR records"),
+        ContextTemplate("helpful", "student_name", "enrollment", "student's legal name"),
         ContextTemplate("empty", "col_91", "t", ""),
+        ContextTemplate("empty", "text_col", "raw", ""),
+        ContextTemplate("empty", "string_val", "staging", ""),
+        ContextTemplate("empty", "field_a", "imports", ""),
+        ContextTemplate("empty", "val_8", "x", ""),
         ContextTemplate("misleading", "product_name", "catalog", "catalog product display name"),
+        ContextTemplate("misleading", "city_name", "geography", "city name"),
+        ContextTemplate("misleading", "brand_name", "brands", "brand display name"),
+        ContextTemplate("misleading", "street_name", "addresses", "street name"),
+        ContextTemplate("misleading", "project_codename", "projects", "project codename"),
     ],
     "ADDRESS": [
         ContextTemplate("helpful", "street_address", "shipping", "customer shipping street address"),
+        ContextTemplate("helpful", "billing_address", "invoices", "billing street address"),
+        ContextTemplate("helpful", "home_address", "customers", "customer's residential street address"),
+        ContextTemplate("helpful", "delivery_address", "orders", "street address for order delivery"),
+        ContextTemplate("helpful", "mailing_address", "contacts", "contact mailing street address"),
         ContextTemplate("empty", "col_55", "t", ""),
+        ContextTemplate("empty", "text_field", "raw", ""),
+        ContextTemplate("empty", "val_z", "staging", ""),
+        ContextTemplate("empty", "field_d", "imports", ""),
+        ContextTemplate("empty", "info_col", "y", ""),
         ContextTemplate("misleading", "department_name", "org_chart", "business unit department label"),
+        ContextTemplate("misleading", "office_name", "facilities", "office location name"),
+        ContextTemplate("misleading", "role_title", "hr", "employee role title"),
+        ContextTemplate("misleading", "course_title", "enrollment", "academic course title"),
+        ContextTemplate("misleading", "category_name", "catalog", "product category name"),
     ],
     "DATE_OF_BIRTH": [
         ContextTemplate("helpful", "date_of_birth", "patients", "patient's date of birth, YYYY-MM-DD"),
+        ContextTemplate("helpful", "dob", "customers", "customer date of birth"),
+        ContextTemplate("helpful", "birth_date", "enrollment", "student date of birth"),
+        ContextTemplate("helpful", "birthday", "users", "user's birthday on file"),
+        ContextTemplate("helpful", "date_born", "applicants", "applicant's date of birth from intake form"),
         ContextTemplate("empty", "col_08", "t", ""),
+        ContextTemplate("empty", "date_col", "raw", ""),
+        ContextTemplate("empty", "d1", "staging", ""),
+        ContextTemplate("empty", "field_date", "imports", ""),
+        ContextTemplate("empty", "v_date", "x", ""),
         ContextTemplate("misleading", "order_date", "orders", "order placement date"),
+        ContextTemplate("misleading", "transaction_date", "ledger", "transaction posting date"),
+        ContextTemplate("misleading", "last_login", "auth", "date of the last login"),
+        ContextTemplate("misleading", "created_at", "events", "row creation timestamp"),
+        ContextTemplate("misleading", "invoice_date", "billing", "invoice generation date"),
     ],
     "IP_ADDRESS": [
         ContextTemplate("helpful", "client_ip", "access_logs", "client IPv4/IPv6 address at request time"),
+        ContextTemplate("helpful", "source_ip", "firewall", "source IP of the incoming request"),
+        ContextTemplate("helpful", "remote_addr", "nginx_logs", "remote IP address from the load balancer"),
+        ContextTemplate("helpful", "ip_address", "sessions", "session origin IP address"),
+        ContextTemplate("helpful", "user_ip", "auth_events", "IP address of the authenticating user"),
         ContextTemplate("empty", "col_21", "t", ""),
+        ContextTemplate("empty", "val", "raw", ""),
+        ContextTemplate("empty", "str_col", "staging", ""),
+        ContextTemplate("empty", "field_ip", "imports", ""),
+        ContextTemplate("empty", "data_col", "z", ""),
         ContextTemplate("misleading", "version_string", "releases", "semver release version"),
+        ContextTemplate("misleading", "host_tag", "inventory", "host label for inventory"),
+        ContextTemplate("misleading", "vlan_id", "network", "VLAN identifier"),
+        ContextTemplate("misleading", "machine_name", "hosts", "hostname of the machine"),
+        ContextTemplate("misleading", "subnet_label", "network", "human label for the subnet"),
     ],
     "ORGANIZATION": [
         ContextTemplate("helpful", "company_name", "vendors", "legal business name of the vendor"),
+        ContextTemplate("helpful", "employer_name", "employees", "employer's legal business name"),
+        ContextTemplate("helpful", "organization_name", "accounts", "organization registered on the account"),
+        ContextTemplate("helpful", "client_company", "projects", "client company sponsoring the project"),
+        ContextTemplate("helpful", "institution_name", "education", "institution issuing the credential"),
         ContextTemplate("empty", "col_67", "t", ""),
+        ContextTemplate("empty", "text_val", "raw", ""),
+        ContextTemplate("empty", "label_col", "staging", ""),
+        ContextTemplate("empty", "field_org", "imports", ""),
+        ContextTemplate("empty", "v_col", "y", ""),
         ContextTemplate("misleading", "sku_code", "inventory", "stock-keeping unit code"),
+        ContextTemplate("misleading", "product_sku", "catalog", "product SKU identifier"),
+        ContextTemplate("misleading", "model_number", "hardware", "hardware model number"),
+        ContextTemplate("misleading", "room_number", "facilities", "physical room number"),
+        ContextTemplate("misleading", "serial_code", "manufacturing", "unique serial code"),
     ],
 }
 
@@ -208,36 +309,40 @@ def build_corpus(
     """Cross-product value pools × context templates to produce CorpusRows.
 
     Each entity type that has both (a) a value pool and (b) a template panel
-    in :data:`CONTEXT_TEMPLATES` yields 3 columns — one per context kind.
-    Values are randomly sampled without replacement from the pool (stable
-    seed so runs are reproducible).
+    in :data:`CONTEXT_TEMPLATES` yields one column per template. Values are
+    randomly sampled per-(type, template, seed) so the same template under
+    two different seeds gets DIFFERENT 30-value slices — which is how we
+    get multi-seed replication variance.
 
     Args:
         value_pools: output of :func:`load_ai4privacy_value_pools`
         samples_per_column: how many values to pack into each column's
             ``sample_values``. Must be ≥ 1.
-        rng_seed: PRNG seed for reproducibility.
+        rng_seed: PRNG seed for reproducibility. Different seeds produce
+            different value slices for the same templates, giving us an
+            empirical variance estimate across seeds.
 
     Returns:
         List of CorpusRow, deterministically ordered by
-        ``(ground_truth, context_kind)``.
+        ``(ground_truth, context_kind, template_index)``.
     """
     rng = random.Random(rng_seed)
     rows: list[CorpusRow] = []
     for gt in sorted(value_pools):
         if gt not in CONTEXT_TEMPLATES:
             continue
-        pool = list(value_pools[gt])
-        rng.shuffle(pool)
-        for tmpl in CONTEXT_TEMPLATES[gt]:
-            # Each (gt, kind) gets a distinct slice so rows don't share values
-            start = hash((gt, tmpl.kind)) % max(1, len(pool) - samples_per_column)
-            values = pool[start : start + samples_per_column]
-            if len(values) < samples_per_column:
-                values = pool[:samples_per_column]
+        pool = value_pools[gt]
+        for tmpl_idx, tmpl in enumerate(CONTEXT_TEMPLATES[gt]):
+            # Each (gt, template, seed) gets an INDEPENDENT draw from the pool.
+            # rng.sample preserves no replacement within a draw but consecutive
+            # draws from the same rng will see different subsets.
+            if len(pool) < samples_per_column:
+                values = list(pool)
+            else:
+                values = rng.sample(pool, samples_per_column)
             col = ColumnInput(
                 column_name=tmpl.column_name,
-                column_id=f"{gt.lower()}_{tmpl.kind}",
+                column_id=f"{gt.lower()}_{tmpl.kind}_{tmpl_idx:02d}_seed{rng_seed}",
                 data_type="STRING",
                 table_name=tmpl.table_name,
                 description=tmpl.description,
@@ -245,6 +350,25 @@ def build_corpus(
             )
             rows.append(CorpusRow(column=col, ground_truth=gt, context_kind=tmpl.kind))
     return rows
+
+
+def build_multi_seed_corpus(
+    value_pools: Mapping[str, list[str]],
+    *,
+    samples_per_column: int = 30,
+    rng_seeds: Iterable[int] = (42, 7, 101),
+) -> list[CorpusRow]:
+    """Concatenate multiple seed-replicated corpora into one list.
+
+    Enables empirical variance estimation across value-slice draws while
+    keeping template structure fixed. Each seed produces a fresh corpus
+    with different value samples; concatenation triples (or more) the
+    effective n without new template authoring.
+    """
+    all_rows: list[CorpusRow] = []
+    for seed in rng_seeds:
+        all_rows.extend(build_corpus(value_pools, samples_per_column=samples_per_column, rng_seed=seed))
+    return all_rows
 
 
 # ── Strategies ────────────────────────────────────────────────────────────
@@ -518,3 +642,232 @@ def stratify_by_context_kind(
     for r in results:
         by_kind.setdefault(r.context_kind, []).append(r)
     return {kind: summarize(rows) for kind, rows in sorted(by_kind.items())}
+
+
+# ── Statistical tests ─────────────────────────────────────────────────────
+#
+# Paired comparisons between baseline and each variant strategy. The
+# strategies are evaluated on IDENTICAL CorpusRows, so every result index
+# i in strategy_a.results corresponds to the SAME column_id as index i in
+# strategy_b.results. That pairing is what McNemar and the paired bootstrap
+# exploit.
+
+
+def _column_correct_vector(results: list[PerColumnResult]) -> list[bool]:
+    """Per-column correctness: did the strategy report the ground-truth
+    entity type for this column?
+
+    Returns a list of bool in the same order as ``results``. This is the
+    input McNemar needs.
+    """
+    return [r.ground_truth in r.predicted_entity_types for r in results]
+
+
+def mcnemar_exact(
+    baseline_correct: list[bool],
+    variant_correct: list[bool],
+) -> dict:
+    """Exact McNemar's test for paired binary classifier outcomes.
+
+    Given two correctness vectors over the SAME ordered columns, builds
+    the 2×2 discordance table and returns the exact two-sided binomial
+    p-value on the discordant pairs.
+
+    Returns:
+        dict with keys:
+          - ``b`` (baseline right, variant wrong)
+          - ``c`` (baseline wrong, variant right)
+          - ``both_right``, ``both_wrong`` (ignored cells, for sanity)
+          - ``p_value`` — exact two-sided via scipy.stats.binomtest
+          - ``favors_variant`` — True if c > b
+    """
+    if len(baseline_correct) != len(variant_correct):
+        raise ValueError(f"Length mismatch: {len(baseline_correct)} vs {len(variant_correct)}")
+    b = sum(1 for a, v in zip(baseline_correct, variant_correct) if a and not v)
+    c = sum(1 for a, v in zip(baseline_correct, variant_correct) if v and not a)
+    both_right = sum(1 for a, v in zip(baseline_correct, variant_correct) if a and v)
+    both_wrong = sum(1 for a, v in zip(baseline_correct, variant_correct) if not a and not v)
+
+    if b + c == 0:
+        # No discordant pairs — the two strategies agree on every column.
+        # p-value is undefined in the traditional sense; convention: p=1.0.
+        p_value = 1.0
+    else:
+        from scipy.stats import binomtest
+        result = binomtest(k=c, n=b + c, p=0.5, alternative="two-sided")
+        p_value = float(result.pvalue)
+
+    return {
+        "b": b,
+        "c": c,
+        "both_right": both_right,
+        "both_wrong": both_wrong,
+        "discordant_total": b + c,
+        "p_value": round(p_value, 6),
+        "favors_variant": c > b,
+    }
+
+
+def bootstrap_f1_ci(
+    results: list[PerColumnResult],
+    *,
+    n_resamples: int = 1000,
+    confidence: float = 0.95,
+    rng_seed: int = 0,
+) -> dict:
+    """BCa 95% CI on the macro F1 of a single strategy, via bootstrap.
+
+    Uses ``scipy.stats.bootstrap`` with method='BCa'. Each bootstrap
+    replicate resamples columns with replacement and recomputes macro F1
+    on the resampled set. Columns are treated as independent observations
+    (safe for our synthetic corpus; would need cluster bootstrap for real
+    catalog data with nested structure).
+
+    Returns:
+        dict with ``point``, ``ci_low``, ``ci_high``, ``ci_width``, ``n``.
+    """
+    import numpy as np
+    from scipy.stats import bootstrap
+
+    if len(results) < 2:
+        point = macro_f1(compute_per_entity_metrics(results))
+        return {
+            "point": round(point, 4),
+            "ci_low": round(point, 4),
+            "ci_high": round(point, 4),
+            "ci_width": 0.0,
+            "n": len(results),
+            "note": "bootstrap requires n≥2",
+        }
+
+    indices = np.arange(len(results))
+
+    def _f1_from_indices(idx: np.ndarray) -> float:
+        sub = [results[int(i)] for i in idx]
+        return macro_f1(compute_per_entity_metrics(sub))
+
+    # scipy.stats.bootstrap wants a 1D data array and a statistic fn that
+    # operates on resampled versions of it. We bootstrap over the INDICES
+    # so that resampling produces valid reindexings.
+    res = bootstrap(
+        (indices,),
+        _f1_from_indices,
+        n_resamples=n_resamples,
+        confidence_level=confidence,
+        method="BCa",
+        random_state=rng_seed,
+        vectorized=False,
+    )
+    point = macro_f1(compute_per_entity_metrics(results))
+    return {
+        "point": round(point, 4),
+        "ci_low": round(float(res.confidence_interval.low), 4),
+        "ci_high": round(float(res.confidence_interval.high), 4),
+        "ci_width": round(float(res.confidence_interval.high - res.confidence_interval.low), 4),
+        "n": len(results),
+    }
+
+
+def bootstrap_paired_delta_ci(
+    baseline_results: list[PerColumnResult],
+    variant_results: list[PerColumnResult],
+    *,
+    n_resamples: int = 1000,
+    confidence: float = 0.95,
+    rng_seed: int = 0,
+) -> dict:
+    """BCa 95% CI on (variant macro F1 − baseline macro F1), paired by column.
+
+    Preserves pairing by resampling INDICES once per bootstrap iteration
+    and applying the SAME indices to both baseline and variant result
+    lists. This is the paired bootstrap — cancels out column-level
+    difficulty variance the same way a paired t-test does in the Normal
+    case, and is the right move for comparing two strategies on the
+    same corpus.
+
+    Returns:
+        dict with ``point`` (delta), ``ci_low``, ``ci_high``, ``ci_width``,
+        ``excludes_zero`` (True if CI strictly on one side of 0),
+        ``excludes_plus_02`` (True if CI strictly above +0.02, the ship gate).
+    """
+    import numpy as np
+    from scipy.stats import bootstrap
+
+    if len(baseline_results) != len(variant_results):
+        raise ValueError("Paired bootstrap requires equal-length result lists")
+    if len(baseline_results) < 2:
+        point = (
+            macro_f1(compute_per_entity_metrics(variant_results))
+            - macro_f1(compute_per_entity_metrics(baseline_results))
+        )
+        return {
+            "point": round(point, 4),
+            "ci_low": round(point, 4),
+            "ci_high": round(point, 4),
+            "ci_width": 0.0,
+            "excludes_zero": False,
+            "excludes_plus_02": False,
+            "note": "bootstrap requires n≥2",
+        }
+
+    indices = np.arange(len(baseline_results))
+
+    def _delta_from_indices(idx: np.ndarray) -> float:
+        idx_int = [int(i) for i in idx]
+        b_sub = [baseline_results[i] for i in idx_int]
+        v_sub = [variant_results[i] for i in idx_int]
+        return (
+            macro_f1(compute_per_entity_metrics(v_sub))
+            - macro_f1(compute_per_entity_metrics(b_sub))
+        )
+
+    res = bootstrap(
+        (indices,),
+        _delta_from_indices,
+        n_resamples=n_resamples,
+        confidence_level=confidence,
+        method="BCa",
+        random_state=rng_seed,
+        vectorized=False,
+    )
+    point = (
+        macro_f1(compute_per_entity_metrics(variant_results))
+        - macro_f1(compute_per_entity_metrics(baseline_results))
+    )
+    lo = float(res.confidence_interval.low)
+    hi = float(res.confidence_interval.high)
+    return {
+        "point": round(point, 4),
+        "ci_low": round(lo, 4),
+        "ci_high": round(hi, 4),
+        "ci_width": round(hi - lo, 4),
+        "excludes_zero": lo > 0 or hi < 0,
+        "excludes_plus_02": lo > 0.02,
+    }
+
+
+def compare_strategies(
+    baseline_results: list[PerColumnResult],
+    variant_results: list[PerColumnResult],
+    *,
+    variant_name: str,
+    n_resamples: int = 1000,
+    rng_seed: int = 0,
+) -> dict:
+    """Full paired comparison of a variant strategy against baseline.
+
+    Runs McNemar exact test + paired BCa bootstrap CI on the macro F1
+    delta, and returns a single dict suitable for JSON serialization.
+    """
+    base_correct = _column_correct_vector(baseline_results)
+    var_correct = _column_correct_vector(variant_results)
+    return {
+        "variant": variant_name,
+        "mcnemar": mcnemar_exact(base_correct, var_correct),
+        "delta_ci": bootstrap_paired_delta_ci(
+            baseline_results,
+            variant_results,
+            n_resamples=n_resamples,
+            rng_seed=rng_seed,
+        ),
+    }
