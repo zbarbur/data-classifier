@@ -143,3 +143,14 @@ jobs:
         run: |
           cd /tmp
           /tmp/smoke_venv/bin/python "$REPO_DIR/scripts/install_smoke_test.py"
+
+      - name: Smoke test download_models CLI entry point
+        # Verifies that the data-classifier-download-models console script is
+        # registered by the wheel and that the module imports cleanly in a
+        # Python env with only the base extras installed. Does NOT download
+        # the actual model — just exercises the --help plumbing so a broken
+        # entry point (missing pyproject script, import error, heavy dep
+        # leaking into module top-level) fails CI.
+        run: |
+          /tmp/smoke_venv/bin/data-classifier-download-models --help
+          /tmp/smoke_venv/bin/python -m data_classifier.download_models --help

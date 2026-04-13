@@ -1,24 +1,36 @@
-# Cloud Build config: tag-triggered wheel release to Google Artifact Registry.
+# Cloud Build config: tag-triggered wheel + ONNX model release to
+# Google Artifact Registry.
 #
-# Sprint 8 Item 3 — wheel versioning + AR release pipeline.
+# Sprint 8 Items 3 and 5 — wheel versioning + model distribution.
 #
 # Fires from a Cloud Build trigger (created manually — see below) that
 # listens for tag pushes matching `^v.*` on the zbarbur/data-classifier
 # GitHub repo. The trigger links to this file via --build-config.
 #
-# Publishes the built wheel to the `data-classifier` Python repository in
-# Google Artifact Registry at:
-#   https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/
+# Publishes two artifacts on every v* tag push:
 #
-# Consumers install via:
-#   pip install --extra-index-url \
-#     https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/simple/ \
-#     "data_classifier[ml]==0.8.0"
+#   1. The Python wheel to the Python-format AR repo:
+#        https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/
+#      Consumers install via:
+#        pip install --extra-index-url \
+#          https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/simple/ \
+#          "data_classifier[ml]==0.8.0"
+#
+#   2. The GLiNER2 ONNX model tarball + SHA-256 checksum to the
+#      Generic-format AR repo:
+#        us-central1-docker.pkg.dev/${PROJECT_ID}/data-classifier-models/
+#      Consumers fetch via:
+#        python -m data_classifier.download_models
+#      which reads ~/.cache/data_classifier/models/gliner_onnx/ — the
+#      path `_find_bundled_onnx_model()` in gliner_engine.py searches.
 #
 # ── Prerequisites (Phase 2 manual setup, Sprint 8) ──────────────────────
 #
 # 1. Install the Google Cloud Build GitHub App on zbarbur/data-classifier
-#    (https://github.com/marketplace/google-cloud-build).
+#    (https://github.com/marketplace/google-cloud-build) AND complete
+#    the GCP-side repo connection in the Cloud Build console
+#    (https://console.cloud.google.com/cloud-build/triggers → Connect
+#    Repository → pick dag-bigquery-dev → select zbarbur/data-classifier).
 #
 # 2. Create the Python Artifact Registry repository:
 #      gcloud artifacts repositories create data-classifier \
@@ -26,14 +38,22 @@
 #          --location=us-central1 \
 #          --project=dag-bigquery-dev
 #
-# 3. Grant the Cloud Build default service account artifactregistry.writer:
+# 3. Create the Generic Artifact Registry repository (for the ONNX
+#    model tarball — Item 5):
+#      gcloud artifacts repositories create data-classifier-models \
+#          --repository-format=generic \
+#          --location=us-central1 \
+#          --project=dag-bigquery-dev
+#
+# 4. Grant the Cloud Build default service account artifactregistry.writer
+#    on BOTH repos (one project-wide binding covers both):
 #      PROJECT_NUM=$(gcloud projects describe dag-bigquery-dev \
 #          --format='value(projectNumber)')
 #      gcloud projects add-iam-policy-binding dag-bigquery-dev \
 #          --member="serviceAccount:${PROJECT_NUM}@cloudbuild.gserviceaccount.com" \
 #          --role=roles/artifactregistry.writer
 #
-# 4. Create the tag-triggered Cloud Build trigger:
+# 5. Create the tag-triggered Cloud Build trigger:
 #      gcloud builds triggers create github \
 #          --repo-owner=zbarbur \
 #          --repo-name=data-classifier \
@@ -41,10 +61,6 @@
 #          --build-config=cloudbuild-release.yaml \
 #          --project=dag-bigquery-dev \
 #          --name=data-classifier-release
-#
-# 5. (Sprint 8 Item 5) Create the companion AR Generic repository for the
-#    GLiNER2 ONNX model tarball and extend this file with a second
-#    publish step. See `data_classifier/download_models.py` documentation.
 #
 # ── Build steps ─────────────────────────────────────────────────────────
 
@@ -81,10 +97,15 @@ steps:
         echo "pyproject version: ${WHEEL_VERSION}"
         ls dist/data_classifier-${WHEEL_VERSION}-*.whl >/dev/null
 
+        # Persist the version so subsequent steps can use it without re-reading
+        # pyproject.toml. Cloud Build copies /workspace between steps.
+        echo "${WHEEL_VERSION}" > /workspace/VERSION
+
   # Step 2: publish the wheel to Artifact Registry Python repo
   - name: python:3.12-slim
     id: publish-wheel
     entrypoint: bash
+    waitFor: ["build-wheel"]
     args:
       - -c
       - |
@@ -104,11 +125,82 @@ steps:
           dist/data_classifier-*.whl
         echo "::endgroup::"
 
+  # Step 3: export the GLiNER2 ONNX model and publish the tarball
+  # to the Generic Artifact Registry repo.
+  #
+  # This step needs [ml-full] extras because export_onnx.py imports
+  # torch, transformers, and onnx. Budget ~15 minutes because loading
+  # the HF weights and quantizing the ONNX graph takes a few minutes
+  # on Cloud Build's default machine type.
+  #
+  # The tarball + checksum are consumed by
+  # `python -m data_classifier.download_models` in downstream containers.
+  - name: python:3.12-slim
+    id: publish-model
+    entrypoint: bash
+    waitFor: ["publish-wheel"]
+    timeout: 900s
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        VERSION=$(cat /workspace/VERSION)
+        echo "Publishing ONNX model for data_classifier v${VERSION}"
+
+        echo "::group::Install [ml-full] extras for export_onnx"
+        pip install --upgrade pip
+        pip install ".[ml-full]"
+        echo "::endgroup::"
+
+        echo "::group::Export GLiNER2 model to ONNX"
+        # export_onnx.py writes gliner_config.json + quantized ONNX graph
+        # + tokenizer assets into the output dir — matching the layout
+        # _find_bundled_onnx_model() expects.
+        rm -rf /tmp/gliner_onnx
+        mkdir -p /tmp/gliner_onnx
+        python -m data_classifier.export_onnx --output /tmp/gliner_onnx
+        ls -la /tmp/gliner_onnx/
+        echo "::endgroup::"
+
+        echo "::group::Pack and checksum tarball"
+        TARBALL="gliner_onnx-${VERSION}.tar.gz"
+        # Single top-level gliner_onnx/ directory — download_models.py
+        # detects this layout and flattens it on extract.
+        tar czf "${TARBALL}" -C /tmp gliner_onnx/
+        sha256sum "${TARBALL}" > "${TARBALL}.sha256"
+        ls -la "${TARBALL}" "${TARBALL}.sha256"
+        echo "::endgroup::"
+
+        echo "::group::Upload to Generic Artifact Registry"
+        # The Python repo uses twine + keyring, but Generic repos use
+        # the raw REST API. We shell out to the generic-upload endpoint
+        # with the Cloud Build service account's metadata token.
+        GENERIC_URL="https://us-central1-docker.pkg.dev/${PROJECT_ID}/data-classifier-models"
+        ACCESS_TOKEN=$(curl -sSf -H "Metadata-Flavor: Google" \
+          http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
+          | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+
+        curl -sSf -X POST \
+          -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+          -H "Content-Type: application/octet-stream" \
+          --data-binary @"${TARBALL}" \
+          "${GENERIC_URL}/${TARBALL}"
+
+        curl -sSf -X POST \
+          -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+          -H "Content-Type: text/plain" \
+          --data-binary @"${TARBALL}.sha256" \
+          "${GENERIC_URL}/${TARBALL}.sha256"
+        echo "::endgroup::"
+
+        echo "Model tarball + checksum published to ${GENERIC_URL}/${TARBALL}"
+
 # Log to Cloud Logging only; skip the default per-build GCS log bucket
 # so we do not require a storage bucket in the project.
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# 10 minutes is plenty — the wheel build takes <30s on Cloud Build's
-# standard machine type. Bump only if `python -m build` slows down.
-timeout: 600s
+# Total timeout: 25 minutes. build-wheel + publish-wheel take <1 min
+# combined; publish-model dominates (~12-15 min for HF weights load
+# and ONNX export). 25 min gives headroom for cold pulls of python images.
+timeout: 1500s

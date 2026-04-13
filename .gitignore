@@ -58,4 +58,11 @@ data_classifier/models/*
 !data_classifier/models/meta_classifier_v1.pkl
 !data_classifier/models/meta_classifier_v1.metadata.json
 !data_classifier/models/meta_classifier_v1.eval.json
+# Keep the gliner_onnx/ placeholder directory (populated by download_models CLI
+# at container build time) so package_data globs have a target, but ignore the
+# actual model weights.
+!data_classifier/models/gliner_onnx/
+data_classifier/models/gliner_onnx/*
+!data_classifier/models/gliner_onnx/.gitkeep
+!data_classifier/models/gliner_onnx/README.md
 models/gliner_onnx/

@@ -96,14 +96,20 @@ RUN pip install \
     python -m data_classifier.download_models
 ```
 
-`python -m data_classifier.download_models` is a lean CLI (stdlib-only — no torch, no transformers) that fetches a pre-exported ONNX tarball from the `data-classifier-models` AR Generic repo, verifies its SHA-256, and unpacks to `~/.cache/data_classifier/models/gliner_onnx/`. The `GLiNER2Engine` auto-discovers model files at that path via `_find_bundled_onnx_model()`, so no engine config is needed.
+`python -m data_classifier.download_models` is a lean CLI (stdlib-only — uses `urllib.request`, `hashlib`, and `tarfile`; no torch, transformers, or requests) that fetches a pre-exported ONNX tarball from the `data-classifier-models` AR Generic repo, verifies its SHA-256 against the companion `.sha256` file, and unpacks to `~/.cache/data_classifier/models/gliner_onnx/`. The `GLiNER2Engine` auto-discovers model files at that path via `_find_bundled_onnx_model()`, so no engine config is needed.
 
-> **Sprint 8 Item 5 status:** `data_classifier.download_models` lands
-> within Sprint 8. Until it ships, consumers on Standard tier can either
-> (a) pre-populate the cache directory manually from a dev machine where
-> the model was first downloaded, or (b) disable ML via
-> `DATA_CLASSIFIER_DISABLE_ML=1` and run in regex-only mode (equivalent
-> to Light tier's entity coverage).
+**CLI flags:**
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--to PATH` | `~/.cache/data_classifier/models/gliner_onnx/` | Override the install location |
+| `--version VERSION` | Installed `data_classifier` version (via `importlib.metadata`) | Pin a specific model version |
+| `--url URL` | `https://us-central1-docker.pkg.dev/.../gliner_onnx-{version}.tar.gz` | Override the tarball URL (for internal mirrors or testing) |
+| `--checksum-url URL` | `${--url}.sha256` | Override the checksum URL independently |
+| `--force` | off | Overwrite an existing target directory |
+| `--quiet` | off | Suppress progress output |
+
+A SHA mismatch aborts the download without touching the target directory — the previous model stays intact. Tarball extraction uses a resolved-path containment check plus `tarfile.data_filter` (Python 3.12+) to protect against path-traversal attacks.
 
 **For dev / one-off export:** if you want to regenerate the ONNX model from a HuggingFace checkpoint (e.g. to experiment with a different base model), install the developer extra and run the exporter:
 
@@ -265,6 +271,72 @@ As of v0.8.0 there are three observability gaps you may hit in production:
 3. **No built-in `health_check()` function.** Each consumer implements its own probe (as shown above). A canonical helper will ship in a future sprint so consumers can drop their own implementation.
 
 These are tracked under the Sprint 9 backlog item `observability-gaps-get-active-engines-health-check-loud-import-error`.
+
+---
+
+## 1c. Baking the ONNX model into a container image
+
+Production container deployments (Cloud Run, GKE, ECS, etc.) should
+**never** download the GLiNER model from HuggingFace at runtime — we
+observed HTTP 429 rate-limit failures on Cloud Run cold starts, and
+the first-request latency spike is unacceptable for a classification
+service. Instead, bake the pre-exported ONNX tarball into the image at
+build time using the `data-classifier-download-models` CLI.
+
+This CLI is **stdlib-only** — it does not import `torch`,
+`transformers`, `onnx`, or `requests`, so it is safe to run in a lean
+`[ml]`-extras container. It downloads a versioned tarball from our
+Google Artifact Registry Generic repo, verifies its SHA-256 checksum,
+and unpacks it into `~/.cache/data_classifier/models/gliner_onnx/`,
+which is one of the three paths that `GLiNER2Engine` auto-discovers at
+startup.
+
+**Dockerfile recipe:**
+
+```dockerfile
+FROM python:3.11-slim
+
+# Install the library with ML runtime extras only (onnxruntime + gliner,
+# no torch, no transformers).
+RUN pip install --no-cache-dir "data_classifier[ml]==0.5.0"
+
+# Bake the ONNX model into the image at build time. The CLI defaults to
+# ~/.cache/data_classifier/models/gliner_onnx/ which is where
+# GLiNER2Engine auto-discovers it at startup — no env vars needed.
+RUN data-classifier-download-models
+
+# ...your application setup...
+CMD ["python", "-m", "your_app"]
+```
+
+**CLI flags:**
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--to PATH` | `~/.cache/data_classifier/models/gliner_onnx/` | Destination directory. Parent dirs are created automatically. |
+| `--version VERSION` | Installed `data_classifier` version | Model version to fetch (tied to library version). |
+| `--url URL` | Artifact Registry URL derived from `--version` | Override the full download URL (internal mirrors, testing). |
+| `--checksum-url URL` | `<url>.sha256` | Override the SHA-256 checksum URL. |
+| `--force` | off | Re-download even if the target path already exists. |
+| `--quiet` | off | Suppress progress output on stdout. |
+
+**Behavior guarantees:**
+
+- Exits 0 on success, non-zero on any failure (no raw tracebacks — you
+  get a one-line `error: ...` message on stderr).
+- Downloads are SHA-256 verified before extraction. A checksum
+  mismatch aborts the download **without touching the target
+  directory**, so a corrupt retry cannot leave the container in a
+  half-installed state.
+- The CLI is idempotent: running it twice is a no-op the second time
+  unless you pass `--force`.
+- Tar extraction is path-traversal safe (CVE-2007-4559 mitigations).
+
+**Alternatives for air-gapped / internal networks:** use `--url` to
+point at an internal mirror of the tarball, or provide a
+`--checksum-url` that references your internal checksum file. The CLI
+makes no assumptions about DNS or the default Artifact Registry
+hostname beyond what you tell it.
 
 ---
 

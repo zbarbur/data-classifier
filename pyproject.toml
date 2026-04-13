@@ -18,6 +18,9 @@ dependencies = [
     "phonenumbers>=8.13",
 ]
 
+[project.scripts]
+data-classifier-download-models = "data_classifier.download_models:main"
+
 [project.optional-dependencies]
 meta = [
     "scikit-learn>=1.4",

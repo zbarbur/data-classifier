@@ -87,7 +87,7 @@ notes: "Replaces Item 7 (Cloud DLP comparator, P2) in Sprint 8 scope \u2014 Clou
   \ OK for release.yml export step but not OK for BQ runtime. The runtime CLI is a\
   \ thin download+unpack utility. Depends on Item 4 for AR Generic repo creation (same\
   \ release.yml workflow)."
-phase: plan
+phase: build
 design_reviewed: false
 code_reviewed: false
 comments: []
