@@ -1,11 +1,11 @@
 title: Ingest gretelai/gretel-pii-masking-en-v1 as a mixed-label training corpus to
   break credential-corpus bias
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 9
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags:
 - meta-classifier

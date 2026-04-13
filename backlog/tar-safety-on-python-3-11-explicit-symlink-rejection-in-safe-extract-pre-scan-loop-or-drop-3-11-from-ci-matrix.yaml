@@ -1,11 +1,11 @@
 title: "tar safety on Python 3.11 \u2014 explicit symlink rejection in _safe_extract\
   \ pre-scan loop (or drop 3.11 from CI matrix)"
-status: doing
+status: done
 priority: P2
 category: chore
 sprint_target: 9
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
 goal: Sprint 8 post-hoc review flagged that download_models.py::_safe_extract relies

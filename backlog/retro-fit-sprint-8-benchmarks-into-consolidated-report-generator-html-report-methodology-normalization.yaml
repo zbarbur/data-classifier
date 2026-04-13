@@ -1,11 +1,11 @@
 title: "Retro-fit Sprint 8 benchmarks into consolidated_report generator \u2014 HTML\
   \ report + methodology normalization"
-status: doing
+status: done
 priority: P2
 category: chore
 sprint_target: 9
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
 goal: Bring Sprint 8 benchmarks into the consolidated_report.py pipeline so Sprint

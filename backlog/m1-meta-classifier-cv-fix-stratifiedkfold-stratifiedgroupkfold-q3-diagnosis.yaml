@@ -1,11 +1,11 @@
 title: "M1 meta-classifier CV fix: StratifiedKFold \u2192 StratifiedGroupKFold (Q3\
   \ diagnosis)"
-status: doing
+status: done
 priority: P0
 category: bug
 sprint_target: 9
 created: 2026-04-12
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
 goal: "Fix the meta-classifier CV splitter from StratifiedKFold to StratifiedGroupKFold\

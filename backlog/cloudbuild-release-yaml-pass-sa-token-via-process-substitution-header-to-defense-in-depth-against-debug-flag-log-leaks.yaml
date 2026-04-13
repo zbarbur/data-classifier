@@ -1,11 +1,11 @@
 title: "cloudbuild-release.yaml \u2014 pass SA token via process-substitution header\
   \ to defense-in-depth against debug-flag log leaks"
-status: doing
+status: done
 priority: P3
 category: chore
 sprint_target: 9
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
 goal: 'Sprint 8 post-hoc review flagged that cloudbuild-release.yaml passes the metadata

@@ -1,29 +1,30 @@
 # data_classifier — Project Context
 
-> **Last updated:** 2026-04-13 (Sprint 8 complete — first published wheel `v0.8.0`, Cloud Build release pipeline, ONNX model distribution, credential 4-way split, E10 baseline corrections)
+> **Last updated:** 2026-04-14 (Sprint 9 complete — Gretel-EN ingest, ai4privacy removal, M1 meta-classifier CV methodology fix, observability-gaps closure, v2 inference infrastructure salvage, learning memo on shortcut learning + gated architectures)
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Current sprint | 8 (closing) → 9 (planning) |
-| Release | **v0.8.0 published to Google Artifact Registry** (`dag-bigquery-dev` / us-central1, Python repo `data-classifier`); ONNX model tarball (254 MB) in AR Generic repo `data-classifier-models`; fresh-venv install validated end-to-end |
-| Tests | **1197 passing** + 1 skipped (+64 vs Sprint 7) (~36s local with `[meta]`) |
-| CI | `lint-and-test` green on 3.11/3.12/3.13; new `lint-and-test-ml` job (install + import + construct, kill-switch on); `install-test` green |
+| Current sprint | 9 (closing) → 10 (planning) |
+| Release | **v0.8.0** published to Google Artifact Registry (`dag-bigquery-dev` / us-central1, Python repo `data-classifier`); ONNX model tarball (254 MB) in AR Generic repo `data-classifier-models`. Sprint 9 changes not yet tagged — `v0.9.0` tag pending merge to main. |
+| Tests | **1222 passing** + 1 skipped (+25 vs Sprint 8) (~36s local with `[meta]`) |
+| CI | `lint-and-test` green on 3.11/3.12/3.13; `lint-and-test-ml` green (install + import + construct, kill-switch on); `install-test` green |
 | Patterns | **73** content patterns + 26 profile rules |
-| Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, gliner2) + meta-classifier (shadow) |
-| Validators | **14** (PEM private-key scanner + hash-scheme detector added in Sprint 8 credential split) |
+| Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, gliner2) + meta-classifier (shadow). New: `get_active_engines()` + `health_check()` public observability helpers (Sprint 9) |
+| Validators | **14** |
 | Entity types | **36** (CREDENTIAL split into API_KEY / PRIVATE_KEY / PASSWORD_HASH / OPAQUE_SECRET in Sprint 8) |
 | Key-name patterns | 88 |
-| Backlog | 70+ items + 7 new Sprint 9 candidates parked at Sprint 8 close |
-| **Accuracy (synthetic, Sprint 8)** | **Macro F1 0.915, Micro 0.897, Primary-Label 96.3%** (50 samples/type, 22 entity types, 4 FPs / 1 FN — all match known filed gaps) |
-| **Accuracy (real-corpus blind)** | Nemotron 0.8974 (Ai4Privacy retired, Gretel-EN baseline pending Sprint 9 re-run) |
-| **Accuracy (named)** | Both corpora: 1.000 Macro F1 |
-| **Per-column regex coverage** | **Ai4Privacy PHONE: 16.3% → 94.5%** (Sprint 7 measurement on retired Ai4Privacy corpus; see LICENSE_AUDIT.md), **Ai4Privacy CREDENTIAL: 0% → 98.6%** (Sprint 7 measurement on retired Ai4Privacy corpus; see LICENSE_AUDIT.md) |
-| **Meta-classifier (CV)** | **0.916 is a methodology artifact**; honest LOCO ~0.30 |
-| **Meta-classifier (LOCO)** | 0.27–0.36 — structural gap per Q3 §6 (hypothesis A+C); E10 GLiNER-features experiment regressed LOCO further (−0.031 mean) — NOT promoted |
-| **Meta-classifier (honest blind delta)** | **+0.191** vs 5-engine live baseline (E10, 2026-04-13). The Sprint 6 "+0.257" number was vs a 4-engine baseline with GLiNER disabled — see SPRINT6_HANDOVER.md "Honest baseline correction — E10" |
-| **Performance (Sprint 8 baseline)** | **78.9 ms/col p50** with ML on 12 col × 10 samples (ad-hoc snapshot, see `docs/benchmarks/history/sprint_8.json`). Warmup 7.46s. Replaces the older 207ms/col PROJECT_CONTEXT figure as the baseline; numbers not directly comparable due to different corpus shape. |
+| Corpora | **6** OSI-compatible: Nemotron-PII (CC BY 4.0), SecretBench (MIT), gitleaks (MIT), detect_secrets (Apache-2.0), synthetic (MIT/Faker), **gretelai/gretel-pii-masking-en-v1 (Apache 2.0, NEW Sprint 9)**. Ai4Privacy pii-masking-300k **retired Sprint 9** (custom non-OSI license — see `docs/process/LICENSE_AUDIT.md`). |
+| Backlog | Sprint 9 closed with 9 items shipped, 4 deferred to Sprint 10, 1 closed won't-do (gliner-onnx-export). 3 new Sprint 10 candidates filed from discussion (gated architecture, LogReg/XGBoost ablation, env-leak hygiene). |
+| **Accuracy (synthetic, Sprint 8)** | Macro F1 0.915, Micro 0.897, Primary-Label 96.3% (unchanged since Sprint 8, synthetic corpus was not re-run in Sprint 9) |
+| **Accuracy (real-corpus blind, Sprint 9)** | **Nemotron 0.821, Gretel-EN 0.611** (50 samples/col, 2026-04-14) |
+| **Accuracy (real-corpus named, Sprint 9)** | **Nemotron 0.923, Gretel-EN 0.917** |
+| **Per-column regex coverage (historical)** | Ai4Privacy PHONE: 16.3% → 94.5% (Sprint 7 measurement on retired Ai4Privacy corpus; see `docs/process/LICENSE_AUDIT.md`); Ai4Privacy CREDENTIAL: 0% → 98.6% (same). Not re-measured against Gretel-EN; the patterns still work, the corpus is different. |
+| **Meta-classifier (honest CV, Sprint 9)** | **cv_mean_macro_f1 = 0.1940 ± 0.0848, best_c = 1.0** under `StratifiedGroupKFold` (M1 promotion, 2026-04-13). Replaces the Sprint 6 claim of 0.916 / best_c = 100, which was inflated by corpus-fingerprint leakage via `heuristic_avg_length`. See `docs/learning/sprint9-cv-shortcut-and-gated-architecture.md` for the full diagnosis. |
+| **Meta-classifier (honest blind delta, Sprint 9)** | **+0.2432** vs 5-engine live baseline (n=848, CI width 0.0519, ship gates pass). Supersedes the E10 +0.191 number which was pre-Gretel + pre-M1. Going forward, cite +0.2432, not +0.191. |
+| **Meta-classifier (LOCO, Sprint 9)** | **Mean ~0.17** across 5 corpora (detect_secrets 0.11, gitleaks 0.07, gretel_en 0.08, nemotron 0.27, secretbench 0.33). This is the **honest generalization number** — what the model does on a held-out corpus it's never seen. The reported CV and held-out test numbers are higher because they use same-distribution sampling. Cite LOCO going forward for product claims. |
+| **Performance (Sprint 8 baseline)** | 78.9 ms/col p50 with ML on 12 col × 10 samples (ad-hoc snapshot, see `docs/benchmarks/history/sprint_8.json`). Warmup 7.46s. |
 | **ML share** | GLiNER2 = **99.8%** of pipeline latency (Sprint 8 measurement) |
 | **Pattern library** | Column-gated patterns via `requires_column_hint` + `column_hint_keywords` (Sprint 7); credential subtype taxonomy (Sprint 8) |
 | **Benchmark comparators** | Presidio comparator infrastructure shipped (Sprint 7); Cloud DLP comparator deferred from Sprint 8 (scope swap to model distribution) |
@@ -118,6 +119,7 @@
 | 6 | Hardening + meta-classifier shadow | Complete | 1009 | SSN/NPI validators, DOB_EU split, secret scanner FP fixes, CI install test, meta-classifier (3 phases, shadow-only), parallel research workflow |
 | 7 | Compare & measure | Complete | 1133 | SSN advertising cleanup, international phone 16.3%→94.5%, column-gated random_password 0%→98.6%, Presidio comparator infrastructure, M1 methodology correction (docs), worktree isolation rule |
 | 8 | Ship it: stabilize, release, prep credentials | Complete | 1197 | **First published wheel `v0.8.0` to Google Artifact Registry** (Cloud Build pipeline, ~60s release), ONNX model distribution decoupled from package version (`download_models` CLI + AR Generic repo, 254MB tarball), CREDENTIAL split into 4 subtypes (API_KEY/PRIVATE_KEY/PASSWORD_HASH/OPAQUE_SECRET), `lint-and-test-ml` CI matrix job (install/import/construct verification, kill-switch permanent until WIF), `test_ssn_in_samples` ML regression diagnosed and pinned to regex-only, E10 baseline correction (+0.257 → +0.191), CHANGELOG.md introduced with forward-only versioning |
+| 9 | Detection quality lift + BQ production-unblock | Complete | 1222 | **Gretel-EN corpus ingest** (Apache 2.0, 60k rows, 47 domains, 7th training corpus), **ai4privacy removal** (non-OSI license retired, `docs/process/LICENSE_AUDIT.md` codifies the verification discipline), **M1 meta-classifier CV fix promoted** (`StratifiedKFold → StratifiedGroupKFold`, honest CV 0.1940 / best_c=1.0, blind delta +0.2432, LOCO ~0.17), **observability-gaps closed** (`get_active_engines()` + `health_check()` + loud ImportError fallback), retro-fit Sprint 8 benchmarks into `consolidated_report` generator, `perf_benchmark --quick` mode (stalled→~20s), tar-safety pre-scan hardening, cloudbuild SA token process-substitution + xtrace suppression, v2 inference infrastructure salvage (threshold plumbing fix + `descriptions_enabled` flag + ONNX auto-discovery guard). **Fastino promotion BLOCKED** on blind-corpus regression (−0.13 Gretel-EN / −0.19 Nemotron), deferred to Sprint 10 pending `research/gliner-context` context-injection work. **Learning memo** `docs/learning/sprint9-cv-shortcut-and-gated-architecture.md` written as capstone deliverable. |
 
 ## Consumers
 

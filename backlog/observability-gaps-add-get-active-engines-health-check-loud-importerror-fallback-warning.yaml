@@ -1,11 +1,11 @@
 title: 'Observability gaps: add get_active_engines() + health_check() + loud ImportError
   fallback warning'
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 9
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
 goal: "Close three observability gaps discovered during Sprint 8 BQ integration work:\
