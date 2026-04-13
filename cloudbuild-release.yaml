@@ -109,6 +109,40 @@ steps:
         echo "::group::Install publish tools"
         pip install --upgrade pip
         pip install --upgrade twine keyrings.google-artifactregistry-auth
+        apt-get update -qq && apt-get install -y -qq curl >/dev/null
+        echo "::endgroup::"
+
+        echo "::group::Preflight: check if this wheel version is already published"
+        # Rebuild the wheel version from pyproject.toml so this step is
+        # independent of build-wheel's /workspace state.
+        WHEEL_VERSION=$(python -c "import tomllib,sys; \
+          data=tomllib.loads(open('pyproject.toml','rb').read().decode()); \
+          sys.stdout.write(data['project']['version'])")
+        WHEEL_FILENAME="data_classifier-$${WHEEL_VERSION}-py3-none-any.whl"
+        # AR Python repo file-ID format: <package>/<filename>, with the
+        # slash URL-encoded as %2F in the REST path. Confirmed against
+        # the AR v1 files.get endpoint — see commit message for URL test.
+        CHECK_URL="https://artifactregistry.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/repositories/data-classifier/files/data-classifier%2F$${WHEEL_FILENAME}"
+
+        # Cloud Build injects a default service account token via the
+        # metadata service — same auth path that download_models.py uses
+        # for the consumer side.
+        ACCESS_TOKEN=$(curl -sSf -H "Metadata-Flavor: Google" \
+          http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
+          | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          -H "Authorization: Bearer $${ACCESS_TOKEN}" \
+          "$${CHECK_URL}")
+
+        if [ "$${STATUS}" = "200" ]; then
+          echo "Wheel $${WHEEL_FILENAME} is already present in AR — skipping upload."
+          echo "(This keeps re-tags and trigger re-runs idempotent. If you"
+          echo " really need to overwrite the version, delete it first via"
+          echo " 'gcloud artifacts versions delete'.)"
+          exit 0
+        fi
+        echo "AR returned HTTP $${STATUS} for $${WHEEL_FILENAME} — proceeding with upload."
         echo "::endgroup::"
 
         echo "::group::Upload wheel to Artifact Registry"
@@ -117,10 +151,8 @@ steps:
         # account's Application Default Credentials transparently.
         #
         # NOTE: --skip-existing is NOT supported by Google Artifact Registry
-        # ("UnsupportedConfiguration" error from twine). If you need to
-        # re-tag a version that is already published, delete the existing
-        # version via `gcloud artifacts versions delete` first, or bump
-        # the pyproject version.
+        # ("UnsupportedConfiguration" error from twine). We emulate
+        # idempotency with the preflight check above instead.
         twine upload \
           --repository-url "https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/" \
           --non-interactive \
