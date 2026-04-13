@@ -1,0 +1,1248 @@
+{
+  "baseline": [
+    {
+      "column_id": "address_helpful",
+      "ground_truth": "ADDRESS",
+      "context_kind": "helpful",
+      "predicted": [
+        "ADDRESS",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.5522,
+        "ADDRESS": 0.9929
+      },
+      "latency_ms": 259.5
+    },
+    {
+      "column_id": "address_empty",
+      "ground_truth": "ADDRESS",
+      "context_kind": "empty",
+      "predicted": [
+        "ADDRESS",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.7501,
+        "ADDRESS": 0.968
+      },
+      "latency_ms": 174.1
+    },
+    {
+      "column_id": "address_misleading",
+      "ground_truth": "ADDRESS",
+      "context_kind": "misleading",
+      "predicted": [
+        "ADDRESS",
+        "ORGANIZATION",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.8732,
+        "ADDRESS": 0.9875,
+        "ORGANIZATION": 0.9399
+      },
+      "latency_ms": 167.6
+    },
+    {
+      "column_id": "date_of_birth_helpful",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "helpful",
+      "predicted": [
+        "DATE_OF_BIRTH"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.9995
+      },
+      "latency_ms": 197.2
+    },
+    {
+      "column_id": "date_of_birth_empty",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.9993,
+        "PHONE": 0.7505
+      },
+      "latency_ms": 220.8
+    },
+    {
+      "column_id": "date_of_birth_misleading",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "PERSON_NAME",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.613,
+        "DATE_OF_BIRTH": 0.9966,
+        "PHONE": 0.9287
+      },
+      "latency_ms": 198.3
+    },
+    {
+      "column_id": "email_helpful",
+      "ground_truth": "EMAIL",
+      "context_kind": "helpful",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.9986
+      },
+      "latency_ms": 227.0
+    },
+    {
+      "column_id": "email_empty",
+      "ground_truth": "EMAIL",
+      "context_kind": "empty",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.9974
+      },
+      "latency_ms": 215.4
+    },
+    {
+      "column_id": "email_misleading",
+      "ground_truth": "EMAIL",
+      "context_kind": "misleading",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.998
+      },
+      "latency_ms": 221.2
+    },
+    {
+      "column_id": "ip_address_helpful",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "helpful",
+      "predicted": [
+        "ADDRESS",
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "ORGANIZATION",
+        "PERSON_NAME",
+        "PHONE",
+        "SSN"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.6426,
+        "ADDRESS": 0.6885,
+        "ORGANIZATION": 0.5261,
+        "DATE_OF_BIRTH": 0.6801,
+        "PHONE": 0.7158,
+        "SSN": 0.735,
+        "IP_ADDRESS": 0.6848
+      },
+      "latency_ms": 486.8
+    },
+    {
+      "column_id": "ip_address_empty",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "EMAIL",
+        "IP_ADDRESS",
+        "PERSON_NAME",
+        "PHONE",
+        "SSN"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.5623,
+        "DATE_OF_BIRTH": 0.77,
+        "PHONE": 0.8512,
+        "SSN": 0.7128,
+        "EMAIL": 0.7557,
+        "IP_ADDRESS": 0.7977
+      },
+      "latency_ms": 376.2
+    },
+    {
+      "column_id": "ip_address_misleading",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.5784,
+        "PHONE": 0.7665,
+        "IP_ADDRESS": 0.706
+      },
+      "latency_ms": 462.9
+    },
+    {
+      "column_id": "person_name_helpful",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "helpful",
+      "predicted": [
+        "ORGANIZATION",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.9985,
+        "ORGANIZATION": 0.7152
+      },
+      "latency_ms": 152.4
+    },
+    {
+      "column_id": "person_name_empty",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "empty",
+      "predicted": [
+        "ADDRESS",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.9942,
+        "ADDRESS": 0.9519
+      },
+      "latency_ms": 146.1
+    },
+    {
+      "column_id": "person_name_misleading",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "misleading",
+      "predicted": [
+        "ADDRESS",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.9939,
+        "ADDRESS": 0.8179
+      },
+      "latency_ms": 148.6
+    },
+    {
+      "column_id": "phone_helpful",
+      "ground_truth": "PHONE",
+      "context_kind": "helpful",
+      "predicted": [
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PHONE": 0.9873,
+        "IP_ADDRESS": 0.63
+      },
+      "latency_ms": 193.4
+    },
+    {
+      "column_id": "phone_empty",
+      "ground_truth": "PHONE",
+      "context_kind": "empty",
+      "predicted": [
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PHONE": 0.99,
+        "IP_ADDRESS": 0.8223
+      },
+      "latency_ms": 214.7
+    },
+    {
+      "column_id": "phone_misleading",
+      "ground_truth": "PHONE",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.6316,
+        "PHONE": 0.9891,
+        "IP_ADDRESS": 0.5804
+      },
+      "latency_ms": 203.5
+    },
+    {
+      "column_id": "ssn_helpful",
+      "ground_truth": "SSN",
+      "context_kind": "helpful",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "ORGANIZATION",
+        "PHONE",
+        "SSN"
+      ],
+      "top_confidence_by_type": {
+        "ORGANIZATION": 0.6073,
+        "DATE_OF_BIRTH": 0.8147,
+        "PHONE": 0.9523,
+        "SSN": 0.5104,
+        "IP_ADDRESS": 0.7393
+      },
+      "latency_ms": 202.2
+    },
+    {
+      "column_id": "ssn_empty",
+      "ground_truth": "SSN",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "ORGANIZATION",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "ORGANIZATION": 0.779,
+        "DATE_OF_BIRTH": 0.7451,
+        "PHONE": 0.9743,
+        "IP_ADDRESS": 0.5279
+      },
+      "latency_ms": 209.4
+    },
+    {
+      "column_id": "ssn_misleading",
+      "ground_truth": "SSN",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PERSON_NAME",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.7894,
+        "DATE_OF_BIRTH": 0.7359,
+        "PHONE": 0.974,
+        "IP_ADDRESS": 0.8852
+      },
+      "latency_ms": 221.2
+    }
+  ],
+  "s1_nl_prompt": [
+    {
+      "column_id": "address_helpful",
+      "ground_truth": "ADDRESS",
+      "context_kind": "helpful",
+      "predicted": [
+        "ADDRESS"
+      ],
+      "top_confidence_by_type": {
+        "ADDRESS": 0.9345
+      },
+      "latency_ms": 178.9
+    },
+    {
+      "column_id": "address_empty",
+      "ground_truth": "ADDRESS",
+      "context_kind": "empty",
+      "predicted": [
+        "ADDRESS"
+      ],
+      "top_confidence_by_type": {
+        "ADDRESS": 0.7301
+      },
+      "latency_ms": 172.9
+    },
+    {
+      "column_id": "address_misleading",
+      "ground_truth": "ADDRESS",
+      "context_kind": "misleading",
+      "predicted": [
+        "ADDRESS",
+        "ORGANIZATION"
+      ],
+      "top_confidence_by_type": {
+        "ADDRESS": 0.9791,
+        "ORGANIZATION": 0.9314
+      },
+      "latency_ms": 176.3
+    },
+    {
+      "column_id": "date_of_birth_helpful",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "helpful",
+      "predicted": [
+        "DATE_OF_BIRTH"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.9993
+      },
+      "latency_ms": 205.9
+    },
+    {
+      "column_id": "date_of_birth_empty",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.9914
+      },
+      "latency_ms": 244.3
+    },
+    {
+      "column_id": "date_of_birth_misleading",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.9946
+      },
+      "latency_ms": 214.7
+    },
+    {
+      "column_id": "email_helpful",
+      "ground_truth": "EMAIL",
+      "context_kind": "helpful",
+      "predicted": [
+        "EMAIL",
+        "SSN"
+      ],
+      "top_confidence_by_type": {
+        "SSN": 0.5977,
+        "EMAIL": 0.9999
+      },
+      "latency_ms": 245.5
+    },
+    {
+      "column_id": "email_empty",
+      "ground_truth": "EMAIL",
+      "context_kind": "empty",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.9989
+      },
+      "latency_ms": 227.5
+    },
+    {
+      "column_id": "email_misleading",
+      "ground_truth": "EMAIL",
+      "context_kind": "misleading",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.9996
+      },
+      "latency_ms": 223.1
+    },
+    {
+      "column_id": "ip_address_helpful",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "helpful",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PHONE",
+        "SSN"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.7381,
+        "PHONE": 0.6903,
+        "SSN": 0.5253,
+        "IP_ADDRESS": 0.8286
+      },
+      "latency_ms": 415.8
+    },
+    {
+      "column_id": "ip_address_empty",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "empty",
+      "predicted": [
+        "ADDRESS",
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PERSON_NAME",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.6693,
+        "ADDRESS": 0.6319,
+        "DATE_OF_BIRTH": 0.7381,
+        "PHONE": 0.7522,
+        "IP_ADDRESS": 0.7359
+      },
+      "latency_ms": 393.5
+    },
+    {
+      "column_id": "ip_address_misleading",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "ORGANIZATION",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "ORGANIZATION": 0.5886,
+        "DATE_OF_BIRTH": 0.6678,
+        "PHONE": 0.7127,
+        "IP_ADDRESS": 0.7789
+      },
+      "latency_ms": 459.7
+    },
+    {
+      "column_id": "person_name_helpful",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "helpful",
+      "predicted": [
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.9978
+      },
+      "latency_ms": 169.9
+    },
+    {
+      "column_id": "person_name_empty",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "empty",
+      "predicted": [
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 1.0
+      },
+      "latency_ms": 157.4
+    },
+    {
+      "column_id": "person_name_misleading",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "misleading",
+      "predicted": [
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 1.0
+      },
+      "latency_ms": 155.6
+    },
+    {
+      "column_id": "phone_helpful",
+      "ground_truth": "PHONE",
+      "context_kind": "helpful",
+      "predicted": [
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PHONE": 0.9915,
+        "IP_ADDRESS": 0.7258
+      },
+      "latency_ms": 202.7
+    },
+    {
+      "column_id": "phone_empty",
+      "ground_truth": "PHONE",
+      "context_kind": "empty",
+      "predicted": [
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PHONE": 0.9791,
+        "IP_ADDRESS": 0.6643
+      },
+      "latency_ms": 232.5
+    },
+    {
+      "column_id": "phone_misleading",
+      "ground_truth": "PHONE",
+      "context_kind": "misleading",
+      "predicted": [
+        "ORGANIZATION",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "ORGANIZATION": 0.8762,
+        "PHONE": 0.9695
+      },
+      "latency_ms": 221.2
+    },
+    {
+      "column_id": "ssn_helpful",
+      "ground_truth": "SSN",
+      "context_kind": "helpful",
+      "predicted": [
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PHONE": 0.8632,
+        "IP_ADDRESS": 0.5381
+      },
+      "latency_ms": 218.6
+    },
+    {
+      "column_id": "ssn_empty",
+      "ground_truth": "SSN",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.6132,
+        "PHONE": 0.9223,
+        "IP_ADDRESS": 0.688
+      },
+      "latency_ms": 217.9
+    },
+    {
+      "column_id": "ssn_misleading",
+      "ground_truth": "SSN",
+      "context_kind": "misleading",
+      "predicted": [
+        "ADDRESS",
+        "IP_ADDRESS",
+        "PERSON_NAME",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.7738,
+        "ADDRESS": 0.8085,
+        "PHONE": 0.9089,
+        "IP_ADDRESS": 0.694
+      },
+      "latency_ms": 233.4
+    }
+  ],
+  "s2_per_column_descriptions": [
+    {
+      "column_id": "address_helpful",
+      "ground_truth": "ADDRESS",
+      "context_kind": "helpful",
+      "predicted": [
+        "ADDRESS"
+      ],
+      "top_confidence_by_type": {
+        "ADDRESS": 0.9666
+      },
+      "latency_ms": 208.8
+    },
+    {
+      "column_id": "address_empty",
+      "ground_truth": "ADDRESS",
+      "context_kind": "empty",
+      "predicted": [
+        "ADDRESS"
+      ],
+      "top_confidence_by_type": {
+        "ADDRESS": 0.9174
+      },
+      "latency_ms": 212.0
+    },
+    {
+      "column_id": "address_misleading",
+      "ground_truth": "ADDRESS",
+      "context_kind": "misleading",
+      "predicted": [
+        "ADDRESS",
+        "ORGANIZATION",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.8185,
+        "ADDRESS": 0.9739,
+        "ORGANIZATION": 0.9637
+      },
+      "latency_ms": 215.7
+    },
+    {
+      "column_id": "date_of_birth_helpful",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "helpful",
+      "predicted": [
+        "DATE_OF_BIRTH"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.9981
+      },
+      "latency_ms": 238.9
+    },
+    {
+      "column_id": "date_of_birth_empty",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.9982,
+        "PHONE": 0.6748
+      },
+      "latency_ms": 268.1
+    },
+    {
+      "column_id": "date_of_birth_misleading",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "PERSON_NAME",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.806,
+        "DATE_OF_BIRTH": 0.9935,
+        "PHONE": 0.9119
+      },
+      "latency_ms": 248.5
+    },
+    {
+      "column_id": "email_helpful",
+      "ground_truth": "EMAIL",
+      "context_kind": "helpful",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.9942
+      },
+      "latency_ms": 294.4
+    },
+    {
+      "column_id": "email_empty",
+      "ground_truth": "EMAIL",
+      "context_kind": "empty",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.9928
+      },
+      "latency_ms": 295.1
+    },
+    {
+      "column_id": "email_misleading",
+      "ground_truth": "EMAIL",
+      "context_kind": "misleading",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.9944
+      },
+      "latency_ms": 296.8
+    },
+    {
+      "column_id": "ip_address_helpful",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "helpful",
+      "predicted": [
+        "ADDRESS",
+        "EMAIL",
+        "PHONE",
+        "SSN"
+      ],
+      "top_confidence_by_type": {
+        "ADDRESS": 0.5539,
+        "PHONE": 0.5199,
+        "SSN": 0.598,
+        "EMAIL": 0.7558
+      },
+      "latency_ms": 478.3
+    },
+    {
+      "column_id": "ip_address_empty",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "EMAIL",
+        "IP_ADDRESS",
+        "PHONE",
+        "SSN"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.6919,
+        "PHONE": 0.6823,
+        "SSN": 0.5989,
+        "EMAIL": 0.7629,
+        "IP_ADDRESS": 0.6197
+      },
+      "latency_ms": 463.6
+    },
+    {
+      "column_id": "ip_address_misleading",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "misleading",
+      "predicted": [],
+      "top_confidence_by_type": {},
+      "latency_ms": 556.0
+    },
+    {
+      "column_id": "person_name_helpful",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "helpful",
+      "predicted": [
+        "ORGANIZATION",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.8879,
+        "ORGANIZATION": 0.6826
+      },
+      "latency_ms": 198.9
+    },
+    {
+      "column_id": "person_name_empty",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "empty",
+      "predicted": [
+        "ADDRESS",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.9712,
+        "ADDRESS": 0.6393
+      },
+      "latency_ms": 185.2
+    },
+    {
+      "column_id": "person_name_misleading",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "misleading",
+      "predicted": [
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.964
+      },
+      "latency_ms": 184.3
+    },
+    {
+      "column_id": "phone_helpful",
+      "ground_truth": "PHONE",
+      "context_kind": "helpful",
+      "predicted": [
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PHONE": 0.9759,
+        "IP_ADDRESS": 0.814
+      },
+      "latency_ms": 243.3
+    },
+    {
+      "column_id": "phone_empty",
+      "ground_truth": "PHONE",
+      "context_kind": "empty",
+      "predicted": [
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PHONE": 0.9668,
+        "IP_ADDRESS": 0.7085
+      },
+      "latency_ms": 261.4
+    },
+    {
+      "column_id": "phone_misleading",
+      "ground_truth": "PHONE",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.5863,
+        "PHONE": 0.9576,
+        "IP_ADDRESS": 0.5212
+      },
+      "latency_ms": 250.3
+    },
+    {
+      "column_id": "ssn_helpful",
+      "ground_truth": "SSN",
+      "context_kind": "helpful",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "ORGANIZATION",
+        "PHONE",
+        "SSN"
+      ],
+      "top_confidence_by_type": {
+        "ORGANIZATION": 0.5948,
+        "DATE_OF_BIRTH": 0.5881,
+        "PHONE": 0.898,
+        "SSN": 0.6445,
+        "IP_ADDRESS": 0.531
+      },
+      "latency_ms": 252.0
+    },
+    {
+      "column_id": "ssn_empty",
+      "ground_truth": "SSN",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "ORGANIZATION",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "ORGANIZATION": 0.5755,
+        "DATE_OF_BIRTH": 0.6863,
+        "PHONE": 0.9219
+      },
+      "latency_ms": 251.0
+    },
+    {
+      "column_id": "ssn_misleading",
+      "ground_truth": "SSN",
+      "context_kind": "misleading",
+      "predicted": [
+        "ADDRESS",
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PERSON_NAME",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.6088,
+        "ADDRESS": 0.5704,
+        "DATE_OF_BIRTH": 0.5212,
+        "PHONE": 0.8926,
+        "IP_ADDRESS": 0.5509
+      },
+      "latency_ms": 267.0
+    }
+  ],
+  "s3_label_narrowing": [
+    {
+      "column_id": "address_helpful",
+      "ground_truth": "ADDRESS",
+      "context_kind": "helpful",
+      "predicted": [
+        "ADDRESS",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.6322,
+        "ADDRESS": 0.9949
+      },
+      "latency_ms": 144.6
+    },
+    {
+      "column_id": "address_empty",
+      "ground_truth": "ADDRESS",
+      "context_kind": "empty",
+      "predicted": [
+        "ADDRESS",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.7501,
+        "ADDRESS": 0.968
+      },
+      "latency_ms": 165.3
+    },
+    {
+      "column_id": "address_misleading",
+      "ground_truth": "ADDRESS",
+      "context_kind": "misleading",
+      "predicted": [
+        "EMAIL",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.8328,
+        "EMAIL": 0.8747
+      },
+      "latency_ms": 134.5
+    },
+    {
+      "column_id": "date_of_birth_helpful",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "helpful",
+      "predicted": [
+        "DATE_OF_BIRTH"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.9996
+      },
+      "latency_ms": 160.9
+    },
+    {
+      "column_id": "date_of_birth_empty",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.9993,
+        "PHONE": 0.7505
+      },
+      "latency_ms": 214.4
+    },
+    {
+      "column_id": "date_of_birth_misleading",
+      "ground_truth": "DATE_OF_BIRTH",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "PERSON_NAME",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.613,
+        "DATE_OF_BIRTH": 0.9966,
+        "PHONE": 0.9287
+      },
+      "latency_ms": 198.9
+    },
+    {
+      "column_id": "email_helpful",
+      "ground_truth": "EMAIL",
+      "context_kind": "helpful",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.9993
+      },
+      "latency_ms": 187.1
+    },
+    {
+      "column_id": "email_empty",
+      "ground_truth": "EMAIL",
+      "context_kind": "empty",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.9974
+      },
+      "latency_ms": 270.1
+    },
+    {
+      "column_id": "email_misleading",
+      "ground_truth": "EMAIL",
+      "context_kind": "misleading",
+      "predicted": [
+        "EMAIL"
+      ],
+      "top_confidence_by_type": {
+        "EMAIL": 0.998
+      },
+      "latency_ms": 237.9
+    },
+    {
+      "column_id": "ip_address_helpful",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "helpful",
+      "predicted": [
+        "EMAIL",
+        "IP_ADDRESS",
+        "PERSON_NAME",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.6091,
+        "PHONE": 0.8902,
+        "EMAIL": 0.8946,
+        "IP_ADDRESS": 0.8178
+      },
+      "latency_ms": 365.2
+    },
+    {
+      "column_id": "ip_address_empty",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "EMAIL",
+        "IP_ADDRESS",
+        "PERSON_NAME",
+        "PHONE",
+        "SSN"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.5623,
+        "DATE_OF_BIRTH": 0.77,
+        "PHONE": 0.8512,
+        "SSN": 0.7128,
+        "EMAIL": 0.7557,
+        "IP_ADDRESS": 0.7977
+      },
+      "latency_ms": 380.9
+    },
+    {
+      "column_id": "ip_address_misleading",
+      "ground_truth": "IP_ADDRESS",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.5784,
+        "PHONE": 0.7665,
+        "IP_ADDRESS": 0.706
+      },
+      "latency_ms": 423.9
+    },
+    {
+      "column_id": "person_name_helpful",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "helpful",
+      "predicted": [
+        "PERSON_NAME",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.999,
+        "PHONE": 0.8703
+      },
+      "latency_ms": 115.8
+    },
+    {
+      "column_id": "person_name_empty",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "empty",
+      "predicted": [
+        "ADDRESS",
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.9942,
+        "ADDRESS": 0.9519
+      },
+      "latency_ms": 147.2
+    },
+    {
+      "column_id": "person_name_misleading",
+      "ground_truth": "PERSON_NAME",
+      "context_kind": "misleading",
+      "predicted": [
+        "PERSON_NAME"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.9996
+      },
+      "latency_ms": 115.9
+    },
+    {
+      "column_id": "phone_helpful",
+      "ground_truth": "PHONE",
+      "context_kind": "helpful",
+      "predicted": [
+        "EMAIL",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PHONE": 0.9932,
+        "EMAIL": 0.6945
+      },
+      "latency_ms": 166.5
+    },
+    {
+      "column_id": "phone_empty",
+      "ground_truth": "PHONE",
+      "context_kind": "empty",
+      "predicted": [
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PHONE": 0.99,
+        "IP_ADDRESS": 0.8223
+      },
+      "latency_ms": 216.4
+    },
+    {
+      "column_id": "phone_misleading",
+      "ground_truth": "PHONE",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "DATE_OF_BIRTH": 0.6316,
+        "PHONE": 0.9891,
+        "IP_ADDRESS": 0.5804
+      },
+      "latency_ms": 201.3
+    },
+    {
+      "column_id": "ssn_helpful",
+      "ground_truth": "SSN",
+      "context_kind": "helpful",
+      "predicted": [
+        "EMAIL",
+        "PERSON_NAME",
+        "PHONE",
+        "SSN"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.8183,
+        "PHONE": 0.9762,
+        "SSN": 0.7985,
+        "EMAIL": 0.6026
+      },
+      "latency_ms": 179.9
+    },
+    {
+      "column_id": "ssn_empty",
+      "ground_truth": "SSN",
+      "context_kind": "empty",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "ORGANIZATION",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "ORGANIZATION": 0.779,
+        "DATE_OF_BIRTH": 0.7451,
+        "PHONE": 0.9743,
+        "IP_ADDRESS": 0.5279
+      },
+      "latency_ms": 204.1
+    },
+    {
+      "column_id": "ssn_misleading",
+      "ground_truth": "SSN",
+      "context_kind": "misleading",
+      "predicted": [
+        "DATE_OF_BIRTH",
+        "IP_ADDRESS",
+        "PERSON_NAME",
+        "PHONE"
+      ],
+      "top_confidence_by_type": {
+        "PERSON_NAME": 0.7894,
+        "DATE_OF_BIRTH": 0.7359,
+        "PHONE": 0.974,
+        "IP_ADDRESS": 0.8852
+      },
+      "latency_ms": 215.2
+    }
+  ]
+}
