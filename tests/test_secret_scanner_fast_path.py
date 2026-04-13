@@ -122,7 +122,9 @@ class TestFastPathIntegration:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) == 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: password → OPAQUE_SECRET subtype
+        assert findings[0].entity_type == "OPAQUE_SECRET"
+        assert findings[0].category == "Credential"
 
     def test_empty_strings_do_not_break_fast_path(self, engine: SecretScannerEngine) -> None:
         column = ColumnInput(

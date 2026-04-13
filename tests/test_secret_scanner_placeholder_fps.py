@@ -170,7 +170,9 @@ class TestPlaceholderSuppressionDoesNotHideRealSecrets:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) == 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: password → OPAQUE_SECRET subtype
+        assert findings[0].entity_type == "OPAQUE_SECRET"
+        assert findings[0].category == "Credential"
 
     def test_real_api_token_still_detected(self, engine: SecretScannerEngine) -> None:
         column = ColumnInput(
@@ -181,7 +183,9 @@ class TestPlaceholderSuppressionDoesNotHideRealSecrets:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) == 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: api_token → API_KEY subtype
+        assert findings[0].entity_type == "API_KEY"
+        assert findings[0].category == "Credential"
 
 
 # ── Unit tests for _is_placeholder_value helper ─────────────────────────────

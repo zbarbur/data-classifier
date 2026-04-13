@@ -34,8 +34,9 @@ cases:
     expected_sensitivity: CRITICAL
     expected_category: Financial
 
+  # Sprint 8 Item 4: CREDENTIAL split — 'password' → OPAQUE_SECRET subtype
   - column_name: password
-    expected_entity_type: CREDENTIAL
+    expected_entity_type: OPAQUE_SECRET
     expected_sensitivity: CRITICAL
     expected_category: Credential
 

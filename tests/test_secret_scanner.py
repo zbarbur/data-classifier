@@ -261,66 +261,66 @@ class TestKeyNameScoring:
         return data["key_names"]
 
     def test_api_key_high_score(self, key_entries: list[dict]) -> None:
-        score, tier = _score_key_name("api_key", key_entries)
+        score, tier, _subtype = _score_key_name("api_key", key_entries)
         assert score >= 0.90
         assert tier == "definitive"
 
     def test_password_high_score(self, key_entries: list[dict]) -> None:
-        score, tier = _score_key_name("password", key_entries)
+        score, tier, _subtype = _score_key_name("password", key_entries)
         assert score >= 0.90
         assert tier == "definitive"
 
     def test_db_password_high_score(self, key_entries: list[dict]) -> None:
-        score, tier = _score_key_name("DB_PASSWORD", key_entries)
+        score, tier, _subtype = _score_key_name("DB_PASSWORD", key_entries)
         assert score >= 0.90
 
     def test_my_custom_api_key_matches(self, key_entries: list[dict]) -> None:
         """Substring matching: 'api_key' is in 'MY_CUSTOM_API_KEY'."""
-        score, _tier = _score_key_name("MY_CUSTOM_API_KEY", key_entries)
+        score, _tier, _subtype = _score_key_name("MY_CUSTOM_API_KEY", key_entries)
         assert score >= 0.90
 
     def test_name_no_match(self, key_entries: list[dict]) -> None:
-        score, _tier = _score_key_name("name", key_entries)
+        score, _tier, _subtype = _score_key_name("name", key_entries)
         assert score == 0.0
 
     def test_config_path_no_match(self, key_entries: list[dict]) -> None:
-        score, _tier = _score_key_name("config_path", key_entries)
+        score, _tier, _subtype = _score_key_name("config_path", key_entries)
         assert score == 0.0
 
     def test_username_no_match(self, key_entries: list[dict]) -> None:
         """'username' should not match 'pass' or 'password'."""
-        score, _tier = _score_key_name("username", key_entries)
+        score, _tier, _subtype = _score_key_name("username", key_entries)
         assert score == 0.0
 
     def test_token_moderate_score(self, key_entries: list[dict]) -> None:
-        score, tier = _score_key_name("token", key_entries)
+        score, tier, _subtype = _score_key_name("token", key_entries)
         assert 0.5 < score < 1.0
         assert tier == "strong"
 
     def test_author_not_matched(self, key_entries: list[dict]) -> None:
         """'author' should NOT match 'auth' (word_boundary)."""
-        score, _tier = _score_key_name("author", key_entries)
+        score, _tier, _subtype = _score_key_name("author", key_entries)
         assert score == 0.0
 
     def test_keyboard_not_matched(self, key_entries: list[dict]) -> None:
         """'keyboard' should NOT match 'key' (suffix)."""
-        score, _tier = _score_key_name("keyboard", key_entries)
+        score, _tier, _subtype = _score_key_name("keyboard", key_entries)
         assert score == 0.0
 
     def test_authenticate_not_matched(self, key_entries: list[dict]) -> None:
         """'authenticate' should NOT match 'auth' (word_boundary)."""
-        score, _tier = _score_key_name("authenticate", key_entries)
+        score, _tier, _subtype = _score_key_name("authenticate", key_entries)
         assert score == 0.0
 
     def test_auth_token_matches_definitive(self, key_entries: list[dict]) -> None:
         """'auth_token' should match the specific 'auth_token' pattern (definitive)."""
-        score, tier = _score_key_name("auth_token", key_entries)
+        score, tier, _subtype = _score_key_name("auth_token", key_entries)
         assert score >= 0.90
         assert tier == "definitive"
 
     def test_my_auth_matches(self, key_entries: list[dict]) -> None:
         """'my_auth' should match 'auth' at word boundary."""
-        score, _tier = _score_key_name("my_auth", key_entries)
+        score, _tier, _subtype = _score_key_name("my_auth", key_entries)
         assert score > 0.0
 
 
@@ -403,7 +403,9 @@ class TestTieredScoring:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) == 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: password key → OPAQUE_SECRET subtype
+        assert findings[0].entity_type == "OPAQUE_SECRET"
+        assert findings[0].category == "Credential"
         assert findings[0].confidence > 0.5
 
     def test_definitive_tier_rejects_placeholder(self, engine: SecretScannerEngine) -> None:
@@ -465,7 +467,9 @@ class TestTieredScoring:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) == 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: DB_PASSWORD key → OPAQUE_SECRET subtype
+        assert findings[0].entity_type == "OPAQUE_SECRET"
+        assert findings[0].category == "Credential"
         assert findings[0].confidence > 0.3
 
     def test_name_with_value_not_detected(self, engine: SecretScannerEngine) -> None:
@@ -555,7 +559,9 @@ class TestIntegration:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) >= 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: DB_PASSWORD / API_TOKEN both resolve to the new
+        # credential subtypes (OPAQUE_SECRET and API_KEY respectively).
+        assert findings[0].entity_type in {"OPAQUE_SECRET", "API_KEY"}
         assert findings[0].category == "Credential"
         assert findings[0].sensitivity == "CRITICAL"
         assert findings[0].engine == "secret_scanner"
@@ -570,7 +576,9 @@ class TestIntegration:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) >= 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: db_password → OPAQUE_SECRET subtype
+        assert findings[0].entity_type == "OPAQUE_SECRET"
+        assert findings[0].category == "Credential"
 
     def test_code_literal_detected(self, engine: SecretScannerEngine) -> None:
         column = ColumnInput(
