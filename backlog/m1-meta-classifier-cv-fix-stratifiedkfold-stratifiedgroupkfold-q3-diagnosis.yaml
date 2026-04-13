@@ -106,7 +106,7 @@ notes: "Discovered by Q3 (primary source: docs/experiments/meta_classifier/runs/
   \ when metadata shows best_c\u22648, loco_mean_macro_f1 \u2265 0.33, and all tests\
   \ pass.\n\nDO NOT touch docs/experiments/meta_classifier/queue.md M1/M2/M3 rows\
   \ from sprint7 \u2014 those are owned by the research thread."
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
