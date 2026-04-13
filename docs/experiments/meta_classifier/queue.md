@@ -621,7 +621,7 @@ forward is "pull more sources." If it doesn't, feature engineering
 
 ### E10 — Add GLiNER features to the meta-classifier
 
-**Status:** 🟢 in progress
+**Status:** ✅ complete — see `runs/20260412-230000-e10-gliner-features/result.md`. Outcome B′: in-distribution CV/held-out/blind-only gains of +0.010 to +0.016 macro F1, LOCO regressed on ai4privacy (-0.077), honest 5-engine delta +0.093 primary / +0.191 blind-only (both pass ship gate). GLiNER features rank 11, 14, 15, 16, 17 by \|coef\|_1. **Do NOT auto-promote v1_e10.pkl**; pursue E4 (bin heuristic_avg_length) + Q5 first.
 **Priority:** P0 — the single biggest unanswered question about the
 meta-classifier's production value
 **Estimated time:** 3-4 hours wall clock (mostly unattended GLiNER
