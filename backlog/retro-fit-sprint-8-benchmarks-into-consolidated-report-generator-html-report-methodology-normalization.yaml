@@ -41,7 +41,7 @@ test_plan:
   5 finishes in <90s (current behavior: stalls past 10 CPU min). tests/test_consolidated_report.py:
   existing tests should still pass after the Sprint 8 retro-fit.'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

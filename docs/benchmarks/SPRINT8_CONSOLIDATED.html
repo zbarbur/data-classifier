@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sprint 8 Consolidated Benchmark Report</title>
+<style>
+  :root {
+    --bg:#f8fafc;--surface:#fff;--border:#e2e8f0;--border-light:#f1f5f9;
+    --text:#1e293b;--text-muted:#64748b;--text-faint:#94a3b8;
+    --green:#22c55e;--green-bg:#dcfce7;--green-text:#166534;
+    --amber:#f59e0b;--amber-bg:#fef3c7;--amber-text:#92400e;
+    --red:#ef4444;--red-bg:#fee2e2;--red-text:#991b1b;
+    --blue:#3b82f6;--blue-light:#dbeafe;
+    --purple:#a855f7;--purple-light:#f3e8ff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+       background:var(--bg);color:var(--text);max-width:1400px;margin:0 auto;padding:2rem}
+  .header{margin-bottom:2.5rem}
+  .header h1{font-size:2rem;font-weight:800;letter-spacing:-0.02em}
+  .header .subtitle{color:var(--text-muted);font-size:1rem;margin-top:0.3rem}
+  .header .meta{display:flex;gap:1.5rem;margin-top:0.8rem;flex-wrap:wrap;font-size:0.85rem;color:var(--text-faint)}
+  .section{margin-top:2.5rem}
+  .section-header{display:flex;align-items:baseline;gap:0.8rem;margin-bottom:1.2rem;
+                   border-bottom:2px solid var(--border);padding-bottom:0.6rem}
+  .section-header h2{font-size:1.35rem;font-weight:700}
+  .section-badge{font-size:0.75rem;background:var(--blue-light);color:var(--blue);
+                  padding:0.2rem 0.6rem;border-radius:10px;font-weight:600}
+
+  /* Run cards grid */
+  .runs-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin:1rem 0}
+  .run-card{background:var(--surface);border-radius:10px;padding:1.2rem;
+             border:1px solid var(--border-light);box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .run-card-blind{border-top:4px solid var(--purple)}
+  .run-card-named{border-top:4px solid var(--blue)}
+  .run-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem}
+  .run-title{font-weight:700;font-size:1rem}
+  .run-mode{font-size:0.65rem;font-weight:700;padding:0.15rem 0.5rem;border-radius:4px;letter-spacing:0.05em}
+  .run-mode-blind{background:var(--purple-light);color:var(--purple)}
+  .run-mode-named{background:var(--blue-light);color:var(--blue)}
+  .run-primary{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.8rem}
+  .metric-big{}
+  .metric-big .metric-label{font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;
+                             letter-spacing:0.05em;font-weight:600}
+  .metric-big .metric-value{font-size:1.6rem;font-weight:800;line-height:1.1;margin-top:0.2rem}
+  .run-secondary{display:flex;gap:0.8rem;padding:0.6rem 0;border-top:1px solid var(--border-light);
+                  border-bottom:1px solid var(--border-light)}
+  .metric-small{display:flex;flex-direction:column;gap:0.1rem;flex:1}
+  .metric-small .metric-label{font-size:0.65rem;color:var(--text-muted);font-weight:600}
+  .metric-small .metric-value-sm{font-size:0.9rem;font-weight:700}
+  .run-footer{margin-top:0.6rem;font-size:0.75rem;color:var(--text-faint)}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:10px;
+         overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);border:1px solid var(--border-light);
+         font-size:0.85rem}
+  th{background:var(--border-light);text-align:left;padding:0.7rem 1rem;font-size:0.7rem;
+      color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;font-weight:700}
+  td{padding:0.6rem 1rem;border-top:1px solid var(--border-light)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  td.num.missing{color:var(--text-faint)}
+  td.num.delta{color:var(--amber)}
+  td .sub{display:block;font-size:0.65rem;color:var(--text-faint);font-weight:400;margin-top:0.1rem}
+  tr:hover td{background:#f8fafc}
+  .mode-tag{font-size:0.6rem;font-weight:700;padding:0.1rem 0.35rem;border-radius:3px;
+            letter-spacing:0.05em;display:inline-block;margin-top:0.2rem}
+  .mode-blind{background:var(--purple-light);color:var(--purple)}
+  .mode-named{background:var(--blue-light);color:var(--blue)}
+
+  /* Aggregate card */
+  .aggregate{background:linear-gradient(135deg,var(--blue-light),var(--purple-light));
+              border-radius:12px;padding:1.5rem;margin:1.5rem 0;
+              border:1px solid var(--border)}
+  .aggregate h3{font-size:1rem;font-weight:700;margin-bottom:0.8rem}
+  .aggregate-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem}
+  .aggregate-metric .label{font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;
+                            letter-spacing:0.05em;font-weight:600}
+  .aggregate-metric .value{font-size:1.8rem;font-weight:800;margin-top:0.2rem}
+
+  /* Tags */
+  .tag{display:inline-block;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;
+        font-weight:700;letter-spacing:0.03em}
+  .tag-good{background:var(--green-bg);color:var(--green-text)}
+  .tag-warn{background:var(--amber-bg);color:var(--amber-text)}
+  .tag-bad{background:var(--red-bg);color:var(--red-text)}
+
+  /* Details */
+  details{background:var(--surface);border:1px solid var(--border-light);
+          border-radius:8px;padding:0.8rem 1rem;margin:0.5rem 0}
+  summary{cursor:pointer;font-weight:600;font-size:0.9rem;color:var(--blue)}
+  details[open] summary{margin-bottom:0.5rem}
+  details ul{margin-left:1.5rem;font-size:0.85rem}
+  details code{background:var(--border-light);padding:0.1rem 0.3rem;border-radius:3px;
+               font-size:0.8rem}
+
+  /* Trend chart + delta table */
+  .trend-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0.8rem;margin-top:0.8rem}
+  .trend-row{display:grid;grid-template-columns:1fr;gap:0.8rem;margin-top:0.8rem}
+  .trend-cell{background:var(--surface);border:1px solid var(--border-light);
+              border-radius:8px;padding:0.6rem;display:flex;justify-content:center}
+  .trend-chart{display:block;max-width:100%}
+  .trend-placeholder{color:var(--text-faint);font-size:0.8rem;padding:1rem}
+  .delta-good{color:var(--green);font-weight:700}
+  .delta-bad{color:var(--red);font-weight:700}
+  .delta-neutral{color:var(--text-faint)}
+  .delta-table tr.perf-row td{background:var(--border-light);font-size:0.8rem}
+
+  footer{margin-top:3rem;padding-top:1.2rem;border-top:1px solid var(--border);
+         color:var(--text-faint);font-size:0.8rem}
+
+  @media(max-width:1200px){
+    .runs-grid{grid-template-columns:repeat(2,1fr)}
+    .aggregate-metrics{grid-template-columns:repeat(2,1fr)}
+  }
+  @media(max-width:768px){
+    .runs-grid{grid-template-columns:1fr}
+    body{padding:1rem}
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Sprint 8 &mdash; Consolidated Benchmark Report</h1>
+  <div class="subtitle">Retro-fit from history artifact (accuracy + perf snapshot) &mdash; no live benchmark runs</div>
+  <div class="meta">
+    <span>Generated: <strong>2026-04-13 18:53 UTC</strong></span>
+    <span>Configurations: <strong>1</strong></span>
+    <span>Mode: <strong>blind + named</strong></span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Executive Summary</h2>
+    <span class="section-badge">1 runs</span>
+  </div>
+
+  <div class="aggregate">
+    <h3>Blind Mode Aggregate (value-only detection, no column name hints)</h3>
+    <div class="aggregate-metrics">
+      <div class="aggregate-metric">
+        <div class="label">Macro F1 (avg) <span class="tag tag-bad">LOW</span></div>
+        <div class="value" style="color:#ef4444">0.000</div>
+      </div>
+      <div class="aggregate-metric">
+        <div class="label">Micro F1</div>
+        <div class="value" style="color:#ef4444">0.000</div>
+      </div>
+      <div class="aggregate-metric">
+        <div class="label">Precision</div>
+        <div class="value" style="color:#ef4444">0.000</div>
+      </div>
+      <div class="aggregate-metric">
+        <div class="label">Recall</div>
+        <div class="value" style="color:#ef4444">0.000</div>
+      </div>
+    </div>
+    <div style="margin-top:0.8rem;font-size:0.8rem;color:var(--text-muted)">
+      TP=0 &middot; FP=0 &middot; FN=0 across blind runs
+    </div>
+  </div>
+
+  <div class="runs-grid">
+    
+<div class="run-card run-card-named">
+  <div class="run-header">
+    <span class="run-title">Synthetic</span>
+    <span class="run-mode run-mode-named">NAMED</span>
+  </div>
+  <div class="run-primary">
+    <div class="metric-big">
+      <div class="metric-label">Macro F1</div>
+      <div class="metric-value" style="color:#22c55e">0.915</div>
+    </div>
+    <div class="metric-big">
+      <div class="metric-label">Primary-Label</div>
+      <div class="metric-value" style="color:#22c55e">96.3%</div>
+    </div>
+  </div>
+  <div class="run-secondary">
+    <div class="metric-small">
+      <span class="metric-label">Precision</span>
+      <span class="metric-value-sm" style="color:#ef4444">0.000</span>
+    </div>
+    <div class="metric-small">
+      <span class="metric-label">Recall</span>
+      <span class="metric-value-sm" style="color:#ef4444">0.000</span>
+    </div>
+    <div class="metric-small">
+      <span class="metric-label">Micro F1</span>
+      <span class="metric-value-sm" style="color:#f59e0b">0.897</span>
+    </div>
+  </div>
+  <div class="run-footer">
+    TP=1300 &middot; FP=4 &middot; FN=1
+    &middot; 1301 cols &middot; 0 samples
+  </div>
+</div>
+
+  </div>
+</div>
+
+
+<div class="section">
+  <div class="section-header">
+    <h2>Performance</h2>
+    <span class="section-badge">ad-hoc snapshot (custom 30-line script — see SPRINT8_HANDOVER.md)</span>
+  </div>
+  <div class="aggregate">
+    <div class="aggregate-metrics">
+      <div class="aggregate-metric">
+        <div class="label">Per-col p50</div>
+        <div class="value">78.9 ms</div>
+      </div>
+      <div class="aggregate-metric">
+        <div class="label">Cascade p50</div>
+        <div class="value">947 ms</div>
+      </div>
+      <div class="aggregate-metric">
+        <div class="label">Columns &times; samples</div>
+        <div class="value" style="font-size:1.1rem">12 &times; 10</div>
+      </div>
+      <div class="aggregate-metric">
+        <div class="label">Warmup / Iter</div>
+        <div class="value" style="font-size:1.1rem">7.46 s / 5</div>
+      </div>
+    </div>
+  </div>
+  <table>
+  <thead><tr>
+    <th>Engine</th>
+    <th class='num'>Calls</th>
+    <th class='num'>Total</th>
+    <th class='num'>Mean (ms)</th>
+    <th class='num'>Max (ms)</th>
+    <th class='num'>% of pipeline</th>
+  </tr></thead>
+  <tbody>
+    
+<tr>
+  <td><strong>gliner2</strong></td>
+  <td class='num'>12</td>
+  <td class='num'>932.80 ms</td>
+  <td class='num'>77.70</td>
+  <td class='num'>169.30</td>
+  <td class='num'>99.8%</td>
+</tr>
+
+<tr>
+  <td><strong>regex</strong></td>
+  <td class='num'>12</td>
+  <td class='num'>1.00 ms</td>
+  <td class='num'>0.10</td>
+  <td class='num'>0.30</td>
+  <td class='num'>0.1%</td>
+</tr>
+
+<tr>
+  <td><strong>heuristic_stats</strong></td>
+  <td class='num'>12</td>
+  <td class='num'>0.30 ms</td>
+  <td class='num'>0.00</td>
+  <td class='num'>0.10</td>
+  <td class='num'>0.0%</td>
+</tr>
+
+<tr>
+  <td><strong>secret_scanner</strong></td>
+  <td class='num'>12</td>
+  <td class='num'>0.20 ms</td>
+  <td class='num'>0.00</td>
+  <td class='num'>0.00</td>
+  <td class='num'>0.0%</td>
+</tr>
+
+<tr>
+  <td><strong>column_name</strong></td>
+  <td class='num'>12</td>
+  <td class='num'>0.10 ms</td>
+  <td class='num'>0.00</td>
+  <td class='num'>0.00</td>
+  <td class='num'>0.0%</td>
+</tr>
+
+  </tbody>
+  </table>
+  <p style='margin-top:0.6rem;font-size:0.8rem;color:var(--text-muted)'><strong>Raw audit logs:</strong></p><ul style='font-size:0.8rem;color:var(--text-muted);margin-left:1.2rem'><li><code>benchmarks/sprint8/accuracy_synthetic_50samples.log</code></li><li><code>benchmarks/sprint8/perf_adhoc_snapshot.log</code></li></ul>
+  <p style='margin-top:0.6rem;font-size:0.8rem;color:var(--text-muted);font-style:italic'>Note: Sprint 8 — Ship it: stabilize, release, prep credentials. Accuracy: synthetic only (50 samples/type) — first synthetic run captured to history; Sprint 7 ran against nemotron+ai4privacy. Perf: ad-hoc snapshot (12 col x 10 samples, 5 iter); committed perf_benchmark.py has hardcoded loops that don't honor --samples/--iterations on phases 2+5, so a custom snapshot was used. Numbers below are not directly comparable to PROJECT_CONTEXT.md's '207 ms/col with ML' baseline because corpus shape and warmup differ.</p>
+</div>
+
+
+<div class='section'><div class='section-header'><h2>Delta vs Previous Sprint</h2><span class='section-badge'>no prior data</span></div><p style='color:var(--text-muted);font-size:0.85rem'>No previous sprint snapshot found — deltas will appear once two sprints are recorded.</p></div>
+
+
+<div class="section">
+  <div class="section-header">
+    <h2>Sprint-over-Sprint Trend</h2>
+    <span class="section-badge">4 sprints</span>
+  </div>
+  <div class="trend-grid">
+    <div class='trend-cell'><svg class='trend-chart' width='420' height='140' xmlns='http://www.w3.org/2000/svg'><text x='210' y='14' font-size='11' font-weight='600' text-anchor='middle' fill='#1e293b'>Nemotron · NAMED</text><line x1='42' y1='24' x2='42' y2='114' stroke='#cbd5e1' stroke-width='1'/><line x1='42' y1='114' x2='406' y2='114' stroke='#cbd5e1' stroke-width='1'/><text x='38' y='28' font-size='9' text-anchor='end' fill='#64748b'>1.000</text><text x='38' y='116' font-size='9' text-anchor='end' fill='#64748b'>1.000</text><text x='8' y='69' font-size='9' fill='#94a3b8' transform='rotate(-90 8 69)'>Macro F1</text><text x='42.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S5</text><text x='224.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S6</text><text x='406.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S7</text><path d='M 42.0,114.0 L 224.0,114.0 L 406.0,114.0' stroke='#3b82f6' stroke-width='2' fill='none'/><circle cx='42.0' cy='114.0' r='3' fill='#3b82f6'/><circle cx='224.0' cy='114.0' r='3' fill='#3b82f6'/><circle cx='406.0' cy='114.0' r='3' fill='#3b82f6'/></svg></div><div class='trend-cell'><svg class='trend-chart' width='420' height='140' xmlns='http://www.w3.org/2000/svg'><text x='210' y='14' font-size='11' font-weight='600' text-anchor='middle' fill='#1e293b'>Nemotron · BLIND</text><line x1='42' y1='24' x2='42' y2='114' stroke='#cbd5e1' stroke-width='1'/><line x1='42' y1='114' x2='406' y2='114' stroke='#cbd5e1' stroke-width='1'/><text x='38' y='28' font-size='9' text-anchor='end' fill='#64748b'>0.897</text><text x='38' y='116' font-size='9' text-anchor='end' fill='#64748b'>0.872</text><text x='8' y='69' font-size='9' fill='#94a3b8' transform='rotate(-90 8 69)'>Macro F1</text><text x='42.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S5</text><text x='224.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S6</text><text x='406.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S7</text><path d='M 42.0,114.0 L 224.0,114.0 L 406.0,24.0' stroke='#a855f7' stroke-width='2' fill='none'/><circle cx='42.0' cy='114.0' r='3' fill='#a855f7'/><circle cx='224.0' cy='114.0' r='3' fill='#a855f7'/><circle cx='406.0' cy='24.0' r='3' fill='#a855f7'/></svg></div><div class='trend-cell'><svg class='trend-chart' width='420' height='140' xmlns='http://www.w3.org/2000/svg'><text x='210' y='14' font-size='11' font-weight='600' text-anchor='middle' fill='#1e293b'>Ai4Privacy · NAMED</text><line x1='42' y1='24' x2='42' y2='114' stroke='#cbd5e1' stroke-width='1'/><line x1='42' y1='114' x2='406' y2='114' stroke='#cbd5e1' stroke-width='1'/><text x='38' y='28' font-size='9' text-anchor='end' fill='#64748b'>1.000</text><text x='38' y='116' font-size='9' text-anchor='end' fill='#64748b'>1.000</text><text x='8' y='69' font-size='9' fill='#94a3b8' transform='rotate(-90 8 69)'>Macro F1</text><text x='42.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S5</text><text x='224.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S6</text><text x='406.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S7</text><path d='M 42.0,114.0 L 224.0,114.0 L 406.0,114.0' stroke='#3b82f6' stroke-width='2' fill='none'/><circle cx='42.0' cy='114.0' r='3' fill='#3b82f6'/><circle cx='224.0' cy='114.0' r='3' fill='#3b82f6'/><circle cx='406.0' cy='114.0' r='3' fill='#3b82f6'/></svg></div><div class='trend-cell'><svg class='trend-chart' width='420' height='140' xmlns='http://www.w3.org/2000/svg'><text x='210' y='14' font-size='11' font-weight='600' text-anchor='middle' fill='#1e293b'>Ai4Privacy · BLIND</text><line x1='42' y1='24' x2='42' y2='114' stroke='#cbd5e1' stroke-width='1'/><line x1='42' y1='114' x2='406' y2='114' stroke='#cbd5e1' stroke-width='1'/><text x='38' y='28' font-size='9' text-anchor='end' fill='#64748b'>0.667</text><text x='38' y='116' font-size='9' text-anchor='end' fill='#64748b'>0.667</text><text x='8' y='69' font-size='9' fill='#94a3b8' transform='rotate(-90 8 69)'>Macro F1</text><text x='42.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S5</text><text x='224.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S6</text><text x='406.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S7</text><path d='M 42.0,24.0 L 224.0,24.0 L 406.0,114.0' stroke='#a855f7' stroke-width='2' fill='none'/><circle cx='42.0' cy='24.0' r='3' fill='#a855f7'/><circle cx='224.0' cy='24.0' r='3' fill='#a855f7'/><circle cx='406.0' cy='114.0' r='3' fill='#a855f7'/></svg></div><div class='trend-cell'><div class='trend-placeholder'><em>Synthetic · NAMED: need &ge;2 sprints for trend</em></div></div>
+  </div>
+  <div class="trend-row">
+    <div class="trend-cell"><svg class='trend-chart' width='420' height='140' xmlns='http://www.w3.org/2000/svg'><text x='210' y='14' font-size='11' font-weight='600' text-anchor='middle' fill='#1e293b'>Per-column p50 latency</text><line x1='42' y1='24' x2='42' y2='114' stroke='#cbd5e1' stroke-width='1'/><line x1='42' y1='114' x2='406' y2='114' stroke='#cbd5e1' stroke-width='1'/><text x='38' y='28' font-size='9' text-anchor='end' fill='#64748b'>207</text><text x='38' y='116' font-size='9' text-anchor='end' fill='#64748b'>79</text><text x='8' y='69' font-size='9' fill='#94a3b8' transform='rotate(-90 8 69)'>ms/col</text><text x='42.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S5</text><text x='406.0' y='132' font-size='9' text-anchor='middle' fill='#64748b'>S8</text><path d='M 42.0,24.0 L 406.0,114.0' stroke='#ef4444' stroke-width='2' fill='none'/><circle cx='42.0' cy='24.0' r='3' fill='#ef4444'/><circle cx='406.0' cy='114.0' r='3' fill='#ef4444'/></svg></div>
+  </div>
+</div>
+
+
+<div class="section">
+  <div class="section-header">
+    <h2>Blind vs Named Delta</h2>
+    <span class="section-badge">ML headroom</span>
+  </div>
+  <table>
+  <thead><tr>
+    <th>Corpus</th>
+    <th style="text-align:right">Named Macro F1</th>
+    <th style="text-align:right">Blind Macro F1</th>
+    <th style="text-align:right">Delta</th>
+    <th style="text-align:right">Named Primary</th>
+    <th style="text-align:right">Blind Primary</th>
+    <th style="text-align:right">Delta</th>
+    <th style="text-align:right">ML Headroom</th>
+  </tr></thead>
+  <tbody>
+
+  </tbody>
+  </table>
+  <p style="margin-top:0.6rem;font-size:0.8rem;color:var(--text-muted)">
+    <strong>ML Headroom</strong> = 1.0 &minus; Blind Macro F1. The potential gain from
+    improving value-only detection (the hardest case, where column names provide no signal).
+  </p>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Per-Entity Matrix</h2>
+    <span class="section-badge">F1 &middot; P &middot; R</span>
+  </div>
+  <table>
+  <thead><tr>
+    <th>Entity Type</th>
+    <th>Synthetic<br><span class='mode-tag mode-named'>NAMED</span></th>
+  </tr></thead>
+  <tbody>
+
+  </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Failure Analysis</h2>
+    <span class="section-badge">FPs &amp; FNs</span>
+  </div>
+
+</div>
+
+<footer>
+  data_classifier Sprint 8 &mdash; consolidated benchmark report (accuracy only, no perf)
+</footer>
+
+</body>
+</html>
