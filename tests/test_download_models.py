@@ -492,19 +492,23 @@ class TestUnsafeTarball:
 
 
 class TestVersionDiscovery:
-    def test_default_version_falls_back_to_installed_package(self) -> None:
-        # When no --version is passed and no --url is given, the CLI constructs
-        # the default URL from the installed package version. We check that
-        # _default_version returns a non-empty string matching the installed
-        # dist metadata (or the "unknown" fallback).
-        version = dm._default_version()
+    def test_default_version_returns_pinned_model_version(self) -> None:
+        # _default_version returns the pinned GLiNER model version —
+        # deliberately decoupled from the data_classifier package version
+        # because the model is a separate artifact with its own lifecycle.
+        assert dm._default_version() == dm.DEFAULT_MODEL_VERSION
+
+    def test_default_model_version_constant_has_sensible_format(self) -> None:
+        # Belt-and-suspenders: the pinned version should look like a
+        # filename-safe identifier (letters, digits, dashes, underscores).
+        version = dm.DEFAULT_MODEL_VERSION
         assert isinstance(version, str)
         assert version != ""
+        assert all(c.isalnum() or c in "-_." for c in version), f"unsafe chars in {version!r}"
 
-    def test_default_version_uses_importlib_metadata(self) -> None:
-        # Explicit belt-and-suspenders check: verify the function is wired
-        # to importlib.metadata by matching its return against what
-        # importlib.metadata.version says directly.
+    def test_installed_package_version_uses_importlib_metadata(self) -> None:
+        # Separate helper for callers that want the package version
+        # (e.g. for logging or reporting). NOT used for URL construction.
         from importlib.metadata import PackageNotFoundError
         from importlib.metadata import version as _pkg_version
 
@@ -512,7 +516,7 @@ class TestVersionDiscovery:
             expected = _pkg_version("data_classifier")
         except PackageNotFoundError:
             expected = "unknown"
-        assert dm._default_version() == expected
+        assert dm._installed_package_version() == expected
 
     def test_missing_version_without_url_returns_error(
         self,
@@ -520,23 +524,70 @@ class TestVersionDiscovery:
         capsys: pytest.CaptureFixture[str],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        # Simulate a broken install where importlib.metadata cannot find
-        # the dist — the CLI should emit a clean error, not a traceback.
-        monkeypatch.setattr(dm, "_default_version", lambda: "unknown")
+        # Simulate the edge case where the caller passes --version "" —
+        # the CLI should emit a clean error, not a traceback.
+        monkeypatch.setattr(dm, "_default_version", lambda: "")
         exit_code = dm.main(["--to", str(tmp_path / "gliner_onnx"), "--quiet"])
         assert exit_code == 2
         captured = capsys.readouterr()
-        assert "could not discover data_classifier version" in captured.err
+        assert "could not resolve GLiNER model version" in captured.err
 
 
 class TestUrlBuilding:
     def test_default_url_template_substitutes_version(self) -> None:
-        url = dm._build_default_url("1.2.3")
-        assert "1.2.3" in url
-        assert url.endswith(".tar.gz")
+        url = dm._build_default_url("test-model-v1")
+        # Our AR Generic REST URL embeds the version twice: once in the
+        # package path and once in the filename.
+        assert url.count("test-model-v1") == 2
+        assert url.endswith(".tar.gz:download?alt=media")
 
-    def test_default_checksum_url_appends_sha256(self) -> None:
-        assert dm._default_checksum_url("https://example/x.tar.gz") == ("https://example/x.tar.gz.sha256")
+    def test_default_checksum_url_for_plain_http(self) -> None:
+        # Plain mirror URLs (e.g. --url overrides) get a simple ".sha256"
+        # appended to the end.
+        assert dm._default_checksum_url("https://example/x.tar.gz") == "https://example/x.tar.gz.sha256"
+
+    def test_default_checksum_url_for_ar_generic_rest(self) -> None:
+        # The AR Generic REST download endpoint has a ":download?alt=media"
+        # suffix that must come AFTER the ".sha256" — so the checksum URL
+        # is built by inserting ".sha256" before the suffix, not at the
+        # very end of the URL.
+        tarball = (
+            "https://artifactregistry.googleapis.com/v1/projects/X/locations/Y/repositories/Z"
+            "/files/pkg:ver:name.tar.gz:download?alt=media"
+        )
+        expected = (
+            "https://artifactregistry.googleapis.com/v1/projects/X/locations/Y/repositories/Z"
+            "/files/pkg:ver:name.tar.gz.sha256:download?alt=media"
+        )
+        assert dm._default_checksum_url(tarball) == expected
+
+
+class TestAccessTokenDiscovery:
+    """Pin the GCP access token lookup strategy for AR downloads."""
+
+    def test_explicit_token_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("GCP_ACCESS_TOKEN", "from-env")
+        assert dm._get_access_token(explicit="from-cli") == "from-cli"
+
+    def test_env_token_when_no_explicit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("GCP_ACCESS_TOKEN", "from-env")
+        assert dm._get_access_token() == "from-env"
+
+    def test_returns_none_when_nothing_available(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Clear env, force metadata service to fail, force gcloud absent.
+        monkeypatch.delenv("GCP_ACCESS_TOKEN", raising=False)
+
+        import urllib.error
+
+        def fake_urlopen(*args: object, **kwargs: object) -> object:
+            raise urllib.error.URLError("no metadata server")
+
+        monkeypatch.setattr(dm.urllib.request, "urlopen", fake_urlopen)
+
+        import shutil as _sh
+
+        monkeypatch.setattr(_sh, "which", lambda _: None)
+        assert dm._get_access_token() is None
 
 
 class TestLeanRuntime:

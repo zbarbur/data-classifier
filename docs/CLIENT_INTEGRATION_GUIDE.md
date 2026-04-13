@@ -96,20 +96,37 @@ RUN pip install \
     python -m data_classifier.download_models
 ```
 
-`python -m data_classifier.download_models` is a lean CLI (stdlib-only — uses `urllib.request`, `hashlib`, and `tarfile`; no torch, transformers, or requests) that fetches a pre-exported ONNX tarball from the `data-classifier-models` AR Generic repo, verifies its SHA-256 against the companion `.sha256` file, and unpacks to `~/.cache/data_classifier/models/gliner_onnx/`. The `GLiNER2Engine` auto-discovers model files at that path via `_find_bundled_onnx_model()`, so no engine config is needed.
+`python -m data_classifier.download_models` is a lean CLI (stdlib-only — uses `urllib.request`, `hashlib`, `tarfile`, and `subprocess`; **no `torch`, `transformers`, `onnx`, or `requests`** in the import graph) that fetches the pre-exported GLiNER ONNX tarball from the `data-classifier-models` Google Artifact Registry Generic repo in `dag-bigquery-dev`, verifies its SHA-256 against a companion `.sha256` file, and unpacks it into `~/.cache/data_classifier/models/gliner_onnx/`. The `GLiNER2Engine` auto-discovers model files at that path via `_find_bundled_onnx_model()`, so no engine config is needed.
+
+**Model versioning is decoupled from `data_classifier` versioning.** The ONNX tarball is a separate build-time artifact derived from the upstream `urchade/gliner_multi_pii-v1` HuggingFace checkpoint. It does *not* rev when we ship a new `data_classifier` release — the same base model is used across many sprints, and re-exporting it on every library release would be pure waste (~10 min of `pip install [ml-full]` + re-running the same HF→ONNX conversion on unchanged upstream weights). When the upstream base model changes (rarely — at most once every few quarters), a human bumps `DEFAULT_MODEL_VERSION` in `data_classifier/download_models.py` and uploads a new tarball.
 
 **CLI flags:**
 
 | Flag | Default | Purpose |
 |---|---|---|
 | `--to PATH` | `~/.cache/data_classifier/models/gliner_onnx/` | Override the install location |
-| `--version VERSION` | Installed `data_classifier` version (via `importlib.metadata`) | Pin a specific model version |
-| `--url URL` | `https://us-central1-docker.pkg.dev/.../gliner_onnx-{version}.tar.gz` | Override the tarball URL (for internal mirrors or testing) |
-| `--checksum-url URL` | `${--url}.sha256` | Override the checksum URL independently |
+| `--version VERSION` | `urchade-gliner-multi-pii-v1` (the pinned GLiNER model version — **not** the data_classifier version) | Fetch a different model release |
+| `--url URL` | AR Generic REST endpoint derived from `--version` | Override the full tarball URL (mirrors, testing) |
+| `--checksum-url URL` | Derived from `--url` | Override the checksum URL independently |
+| `--access-token TOKEN` | Auto-discovered via metadata service or `gcloud` | Explicit GCP access token for AR authentication |
 | `--force` | off | Overwrite an existing target directory |
 | `--quiet` | off | Suppress progress output |
 
-A SHA mismatch aborts the download without touching the target directory — the previous model stays intact. Tarball extraction uses a resolved-path containment check plus `tarfile.data_filter` (Python 3.12+) to protect against path-traversal attacks.
+**Auth token discovery order** (first hit wins):
+
+1. `--access-token` CLI flag (explicit)
+2. `GCP_ACCESS_TOKEN` environment variable
+3. GCP metadata service (`metadata.google.internal` — the BQ Cloud Build path; zero setup)
+4. `gcloud auth print-access-token` (dev-machine fallback, only tried if `gcloud` is on `PATH`)
+
+The metadata service path means **BQ's Dockerfile needs no extra setup** — Cloud Build automatically exposes the build SA's token to steps running on the builder VM. If none of the four paths yield a token, the download proceeds without authentication (useful for public mirrors via `--url`).
+
+**Safety guarantees:**
+- SHA-256 mismatch aborts before touching the target directory — any existing model stays intact
+- Tarball extraction uses a resolved-path containment check plus `tarfile.data_filter` (on Python 3.12+) to block path-traversal attacks
+- No raw tracebacks: every handled failure exits with a single-line error on stderr and a non-zero exit code
+
+**Required IAM on the BQ Cloud Build service account:** `roles/artifactregistry.reader` on the `data-classifier-models` AR Generic repo (or project-wide). Writer permission is NOT needed — the Docker build is a consumer, not a publisher.
 
 **For dev / one-off export:** if you want to regenerate the ONNX model from a HuggingFace checkpoint (e.g. to experiment with a different base model), install the developer extra and run the exporter:
 

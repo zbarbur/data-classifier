@@ -42,9 +42,60 @@ each item ships and be promoted to the `[0.8.0]` section at sprint close.
   (which has 4 `cloudbuild*.yaml` files and no GitHub Actions) and to
   avoid the Workload Identity Federation overhead — Cloud Build's
   default service account runs natively in the GCP project and only
-  needs `artifactregistry.writer` granted. The actual AR repo creation
-  + Cloud Build trigger setup is a Phase 2 manual step within Sprint 8
-  (4 `gcloud` commands + one GitHub App install).
+  needs `artifactregistry.writer` granted.
+- GCP Artifact Registry infrastructure in `dag-bigquery-dev/us-central1`:
+    * Python repo `data-classifier` (wheels)
+    * Generic repo `data-classifier-models` (ONNX model tarballs)
+- Cloud Build trigger `data-classifier-release` (2nd gen, on the
+  `zbarbur-data-classifier` Cloud Build repository connection) that
+  fires on any `^v.*$` tag push and runs the release pipeline.
+
+### Changed
+
+- **ONNX model distribution decoupled from the release pipeline.**
+  The original Item 5 design had `cloudbuild-release.yaml` re-export
+  the GLiNER ONNX model on every `v*` tag push — installing the full
+  `[ml-full]` extras stack (torch + transformers + onnx, ~2GB) into the
+  Cloud Build runner and running `python -m data_classifier.export_onnx`
+  for ~10 min per release. That was **pure waste**: the upstream
+  GLiNER model doesn't change when `data_classifier` revs, so every
+  release was re-producing the same byte-identical artifact. This
+  commit:
+    1. Removes the `publish-model` step from `cloudbuild-release.yaml`.
+       Release builds now run **2 steps** (build wheel, publish wheel)
+       in ~60s instead of 3 steps in ~15 min.
+    2. Adds a pinned `DEFAULT_MODEL_VERSION = "urchade-gliner-multi-pii-v1"`
+       constant in `data_classifier/download_models.py`. The ONNX
+       tarball is versioned by the **upstream model ID**, not the
+       `data_classifier` package version — and a human uploads a new
+       tarball only when the base model changes (rarely, ≤1×/year).
+    3. Switches `download_models.py` to use the Google Artifact
+       Registry **REST download endpoint**
+       (`artifactregistry.googleapis.com/v1/projects/.../files/...:download?alt=media`)
+       with Bearer token authentication. Previously pointed at a
+       placeholder `data-classifier-prod` project URL.
+    4. Adds `_get_access_token()` helper with a 4-tier discovery chain:
+       explicit `--access-token` CLI flag → `GCP_ACCESS_TOKEN` env var
+       → GCP metadata service (the BQ Cloud Build path, zero setup) →
+       `gcloud auth print-access-token` fallback for dev machines.
+       Still stdlib-only — no new dependencies.
+    5. Shrinks the published ONNX tarball from **1.4GB → 254MB** by
+       shipping only the int8-quantized `model.onnx` file (GLiNER's
+       loader hardcodes that filename, so `model_quantized.onnx` is
+       renamed to `model.onnx` in the tarball layout). The
+       unquantized 1.1GB file is dropped entirely.
+    6. `cloudbuild-release.yaml`'s `twine upload` gains `--skip-existing`
+       so re-tagging (e.g. `v0.8.0-rc1` → `v0.8.0`) is idempotent
+       instead of failing with "file already exists".
+    7. `cloudbuild-release.yaml`'s overall timeout drops from 1500s to
+       300s to reflect the smaller scope.
+
+  The ONNX tarball for this release
+  (`gliner_onnx-urchade-gliner-multi-pii-v1.tar.gz`, SHA-256
+  `a19fe153...ef45`) is uploaded once, manually, via
+  `gcloud artifacts generic upload`. Future model upgrades follow the
+  same one-off flow — see `cloudbuild-release.yaml` header comment for
+  the exact commands.
 
 ### Changed
 
