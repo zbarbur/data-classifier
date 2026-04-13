@@ -1,0 +1,40 @@
+title: "test_download_models \u2014 add positive test for metadata-SA happy path (tier\
+  \ 3 of _get_access_token)"
+status: backlog
+priority: P1
+category: chore
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: 'Close the test coverage gap surfaced by the Sprint 8 post-hoc code review:
+  tests/test_download_models.py::TestAccessTokenDiscovery only exercises the metadata-SA
+  tier of _get_access_token via URLError rejection, not via a successful response.
+  The metadata-SA path is the production auth path BQ Cloud Build hits, so it should
+  have explicit positive coverage.'
+complexity: S
+technical_specs:
+- "File: tests/test_download_models.py \u2014 add test_metadata_sa_token_returned_from_metadata_service\
+  \ to TestAccessTokenDiscovery class (~line 565). Use unittest.mock.patch on urllib.request.urlopen\
+  \ to return a MagicMock with read() returning a JSON-encoded {'access_token': 'fake-token-abc123'}."
+- 'Verify: pytest tests/test_download_models.py -v -k metadata_sa passes'
+description: ''
+acceptance_criteria:
+- New test in TestAccessTokenDiscovery monkeypatches urllib.request.urlopen so a request
+  to _METADATA_TOKEN_URL returns a JSON body containing access_token; the test asserts
+  _get_access_token(None) returns that token
+- 'Test isolates: explicit token unset, GCP_ACCESS_TOKEN env unset, gcloud subprocess
+  not invoked (assert no subprocess call by patching subprocess.run to raise)'
+- "test_download_models.py test count goes up by \u22651, all existing tests still\
+  \ pass"
+test_plan:
+- Run pytest tests/test_download_models.py::TestAccessTokenDiscovery -v and confirm
+  the new test exists, passes, and does NOT touch the real metadata service or gcloud
+  subprocess.
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
