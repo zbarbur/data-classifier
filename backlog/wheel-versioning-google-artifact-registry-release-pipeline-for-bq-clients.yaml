@@ -70,14 +70,14 @@ acceptance_criteria:
   successfully'
 - "The BigQuery-connector/vendor/ directory is removed (or deprecated with a README\
   \ explaining the migration) \u2014 coordinated via BQ session"
-- "pyproject.toml ML extras consolidated: [ml-api] removed (package-name mismatch with\
-  \ engine code), [ml] remains the lean runtime extra (onnxruntime-only), [ml-full]\
-  \ remains the developer/export extra (torch+transformers+onnx for running export_onnx.py).\
-  \ gliner_engine.py imports updated to match. Docs in CLIENT_INTEGRATION_GUIDE.md\
-  \ explain which extra a consumer needs (runtime vs export vs dev)."
-- "An AR Generic repository 'data-classifier-models' is created alongside the Python\
-  \ repo as part of the same one-time GCP setup step, so Item 8 can publish the ONNX\
-  \ tarball using the same WIF auth."
+- 'pyproject.toml ML extras consolidated: [ml-api] removed (package-name mismatch
+  with engine code), [ml] remains the lean runtime extra (onnxruntime-only), [ml-full]
+  remains the developer/export extra (torch+transformers+onnx for running export_onnx.py).
+  gliner_engine.py imports updated to match. Docs in CLIENT_INTEGRATION_GUIDE.md explain
+  which extra a consumer needs (runtime vs export vs dev).'
+- An AR Generic repository 'data-classifier-models' is created alongside the Python
+  repo as part of the same one-time GCP setup step, so Item 8 can publish the ONNX
+  tarball using the same WIF auth.
 test_plan:
 - 'One-time: create AR repo in a dev project, test a test-wheel upload via twine with
   a local service account'
@@ -94,7 +94,7 @@ notes: "Discovered during Sprint 7 close: BigQuery-connector/vendor/data_classif
   \ confirm it) and AR free tier (0.5 GB storage + 1 GB network/month) is well above\
   \ this library's footprint. Deprecates the P3 'pypi-publishing-pipeline' backlog\
   \ item \u2014 this item is the concrete scope."
-phase: plan
+phase: build
 design_reviewed: false
 code_reviewed: false
 comments: []

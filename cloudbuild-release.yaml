@@ -1,0 +1,114 @@
+# Cloud Build config: tag-triggered wheel release to Google Artifact Registry.
+#
+# Sprint 8 Item 3 — wheel versioning + AR release pipeline.
+#
+# Fires from a Cloud Build trigger (created manually — see below) that
+# listens for tag pushes matching `^v.*` on the zbarbur/data-classifier
+# GitHub repo. The trigger links to this file via --build-config.
+#
+# Publishes the built wheel to the `data-classifier` Python repository in
+# Google Artifact Registry at:
+#   https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/
+#
+# Consumers install via:
+#   pip install --extra-index-url \
+#     https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/simple/ \
+#     "data_classifier[ml]==0.8.0"
+#
+# ── Prerequisites (Phase 2 manual setup, Sprint 8) ──────────────────────
+#
+# 1. Install the Google Cloud Build GitHub App on zbarbur/data-classifier
+#    (https://github.com/marketplace/google-cloud-build).
+#
+# 2. Create the Python Artifact Registry repository:
+#      gcloud artifacts repositories create data-classifier \
+#          --repository-format=python \
+#          --location=us-central1 \
+#          --project=dag-bigquery-dev
+#
+# 3. Grant the Cloud Build default service account artifactregistry.writer:
+#      PROJECT_NUM=$(gcloud projects describe dag-bigquery-dev \
+#          --format='value(projectNumber)')
+#      gcloud projects add-iam-policy-binding dag-bigquery-dev \
+#          --member="serviceAccount:${PROJECT_NUM}@cloudbuild.gserviceaccount.com" \
+#          --role=roles/artifactregistry.writer
+#
+# 4. Create the tag-triggered Cloud Build trigger:
+#      gcloud builds triggers create github \
+#          --repo-owner=zbarbur \
+#          --repo-name=data-classifier \
+#          --tag-pattern='^v.*' \
+#          --build-config=cloudbuild-release.yaml \
+#          --project=dag-bigquery-dev \
+#          --name=data-classifier-release
+#
+# 5. (Sprint 8 Item 5) Create the companion AR Generic repository for the
+#    GLiNER2 ONNX model tarball and extend this file with a second
+#    publish step. See `data_classifier/download_models.py` documentation.
+#
+# ── Build steps ─────────────────────────────────────────────────────────
+
+steps:
+  # Step 1: build the wheel in a clean Python 3.12 image
+  - name: python:3.12-slim
+    id: build-wheel
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        echo "::group::Python version"
+        python --version
+        echo "::endgroup::"
+
+        echo "::group::Install build tools"
+        pip install --upgrade pip
+        pip install --upgrade build
+        echo "::endgroup::"
+
+        echo "::group::Build wheel"
+        python -m build --wheel
+        ls -la dist/
+        echo "::endgroup::"
+
+        # Sanity check: the wheel name must carry the current pyproject version.
+        # If someone pushes a tag that does not match the version in
+        # pyproject.toml, we want to catch it here rather than publish a
+        # mislabelled artifact.
+        WHEEL_VERSION=$(python -c "import tomllib,sys; \
+          data=tomllib.loads(open('pyproject.toml','rb').read().decode()); \
+          sys.stdout.write(data['project']['version'])")
+        echo "pyproject version: ${WHEEL_VERSION}"
+        ls dist/data_classifier-${WHEEL_VERSION}-*.whl >/dev/null
+
+  # Step 2: publish the wheel to Artifact Registry Python repo
+  - name: python:3.12-slim
+    id: publish-wheel
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        echo "::group::Install publish tools"
+        pip install --upgrade pip
+        pip install --upgrade twine keyrings.google-artifactregistry-auth
+        echo "::endgroup::"
+
+        echo "::group::Upload wheel to Artifact Registry"
+        # keyrings.google-artifactregistry-auth plugs into twine's keyring
+        # lookup and resolves credentials from the Cloud Build service
+        # account's Application Default Credentials transparently.
+        twine upload \
+          --repository-url "https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/" \
+          --non-interactive \
+          dist/data_classifier-*.whl
+        echo "::endgroup::"
+
+# Log to Cloud Logging only; skip the default per-build GCS log bucket
+# so we do not require a storage bucket in the project.
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+# 10 minutes is plenty — the wheel build takes <30s on Cloud Build's
+# standard machine type. Bump only if `python -m build` slows down.
+timeout: 600s

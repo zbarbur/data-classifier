@@ -1,0 +1,72 @@
+title: 'Observability gaps: add get_active_engines() + health_check() + loud ImportError
+  fallback warning'
+status: backlog
+priority: P1
+category: chore
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: "Close three observability gaps discovered during Sprint 8 BQ integration work:\
+  \ (1) _build_default_engines() in data_classifier/__init__.py silently swallows\
+  \ ImportError when gliner is not installed, so consumers get zero warning that the\
+  \ ML engine is absent; (2) there is no public get_active_engines() function for\
+  \ consumers to introspect which engines loaded successfully at startup; (3) there\
+  \ is no built-in health_check() function \u2014 consumers must write their own probe\
+  \ using the event emitter. Adds one logger.warning call in the ImportError branch,\
+  \ a public get_active_engines() function, and a canonical health_check() that consumers\
+  \ can call from their startup code or health endpoint."
+complexity: M
+technical_specs:
+- "File: data_classifier/__init__.py \u2014 change the except ImportError: pass on\
+  \ ~line 111-112 to except ImportError as e: logger.warning('GLiNER2 engine disabled\
+  \ \u2014 install [ml] extras to enable: %s', e) so silent degradation becomes visible\
+  \ at import time"
+- "File: data_classifier/__init__.py \u2014 add get_active_engines() -> list[dict]\
+  \ that returns [{'name': engine.name, 'order': engine.order, 'class': type(engine).__name__}]\
+  \ for each engine currently in _DEFAULT_ENGINES. Export from __all__."
+- "File: data_classifier/__init__.py \u2014 add health_check(profile: ClassificationProfile\
+  \ | None = None) -> dict that runs a canned single-column classification probe (column_name='email_address',\
+  \ sample_values=['alice@example.com']) and returns {'healthy': bool, 'engines_executed':\
+  \ list[str], 'engines_skipped': list[str], 'latency_ms': float, 'findings': list[dict]}.\
+  \ Raises nothing \u2014 returns healthy=False with the exception text on failure."
+- "File: tests/test_observability.py (new) \u2014 unit tests for get_active_engines\
+  \ (asserts 4+ engines in default list, asserts absent when DATA_CLASSIFIER_DISABLE_ML=1),\
+  \ health_check (asserts healthy=True on default profile, asserts engines_executed\
+  \ includes regex + column_name at minimum)"
+- "File: docs/CLIENT_INTEGRATION_GUIDE.md \u2014 remove the 'Known gaps' subsection\
+  \ once the fixes are in; rewrite the startup health probe section to use the canonical\
+  \ health_check() function"
+description: ''
+acceptance_criteria:
+- get_active_engines() returns a list of 4-5 engine dicts in default install; returns
+  3-4 when DATA_CLASSIFIER_DISABLE_ML=1
+- health_check() returns a dict with healthy=True on a fresh install with the standard
+  profile
+- health_check() returns healthy=False with a clear error message when a broken profile
+  or missing engine is forced
+- "When gliner package is not installed, importing data_classifier produces a logger.warning\
+  \ (not silent) \u2014 verified via caplog in a test that simulates ImportError"
+- Both functions are exported from data_classifier.__all__ and documented in CLIENT_INTEGRATION_GUIDE.md
+- The Known gaps subsection is removed from CLIENT_INTEGRATION_GUIDE.md and the startup
+  health probe section is rewritten to use health_check()
+- Full pytest suite green; lint clean
+test_plan:
+- 'tests/test_observability.py: test_get_active_engines_default_install, test_get_active_engines_ml_disabled,
+  test_health_check_standard_profile, test_health_check_returns_latency_and_findings,
+  test_import_error_produces_warning (using caplog + monkeypatch to simulate gliner
+  absence)'
+- 'tests/test_observability.py: test_health_check_handles_broken_profile'
+- 'Regression: full pytest tests/ -v green on both [dev,meta] and [dev,meta,ml] envs'
+notes: 'Filed 2026-04-13 from Sprint 8 Item 3 investigation. BQ hit the silent-degradation
+  mode hard in production: they installed the wheel but without the ml extras, GLiNER2
+  was silently absent, classification ran regex-only for multiple days before anyone
+  noticed. The logger.warning fix alone would have caught this at startup. Priority
+  P1 because the observability gap is actively burning a production consumer. Sprint
+  9 fit: small, self-contained (one module), 30-45 min of build + tests + docs.'
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
