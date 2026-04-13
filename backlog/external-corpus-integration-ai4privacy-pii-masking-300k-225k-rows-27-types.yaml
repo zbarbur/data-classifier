@@ -1,10 +1,10 @@
 title: 'External corpus integration: Ai4Privacy pii-masking-300k (225K rows, 27+ types)'
-status: backlog
+status: done
 priority: P3
 category: feature
 sprint_target: null
 created: 2026-04-10
-updated: 2026-04-11
+updated: 2026-04-13
 depends_on: []
 tags:
 - iter3
@@ -14,7 +14,17 @@ technical_specs: []
 description: ''
 acceptance_criteria: []
 test_plan: []
-notes: ''
+notes: |
+  Closed 2026-04-13 as "done → retired" by sibling item
+  ai4privacy-license-reaudit-and-compliance-decision. The license for
+  ai4privacy/pii-masking-300k was verified as a custom non-OSI license
+  that prohibits commercial use, redistribution, and derivative works
+  without explicit written permission (fetched from
+  https://huggingface.co/datasets/ai4privacy/pii-masking-300k/raw/main/LICENSE.md
+  on 2026-04-13). The 300k variant carries the same non-OSI clauses as
+  the 400k variant. The corpus was replaced by gretelai/gretel-pii-masking-en-v1
+  (Apache 2.0) in Sprint 9. See docs/process/LICENSE_AUDIT.md for the
+  verification record and docs/PATTERN_SOURCES.md for the corpus table.
 phase: null
 design_reviewed: false
 code_reviewed: false

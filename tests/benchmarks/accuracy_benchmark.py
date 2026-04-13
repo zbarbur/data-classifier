@@ -554,7 +554,7 @@ if __name__ == "__main__":
         "--corpus",
         type=str,
         default="synthetic",
-        choices=["synthetic", "ai4privacy", "nemotron", "all"],
+        choices=["synthetic", "nemotron", "gretel_en", "all"],
         help="Corpus source to use (default: synthetic)",
     )
     parser.add_argument("--max-rows", type=int, default=500, help="Max rows for real-world corpora")

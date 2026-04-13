@@ -2,20 +2,20 @@
 
 Supports multiple corpus sources:
 - Synthetic (Faker-based, via corpus_generator.py)
-- Ai4Privacy pii-masking-300k (HuggingFace sample)
 - Nemotron-PII (HuggingFace sample)
 - SecretBench (credential scanner benchmark, TP + TN)
 - Gitleaks fixtures (credential scanner FP-hardening corpus, TP + TN)
 - detect_secrets fixtures (hand-curated credential positives + placeholder
   negatives)
 - Gretel-PII-masking-en-v1 (HuggingFace sample; Apache 2.0 mixed-label
-  corpus, 60k rows / 47 domains)
+  corpus, 60k rows / 47 domains) — replaced a retired 300k-row corpus
+  in Sprint 9 (license non-OSS, see docs/process/LICENSE_AUDIT.md).
 
 Sample data ships in tests/fixtures/corpora/ for offline benchmarking.
 
 Usage:
     from tests.benchmarks.corpus_loader import load_corpus
-    corpus = load_corpus("ai4privacy", max_rows=500)
+    corpus = load_corpus("nemotron", max_rows=500)
 
 ``NEGATIVE`` ground-truth label
 -------------------------------
@@ -43,31 +43,6 @@ logger = logging.getLogger(__name__)
 _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "corpora"
 
 # ── Entity type mappings from external corpora to our types ──────────────────
-
-# Verified label names from actual datasets (see scripts/download_corpora.py)
-AI4PRIVACY_TYPE_MAP: dict[str, str] = {
-    "EMAIL": "EMAIL",
-    "TEL": "PHONE",
-    "IP": "IP_ADDRESS",
-    "SOCIALNUMBER": "SSN",
-    "PASS": "CREDENTIAL",
-    "BOD": "DATE_OF_BIRTH",
-    "DATE": "DATE_OF_BIRTH",
-    "GIVENNAME1": "PERSON_NAME",
-    "GIVENNAME2": "PERSON_NAME",
-    "LASTNAME1": "PERSON_NAME",
-    "LASTNAME2": "PERSON_NAME",
-    "LASTNAME3": "PERSON_NAME",
-    "STREET": "ADDRESS",
-    "SECADDRESS": "ADDRESS",
-    "ADDRESS": "ADDRESS",
-    "PHONE": "PHONE",
-    "SSN": "SSN",
-    "CREDENTIAL": "CREDENTIAL",
-    "IP_ADDRESS": "IP_ADDRESS",
-    "PERSON_NAME": "PERSON_NAME",
-    "DATE_OF_BIRTH": "DATE_OF_BIRTH",
-}
 
 # Gretel-PII-masking-EN-v1 label map (locked 2026-04-13, path-(d) decision).
 #
@@ -216,34 +191,6 @@ def _records_to_corpus(
         corpus.append((col, entity_type))
 
     return corpus
-
-
-def load_ai4privacy_corpus(
-    path: Path | str | None = None,
-    max_rows: int = 500,
-    *,
-    blind: bool = False,
-) -> list[tuple[ColumnInput, str | None]]:
-    """Load Ai4Privacy corpus sample and convert to our format.
-
-    Args:
-        path: Path to JSON sample file. Defaults to bundled fixture.
-        max_rows: Maximum sample values per entity type.
-
-    Returns:
-        List of (ColumnInput, expected_entity_type) tuples.
-    """
-    if path is None:
-        path = _FIXTURES_DIR / "ai4privacy_sample.json"
-    else:
-        path = Path(path)
-
-    records = _load_json_corpus(path)
-    if not records:
-        logger.warning("No records loaded from Ai4Privacy corpus at %s", path)
-        return []
-
-    return _records_to_corpus(records, AI4PRIVACY_TYPE_MAP, "ai4privacy", max_rows, blind=blind)
 
 
 def load_nemotron_corpus(
@@ -594,7 +541,7 @@ def load_corpus(
     """Dispatcher — load corpus by source name.
 
     Args:
-        source: One of ``"synthetic"``, ``"ai4privacy"``, ``"nemotron"``,
+        source: One of ``"synthetic"``, ``"nemotron"``,
             ``"secretbench"``, ``"gitleaks"``, ``"detect_secrets"``,
             ``"gretel_en"``, or ``"all"``.
         max_rows: Max rows for real-world corpora.
@@ -608,8 +555,6 @@ def load_corpus(
     """
     if source == "synthetic":
         return load_synthetic_corpus(samples_per_type=samples_per_type)
-    elif source == "ai4privacy":
-        return load_ai4privacy_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "nemotron":
         return load_nemotron_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "secretbench":
@@ -623,7 +568,6 @@ def load_corpus(
     elif source == "all":
         corpus: list[tuple[ColumnInput, str | None]] = []
         corpus.extend(load_synthetic_corpus(samples_per_type=samples_per_type))
-        corpus.extend(load_ai4privacy_corpus(max_rows=max_rows, blind=blind))
         corpus.extend(load_nemotron_corpus(max_rows=max_rows, blind=blind))
         corpus.extend(load_secretbench_corpus(blind=blind))
         corpus.extend(load_gitleaks_corpus(blind=blind))
@@ -633,7 +577,7 @@ def load_corpus(
     else:
         msg = (
             f"Unknown corpus source: {source!r}. Valid: synthetic, "
-            "ai4privacy, nemotron, secretbench, gitleaks, detect_secrets, "
+            "nemotron, secretbench, gitleaks, detect_secrets, "
             "gretel_en, all"
         )
         raise ValueError(msg)

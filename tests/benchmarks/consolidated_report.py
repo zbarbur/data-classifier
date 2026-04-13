@@ -2,7 +2,7 @@
 
 Generates a single HTML report containing:
 - Nemotron × named vs blind
-- Ai4Privacy × named vs blind
+- Gretel-EN × named vs blind
 - Executive summary comparing all 4 configurations
 - Per-entity matrix showing precision/recall/F1 per corpus/mode
 - Failure analysis (FPs, FNs grouped by root cause)
@@ -13,6 +13,10 @@ Usage:
     python -m tests.benchmarks.consolidated_report --sprint 5 --samples 100
 
 No performance benchmark — run perf separately when needed.
+
+Sprint 9 retired the 300k-row corpus formerly used here due to a
+non-OSS license; see ``docs/process/LICENSE_AUDIT.md``.  Gretel-EN
+(Apache 2.0) replaces it as the second real-corpus benchmark target.
 """
 
 from __future__ import annotations
@@ -124,8 +128,8 @@ def run_all(sprint: int, samples_per_col: int = 50) -> list[RunResult]:
     configs = [
         ("nemotron", False),
         ("nemotron", True),
-        ("ai4privacy", False),
-        ("ai4privacy", True),
+        ("gretel_en", False),
+        ("gretel_en", True),
     ]
     return [_run_single(corpus, blind, samples_per_col) for corpus, blind in configs]
 
@@ -1047,8 +1051,8 @@ def _run_presidio_comparison(
     configs = [
         ("nemotron", False),
         ("nemotron", True),
-        ("ai4privacy", False),
-        ("ai4privacy", True),
+        ("gretel_en", False),
+        ("gretel_en", True),
     ]
 
     print(f"\nRunning Presidio comparator ({mapping_mode} mapping)...", file=sys.stderr)

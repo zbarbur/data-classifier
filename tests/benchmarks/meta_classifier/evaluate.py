@@ -13,9 +13,8 @@ The evaluator produces a single report covering:
    BCa bootstrap 95% CI on the macro F1 delta vs the calibration
    baseline (the live pipeline).
 2. **Secondary — leave-one-corpus-out.**
-   Train on ``{Nemotron + synthetic + secretbench + gitleaks +
-   detect_secrets}`` and test on Ai4Privacy, then swap so Ai4Privacy
-   becomes the training corpus. Report F1 deltas vs the primary model.
+   Train on the remaining corpora and test on one held-out corpus
+   at a time.  Report F1 deltas vs the primary model.
 3. **Tertiary — blind-only macro F1.**
    The blind-mode rows are the sample-values-only subset — the one that
    matters for the BQ connector use case.  The ship gate is defined on
@@ -514,9 +513,12 @@ def run_evaluation(
     # ── Secondary tier — LOCO ─────────────────────────────────────
     all_corpora = set(dataset.corpora)
     loco_results: dict[str, dict[str, float]] = {}
-    for holdout in ("ai4privacy", "nemotron"):
-        if holdout not in all_corpora:
-            continue
+    # LOCO holdout set: each real, non-synthetic corpus in turn.  The
+    # Sprint 9 retirement of the 300k-row corpus left this list dynamic
+    # — we discover the available corpora from the training data rather
+    # than hardcoding.
+    loco_candidates = sorted(c for c in all_corpora if c not in {"synthetic", "NEGATIVE"})
+    for holdout in loco_candidates:
         train_set = all_corpora - {holdout}
         test_set = {holdout}
         y_true_loco, y_pred_loco = _loco_fit_predict(
@@ -537,9 +539,10 @@ def run_evaluation(
         print("  no LOCO results", file=stream)
     for holdout, stats in loco_results.items():
         print(f"  hold out {holdout:<14} n_test={stats['n_test']:<5}  macro F1={stats['f1']:.4f}", file=stream)
-    if "ai4privacy" in loco_results and "nemotron" in loco_results:
-        diff = abs(loco_results["ai4privacy"]["f1"] - loco_results["nemotron"]["f1"])
-        print(f"  |ai4privacy - nemotron| F1 gap = {diff:.4f}", file=stream)
+    if len(loco_results) >= 2:
+        f1_values = [stats["f1"] for stats in loco_results.values()]
+        diff = max(f1_values) - min(f1_values)
+        print(f"  max LOCO F1 spread = {diff:.4f}", file=stream)
 
     # ── Per-corpus and per-mode macro F1 (debug) ──────────────────
     by_mode_corpus_meta: dict[tuple[str, str], tuple[list[str], list[str]]] = defaultdict(lambda: ([], []))

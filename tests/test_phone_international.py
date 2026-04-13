@@ -1,11 +1,12 @@
 """Regex-level tests for international phone coverage (Sprint 7).
 
-Sprint 6 closed with the Ai4Privacy PHONE column at 0% regex match rate:
-52% of that corpus has ``+CC`` prefixes in multi-segment mixed-separator
-formats (``+543 51-082.8035``), and 48% uses ``0``- or ``00``-prefixed
-local/international-access formats (``076 1352.8018``, ``00758-30091``).
-The Sprint 6 ``international_phone`` regex only allows a single separator
-after the country code, so it fails on both sub-populations.
+Sprint 6 benchmarks showed the blind PHONE column at 0% regex match
+rate: 52% of that corpus has ``+CC`` prefixes in multi-segment
+mixed-separator formats (``+543 51-082.8035``), and 48% uses ``0``- or
+``00``-prefixed local/international-access formats (``076 1352.8018``,
+``00758-30091``).  The Sprint 6 ``international_phone`` regex only
+allows a single separator after the country code, so it failed on both
+sub-populations.
 
 These tests target the regexes directly (via ``re2.compile``) rather than
 the full ``classify_columns`` pipeline because:
@@ -18,7 +19,11 @@ the full ``classify_columns`` pipeline because:
    per-value regex matching in the content pipeline — the same level this
    file tests.
 
-Real samples are drawn from ``tests/fixtures/corpora/ai4privacy_sample.json``.
+The Sprint 7 end-to-end coverage test against the original 300k-row
+sample corpus was retired in Sprint 9 when that corpus was dropped
+due to a non-OSS license; see ``docs/process/LICENSE_AUDIT.md``.
+The unit tests below still exercise the regexes against hand-picked
+representative samples.
 """
 
 from __future__ import annotations
@@ -53,7 +58,7 @@ class TestInternationalPhonePlusPrefixed:
     @pytest.mark.parametrize(
         "value",
         [
-            # Real Ai4Privacy samples (all currently 0% match)
+            # Representative Sprint 6 samples (originally 0% match)
             "+543 51-082.8035",  # Argentina, 3 groups, mixed space/dash/dot
             "+51-063-367.7939",  # Peru, dash + dot
             # Canonical multi-segment international formats
@@ -81,7 +86,7 @@ class TestInternationalPhoneLocalPrefixed:
     @pytest.mark.parametrize(
         "value",
         [
-            # Real Ai4Privacy samples
+            # Representative Sprint 6 samples
             "076 1352.8018",
             "01881.881.151-3030",
             "0070-07 986.4979",
@@ -166,42 +171,10 @@ class TestPhoneRegexPrecision:
             )
 
 
-class TestAi4PrivacyCoverage:
-    """End-to-end regex coverage on the Ai4Privacy PHONE sample corpus.
-
-    Matches the Sprint 7 acceptance criterion: ``match_ratio >= 0.70``.
-    A value counts as matched if ANY of the phone regexes covers
-    at least 80% of the value.
-    """
-
-    def test_coverage_exceeds_70_percent(self, patterns_by_name: dict[str, ContentPattern]) -> None:
-        import json
-        from pathlib import Path
-
-        fixture = Path(__file__).parent / "fixtures" / "corpora" / "ai4privacy_sample.json"
-        data = json.loads(fixture.read_text())
-        phones = [r["value"] for r in data if r.get("entity_type") == "PHONE"]
-        assert len(phones) >= 1000, f"Expected at least 1000 PHONE rows in Ai4Privacy sample, got {len(phones)}"
-
-        pattern_names = ["us_phone_formatted", "international_phone"]
-        if "international_phone_local" in patterns_by_name:
-            pattern_names.append("international_phone_local")
-        compiled = [re2.compile(patterns_by_name[n].regex) for n in pattern_names]
-
-        matched = 0
-        for value in phones:
-            stripped = value.strip()
-            if not stripped:
-                continue
-            for regex in compiled:
-                m = regex.search(stripped)
-                if m and (m.end() - m.start()) / len(stripped) >= 0.80:
-                    matched += 1
-                    break
-
-        match_ratio = matched / len(phones)
-        assert match_ratio >= 0.70, (
-            f"Ai4Privacy PHONE coverage {match_ratio:.1%} below 70% "
-            f"target ({matched}/{len(phones)} matched). "
-            f"Patterns tried: {pattern_names}"
-        )
+# NOTE: The Sprint 7 end-to-end coverage test was retired in Sprint 9
+# when the underlying 300k-row corpus fixture was removed for license
+# non-compatibility (see ``docs/process/LICENSE_AUDIT.md``). The
+# +94.5% coverage headline from Sprint 7 is preserved as a historical
+# record in PROJECT_CONTEXT.md and SPRINT7_HANDOVER.md, and the
+# hand-picked unit tests above still exercise the same regex paths
+# against representative samples.

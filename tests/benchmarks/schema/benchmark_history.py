@@ -17,7 +17,7 @@ BENCHMARK_HISTORY_SCHEMA_VERSION = 1
 class CorpusResult:
     """Accuracy metrics for one (corpus, mode) benchmark run."""
 
-    corpus: str  # "nemotron" | "ai4privacy"
+    corpus: str  # "nemotron" | "gretel_en" | ...  (Sprint 9 retired a legacy corpus)
     mode: str  # "named" | "blind"
     macro_f1: float
     micro_f1: float | None = None

@@ -175,7 +175,7 @@ notes: "## Verified license details (2026-04-13)\n\nDirect fetch of https://hugg
   - ingest-gretel-pii-masking-en-v1 \u2014 provides the replacement corpus\n\nBlocks:\n\
   - Any new release of data_classifier that ships meta_classifier_v1.pkl\n- Any benchmark\
   \ publication or external doc that cites Ai4Privacy 0.667\n"
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

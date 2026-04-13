@@ -17,9 +17,9 @@
 | Key-name patterns | 88 |
 | Backlog | 70+ items + 7 new Sprint 9 candidates parked at Sprint 8 close |
 | **Accuracy (synthetic, Sprint 8)** | **Macro F1 0.915, Micro 0.897, Primary-Label 96.3%** (50 samples/type, 22 entity types, 4 FPs / 1 FN — all match known filed gaps) |
-| **Accuracy (real-corpus blind)** | Nemotron 0.8974, Ai4Privacy 0.6667 (Sprint 7 baseline — Sprint 8 deferred re-run pending Sprint 9 GLiNER tuning + corpus replacement) |
+| **Accuracy (real-corpus blind)** | Nemotron 0.8974 (Ai4Privacy retired, Gretel-EN baseline pending Sprint 9 re-run) |
 | **Accuracy (named)** | Both corpora: 1.000 Macro F1 |
-| **Per-column regex coverage** | **Ai4Privacy PHONE: 16.3% → 94.5%** (Sprint 7), **Ai4Privacy CREDENTIAL: 0% → 98.6%** (Sprint 7) |
+| **Per-column regex coverage** | **Ai4Privacy PHONE: 16.3% → 94.5%** (Sprint 7 measurement on retired Ai4Privacy corpus; see LICENSE_AUDIT.md), **Ai4Privacy CREDENTIAL: 0% → 98.6%** (Sprint 7 measurement on retired Ai4Privacy corpus; see LICENSE_AUDIT.md) |
 | **Meta-classifier (CV)** | **0.916 is a methodology artifact**; honest LOCO ~0.30 |
 | **Meta-classifier (LOCO)** | 0.27–0.36 — structural gap per Q3 §6 (hypothesis A+C); E10 GLiNER-features experiment regressed LOCO further (−0.031 mean) — NOT promoted |
 | **Meta-classifier (honest blind delta)** | **+0.191** vs 5-engine live baseline (E10, 2026-04-13). The Sprint 6 "+0.257" number was vs a 4-engine baseline with GLiNER disabled — see SPRINT6_HANDOVER.md "Honest baseline correction — E10" |

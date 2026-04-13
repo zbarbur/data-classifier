@@ -2,10 +2,14 @@
 
 Assembles training rows from:
   * Nemotron-PII (named + blind modes)
-  * Ai4Privacy pii-masking-300k (named + blind modes)
   * Gretel-PII-masking-EN-v1 (Sprint 9 mixed-label add, named + blind)
   * Credential corpora: SecretBench / gitleaks / detect_secrets
   * Faker-based synthetic corpus (via tests.benchmarks.corpus_generator)
+
+A legacy 300k-row mixed-label corpus was retired in Sprint 9 because
+its license was verified as non-OSS (no commercial use, no
+redistribution, no derivative works without explicit written
+permission). See ``docs/process/LICENSE_AUDIT.md``.
 
 and writes them as newline-delimited JSON to the ``--output`` path. Also
 prints a stats report to stdout — dataset size breakdown, class balance,
@@ -343,11 +347,12 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     profile = load_profile("standard")
 
-    # Sharded training data — real corpora (Ai4Privacy, Nemotron,
-    # Gretel-EN, SecretBench, gitleaks, detect_secrets) plus Faker-backed
-    # synthetic augmentation.  The shard_builder handles bucketed M,
-    # named/blind doubling, and unique-without-replacement slicing
-    # inside each (type, corpus) combo.
+    # Sharded training data — real corpora (Nemotron, Gretel-EN,
+    # SecretBench, gitleaks, detect_secrets) plus Faker-backed synthetic
+    # augmentation.  The shard_builder handles bucketed M, named/blind
+    # doubling, and unique-without-replacement slicing inside each
+    # (type, corpus) combo.  A legacy 300k-row corpus was retired in
+    # Sprint 9; see docs/process/LICENSE_AUDIT.md.
     synthetic_pool = _build_synthetic_pool()
     shards = build_shards(synthetic_pool=synthetic_pool, seed=20260412)
 

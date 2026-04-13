@@ -5,12 +5,17 @@ our benchmark format, and saves to tests/fixtures/corpora/.
 
 Usage:
     python3 scripts/download_corpora.py [--max-per-type 1000]
-    python3 scripts/download_corpora.py --corpus ai4privacy
     python3 scripts/download_corpora.py --corpus nemotron
     python3 scripts/download_corpora.py --corpus secretbench
     python3 scripts/download_corpora.py --corpus gitleaks
     python3 scripts/download_corpora.py --corpus gretel_en
     python3 scripts/download_corpora.py --corpus all
+
+Note: the ``ai4privacy`` choice is retained for CLI discoverability but
+raises ``NotImplementedError`` at runtime — the corpus was retired in
+Sprint 9 because its license is non-OSS (no commercial use, no
+redistribution, no derivative works). See
+``docs/process/LICENSE_AUDIT.md``.
 """
 
 from __future__ import annotations
@@ -28,43 +33,6 @@ logger = logging.getLogger(__name__)
 OUTPUT_DIR = Path(__file__).parent.parent / "tests" / "fixtures" / "corpora"
 
 # ── Entity type mappings ─────────────────────────────────────────────────────
-
-# Actual Ai4Privacy label names from the dataset (verified by inspection)
-AI4PRIVACY_TYPE_MAP: dict[str, str] = {
-    # PII — direct maps
-    "EMAIL": "EMAIL",
-    "TEL": "PHONE",
-    "IP": "IP_ADDRESS",
-    "SOCIALNUMBER": "SSN",
-    "PASS": "CREDENTIAL",
-    "BOD": "DATE_OF_BIRTH",
-    "DATE": "DATE_OF_BIRTH",
-    # PII — person names
-    "GIVENNAME1": "PERSON_NAME",
-    "GIVENNAME2": "PERSON_NAME",
-    "LASTNAME1": "PERSON_NAME",
-    "LASTNAME2": "PERSON_NAME",
-    "LASTNAME3": "PERSON_NAME",
-    # PII — address components
-    "STREET": "ADDRESS",
-    "SECADDRESS": "ADDRESS",
-    "BUILDING": None,  # Skip — building numbers alone are too short
-    "CITY": None,  # Skip — city names alone aren't PII
-    "STATE": None,  # Skip
-    "POSTCODE": None,  # Skip — would need separate entity type
-    "COUNTRY": None,  # Skip
-    # IDs
-    "IDCARD": None,  # Skip — country-specific, no single pattern
-    "PASSPORT": None,  # Skip — country-specific
-    "DRIVERLICENSE": None,  # Skip — country-specific
-    # Skip — not PII or not in our type system
-    "USERNAME": None,
-    "TIME": None,
-    "SEX": None,
-    "TITLE": None,  # Mr/Mrs/Dr
-    "GEOCOORD": None,
-    "CARDISSUER": None,
-}
 
 # Actual Nemotron-PII label names (verified from 55 unique labels, 825K total spans)
 NEMOTRON_TYPE_MAP: dict[str, str] = {
@@ -160,48 +128,17 @@ GRETEL_EN_TYPE_MAP: dict[str, str] = {
 }
 
 
-# ── Ai4Privacy ───────────────────────────────────────────────────────────────
+# ── Ai4Privacy (retired Sprint 9 — license non-OSS) ─────────────────────────
 
 
 def download_ai4privacy(max_per_type: int = 1000) -> list[dict]:
-    """Download Ai4Privacy pii-masking-300k from HuggingFace and extract PII values."""
-    try:
-        from datasets import load_dataset
-    except ImportError:
-        logger.error("Install datasets: pip3 install datasets")
-        return []
+    """Retired — Ai4Privacy license is non-OSS.
 
-    logger.info("Downloading ai4privacy/pii-masking-300k from HuggingFace...")
-    ds = load_dataset("ai4privacy/pii-masking-300k", split="train")
-    logger.info("Downloaded %d rows", len(ds))
-
-    # Extract PII spans from each row
-    records_by_type: dict[str, list[str]] = {}
-    for row in ds:
-        privacy_mask = row.get("privacy_mask", [])
-        if not privacy_mask:
-            continue
-        for span in privacy_mask:
-            label = span.get("label", "")
-            value = span.get("value", "")
-            if not label or not value or len(value) < 2:
-                continue
-
-            our_type = AI4PRIVACY_TYPE_MAP.get(label)
-            if our_type is None:
-                continue
-
-            records_by_type.setdefault(our_type, []).append(value)
-
-    # Deduplicate and cap per type
-    records: list[dict] = []
-    for entity_type, values in sorted(records_by_type.items()):
-        unique = list(dict.fromkeys(values))[:max_per_type]
-        logger.info("  %s: %d unique values (from %d total)", entity_type, len(unique), len(values))
-        for v in unique:
-            records.append({"entity_type": entity_type, "value": v})
-
-    return records
+    Preserved as a stub so the CLI still surfaces the choice but refuses to
+    re-download. Removed in Sprint 9; see ``docs/process/LICENSE_AUDIT.md``
+    for the verification record.
+    """
+    raise NotImplementedError("ai4privacy retired — license non-OSS, see docs/process/LICENSE_AUDIT.md")
 
 
 # ── Nemotron-PII ─────────────────────────────────────────────────────────────
@@ -218,14 +155,9 @@ def download_nemotron(max_per_type: int = 1000) -> list[dict]:
     logger.info("Downloading nvidia/Nemotron-PII from HuggingFace...")
     try:
         ds = load_dataset("nvidia/Nemotron-PII", split="train")
-    except Exception:
-        # Try alternative dataset names
-        logger.warning("nvidia/Nemotron-PII not found, trying alternatives...")
-        try:
-            ds = load_dataset("ai4privacy/pii-masking-300k", name="nemotron", split="train")
-        except Exception:
-            logger.error("Could not find Nemotron-PII dataset. Generating from Ai4Privacy subset instead.")
-            return _generate_nemotron_fallback(max_per_type)
+    except Exception as exc:
+        logger.error("Could not find Nemotron-PII dataset: %s", exc)
+        return []
 
     logger.info("Downloaded %d rows", len(ds))
 
@@ -253,43 +185,6 @@ def download_nemotron(max_per_type: int = 1000) -> list[dict]:
     for entity_type, values in sorted(records_by_type.items()):
         unique = list(dict.fromkeys(values))[:max_per_type]
         logger.info("  %s: %d unique values (from %d total)", entity_type, len(unique), len(values))
-        for v in unique:
-            records.append({"entity_type": entity_type, "value": v})
-
-    return records
-
-
-def _generate_nemotron_fallback(max_per_type: int) -> list[dict]:
-    """If Nemotron isn't available, use a second pass of Ai4Privacy with different dedup."""
-    logger.info("Generating Nemotron-equivalent from Ai4Privacy (second slice)...")
-    try:
-        from datasets import load_dataset
-    except ImportError:
-        return []
-
-    ds = load_dataset("ai4privacy/pii-masking-300k", split="train")
-    records_by_type: dict[str, list[str]] = {}
-
-    # Take from the second half of the dataset for different samples
-    start = len(ds) // 2
-    for row in ds.select(range(start, len(ds))):
-        privacy_mask = row.get("privacy_mask", [])
-        if not privacy_mask:
-            continue
-        for span in privacy_mask:
-            label = span.get("label", "")
-            value = span.get("value", "")
-            if not label or not value or len(value) < 2:
-                continue
-            our_type = AI4PRIVACY_TYPE_MAP.get(label)
-            if our_type is None:
-                continue
-            records_by_type.setdefault(our_type, []).append(value)
-
-    records: list[dict] = []
-    for entity_type, values in sorted(records_by_type.items()):
-        unique = list(dict.fromkeys(values))[:max_per_type]
-        logger.info("  %s: %d unique values", entity_type, len(unique))
         for v in unique:
             records.append({"entity_type": entity_type, "value": v})
 
@@ -584,9 +479,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    corpora = (
-        [args.corpus] if args.corpus != "all" else ["ai4privacy", "nemotron", "secretbench", "gitleaks", "gretel_en"]
-    )
+    corpora = [args.corpus] if args.corpus != "all" else ["nemotron", "secretbench", "gitleaks", "gretel_en"]
     total_records = 0
 
     for corpus_name in corpora:
@@ -595,10 +488,10 @@ def main() -> None:
         logger.info("=" * 60)
 
         if corpus_name == "ai4privacy":
-            records = download_ai4privacy(max_per_type=args.max_per_type)
-            if records:
-                save_corpus(records, "ai4privacy_sample.json")
-                total_records += len(records)
+            # Retired in Sprint 9 — license non-OSS.  Stubbed to raise
+            # NotImplementedError so the CLI still surfaces the choice
+            # (discoverability) but refuses to re-download.
+            download_ai4privacy(max_per_type=args.max_per_type)
 
         elif corpus_name == "nemotron":
             records = download_nemotron(max_per_type=args.max_per_type)

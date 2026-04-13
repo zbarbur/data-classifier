@@ -2,10 +2,11 @@
 
 Focuses on the three Phase 2 loaders (SecretBench, gitleaks,
 detect_secrets) and the ``NEGATIVE`` ground-truth plumbing they emit.
-The existing Ai4Privacy/Nemotron loaders remain covered by the end-to-end
-benchmarks.
+The Nemotron loader remains covered by the end-to-end benchmarks.
 
-Also covers the Sprint 9 Gretel-EN loader (mixed-label corpus).
+Also covers the Sprint 9 Gretel-EN loader (mixed-label corpus), which
+replaced a retired 300k-row corpus whose license was verified as
+non-OSS; see ``docs/process/LICENSE_AUDIT.md``.
 """
 
 from __future__ import annotations

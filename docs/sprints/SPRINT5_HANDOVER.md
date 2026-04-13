@@ -1,5 +1,7 @@
 # Sprint 5 Handover — Precision Fix, ML Engine & Production Deployment
 
+> **NOTE (2026-04-13):** This document cites F1 numbers measured against the `ai4privacy/pii-masking-300k` corpus, which has since been retired due to license non-compatibility. Historical numbers are preserved as records of what was measured at the time. See `docs/process/LICENSE_AUDIT.md` for context.
+
 > **Date:** 2026-04-12
 > **Theme:** Engine weighting, sibling analysis, first ML engine (GLiNER2), ONNX deployment
 > **Branch:** sprint5/main → merged to main

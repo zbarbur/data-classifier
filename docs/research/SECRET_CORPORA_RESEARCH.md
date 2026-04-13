@@ -1,5 +1,7 @@
 # External Corpora Research — PII & Secret Detection
 
+> **NOTE (2026-04-13):** This document cites F1 numbers measured against the `ai4privacy/pii-masking-300k` corpus, which has since been retired due to license non-compatibility. Historical numbers are preserved as records of what was measured at the time. See `docs/process/LICENSE_AUDIT.md` for context.
+
 > **Date:** 2026-04-11
 > **Sprint:** 4 (Stream B — Benchmarks)
 > **Purpose:** Document available external corpora for benchmarking data_classifier accuracy against real-world data.
