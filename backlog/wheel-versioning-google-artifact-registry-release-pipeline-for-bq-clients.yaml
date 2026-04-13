@@ -1,5 +1,5 @@
 title: Wheel versioning + Google Artifact Registry release pipeline for BQ + clients
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 8

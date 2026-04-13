@@ -1,5 +1,5 @@
 title: 'CI matrix: add [ml] extra job to catch ML-dependent test failures'
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 8

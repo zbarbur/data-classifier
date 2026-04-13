@@ -1,6 +1,6 @@
 title: "Model distribution \u2014 download_models CLI + AR Generic publish for BQ\
   \ Cloud Run"
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 8

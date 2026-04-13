@@ -1,6 +1,6 @@
 title: Investigate test_ssn_in_samples failure under ML-enabled env (GLiNER2 ORGANIZATION
   suppression)
-status: doing
+status: done
 priority: P1
 category: bug
 sprint_target: 8
