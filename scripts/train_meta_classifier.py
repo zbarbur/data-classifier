@@ -211,9 +211,7 @@ def train(
     for C in C_GRID:
         fold_f1s: list[float] = []
         split_iter = (
-            kf.split(X_train_s, y_train, groups=corpora_train)
-            if use_group_kfold
-            else kf.split(X_train_s, y_train)
+            kf.split(X_train_s, y_train, groups=corpora_train) if use_group_kfold else kf.split(X_train_s, y_train)
         )
         for tr_idx, va_idx in split_iter:
             clf = LogisticRegression(
