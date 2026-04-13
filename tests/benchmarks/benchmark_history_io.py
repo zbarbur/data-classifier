@@ -54,7 +54,7 @@ def load_recent_sprints(max_count: int = 5, *, history_dir: Path | None = None) 
     for f in files[-max_count:]:
         try:
             loaded.append(from_dict(json.loads(f.read_text())))
-        except (ValueError, KeyError, json.JSONDecodeError):
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError):
             continue
     return loaded
 
