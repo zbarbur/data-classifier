@@ -491,6 +491,105 @@ class TestUnsafeTarball:
         assert not (tmp_path / "evil.txt").exists()
 
 
+class TestSafeExtractSymlinkRejection:
+    """Direct end-to-end coverage for ``_safe_extract``'s link-member guard.
+
+    Sprint 9 hardening: ``tarfile.data_filter`` only exists on Python
+    3.12+, so on 3.11 the pre-scan in ``_safe_extract`` is the only
+    defense against tar escape via symlinks/hardlinks. These tests pin
+    the explicit pre-scan rejection on every supported Python version.
+
+    We build real tarballs with :mod:`tarfile` and call ``_safe_extract``
+    directly — no mocking of tar internals.
+    """
+
+    @staticmethod
+    def _make_symlink_tar(tar_path: Path, member_name: str, link_target: str) -> None:
+        """Write a tar at ``tar_path`` with a single symlink member."""
+        with tarfile.open(tar_path, mode="w") as tar:
+            info = tarfile.TarInfo(name=member_name)
+            info.type = tarfile.SYMTYPE
+            info.linkname = link_target
+            tar.addfile(info)
+
+    @staticmethod
+    def _make_hardlink_tar(tar_path: Path, member_name: str, link_target: str) -> None:
+        """Write a tar at ``tar_path`` with a plain file plus a hardlink member."""
+        with tarfile.open(tar_path, mode="w") as tar:
+            # Hardlinks reference an existing archive member, so we need a real file first.
+            real = tarfile.TarInfo(name="real.txt")
+            payload = b"hello"
+            real.size = len(payload)
+            tar.addfile(real, io.BytesIO(payload))
+            link = tarfile.TarInfo(name=member_name)
+            link.type = tarfile.LNKTYPE
+            link.linkname = link_target
+            tar.addfile(link)
+
+    def test_symlink_member_rejected(self, tmp_path: Path) -> None:
+        # Real symlink pointing outside the destination — the classic
+        # CVE-2007-4559 style escape vector.
+        tar_path = tmp_path / "evil_sym.tar"
+        dest = tmp_path / "dest"
+        dest.mkdir()
+        self._make_symlink_tar(tar_path, member_name="escape", link_target="/etc/passwd")
+
+        with tarfile.open(tar_path, mode="r") as tar:
+            with pytest.raises(dm.DownloadError) as excinfo:
+                dm._safe_extract(tar, dest)
+
+        assert "symlink" in str(excinfo.value).lower() or "hardlink" in str(excinfo.value).lower()
+        # Nothing was extracted.
+        assert list(dest.iterdir()) == []
+
+    def test_hardlink_member_rejected(self, tmp_path: Path) -> None:
+        tar_path = tmp_path / "evil_hard.tar"
+        dest = tmp_path / "dest"
+        dest.mkdir()
+        self._make_hardlink_tar(tar_path, member_name="hardescape", link_target="real.txt")
+
+        with tarfile.open(tar_path, mode="r") as tar:
+            with pytest.raises(dm.DownloadError) as excinfo:
+                dm._safe_extract(tar, dest)
+
+        assert "symlink" in str(excinfo.value).lower() or "hardlink" in str(excinfo.value).lower()
+        # The pre-scan aborts before any member is written to disk.
+        assert list(dest.iterdir()) == []
+
+    def test_normal_file_still_extracts(self, tmp_path: Path) -> None:
+        # Regression guard: plain files must still flow through the
+        # extractor unchanged after the new link-member check.
+        tar_path = tmp_path / "plain.tar"
+        dest = tmp_path / "dest"
+        dest.mkdir()
+        with tarfile.open(tar_path, mode="w") as tar:
+            info = tarfile.TarInfo(name="hello.txt")
+            payload = b"hello world"
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+
+        with tarfile.open(tar_path, mode="r") as tar:
+            dm._safe_extract(tar, dest)
+
+        extracted = dest / "hello.txt"
+        assert extracted.is_file()
+        assert extracted.read_bytes() == b"hello world"
+
+    def test_error_message_names_offending_member(self, tmp_path: Path) -> None:
+        # The error must name the offending member so operators can
+        # diagnose a hostile tarball from a single log line.
+        tar_path = tmp_path / "named.tar"
+        dest = tmp_path / "dest"
+        dest.mkdir()
+        self._make_symlink_tar(tar_path, member_name="sneaky_link", link_target="/etc/shadow")
+
+        with tarfile.open(tar_path, mode="r") as tar:
+            with pytest.raises(dm.DownloadError) as excinfo:
+                dm._safe_extract(tar, dest)
+
+        assert "sneaky_link" in str(excinfo.value)
+
+
 class TestVersionDiscovery:
     def test_default_version_returns_pinned_model_version(self) -> None:
         # _default_version returns the pinned GLiNER model version —

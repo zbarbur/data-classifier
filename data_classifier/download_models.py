@@ -367,8 +367,18 @@ def _is_within_directory(directory: Path, target: Path) -> bool:
 
 
 def _safe_extract(tar: tarfile.TarFile, dest: Path) -> None:
-    """Extract ``tar`` into ``dest`` with path-traversal protection."""
+    """Extract ``tar`` into ``dest`` with path-traversal protection.
+
+    On Python 3.12+ ``tarfile.data_filter`` provides a second line of
+    defense that also blocks link members; on 3.11 that filter does not
+    exist, so the pre-scan below is the only defense. We therefore
+    reject symlink and hardlink members unconditionally on every Python
+    version (Sprint 9 hardening — see backlog item
+    ``tar-safety-on-python-3-11-...``).
+    """
     for member in tar.getmembers():
+        if member.issym() or member.islnk():
+            raise DownloadError(f"Refusing to extract symlink/hardlink member: {member.name}")
         member_path = dest / member.name
         if not _is_within_directory(dest, member_path):
             raise DownloadError(f"tarball contains unsafe path outside destination: {member.name!r}")
