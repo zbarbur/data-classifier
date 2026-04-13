@@ -52,7 +52,13 @@ test_plan:
   would, running classify_columns, and verifying the findings include the expected
   context-driven signals (e.g. table_name boost from _table_context_boost, data_type
   prefilter from the sprint9 gliner item if landed)'
-notes: ''
+notes: "2026-04-13 verbal confirmation from BQ team: they populate the ColumnInput\
+  \ context fields (table_name, dataset, schema_name, data_type, description) when\
+  \ calling classify_columns in the v0.8.0 integration. Written verification and docs/process/BQ_INTEGRATION_STATUS.md\
+  \ stub deferred to later in Sprint 9 or Sprint 10 \u2014 user (2026-04-13) said\
+  \ 'we can verify later'. Sprint 9 library-side work that consumes these fields (gliner-data-type-pre-filter,\
+  \ _table_context_boost) can proceed on the assumption that BQ populates them. If\
+  \ downstream BQ integration debugging reveals a gap, file it as a bug."
 phase: plan
 design_reviewed: false
 code_reviewed: false
