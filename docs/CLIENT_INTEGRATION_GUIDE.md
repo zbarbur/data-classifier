@@ -1,9 +1,9 @@
 # data_classifier — Client Integration Guide
 
 > **Audience:** Connector teams (BigQuery, Snowflake, Postgres, etc.)
-> **Version:** 0.5.0 (Sprint 5 — ML engine, ONNX deployment)
-> **Date:** 2026-04-12
-> **Status:** READY — v0.5.0 tagged and available
+> **Version:** 0.8.0 (Sprint 8 — wheel versioning, AR release pipeline, model distribution)
+> **Date:** 2026-04-13
+> **Status:** READY — forward-only versioning begins at `v0.8.0`; see `CHANGELOG.md` for the history of the earlier `0.1.0` vendored-wheel era
 
 ---
 
@@ -26,42 +26,334 @@ Choose the tier that fits your deployment:
 
 | Tier | Install | Size | What you get | Latency |
 |------|---------|------|--------------|---------|
-| **Light** | `pip install data_classifier` | ~5MB | Regex + column name + heuristic engines | ~15ms/col |
-| **Standard (recommended)** | `pip install "data_classifier[ml]"` | ~70MB + 350MB model | + GLiNER NER engine (ONNX) for PERSON_NAME, ADDRESS detection | ~80ms/col |
-| **Full** | `pip install "data_classifier[ml-full]"` | ~2.5GB | + PyTorch for model export/fine-tuning | ~100ms/col |
-| **API** | `pip install "data_classifier[ml-api]"` | ~5MB | + GLiNER hosted API (needs API key, network) | varies |
+| **Light** | `pip install data_classifier` | ~5MB | Regex + column name + heuristic + secret scanner engines | ~15ms/col |
+| **Standard (recommended)** | `pip install "data_classifier[ml]"` | ~70MB (+ ~200MB ONNX model fetched separately — see below) | + GLiNER2 NER engine for PERSON_NAME, ADDRESS, ORGANIZATION detection | ~80ms/col |
+| **Developer / export** | `pip install "data_classifier[ml-full]"` | ~2.5GB | + PyTorch / transformers / onnx — required for `python -m data_classifier.export_onnx` and model fine-tuning; **not** required at runtime | N/A (build-time only) |
 
-**For production BQ connector, use Standard tier:**
+> **Changed in v0.8.0 (Sprint 8):** the `[ml-api]` extra was removed. It
+> declared a package name that did not match what `gliner_engine.py`
+> imports, and no consumer used it. Standard tier with a locally-bundled
+> ONNX model is the correct production path. See `CHANGELOG.md`.
+
+**What Light tier misses:** `PERSON_NAME`, `ADDRESS`, and `ORGANIZATION` detection from sample values. These entity types require NER (ML). If your columns have meaningful names (e.g., `full_name`, `street_address`), the column name engine still detects them without ML. ML is only needed when column names are generic or missing.
+
+### 1b. Install recipes
+
+> **Quick reference — pick the recipe that matches your deployment shape.** All recipes pin to `v0.8.0`.
+
+**(A) Google Artifact Registry — recommended for GCP consumers** (including the BigQuery connector):
 
 ```bash
-# One-time at build (needs ml-full for export):
-pip install "data_classifier[ml-full]"
-python scripts/export_onnx_model.py --output models/gliner_onnx
-
-# Runtime (Dockerfile):
-pip install "data_classifier[ml]"
-# Copy models/gliner_onnx/ into container
+pip install \
+  --extra-index-url https://us-central1-python.pkg.dev/dag-bigquery-dev/data-classifier/simple/ \
+  "data_classifier[ml]==0.8.0"
 ```
 
-**What Light tier misses:** PERSON_NAME, ADDRESS, and ORGANIZATION detection from sample values. These entity types require NER (ML). If your columns have meaningful names (e.g., `full_name`, `street_address`), the column name engine still detects them without ML. ML is needed when column names are generic or missing.
-
-**Install from private repo** (choose the method your CI/CD uses):
+The `data-classifier` Python repository lives in the `dag-bigquery-dev` GCP project under `us-central1`. Auth is handled transparently by the `keyrings.google-artifactregistry-auth` plugin — install it alongside pip:
 
 ```bash
-# Option A: Git SSH (if CI has deploy key)
-pip install "data_classifier[ml] @ git+ssh://git@github.com/zbarbur/data-classifier.git@v0.5.0"
+pip install keyring keyrings.google-artifactregistry-auth
+```
 
-# Option B: GitHub token (if CI has GH_TOKEN)
-pip install "data_classifier[ml] @ git+https://${GH_TOKEN}@github.com/zbarbur/data-classifier.git@v0.5.0"
+...and either run as a service account with `artifactregistry.reader` on `dag-bigquery-dev`, or authenticate via `gcloud auth application-default login` on developer machines. Inside Cloud Build, the default Cloud Build service account already has credentials — no extra setup.
 
-# Option C: Local path (monorepo or vendored)
+**(B) Vendored wheel — monorepo / air-gapped / pre-sprint-8 compatibility**
+
+```bash
+# Once (on a machine with write access to a shared location or repo):
+python -m build --wheel
+cp dist/data_classifier-0.8.0-py3-none-any.whl <vendor-location>/
+
+# In the consumer's pyproject.toml:
+"data_classifier[ml] @ file:vendor/data_classifier-0.8.0-py3-none-any.whl"
+```
+
+**(C) Git SSH — for CI systems with a deploy key**
+
+```bash
+pip install "data_classifier[ml] @ git+ssh://git@github.com/zbarbur/data-classifier.git@v0.8.0"
+```
+
+**(D) Local editable — for development on a workspace with both repos checked out**
+
+```bash
 pip install -e "../data_classifier[ml]"
-
-# Option D: Private PyPI (if published to Artifact Registry / CodeArtifact)
-pip install --index-url https://your-registry/ "data_classifier[ml]==0.5.0"
 ```
 
-**Version pinning:** Always pin to a tag (`@v0.5.0`), never track a branch in production.
+**Version pinning:** Always pin to a released tag (`==0.8.0` or `@v0.8.0`), never track a branch in production. The release tag is authoritative; `sprint8/main` and `main` are moving targets.
+
+### 1c. The GLiNER2 ONNX model (Standard tier only)
+
+GLiNER2 needs an ONNX model file at runtime. The `[ml]` extra installs the Python bindings but **not** the model weights — those are ~200MB and distributed separately.
+
+**For container deployments (Cloud Run, etc.):** bake the model into the image at build time so runtime has no network dependency on HuggingFace:
+
+```dockerfile
+# Dockerfile snippet for BQ connector / any container deployment
+RUN pip install \
+    --extra-index-url https://us-central1-python.pkg.dev/dag-bigquery-dev/data-classifier/simple/ \
+    "data_classifier[ml]==0.8.0" && \
+    python -m data_classifier.download_models
+```
+
+`python -m data_classifier.download_models` is a lean CLI (stdlib-only — uses `urllib.request`, `hashlib`, `tarfile`, and `subprocess`; **no `torch`, `transformers`, `onnx`, or `requests`** in the import graph) that fetches the pre-exported GLiNER ONNX tarball from the `data-classifier-models` Google Artifact Registry Generic repo in `dag-bigquery-dev`, verifies its SHA-256 against a companion `.sha256` file, and unpacks it into `~/.cache/data_classifier/models/gliner_onnx/`. The `GLiNER2Engine` auto-discovers model files at that path via `_find_bundled_onnx_model()`, so no engine config is needed.
+
+**Model versioning is decoupled from `data_classifier` versioning.** The ONNX tarball is a separate build-time artifact derived from the upstream `urchade/gliner_multi_pii-v1` HuggingFace checkpoint. It does *not* rev when we ship a new `data_classifier` release — the same base model is used across many sprints, and re-exporting it on every library release would be pure waste (~10 min of `pip install [ml-full]` + re-running the same HF→ONNX conversion on unchanged upstream weights). When the upstream base model changes (rarely — at most once every few quarters), a human bumps `DEFAULT_MODEL_VERSION` in `data_classifier/download_models.py` and uploads a new tarball.
+
+**CLI flags:**
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--to PATH` | `~/.cache/data_classifier/models/gliner_onnx/` | Override the install location |
+| `--version VERSION` | `urchade-gliner-multi-pii-v1` (the pinned GLiNER model version — **not** the data_classifier version) | Fetch a different model release |
+| `--url URL` | AR Generic REST endpoint derived from `--version` | Override the full tarball URL (mirrors, testing) |
+| `--checksum-url URL` | Derived from `--url` | Override the checksum URL independently |
+| `--access-token TOKEN` | Auto-discovered via metadata service or `gcloud` | Explicit GCP access token for AR authentication |
+| `--force` | off | Overwrite an existing target directory |
+| `--quiet` | off | Suppress progress output |
+
+**Auth token discovery order** (first hit wins):
+
+1. `--access-token` CLI flag (explicit)
+2. `GCP_ACCESS_TOKEN` environment variable
+3. GCP metadata service (`metadata.google.internal` — the BQ Cloud Build path; zero setup)
+4. `gcloud auth print-access-token` (dev-machine fallback, only tried if `gcloud` is on `PATH`)
+
+The metadata service path means **BQ's Dockerfile needs no extra setup** — Cloud Build automatically exposes the build SA's token to steps running on the builder VM. If none of the four paths yield a token, the download proceeds without authentication (useful for public mirrors via `--url`).
+
+**Safety guarantees:**
+- SHA-256 mismatch aborts before touching the target directory — any existing model stays intact
+- Tarball extraction uses a resolved-path containment check plus `tarfile.data_filter` (on Python 3.12+) to block path-traversal attacks
+- No raw tracebacks: every handled failure exits with a single-line error on stderr and a non-zero exit code
+
+**Required IAM on the BQ Cloud Build service account:** `roles/artifactregistry.reader` on the `data-classifier-models` AR Generic repo (or project-wide). Writer permission is NOT needed — the Docker build is a consumer, not a publisher.
+
+**For dev / one-off export:** if you want to regenerate the ONNX model from a HuggingFace checkpoint (e.g. to experiment with a different base model), install the developer extra and run the exporter:
+
+```bash
+pip install "data_classifier[ml-full]"
+python -m data_classifier.export_onnx --user  # writes to ~/.cache/data_classifier/models/gliner_onnx/
+```
+
+This is a one-time step and is **not** part of the production container image.
+
+### 1d. Environment variables
+
+| Variable | Effect |
+|---|---|
+| `DATA_CLASSIFIER_DISABLE_ML` | If set to any truthy value, skip GLiNER2 engine entirely. Useful for regex-only benchmarking, CI jobs that do not want HuggingFace network dependencies, or emergency fallback when the model is unavailable. |
+| `GLINER_ONNX_PATH` | Override the ONNX model search path. If set, takes precedence over `_find_bundled_onnx_model()`'s auto-discovery. |
+| `GLINER_API_KEY` | If local model loading fails and this is set, falls back to the GLiNER hosted API (`gliner.pioneer.ai`). Not recommended for production — network round-trip latency is high. |
+
+### 1e. Observability and live telemetry
+
+`data_classifier` ships two observability surfaces: **Python logging** (zero-setup, always-on) and a **pluggable event emitter** (opt-in, for metrics/tracing integration). Use both in production — they answer different questions.
+
+#### Python logging
+
+Every engine logs via `logging.getLogger("data_classifier.*")` at these levels:
+
+| Level | Examples |
+|---|---|
+| `INFO` | Engine startup: `RegexEngine: compiled 58 content patterns into RE2 Set`, `GLiNER2Engine: registered 'gliner2-ner' (..., mode=onnx)`, `Model 'gliner2-ner' loaded successfully.` |
+| `WARNING` | Fallback paths: `Local model load failed, falling back to API mode` |
+| `EXCEPTION` (ERROR + traceback) | Per-engine inference failures inside `Orchestrator`: `Engine gliner2 failed on column <id>` with the underlying exception |
+
+**Recommended consumer setup:**
+
+```python
+import logging
+
+# Capture data_classifier logs at INFO+ and route to your log aggregator.
+logging.getLogger("data_classifier").setLevel(logging.INFO)
+
+# Optional: raise ML engine logs to WARNING to cut noise once the system
+# is stable. Leave at INFO during the first week of a deployment so
+# startup messages are visible in the log stream.
+logging.getLogger("data_classifier.engines.gliner_engine").setLevel(logging.INFO)
+```
+
+If you do not configure logging at all, Python's default root logger will still print `WARNING` and above to `stderr`, so fallback paths and engine exceptions are never fully silent — but `INFO`-level startup messages will be dropped and you will lose "which engines loaded" visibility.
+
+#### Event emitter — per-column, per-engine metrics
+
+`classify_columns()` accepts an optional `event_emitter` parameter. When set, the orchestrator emits two event types:
+
+- **`TierEvent`** — one per engine invocation per column. Fields: `tier` (engine name), `latency_ms`, `outcome` (`"hit"` or `"miss"`), `findings_count`, `column_id`, `run_id`, `timestamp`.
+- **`ClassificationEvent`** — one per column, after all engines have run. Fields: `column_id`, `total_findings`, `total_ms`, **`engines_executed: list[str]`**, **`engines_skipped: list[str]`**, `run_id`, `timestamp`.
+
+`engines_executed` and `engines_skipped` are the authoritative answer to *"which engines actually ran on this column?"* — more reliable than parsing log lines, and cheap enough to emit on every call.
+
+Four built-in handler types ship with the library:
+
+```python
+from data_classifier.events.emitter import (
+    EventEmitter,
+    NullHandler,     # default — discards all events
+    StdoutHandler,   # JSON lines to stdout, one line per event
+    LogHandler,      # forward events via Python logging
+    CallbackHandler, # call a user-supplied function per event
+)
+```
+
+**Example — wiring into Prometheus / Cloud Monitoring / Datadog:**
+
+```python
+from data_classifier import classify_columns
+from data_classifier.events.emitter import EventEmitter, CallbackHandler
+from data_classifier.events.types import TierEvent, ClassificationEvent
+
+def on_event(ev):
+    if isinstance(ev, TierEvent):
+        metrics.histogram(
+            "data_classifier.engine.latency_ms",
+            ev.latency_ms,
+            tags={"engine": ev.tier, "outcome": ev.outcome},
+        )
+        metrics.counter(
+            "data_classifier.engine.findings_total",
+            ev.findings_count,
+            tags={"engine": ev.tier},
+        )
+    elif isinstance(ev, ClassificationEvent):
+        metrics.histogram("data_classifier.column.total_ms", ev.total_ms)
+        metrics.gauge(
+            "data_classifier.column.engines_executed",
+            len(ev.engines_executed),
+        )
+        # Alert on unexpected engine absence in production:
+        if "gliner2" not in ev.engines_executed and ev.engines_skipped:
+            logger.warning(
+                "GLiNER2 not running in production; engines_skipped=%s",
+                ev.engines_skipped,
+            )
+
+emitter = EventEmitter()
+emitter.add_handler(CallbackHandler(on_event))
+
+findings = classify_columns(
+    columns,
+    profile,
+    event_emitter=emitter,
+    run_id="scan-2026-04-13-001",  # carried through to every event
+)
+```
+
+The `run_id` you pass to `classify_columns()` is echoed on every event, so multi-column scans can be grouped and aggregated in dashboards.
+
+#### Startup health probe (recommended pattern)
+
+The library does not ship a built-in `health_check()` function yet — that's on the Sprint 9 roadmap. For now, consumers should run a one-column smoke test at service startup to verify the cascade is live:
+
+```python
+from data_classifier import ColumnInput, classify_columns, load_profile
+from data_classifier.events.emitter import EventEmitter, CallbackHandler
+from data_classifier.events.types import ClassificationEvent
+
+def startup_health_check() -> dict[str, list[str]]:
+    """Runs a canned classification and returns which engines executed.
+
+    Call this from your health endpoint or service startup code to verify
+    the cascade is functioning BEFORE taking traffic. Raises RuntimeError
+    if no engines executed (e.g. broken install).
+    """
+    engines_seen: list[str] = []
+
+    def capture(ev):
+        if isinstance(ev, ClassificationEvent):
+            engines_seen.extend(ev.engines_executed)
+
+    emitter = EventEmitter()
+    emitter.add_handler(CallbackHandler(capture))
+
+    probe = ColumnInput(
+        column_name="email_address",
+        column_id="healthcheck:probe",
+        sample_values=["alice@example.com"],
+    )
+    classify_columns([probe], load_profile("standard"), event_emitter=emitter)
+
+    if not engines_seen:
+        raise RuntimeError("data_classifier: no engines executed on probe")
+
+    return {"engines_executed": engines_seen}
+```
+
+#### Known gaps (Sprint 9 backlog)
+
+As of v0.8.0 there are three observability gaps you may hit in production:
+
+1. **Silent `[ml]` missing fallback.** `_build_default_engines()` (in `data_classifier/__init__.py`) catches `ImportError` and silently skips the GLiNER2 engine when the `gliner` package is not installed. If your container accidentally ships without `[ml]` extras, there is **no warning log** at startup — classification silently degrades to regex-only. Mitigation: run the startup health check above, which will report `gliner2` absent from `engines_executed`.
+2. **No `get_active_engines()` helper.** There is no public introspection function that returns "which engines are loaded and ready". The workaround is the event-emitter probe shown above.
+3. **No built-in `health_check()` function.** Each consumer implements its own probe (as shown above). A canonical helper will ship in a future sprint so consumers can drop their own implementation.
+
+These are tracked under the Sprint 9 backlog item `observability-gaps-get-active-engines-health-check-loud-import-error`.
+
+---
+
+## 1c. Baking the ONNX model into a container image
+
+Production container deployments (Cloud Run, GKE, ECS, etc.) should
+**never** download the GLiNER model from HuggingFace at runtime — we
+observed HTTP 429 rate-limit failures on Cloud Run cold starts, and
+the first-request latency spike is unacceptable for a classification
+service. Instead, bake the pre-exported ONNX tarball into the image at
+build time using the `data-classifier-download-models` CLI.
+
+This CLI is **stdlib-only** — it does not import `torch`,
+`transformers`, `onnx`, or `requests`, so it is safe to run in a lean
+`[ml]`-extras container. It downloads a versioned tarball from our
+Google Artifact Registry Generic repo, verifies its SHA-256 checksum,
+and unpacks it into `~/.cache/data_classifier/models/gliner_onnx/`,
+which is one of the three paths that `GLiNER2Engine` auto-discovers at
+startup.
+
+**Dockerfile recipe:**
+
+```dockerfile
+FROM python:3.11-slim
+
+# Install the library with ML runtime extras only (onnxruntime + gliner,
+# no torch, no transformers).
+RUN pip install --no-cache-dir "data_classifier[ml]==0.5.0"
+
+# Bake the ONNX model into the image at build time. The CLI defaults to
+# ~/.cache/data_classifier/models/gliner_onnx/ which is where
+# GLiNER2Engine auto-discovers it at startup — no env vars needed.
+RUN data-classifier-download-models
+
+# ...your application setup...
+CMD ["python", "-m", "your_app"]
+```
+
+**CLI flags:**
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--to PATH` | `~/.cache/data_classifier/models/gliner_onnx/` | Destination directory. Parent dirs are created automatically. |
+| `--version VERSION` | Installed `data_classifier` version | Model version to fetch (tied to library version). |
+| `--url URL` | Artifact Registry URL derived from `--version` | Override the full download URL (internal mirrors, testing). |
+| `--checksum-url URL` | `<url>.sha256` | Override the SHA-256 checksum URL. |
+| `--force` | off | Re-download even if the target path already exists. |
+| `--quiet` | off | Suppress progress output on stdout. |
+
+**Behavior guarantees:**
+
+- Exits 0 on success, non-zero on any failure (no raw tracebacks — you
+  get a one-line `error: ...` message on stderr).
+- Downloads are SHA-256 verified before extraction. A checksum
+  mismatch aborts the download **without touching the target
+  directory**, so a corrupt retry cannot leave the container in a
+  half-installed state.
+- The CLI is idempotent: running it twice is a no-op the second time
+  unless you pass `--force`.
+- Tar extraction is path-traversal safe (CVE-2007-4559 mitigations).
+
+**Alternatives for air-gapped / internal networks:** use `--url` to
+point at an internal mirror of the tarball, or provide a
+`--checksum-url` that references your internal checksum file. The CLI
+makes no assumptions about DNS or the default Artifact Registry
+hostname beyond what you tell it.
 
 ---
 

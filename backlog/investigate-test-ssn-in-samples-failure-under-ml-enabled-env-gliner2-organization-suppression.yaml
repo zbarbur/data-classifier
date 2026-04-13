@@ -1,6 +1,6 @@
 title: Investigate test_ssn_in_samples failure under ML-enabled env (GLiNER2 ORGANIZATION
   suppression)
-status: backlog
+status: done
 priority: P1
 category: bug
 sprint_target: 8
@@ -58,7 +58,7 @@ notes: "Discovered Sprint 7 close, 2026-04-13. GLiNER2 classifies the input as O
   \ ML-on env for 2+ sprints. Depends on: ci-matrix-add-ml-extra-job-to-catch-ml-dependent-test-failures\
   \ (that item adds the job that will show the failure red and block merges). LANDING\
   \ ORDER: ci-matrix first, then this bug fix."
-phase: null
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

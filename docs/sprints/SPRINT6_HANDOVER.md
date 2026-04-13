@@ -184,6 +184,64 @@ been updated to reflect the ~0.34 honest target, replacing the original
 "convergence within 0.10" criterion which was based on a queue.md
 summary that did not match Q3's primary numbers.
 
+### Honest baseline correction — E10 (added 2026-04-13)
+
+E10 (`research/e10-gliner-features`, pushed to origin 2026-04-13)
+re-ran the Phase 2 evaluation against the **honest 5-engine live
+baseline** (i.e. with GLiNER enabled in `classify_columns`, instead of
+the 4-engine baseline that Phase 2 used because both
+`build_training_data.py:29` and `evaluate.py:49` set
+`DATA_CLASSIFIER_DISABLE_ML=1`). E10 also widened the meta-classifier
+feature schema from 15 to 20 to add 5 GLiNER-derived features, retrained
+to produce `meta_classifier_v1_e10.pkl`, and ran the same suite of
+evaluations.
+
+**Headline correction to the Sprint 6 numbers above:**
+
+| Metric                              | Sprint 6 claim | E10 honest measurement |
+|-------------------------------------|---------------:|-----------------------:|
+| Held-out delta (meta − live)        |        +0.117  |               +0.093   |
+| Blind-only delta (meta − live)      |    **+0.257**  |           **+0.191**   |
+| Blind CI width (BCa 95%)            |         0.058  |                0.054   |
+| Live blind macro F1                 |         0.652  |                0.735   |
+| Meta blind macro F1                 |         0.909  |                0.925   |
+
+The meta-classifier's blind-only delta drops from **+0.257** to
+**+0.191** under the honest 5-engine baseline. The drop is because
+GLiNER alone (without any meta-classifier) closes most of the gap the
+4-engine framing attributed to the meta-classifier. The remaining
++0.191 is the meta-classifier's real value-add. It still passes the
+ship gate (Δ ≥ +0.02, CI width ≤ 0.06) and is statistically
+significant (McNemar p ≈ 0).
+
+**When citing Phase 2 results to stakeholders going forward, use the
+honest +0.191 number, not the +0.257 number from Sprint 6.** The +0.257
+was real for the 4-engine baseline that Phase 2 measured against, but
+that baseline does not match shipped Sprint 6 production code.
+
+**E10 also produced an unrelated negative result on LOCO:** the GLiNER
+features did NOT close the LOCO gap — they regressed it. LOCO ai4privacy
+went from 0.260 to 0.183 (−0.077), mean LOCO from 0.309 to 0.278.
+Hypothesis: GLiNER's confidence calibration is itself corpus-sensitive,
+so the new features added another corpus-fingerprint dimension instead
+of a corpus-invariant abstraction. Per-class breakdown: PHONE +0.18,
+DATE_OF_BIRTH +0.27, PERSON_NAME +0.10 (GLiNER-native types) but
+CANADIAN_SIN −0.18, DATE_OF_BIRTH_EU −0.14 (GLiNER cannot make
+format-level distinctions). Net macro F1 +0.010 — an unusually brittle
+aggregate.
+
+**Recommendation:** `meta_classifier_v1_e10.pkl` is NOT promoted. The
+artifact lives on `origin/research/e10-gliner-features` as a frozen
+historical archive. The full memo lives at
+`docs/experiments/meta_classifier/runs/20260412-230000-e10-gliner-features/result.md`
+on `research/meta-classifier`.
+
+**Sprint 8 decision (2026-04-13):** meta-classifier work is paused
+pending Sprint 8 credential taxonomy work (Items A + B) and the GLiNER
+tuning research session (`research/gliner-eval`). E4 (bin
+`heuristic_avg_length`) is queued in the meta-classifier research queue
+but is not scheduled.
+
 ## Lessons Learned
 
 1. **Parallel research sessions beat serial execution for long investigations.** Two sessions producing independent research docs in parallel (sharding + corpus diversity) delivered converging recommendations that reshaped Phase 2's training design. Cost: ~15 min of coordination overhead. Benefit: didn't block the main sprint thread and got peer-review-quality analysis for free.

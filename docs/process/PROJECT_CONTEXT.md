@@ -1,30 +1,33 @@
 # data_classifier — Project Context
 
-> **Last updated:** 2026-04-13 (Sprint 7 complete, comparators + pattern coverage fixes, M1 docs landed)
+> **Last updated:** 2026-04-13 (Sprint 8 complete — first published wheel `v0.8.0`, Cloud Build release pipeline, ONNX model distribution, credential 4-way split, E10 baseline corrections)
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Current sprint | 8 (planning) |
-| Release | **v0.5.2** (BQ integration active via vendored wheel — see Known Issues) |
-| Tests | **1133 passing** (+1 skipped: Presidio live-engine integration) (~13s local) |
-| CI | Green on main |
-| Patterns | **73** content patterns + 26 profile rules (random_password, international_phone_local added) |
+| Current sprint | 8 (closing) → 9 (planning) |
+| Release | **v0.8.0 published to Google Artifact Registry** (`dag-bigquery-dev` / us-central1, Python repo `data-classifier`); ONNX model tarball (254 MB) in AR Generic repo `data-classifier-models`; fresh-venv install validated end-to-end |
+| Tests | **1197 passing** + 1 skipped (+64 vs Sprint 7) (~36s local with `[meta]`) |
+| CI | `lint-and-test` green on 3.11/3.12/3.13; new `lint-and-test-ml` job (install + import + construct, kill-switch on); `install-test` green |
+| Patterns | **73** content patterns + 26 profile rules |
 | Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, gliner2) + meta-classifier (shadow) |
-| Validators | **14** (random_password added) |
-| Entity types | 33 |
+| Validators | **14** (PEM private-key scanner + hash-scheme detector added in Sprint 8 credential split) |
+| Entity types | **36** (CREDENTIAL split into API_KEY / PRIVATE_KEY / PASSWORD_HASH / OPAQUE_SECRET in Sprint 8) |
 | Key-name patterns | 88 |
-| Backlog | 70+ items |
-| **Accuracy (blind)** | Nemotron Macro F1 0.872, Ai4Privacy 0.667 (Sprint 6 numbers — re-measure in Sprint 8 with new patterns) |
+| Backlog | 70+ items + 7 new Sprint 9 candidates parked at Sprint 8 close |
+| **Accuracy (synthetic, Sprint 8)** | **Macro F1 0.915, Micro 0.897, Primary-Label 96.3%** (50 samples/type, 22 entity types, 4 FPs / 1 FN — all match known filed gaps) |
+| **Accuracy (real-corpus blind)** | Nemotron 0.8974, Ai4Privacy 0.6667 (Sprint 7 baseline — Sprint 8 deferred re-run pending Sprint 9 GLiNER tuning + corpus replacement) |
 | **Accuracy (named)** | Both corpora: 1.000 Macro F1 |
 | **Per-column regex coverage** | **Ai4Privacy PHONE: 16.3% → 94.5%** (Sprint 7), **Ai4Privacy CREDENTIAL: 0% → 98.6%** (Sprint 7) |
-| **Meta-classifier (CV)** | **0.916 is a methodology artifact** (see Sprint 6 handover correction note added in Sprint 7); honest LOCO ~0.30 |
-| **Meta-classifier (LOCO)** | 0.27–0.36 — structural gap per Q3 §6 (hypothesis A+C) |
-| **Performance** | 207ms/col (with ML), ~2ms/col (without ML) |
-| **ML share** | GLiNER2 = 99.3% of pipeline latency |
-| **Pattern library new capability** | Column-gated patterns via `requires_column_hint` + `column_hint_keywords` (Sprint 7) |
-| **Benchmark comparators** | Presidio comparator infrastructure shipped (strict + aggressive mappings); Cloud DLP pending |
+| **Meta-classifier (CV)** | **0.916 is a methodology artifact**; honest LOCO ~0.30 |
+| **Meta-classifier (LOCO)** | 0.27–0.36 — structural gap per Q3 §6 (hypothesis A+C); E10 GLiNER-features experiment regressed LOCO further (−0.031 mean) — NOT promoted |
+| **Meta-classifier (honest blind delta)** | **+0.191** vs 5-engine live baseline (E10, 2026-04-13). The Sprint 6 "+0.257" number was vs a 4-engine baseline with GLiNER disabled — see SPRINT6_HANDOVER.md "Honest baseline correction — E10" |
+| **Performance (Sprint 8 baseline)** | **78.9 ms/col p50** with ML on 12 col × 10 samples (ad-hoc snapshot, see `docs/benchmarks/history/sprint_8.json`). Warmup 7.46s. Replaces the older 207ms/col PROJECT_CONTEXT figure as the baseline; numbers not directly comparable due to different corpus shape. |
+| **ML share** | GLiNER2 = **99.8%** of pipeline latency (Sprint 8 measurement) |
+| **Pattern library** | Column-gated patterns via `requires_column_hint` + `column_hint_keywords` (Sprint 7); credential subtype taxonomy (Sprint 8) |
+| **Benchmark comparators** | Presidio comparator infrastructure shipped (Sprint 7); Cloud DLP comparator deferred from Sprint 8 (scope swap to model distribution) |
+| **Distribution** | Wheel: AR Python repo (Cloud Build trigger `data-classifier-release`, 2nd gen, fires on `^v.*$`). Model: AR Generic repo, decoupled from package version, downloaded via `python -m data_classifier.download_models` (4-tier auth discovery: flag → env → metadata SA → gcloud) |
 
 ## Architecture
 
@@ -114,6 +117,7 @@
 | 5 | Engine weighting + ML engine + production deployment | Complete | 777 | Authority weighting, sibling analysis, GLiNER2 ML engine, ONNX deployment, v0.5.2 → BQ integration |
 | 6 | Hardening + meta-classifier shadow | Complete | 1009 | SSN/NPI validators, DOB_EU split, secret scanner FP fixes, CI install test, meta-classifier (3 phases, shadow-only), parallel research workflow |
 | 7 | Compare & measure | Complete | 1133 | SSN advertising cleanup, international phone 16.3%→94.5%, column-gated random_password 0%→98.6%, Presidio comparator infrastructure, M1 methodology correction (docs), worktree isolation rule |
+| 8 | Ship it: stabilize, release, prep credentials | Complete | 1197 | **First published wheel `v0.8.0` to Google Artifact Registry** (Cloud Build pipeline, ~60s release), ONNX model distribution decoupled from package version (`download_models` CLI + AR Generic repo, 254MB tarball), CREDENTIAL split into 4 subtypes (API_KEY/PRIVATE_KEY/PASSWORD_HASH/OPAQUE_SECRET), `lint-and-test-ml` CI matrix job (install/import/construct verification, kill-switch permanent until WIF), `test_ssn_in_samples` ML regression diagnosed and pinned to regex-only, E10 baseline correction (+0.257 → +0.191), CHANGELOG.md introduced with forward-only versioning |
 
 ## Consumers
 

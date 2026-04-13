@@ -1,5 +1,5 @@
 title: 'CI matrix: add [ml] extra job to catch ML-dependent test failures'
-status: backlog
+status: done
 priority: P1
 category: chore
 sprint_target: 8
@@ -44,7 +44,7 @@ notes: 'Sprint 7 closure discovered that CI''s ''pip install -e .[dev,meta]'' do
   the coverage gap. Related: investigate-test-ssn-in-samples-failure-under-ml-enabled-env-gliner2-organization-suppression
   (the actual bug the new job will surface). Landing order: this item first (adds
   the gate), then the bug fix lands against the gate.'
-phase: null
+phase: build
 design_reviewed: false
 code_reviewed: false
 comments: []

@@ -1,0 +1,201 @@
+title: "Drop ai4privacy corpus — license verified non-OSS (Sprint 9)"
+status: backlog
+priority: P1
+category: chore
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags:
+  - compliance
+  - corpora
+  - meta-classifier
+  - sprint9-candidate
+goal: |
+  Remove ai4privacy/pii-masking-300k from data_classifier's training and
+  benchmark pipeline because its license has been verified as a custom
+  non-OSI license that prohibits commercial use, redistribution, and
+  derivative works without explicit written permission. Replace with
+  Gretel-EN (Apache 2.0, mixed-label, larger row count) per the
+  dataset_landscape.md Tier 1 #1 recommendation. Re-baseline the headline
+  blind macro F1 number against the new corpus, retrain the meta-classifier
+  pkl from the new training data, remove the committed derivative
+  artifacts from the repo. No production exposure has occurred — the BQ
+  consumer is still in development — so this is internal-state cleanup,
+  not an emergency hotfix.
+complexity: M
+technical_specs:
+  - "File: tests/fixtures/corpora/ai4privacy_sample.json — 30 MB derivative committed to git since 68ff8ec (Sprint 4). REMOVE from current state, add to .gitignore. Historical commits still contain it; rewriting history is a separate decision."
+  - "File: tests/benchmarks/meta_classifier/training_data.jsonl — 2 MB derivative committed since dc701e1 (Sprint 6 Phase 2). Contains feature vectors derived from ai4privacy rows mixed with other corpora. REMOVE from current state, add to .gitignore."
+  - "File: data_classifier/models/meta_classifier_v1.pkl — gray-zone derivative shipped in the wheel. Trained on data that included ai4privacy rows. Retrain from new training data (without ai4privacy) and re-publish."
+  - "File: data_classifier/models/meta_classifier_v1.metadata.json + meta_classifier_v1.eval.json — derived metrics computed against ai4privacy held-out splits. Regenerate from new training run."
+  - "File: tests/benchmarks/corpus_loader.py — remove load_ai4privacy_corpus() (or stub it to raise NotImplementedError citing license). Remove AI4PRIVACY_TYPE_MAP."
+  - "File: tests/benchmarks/meta_classifier/build_training_data.py — remove ai4privacy from the corpus list. Add Gretel-EN (depends on the ingest-gretel-pii-masking-en-v1 backlog item landing first)."
+  - "File: tests/benchmarks/accuracy_benchmark.py — remove ai4privacy from the blind/named benchmark targets. Add Gretel-EN as the replacement."
+  - "File: tests/benchmarks/perf_quick.py + perf_benchmark.py — remove ai4privacy references."
+  - "File: scripts/download_corpora.py — remove the ai4privacy download command (or keep it but flag with a warning that the license forbids commercial use)."
+  - "File: docs/process/PROJECT_CONTEXT.md — replace 'Ai4Privacy 0.667' with the new Gretel-EN baseline number once it's measured. Add a 'Corpora used' section that explicitly lists licenses for each corpus."
+  - "File: docs/sprints/SPRINT4_HANDOVER.md, SPRINT4_BASELINE_REPORT.md, SPRINT5_HANDOVER.md, SPRINT5_BENCHMARK.md, SPRINT6_HANDOVER.md, SPRINT7_HANDOVER.md — add a footnote noting that historical F1 numbers cited Ai4Privacy as the blind benchmark, which has since been retired due to license incompatibility. Do NOT rewrite the historical numbers."
+  - "File: docs/ROADMAP.md, docs/research/SECRET_CORPORA_RESEARCH.md, docs/research/meta_classifier/corpus_diversity.md, docs/BENCHMARK_METHODOLOGY.md, docs/plans/stream_b_benchmarks.md — search-and-update any references to ai4privacy as a current corpus."
+  - "File: docs/process/LICENSE_AUDIT.md — NEW file. Records: which corpora are used, their licenses, the verification date, who verified, and the verification URL. Establishes pattern-survey discipline (fetch actual LICENSE file, do NOT trust README claims) for all future corpus additions."
+  - "File: backlog/external-corpus-integration-ai4privacy-pii-masking-300k-225k-rows-27-types.yaml — close as won't-do, with reason: license verified incompatible 2026-04-13."
+description: ''
+acceptance_criteria:
+  - "tests/fixtures/corpora/ai4privacy_sample.json removed from current git state, added to .gitignore"
+  - "tests/benchmarks/meta_classifier/training_data.jsonl removed from current git state, added to .gitignore"
+  - "Gretel-EN ingested via the dependency item (ingest-gretel-pii-masking-en-v1) AND wired into build_training_data.py + corpus_loader.py"
+  - "Meta-classifier retrained from training data that does NOT include any ai4privacy rows: new data_classifier/models/meta_classifier_v1.pkl + metadata.json + eval.json"
+  - "install_smoke_test.py passes against the new wheel (verifies pkl loads, model file ships)"
+  - "tests/benchmarks/accuracy_benchmark.py runs cleanly without ai4privacy references; produces a new blind macro F1 number against Gretel-EN as the replacement corpus"
+  - "PROJECT_CONTEXT.md updated: replace 'Nemotron Macro F1 0.872, Ai4Privacy 0.667' with new numbers; add a 'Corpora and licenses' table"
+  - "All sprint handover docs that cite Ai4Privacy 0.667 get a footnote about corpus retirement (no rewrite of historical numbers)"
+  - "docs/process/LICENSE_AUDIT.md exists with the verification record for every current corpus"
+  - "All 1133+ tests pass; lint clean; full benchmark suite runs without errors"
+  - "Backlog cleanup: external-corpus-integration-ai4privacy-pii-masking-300k closed as won't-do with the license rationale"
+test_plan:
+  - "tests/test_corpus_loader.py: assert load_ai4privacy_corpus is gone (or raises NotImplementedError); assert load_gretel_en_corpus works"
+  - "Manual: full benchmark suite run; capture new headline F1 number for the Gretel-EN replacement corpus"
+  - "Manual: install smoke test on a fresh wheel — verify the new meta_classifier_v1.pkl loads correctly and the wheel does NOT contain any tests/fixtures/* paths"
+  - "Manual: grep the entire data_classifier/ package directory for 'ai4privacy' or 'ai4_privacy' or 'pii-masking-300k' — confirm zero matches in shipped code"
+  - "Manual: regenerate the wheel and inspect contents (unzip -l) to confirm no ai4privacy references in any shipped file"
+notes: |
+  ## Verified license details (2026-04-13)
+
+  Direct fetch of https://huggingface.co/datasets/ai4privacy/pii-masking-300k/raw/main/LICENSE.md
+  confirmed the 300k variant has the same custom AI4Privacy license as the
+  400k variant. Both files are nearly identical (only difference: 400k cites
+  partnerships@ai4privacy.com, 300k cites licensing@ai4privacy.com).
+
+  Verbatim license clauses:
+
+  > "Access to this dataset is granted exclusively for academic research
+  > and non-commercial purposes, under the stipulation that AI4Privacy is
+  > acknowledged in any scholarly output that leverages this dataset."
+
+  > "To utilize this dataset beyond these conditions, including any form
+  > of redistribution, uploading to databases, sharing through any medium,
+  > or the creation and dissemination of derivative works, an explicit
+  > written license must be obtained from AI4Privacy."
+
+  > "Strictly no licensing is available directly for companies without
+  > prior discussion. For commercial use, please contact us at
+  > licensing@ai4privacy.com."
+
+  > "This dataset is watermarked to ensure compliance with these terms.
+  > Unauthorized use is traceable, and Ai4Privacy reserves the right to
+  > enforce the license terms appropriate legal action."
+
+  ## Use-category analysis
+
+  | License clause | data_classifier's use | Compliant? |
+  |---|---|---|
+  | Academic + non-commercial only | data_classifier targets BigQuery connector (commercial product, dev phase) | NO at the use-intent level (intended commercial), but no actual production shipment yet |
+  | No redistribution | tests/fixtures/corpora/ai4privacy_sample.json (30 MB) is a public-git redistribution | NO |
+  | No derivative works | training_data.jsonl + meta_classifier_v1.pkl are derived from ai4privacy rows | NO (clear for jsonl, gray for pkl) |
+  | Acknowledgement required if academic | We acknowledge in handover docs | (would be OK if academic exception applied; doesn't) |
+
+  ## Why P1 not P0 (per user direction 2026-04-13)
+
+  No production exposure has occurred. The BQ consumer is still in
+  development — not deployed to real users. The licensing risk is
+  internal-development-state cleanup, not an emergency external
+  exposure incident. Treat as "next sprint cleanup" not "stop the line."
+
+  ## Sprint targeting (2026-04-13)
+
+  User confirmed at planning time: queue this as a Sprint 9 candidate.
+  Sprint 8 is in closing phases — do NOT execute mid-sprint. Pull this
+  into Sprint 9 alongside the Gretel-EN ingestion item and the GLiNER
+  tuning ship. Likely Sprint 9 sequence:
+    1. ingest-gretel-pii-masking-en-v1 (replacement corpus lands first)
+    2. drop-ai4privacy (this item — file removal + retraining once
+       Gretel-EN is wired in, OR Phase 2 option A: retrain on 5
+       corpora without waiting for Gretel-EN)
+    3. promote-gliner-tuning-fastino-base-v1 (GLiNER config swap)
+
+  ## Phase 2 retraining decision — defer to Sprint 9 planning
+
+  Two options for the meta-classifier retraining sub-task; pick at
+  Sprint 9 planning:
+
+  Option A — drop now, retrain on 5 remaining corpora (gitleaks,
+    secretbench, detect_secrets, nemotron, synthetic). Faster, fully
+    ai4privacy-free in one sprint, may produce a small F1 regression
+    because we lose ~1200 PII rows. Acceptable because the meta-
+    classifier is shadow-only.
+
+  Option B — wait for Gretel-EN to be ingested first, then retrain on
+    the 6-corpus set (gitleaks, secretbench, detect_secrets, nemotron,
+    synthetic, gretel-en). Same row count as before, mixed-label
+    diversity improvement, no expected F1 regression. Requires the
+    Gretel-EN ingestion item (ingest-gretel-pii-masking-en-v1) to land
+    first within the same sprint.
+
+  Recommended: Option B if Gretel-EN ingestion fits in Sprint 9 capacity,
+  Option A as the fallback if it doesn't.
+
+  ## Exposure inventory
+
+  ### Git-committed (public repo)
+  1. tests/fixtures/corpora/ai4privacy_sample.json — 30 MB, since Sprint 4
+  2. tests/benchmarks/meta_classifier/training_data.jsonl — 2 MB, since Sprint 6 Phase 2
+
+  ### Shipped in the wheel (production code path)
+  3. data_classifier/models/meta_classifier_v1.pkl — gray-zone derivative,
+     LogReg coefficients trained on ai4privacy + other corpora rows
+  4. data_classifier/models/meta_classifier_v1.eval.json + .metadata.json —
+     derived metrics over ai4privacy held-out splits
+
+  ### Not derivative (safe to keep)
+  - scripts/download_corpora.py — code that fetches the data
+  - tests/benchmarks/corpus_loader.py — code that processes the data
+  - docs/sprints/*.md, backlog/*.yaml — text mentions, aggregate metrics
+
+  ### Wheel containment check (good news)
+  pyproject.toml [tool.setuptools.packages.find] includes only
+  `data_classifier*`, so the tests/ directory does NOT ship in the wheel.
+  The 30 MB fixture is NOT in the production wheel — only in the public
+  git repo.
+
+  ## Replacement corpus
+
+  Per docs/experiments/meta_classifier/dataset_landscape.md Tier 1 #1:
+  gretelai/gretel-pii-masking-en-v1 (Apache 2.0, 60k rows, 47 domains,
+  mixed-label including credentials + PII + financial + health). This is
+  a strict superset of what we used ai4privacy for (PII labels at scale)
+  AND it directly attacks the credential-corpus bias problem documented
+  in Q3/Q5/Q6/E10. This is a compliance fix that ALSO improves the
+  meta-classifier's structural problem.
+
+  ## Open question for the user — historical commit cleanup
+
+  The 30 MB ai4privacy fixture exists in the git history since commit
+  68ff8ec (Sprint 4). Removing it from the current state stops new
+  exposure but does not remove it from history. Two options:
+
+  - (A) Conservative: remove from current state, .gitignore it, leave
+    history alone. Historical commits still contain the file but it
+    stops being "live" content.
+  - (B) Aggressive: rewrite history with `git filter-repo` to remove
+    the file from every historical commit. This rewrites every commit
+    hash since Sprint 4 and breaks every clone, fork, and downstream
+    reference. Disruptive but legally cleaner.
+
+  Recommend (A) for now because the data_classifier repo is small,
+  the BQ consumer is still in dev, and there's no evidence of external
+  forks or clones with the historical fixture in them. Revisit (B) if
+  external exposure becomes an issue.
+
+  ## Dependencies
+
+  Depends on (must land first or land together):
+  - ingest-gretel-pii-masking-en-v1 — provides the replacement corpus
+
+  Blocks:
+  - Any new release of data_classifier that ships meta_classifier_v1.pkl
+  - Any benchmark publication or external doc that cites Ai4Privacy 0.667
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

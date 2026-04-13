@@ -1,0 +1,42 @@
+title: GLiNER ONNX export and bundling for meta-classifier feature pipeline
+status: backlog
+priority: P1
+category: chore
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: Export the production gliner_multi_pii-v1 model to quantized ONNX and bundle
+  it under data_classifier/models/gliner_onnx/ so future meta-classifier experiments
+  that consume GLiNER features run at the 30-min budget instead of the 5.5-hour PyTorch
+  fallback observed in E10
+complexity: S
+technical_specs:
+- "File: data_classifier/models/gliner_onnx/ \u2014 new bundled artifacts directory"
+- "File: scripts/export_onnx_model.py \u2014 extend to support gliner_multi_pii-v1\
+  \ if not already"
+- "File: data_classifier/engines/gliner_engine.py \u2014 verify _find_bundled_onnx_model\
+  \ auto-discovery still works without changes"
+- "File: scripts/install_smoke_test.py \u2014 add bundled ONNX presence check"
+description: ''
+acceptance_criteria:
+- data_classifier/models/gliner_onnx/ exists and contains a quantized ONNX export
+  of urchade/gliner_multi_pii-v1
+- scripts/export_onnx_model.py supports the gliner_multi_pii-v1 export (or equivalent
+  CLI command works)
+- data_classifier.engines.gliner_engine._find_bundled_onnx_model() resolves the bundled
+  model in a clean install (verified via install_smoke_test.py)
+- "Re-running E10's build_training_data step on the bundled ONNX completes in <60\
+  \ min (vs E10's 4-hour PyTorch fallback) \u2014 recorded in a small BENCHMARK note"
+- Lint clean, full pytest tests/ -v green
+test_plan:
+- 'scripts/install_smoke_test.py: bundled ONNX path resolves on a fresh wheel install'
+- 'Manual: rerun build_training_data with GLiNER enabled, measure wall time, compare
+  to E10 baseline of 4 hours'
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
