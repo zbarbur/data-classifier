@@ -1,6 +1,6 @@
 title: "test_download_models \u2014 add positive test for metadata-SA happy path (tier\
   \ 3 of _get_access_token)"
-status: backlog
+status: doing
 priority: P1
 category: chore
 sprint_target: 9
@@ -33,7 +33,7 @@ test_plan:
   the new test exists, passes, and does NOT touch the real metadata service or gcloud
   subprocess.
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

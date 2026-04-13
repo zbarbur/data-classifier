@@ -1,9 +1,9 @@
 title: "M1 meta-classifier CV fix: StratifiedKFold \u2192 StratifiedGroupKFold (Q3\
   \ diagnosis)"
-status: backlog
+status: doing
 priority: P0
 category: bug
-sprint_target: 8
+sprint_target: 9
 created: 2026-04-12
 updated: 2026-04-13
 depends_on: []
@@ -106,7 +106,7 @@ notes: "Discovered by Q3 (primary source: docs/experiments/meta_classifier/runs/
   \ when metadata shows best_c\u22648, loco_mean_macro_f1 \u2265 0.33, and all tests\
   \ pass.\n\nDO NOT touch docs/experiments/meta_classifier/queue.md M1/M2/M3 rows\
   \ from sprint7 \u2014 those are owned by the research thread."
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

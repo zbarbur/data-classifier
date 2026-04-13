@@ -1,6 +1,6 @@
 title: "tar safety on Python 3.11 \u2014 explicit symlink rejection in _safe_extract\
   \ pre-scan loop (or drop 3.11 from CI matrix)"
-status: backlog
+status: doing
 priority: P2
 category: chore
 sprint_target: 9
@@ -37,7 +37,7 @@ test_plan:
 - 'tests/test_download_models.py::TestSafeExtractSymlinkRejection: build a tar in
   /tmp with a symlink pointing outside the dest, call _safe_extract, assert TarExtractionError.'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

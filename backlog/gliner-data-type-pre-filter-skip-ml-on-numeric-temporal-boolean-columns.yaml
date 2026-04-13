@@ -1,0 +1,72 @@
+title: "GLiNER data_type pre-filter \u2014 skip ML on numeric/temporal/boolean columns"
+status: doing
+priority: P1
+category: feature
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags:
+- gliner,accuracy,sprint9,latency
+goal: "Skip GLiNER inference entirely on columns whose SQL data_type is numeric, temporal,\
+  \ boolean, or bytes. GLiNER is a natural-language NER model \u2014 running it on\
+  \ integer or timestamp columns produces noise and false positives (notably the Sprint\
+  \ 8 ORG-over-fire on numeric-dash inputs). Fail-open on empty data_type so behavior\
+  \ is unchanged when a connector does not populate the field. Secondary latency win:\
+  \ GLiNER is ~99.8% of pipeline time per Sprint 8 benchmark, skipping it on 10-20%\
+  \ of columns is a meaningful perf delta."
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/gliner_engine.py \u2014 add module-level _NON_TEXT_DATA_TYPES:\
+  \ frozenset[str] = frozenset({'INTEGER','INT64','FLOAT','FLOAT64','NUMERIC','BIGNUMERIC','BOOLEAN','BOOL','TIMESTAMP','DATE','DATETIME','TIME','BYTES'})"
+- "File: data_classifier/engines/gliner_engine.py:283 \u2014 in GLiNER2Engine.classify_column,\
+  \ before sample_values check, add: if column.data_type and column.data_type.upper()\
+  \ in _NON_TEXT_DATA_TYPES: return []"
+- "File: data_classifier/engines/gliner_engine.py:309 \u2014 in GLiNER2Engine.classify_batch,\
+  \ apply the same filter at per-column level (skip inference, return empty list for\
+  \ that column)"
+- "File: tests/test_gliner_engine.py \u2014 new TestDataTypePrefilter class. Parameterized\
+  \ over all non-text types plus STRING + empty data_type. Use monkeypatch to assert\
+  \ the model's extract_entities / predict_entities is never called on skipped types."
+- "File: docs/CLIENT_INTEGRATION_GUIDE.md \xA71b \u2014 annotate data_type field docs\
+  \ to note that populating it with the BQ SQL type enables GLiNER pre-filtering and\
+  \ a measurable latency win"
+description: ''
+acceptance_criteria:
+- Columns with data_type in the non-text set (INTEGER/INT64/FLOAT/FLOAT64/NUMERIC/BIGNUMERIC/BOOLEAN/BOOL/TIMESTAMP/DATE/DATETIME/TIME/BYTES)
+  return [] from GLiNER2Engine.classify_column and the model is not invoked (verified
+  via monkeypatch on extract_entities)
+- "Columns with data_type='STRING' or data_type='' (empty) behave identically to current\
+  \ main \u2014 no regression in the existing GLiNER test suite"
+- 'classify_batch honors the same filter at per-column granularity (mixed batch of
+  text + numeric columns: numeric columns return [] without inference, text columns
+  classify normally)'
+- TestDataTypePrefilter covers all ~13 skipped types plus the STRING + empty-data_type
+  fall-through cases
+- "Perf benchmark (perf_quick or equivalent) captures a before/after median per-column\
+  \ latency delta on a mixed corpus containing \u226520% non-text columns \u2014 measurement-only,\
+  \ no hard gate, but the delta should be positive"
+- "docs/CLIENT_INTEGRATION_GUIDE.md \xA71b updated to describe the data_type pre-filter\
+  \ behavior"
+- Lint clean (ruff check . && ruff format --check .)
+- Full pytest tests/ -v green
+test_plan:
+- "tests/test_gliner_engine.py::TestDataTypePrefilter::test_skips_non_text_types \u2014\
+  \ parameterized over all 13 non-text types, asserts classify_column returns [] and\
+  \ monkeypatched extract_entities is never called"
+- "tests/test_gliner_engine.py::TestDataTypePrefilter::test_string_type_not_skipped\
+  \ \u2014 regression guard, STRING column must run GLiNER as today"
+- "tests/test_gliner_engine.py::TestDataTypePrefilter::test_empty_data_type_fail_open\
+  \ \u2014 fail-open guard, empty data_type must run GLiNER as today (compat with\
+  \ connectors that do not populate the field)"
+- "tests/test_gliner_engine.py::TestDataTypePrefilter::test_classify_batch_mixed \u2014\
+  \ mixed batch of text + non-text columns, assert per-column skip vs run semantics"
+- 'Manual: python -m tests.benchmarks.perf_benchmark --iterations 5 on a corpus with
+  mixed data_types before and after the change, capture median per-col latency delta
+  in the commit message'
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

@@ -1,5 +1,6 @@
-title: "Ingest gretelai/gretel-pii-masking-en-v1 as a mixed-label training corpus to break credential-corpus bias"
-status: backlog
+title: Ingest gretelai/gretel-pii-masking-en-v1 as a mixed-label training corpus to
+  break credential-corpus bias
+status: doing
 priority: P1
 category: feature
 sprint_target: 9
@@ -7,71 +8,81 @@ created: 2026-04-13
 updated: 2026-04-13
 depends_on: []
 tags:
-  - meta-classifier
-  - corpora
-  - sprint9-candidate
-goal: "Add gretelai/gretel-pii-masking-en-v1 (Apache 2.0, 60k rows, 47 domains) as the 7th training corpus for data_classifier. This is the highest-priority recommendation from the dataset landscape survey because it is the largest mixed-label open corpus available — single documents combine credentials, PII, financial, and health labels, which directly attacks the credential-pure-corpus structural bias driving the meta-classifier's LOCO collapse."
+- meta-classifier
+- corpora
+- sprint9-candidate
+goal: "Add gretelai/gretel-pii-masking-en-v1 (Apache 2.0, 60k rows, 47 domains) as\
+  \ the 7th training corpus for data_classifier. This is the highest-priority recommendation\
+  \ from the dataset landscape survey because it is the largest mixed-label open corpus\
+  \ available \u2014 single documents combine credentials, PII, financial, and health\
+  \ labels, which directly attacks the credential-pure-corpus structural bias driving\
+  \ the meta-classifier's LOCO collapse."
 complexity: M
 technical_specs:
-  - "File: tests/benchmarks/corpus_loader.py — add load_gretel_en_corpus() function following the load_ai4privacy_corpus pattern (NER-spans → column values ETL)"
-  - "File: tests/benchmarks/corpus_loader.py — add GRETEL_EN_TYPE_MAP dict mapping the dataset's 43+ entity types to data_classifier's 24-class taxonomy"
-  - "File: tests/fixtures/gretel_en_sample.json — sample slice for unit tests (small subset, ~50 rows)"
-  - "File: tests/benchmarks/meta_classifier/build_training_data.py — wire gretel-en into the corpus list for training data builds"
-  - "File: tests/test_corpus_loader.py — add test_load_gretel_en_corpus + test_gretel_en_type_map_coverage"
-  - "File: docs/experiments/meta_classifier/dataset_landscape.md — mark this dataset as 'ingested' once landed"
-  - "File: scripts/download_corpora.py — add download command for the dataset (HuggingFace datasets API or direct Parquet fetch)"
+- "File: tests/benchmarks/corpus_loader.py \u2014 add load_gretel_en_corpus() function\
+  \ following the load_ai4privacy_corpus pattern (NER-spans \u2192 column values ETL)"
+- "File: tests/benchmarks/corpus_loader.py \u2014 add GRETEL_EN_TYPE_MAP dict mapping\
+  \ the dataset's 43+ entity types to data_classifier's 24-class taxonomy"
+- "File: tests/fixtures/gretel_en_sample.json \u2014 sample slice for unit tests (small\
+  \ subset, ~50 rows)"
+- "File: tests/benchmarks/meta_classifier/build_training_data.py \u2014 wire gretel-en\
+  \ into the corpus list for training data builds"
+- "File: tests/test_corpus_loader.py \u2014 add test_load_gretel_en_corpus + test_gretel_en_type_map_coverage"
+- "File: docs/experiments/meta_classifier/dataset_landscape.md \u2014 mark this dataset\
+  \ as 'ingested' once landed"
+- "File: scripts/download_corpora.py \u2014 add download command for the dataset (HuggingFace\
+  \ datasets API or direct Parquet fetch)"
 description: ''
 acceptance_criteria:
-  - "load_gretel_en_corpus(blind=True/False, max_rows=N) returns a Corpus object with the same shape as load_ai4privacy_corpus"
-  - "GRETEL_EN_TYPE_MAP covers ≥80% of the dataset's entity types (the rest map to NEGATIVE or are dropped — document the dropped types in the corpus loader docstring)"
-  - "Sample fixture loaded by tests is committed to tests/fixtures/ (small enough to ship in the repo, ~50 rows)"
-  - "Full benchmark suite runs with gretel-en corpus added: tests/benchmarks/accuracy_benchmark.py, perf_benchmark.py, secret_benchmark.py — none crash, none regress on existing corpora"
-  - "Re-built meta-classifier training data includes gretel-en rows (verify via training_data jsonl line count: was ~7770, should grow by 50-60k after gretel-en is added)"
-  - "Re-baselined blind macro F1 numbers documented in PROJECT_CONTEXT.md for the new combined corpus set"
-  - "License attribution added to docs/PATTERN_SOURCES.md or equivalent attribution file (Apache 2.0 requires retaining notice)"
-  - "Lint clean, full pytest tests/ -v green"
+- load_gretel_en_corpus(blind=True/False, max_rows=N) returns a Corpus object with
+  the same shape as load_ai4privacy_corpus
+- "GRETEL_EN_TYPE_MAP covers \u226580% of the dataset's entity types (the rest map\
+  \ to NEGATIVE or are dropped \u2014 document the dropped types in the corpus loader\
+  \ docstring)"
+- Sample fixture loaded by tests is committed to tests/fixtures/ (small enough to
+  ship in the repo, ~50 rows)
+- "Full benchmark suite runs with gretel-en corpus added: tests/benchmarks/accuracy_benchmark.py,\
+  \ perf_benchmark.py, secret_benchmark.py \u2014 none crash, none regress on existing\
+  \ corpora"
+- 'Re-built meta-classifier training data includes gretel-en rows (verify via training_data
+  jsonl line count: was ~7770, should grow by 50-60k after gretel-en is added)'
+- Re-baselined blind macro F1 numbers documented in PROJECT_CONTEXT.md for the new
+  combined corpus set
+- License attribution added to docs/PATTERN_SOURCES.md or equivalent attribution file
+  (Apache 2.0 requires retaining notice)
+- Lint clean, full pytest tests/ -v green
 test_plan:
-  - "tests/test_corpus_loader.py: test_load_gretel_en_corpus loads sample fixture and asserts row count + label distribution"
-  - "tests/test_corpus_loader.py: test_gretel_en_type_map_coverage asserts the mapping covers the high-cardinality types"
-  - "Manual: full benchmark suite run before/after to confirm no regressions on existing corpora"
-  - "Manual: train_meta_classifier.py rebuild of meta_classifier_v1 with the 7-corpus training set; verify training script handles the new corpus without code changes"
-notes: |
-  Source: docs/experiments/meta_classifier/dataset_landscape.md on
-  research/meta-classifier (commit cd3a5cc, dispatched 2026-04-13).
-
-  This is item #1 in the recommended ingestion order. It must land FIRST
-  because:
-  1. Its schema defines the canonical span format we'll reuse for
-     gretel-finance and beki/privy (subsequent items)
-  2. It's the largest single bias-breaking add (60k mixed-label rows)
-  3. ETL is straightforward (NER-spans → column values, Ai4Privacy pattern)
-
-  EXPECTED IMPACT on the credential-bias problem:
-  - Corpus count: 6 → 7
-  - Credentials no longer live ONLY in label-pure corpora — gretel-en
-    contains MED-density credentials mixed with HIGH PII + HIGH financial
-    + HIGH health labels in single documents
-  - The corpus_id → credential shortcut starts breaking down
-  - Recommend a LOCO re-measurement after this lands to quantify the bias
-    reduction (separate sub-task)
-
-  This is the recommended PRIMARY action for fixing the meta-classifier
-  LOCO collapse — bigger leverage than E4 (heuristic_avg_length binning)
-  and bigger leverage than Q8 (specialized opaque-secret meta-classifier),
-  both of which work around the bias rather than fixing it at the source.
-
-  The dataset's coverage spans 47 domains: Healthcare, Banking, Financial
-  Services, Government, Manufacturing, Cybersecurity, Education. Single
-  documents combine medical_record_number (26k instances), date_of_birth
-  (23k), ssn (16k), credit_card_number (6k), passwords/API keys, etc.
-
-  License: Apache 2.0 verified at dataset metadata. Standard attribution
-  requirements apply.
-
-  Follow-up items in the same ingestion arc (file as separate backlog YAMLs):
-  - ingest-gretel-finance-multilingual.yaml (depends on this)
-  - generate-synthea-100k-patient-corpus.yaml (parallel to this)
-  - ingest-beki-privy-sql-traces.yaml (second-pass, depends on this)
+- 'tests/test_corpus_loader.py: test_load_gretel_en_corpus loads sample fixture and
+  asserts row count + label distribution'
+- 'tests/test_corpus_loader.py: test_gretel_en_type_map_coverage asserts the mapping
+  covers the high-cardinality types'
+- 'Manual: full benchmark suite run before/after to confirm no regressions on existing
+  corpora'
+- 'Manual: train_meta_classifier.py rebuild of meta_classifier_v1 with the 7-corpus
+  training set; verify training script handles the new corpus without code changes'
+notes: "Source: docs/experiments/meta_classifier/dataset_landscape.md on\nresearch/meta-classifier\
+  \ (commit cd3a5cc, dispatched 2026-04-13).\n\nThis is item #1 in the recommended\
+  \ ingestion order. It must land FIRST\nbecause:\n1. Its schema defines the canonical\
+  \ span format we'll reuse for\n   gretel-finance and beki/privy (subsequent items)\n\
+  2. It's the largest single bias-breaking add (60k mixed-label rows)\n3. ETL is straightforward\
+  \ (NER-spans \u2192 column values, Ai4Privacy pattern)\n\nEXPECTED IMPACT on the\
+  \ credential-bias problem:\n- Corpus count: 6 \u2192 7\n- Credentials no longer\
+  \ live ONLY in label-pure corpora \u2014 gretel-en\n  contains MED-density credentials\
+  \ mixed with HIGH PII + HIGH financial\n  + HIGH health labels in single documents\n\
+  - The corpus_id \u2192 credential shortcut starts breaking down\n- Recommend a LOCO\
+  \ re-measurement after this lands to quantify the bias\n  reduction (separate sub-task)\n\
+  \nThis is the recommended PRIMARY action for fixing the meta-classifier\nLOCO collapse\
+  \ \u2014 bigger leverage than E4 (heuristic_avg_length binning)\nand bigger leverage\
+  \ than Q8 (specialized opaque-secret meta-classifier),\nboth of which work around\
+  \ the bias rather than fixing it at the source.\n\nThe dataset's coverage spans\
+  \ 47 domains: Healthcare, Banking, Financial\nServices, Government, Manufacturing,\
+  \ Cybersecurity, Education. Single\ndocuments combine medical_record_number (26k\
+  \ instances), date_of_birth\n(23k), ssn (16k), credit_card_number (6k), passwords/API\
+  \ keys, etc.\n\nLicense: Apache 2.0 verified at dataset metadata. Standard attribution\n\
+  requirements apply.\n\nFollow-up items in the same ingestion arc (file as separate\
+  \ backlog YAMLs):\n- ingest-gretel-finance-multilingual.yaml (depends on this)\n\
+  - generate-synthea-100k-patient-corpus.yaml (parallel to this)\n- ingest-beki-privy-sql-traces.yaml\
+  \ (second-pass, depends on this)\n"
 phase: plan
 design_reviewed: false
 code_reviewed: false

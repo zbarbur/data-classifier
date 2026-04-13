@@ -1,6 +1,6 @@
 title: "GLiNER2 over-fires ORGANIZATION on numeric-dash inputs (SSN-format) \u2014\
   \ audit prompt/descriptions or add content-shape filter"
-status: backlog
+status: doing
 priority: P2
 category: bug
 sprint_target: 9
@@ -50,7 +50,7 @@ notes: "Filed 2026-04-13 during Sprint 8 Item 2 execution. The Item 2 fix in tes
   \ in the orchestrator as a workaround \u2014 that would paper over the model issue.\
   \ Root cause is either the description prompt being too loose, or GLiNER2 lacking\
   \ training data for numeric-code inputs."
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

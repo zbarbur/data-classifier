@@ -1,5 +1,5 @@
 title: GLiNER ONNX export and bundling for meta-classifier feature pipeline
-status: backlog
+status: doing
 priority: P1
 category: chore
 sprint_target: 9
@@ -35,7 +35,7 @@ test_plan:
 - 'Manual: rerun build_training_data with GLiNER enabled, measure wall time, compare
   to E10 baseline of 4 hours'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

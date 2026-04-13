@@ -1,6 +1,6 @@
 title: "cloudbuild-release.yaml \u2014 pass SA token via process-substitution header\
   \ to defense-in-depth against debug-flag log leaks"
-status: backlog
+status: doing
 priority: P3
 category: chore
 sprint_target: 9
@@ -37,7 +37,7 @@ test_plan:
   manual build via gcloud builds submit, confirm the build is green and the publish-wheel
   step's logs do not show ACCESS_TOKEN anywhere.
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

@@ -1,5 +1,6 @@
-title: "Promote GLiNER tuning — fastino/gliner2-base-v1 + threshold 0.80 + SSN/PERSON_NAME label swaps"
-status: backlog
+title: "Promote GLiNER tuning \u2014 fastino/gliner2-base-v1 + threshold 0.80 + SSN/PERSON_NAME\
+  \ label swaps"
+status: doing
 priority: P1
 category: feature
 sprint_target: 9
@@ -7,85 +8,89 @@ created: 2026-04-13
 updated: 2026-04-13
 depends_on: []
 tags:
-  - gliner
-  - accuracy
-  - sprint9-candidate
-goal: "Ship the GLiNER eval session's recommended config behind gliner_engine.py: model swap (urchade/gliner_multi_pii-v1 -> fastino/gliner2-base-v1), threshold raise (0.50 -> 0.80), SSN label swap (national identification number -> social security number), PERSON_NAME label swap (person -> full name), descriptions disabled. Gated on a full-pipeline accuracy_benchmark run showing Ai4Privacy blind macro F1 lift >= +0.02 vs current main."
+- gliner
+- accuracy
+- sprint9-candidate
+goal: 'Ship the GLiNER eval session''s recommended config behind gliner_engine.py:
+  model swap (urchade/gliner_multi_pii-v1 -> fastino/gliner2-base-v1), threshold raise
+  (0.50 -> 0.80), SSN label swap (national identification number -> social security
+  number), PERSON_NAME label swap (person -> full name), descriptions disabled. Gated
+  on a full-pipeline accuracy_benchmark run showing Ai4Privacy blind macro F1 lift
+  >= +0.02 vs current main.'
 complexity: S
 technical_specs:
-  - "File: data_classifier/engines/gliner_engine.py:34 — change _MODEL_ID to fastino/gliner2-base-v1"
-  - "File: data_classifier/engines/gliner_engine.py:97 — change _DEFAULT_GLINER_THRESHOLD to 0.80"
-  - "File: data_classifier/engines/gliner_engine.py:43 — update ENTITY_LABEL_DESCRIPTIONS['SSN'] tuple first element to 'social security number'"
-  - "File: data_classifier/engines/gliner_engine.py:43 — update ENTITY_LABEL_DESCRIPTIONS['PERSON_NAME'] tuple first element to 'full name'"
-  - "File: data_classifier/engines/gliner_engine.py — at the inference call site, pass label-list mode (drop descriptions) instead of label+description dict for fastino. Verify this works for both gliner v1 and gliner2 v2 APIs since the engine may need to support both during transition."
-  - "File: scripts/export_onnx_model.py — verify it can export fastino/gliner2-base-v1 (architecture is DeBERTa-v3-base, ~140M params)"
-  - "File: data_classifier/models/gliner_onnx/ — re-export ONNX bundle for the new model (may be a separate sub-task)"
-  - "File: tests/test_gliner_engine.py — update mock label/description fixtures to match new strings"
+- "File: data_classifier/engines/gliner_engine.py:34 \u2014 change _MODEL_ID to fastino/gliner2-base-v1"
+- "File: data_classifier/engines/gliner_engine.py:97 \u2014 change _DEFAULT_GLINER_THRESHOLD\
+  \ to 0.80"
+- "File: data_classifier/engines/gliner_engine.py:43 \u2014 update ENTITY_LABEL_DESCRIPTIONS['SSN']\
+  \ tuple first element to 'social security number'"
+- "File: data_classifier/engines/gliner_engine.py:43 \u2014 update ENTITY_LABEL_DESCRIPTIONS['PERSON_NAME']\
+  \ tuple first element to 'full name'"
+- "File: data_classifier/engines/gliner_engine.py \u2014 at the inference call site,\
+  \ pass label-list mode (drop descriptions) instead of label+description dict for\
+  \ fastino. Verify this works for both gliner v1 and gliner2 v2 APIs since the engine\
+  \ may need to support both during transition."
+- "File: scripts/export_onnx_model.py \u2014 verify it can export fastino/gliner2-base-v1\
+  \ (architecture is DeBERTa-v3-base, ~140M params)"
+- "File: data_classifier/models/gliner_onnx/ \u2014 re-export ONNX bundle for the\
+  \ new model (may be a separate sub-task)"
+- "File: tests/test_gliner_engine.py \u2014 update mock label/description fixtures\
+  \ to match new strings"
 description: ''
 acceptance_criteria:
-  - "Combined-swap micro-sweep run BEFORE merging: fastino @ 0.80 desc=off × {baseline, +SSN swap, +PERSON_NAME swap, +both swaps} × 2 corpora (8 runs). Confirm both-swaps config is at least neutral (within noise) on each corpus per the GLiNER eval memo §'Follow-ups the memo deliberately does not answer' #1"
-  - "Full-pipeline accuracy benchmark (tests/benchmarks/accuracy_benchmark.py) shows Ai4Privacy blind macro F1 lift ≥ +0.02 vs current main. The eval memo predicts +0.02 to +0.05 — set ≥+0.02 as the merge gate."
-  - "Nemotron blind macro F1 must NOT regress (ship-gate: Δ ≥ -0.005 within noise floor)"
-  - "Latency regression check via perf_quick: ≤ +5% per-column on the GLiNER engine in isolation"
-  - "All gliner_engine tests + shadow tests pass; install_smoke_test.py passes"
-  - "ONNX export of fastino/gliner2-base-v1 succeeds OR a follow-up backlog item is filed if the export tooling needs work (do not block Sprint 9 ship on ONNX if PyTorch fallback is acceptable for one sprint)"
-  - "PROJECT_CONTEXT.md updated with new Ai4Privacy blind macro F1 number"
-  - "SPRINT_HANDOVER.md (current sprint) cites the eval memo as the source of the change"
-  - "Lint clean, full pytest tests/ -v green"
+- "Combined-swap micro-sweep run BEFORE merging: fastino @ 0.80 desc=off \xD7 {baseline,\
+  \ +SSN swap, +PERSON_NAME swap, +both swaps} \xD7 2 corpora (8 runs). Confirm both-swaps\
+  \ config is at least neutral (within noise) on each corpus per the GLiNER eval memo\
+  \ \xA7'Follow-ups the memo deliberately does not answer' #1"
+- "Full-pipeline accuracy benchmark (tests/benchmarks/accuracy_benchmark.py) shows\
+  \ Ai4Privacy blind macro F1 lift \u2265 +0.02 vs current main. The eval memo predicts\
+  \ +0.02 to +0.05 \u2014 set \u2265+0.02 as the merge gate."
+- "Nemotron blind macro F1 must NOT regress (ship-gate: \u0394 \u2265 -0.005 within\
+  \ noise floor)"
+- "Latency regression check via perf_quick: \u2264 +5% per-column on the GLiNER engine\
+  \ in isolation"
+- All gliner_engine tests + shadow tests pass; install_smoke_test.py passes
+- ONNX export of fastino/gliner2-base-v1 succeeds OR a follow-up backlog item is filed
+  if the export tooling needs work (do not block Sprint 9 ship on ONNX if PyTorch
+  fallback is acceptable for one sprint)
+- PROJECT_CONTEXT.md updated with new Ai4Privacy blind macro F1 number
+- SPRINT_HANDOVER.md (current sprint) cites the eval memo as the source of the change
+- Lint clean, full pytest tests/ -v green
 test_plan:
-  - "tests/test_gliner_engine.py: existing tests must pass with new model + labels"
-  - "Manual: combined-swap micro-sweep (8 runs, ~5 min on quantized ONNX, ~30 min on PyTorch fallback)"
-  - "Manual: tests/benchmarks/accuracy_benchmark.py full pipeline run on both blind corpora"
-  - "Manual: install smoke test on a fresh wheel"
-notes: |
-  Source: docs/research/GLINER_MODEL_EVALUATION.md on origin/research/gliner-eval
-  Eval session result memo, dispatched 2026-04-13.
-
-  Headline: GLiNER-only blind Ai4Privacy lift +0.091 (0.5095 -> 0.6000).
-  Decision matrix gate (≥0.05) cleared. Verdict: ship config change, do
-  NOT proceed to fork 2 (complementary NER research).
-
-  CRITICAL CAVEAT: The +0.091 is GLiNER-only blind. Full-pipeline lift
-  will be smaller (+0.02 to +0.05 expected) because regex already covers
-  SSN-shaped values. The full-pipeline confirmation run is the merge
-  gate, not the GLiNER-only number.
-
-  TWO SURPRISES that contradict Sprint 5:
-  1. Sprint 5 rejected fastino/gliner2-base-v1 as "lost on PII detection".
-     The eval shows that rejection was a labelling artifact, not a
-     model-capacity issue. With proper labels and threshold, fastino
-     dominates urchade on both blind corpora.
-  2. Sprint 5 said descriptions helped fastino. The eval shows
-     descriptions consistently HURT fastino (-0.062 to -0.093). Ship
-     without descriptions.
-
-  PER-TYPE WINS on Ai4Privacy (this is where the +0.091 comes from):
-  - DATE_OF_BIRTH: 0.000 -> 0.667 (rescued)
-  - EMAIL: 0.500 -> 1.000 (rescued)
-  - IP_ADDRESS: 0.000 -> 0.400 (partial rescue)
-
-  PER-TYPE LOSSES on Ai4Privacy (precision regressions, one extra FP each):
-  - ADDRESS: 1.000 -> 0.667
-  - PHONE: 0.667 -> 0.400
-  - SSN: 1.000 -> 0.667
-
-  Net: +0.091. The wins are recall rescues outweighing precision losses.
-
-  STATISTICAL NOISE: Each corpus has 7 columns. Noise floor ~0.1 macro F1.
-  Differences > 0.05 are signal; smaller is noise.
-
-  UNSOLVED: Nemotron SSN column is uncaught by both models at every
-  threshold and label tested. If the full-pipeline run shows it's also
-  regex-blind, that's a candidate trigger for fork 2 (complementary NER
-  research) as a separate follow-up sprint item.
-
-  This item is a Sprint 9 candidate. Should land BEFORE any further
-  meta-classifier experiments because:
-  - It changes the live pipeline's GLiNER output, which affects the
-    meta-classifier's input feature distribution
-  - E10's "GLiNER as feature" findings should be re-validated against
-    the tuned GLiNER (though the LOCO-corpus-fingerprint problem is
-    structural and unlikely to change with a better GLiNER)
+- 'tests/test_gliner_engine.py: existing tests must pass with new model + labels'
+- 'Manual: combined-swap micro-sweep (8 runs, ~5 min on quantized ONNX, ~30 min on
+  PyTorch fallback)'
+- 'Manual: tests/benchmarks/accuracy_benchmark.py full pipeline run on both blind
+  corpora'
+- 'Manual: install smoke test on a fresh wheel'
+notes: "Source: docs/research/GLINER_MODEL_EVALUATION.md on origin/research/gliner-eval\n\
+  Eval session result memo, dispatched 2026-04-13.\n\nHeadline: GLiNER-only blind\
+  \ Ai4Privacy lift +0.091 (0.5095 -> 0.6000).\nDecision matrix gate (\u22650.05)\
+  \ cleared. Verdict: ship config change, do\nNOT proceed to fork 2 (complementary\
+  \ NER research).\n\nCRITICAL CAVEAT: The +0.091 is GLiNER-only blind. Full-pipeline\
+  \ lift\nwill be smaller (+0.02 to +0.05 expected) because regex already covers\n\
+  SSN-shaped values. The full-pipeline confirmation run is the merge\ngate, not the\
+  \ GLiNER-only number.\n\nTWO SURPRISES that contradict Sprint 5:\n1. Sprint 5 rejected\
+  \ fastino/gliner2-base-v1 as \"lost on PII detection\".\n   The eval shows that\
+  \ rejection was a labelling artifact, not a\n   model-capacity issue. With proper\
+  \ labels and threshold, fastino\n   dominates urchade on both blind corpora.\n2.\
+  \ Sprint 5 said descriptions helped fastino. The eval shows\n   descriptions consistently\
+  \ HURT fastino (-0.062 to -0.093). Ship\n   without descriptions.\n\nPER-TYPE WINS\
+  \ on Ai4Privacy (this is where the +0.091 comes from):\n- DATE_OF_BIRTH: 0.000 ->\
+  \ 0.667 (rescued)\n- EMAIL: 0.500 -> 1.000 (rescued)\n- IP_ADDRESS: 0.000 -> 0.400\
+  \ (partial rescue)\n\nPER-TYPE LOSSES on Ai4Privacy (precision regressions, one\
+  \ extra FP each):\n- ADDRESS: 1.000 -> 0.667\n- PHONE: 0.667 -> 0.400\n- SSN: 1.000\
+  \ -> 0.667\n\nNet: +0.091. The wins are recall rescues outweighing precision losses.\n\
+  \nSTATISTICAL NOISE: Each corpus has 7 columns. Noise floor ~0.1 macro F1.\nDifferences\
+  \ > 0.05 are signal; smaller is noise.\n\nUNSOLVED: Nemotron SSN column is uncaught\
+  \ by both models at every\nthreshold and label tested. If the full-pipeline run\
+  \ shows it's also\nregex-blind, that's a candidate trigger for fork 2 (complementary\
+  \ NER\nresearch) as a separate follow-up sprint item.\n\nThis item is a Sprint 9\
+  \ candidate. Should land BEFORE any further\nmeta-classifier experiments because:\n\
+  - It changes the live pipeline's GLiNER output, which affects the\n  meta-classifier's\
+  \ input feature distribution\n- E10's \"GLiNER as feature\" findings should be re-validated\
+  \ against\n  the tuned GLiNER (though the LOCO-corpus-fingerprint problem is\n \
+  \ structural and unlikely to change with a better GLiNER)\n"
 phase: plan
 design_reviewed: false
 code_reviewed: false
