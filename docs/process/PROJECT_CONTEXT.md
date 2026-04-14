@@ -138,6 +138,7 @@
 | `docs/CLIENT_INTEGRATION_GUIDE.md` | API contract for connector teams |
 | `docs/migration-from-bq-connector.md` | Sprint 27 migration plan |
 | `docs/process/BQ_INTEGRATION_STATUS.md` | Per-field verification of BQ-populated `ColumnInput` context fields |
+| `docs/process/FAIL_FAST_STRETCH_DISPATCH.md` | Stretch-item dispatch protocol — revert-and-refile playbook (Sprint 10 lesson #3) |
 | `docs/ROADMAP.md` | Iterations 1-4 plan |
 | `docs/PATTERN_SOURCES.md` | Pattern sources, license/IP, gap plan, testing corpus strategy |
 | `docs-public/` | Client-facing docs (mkdocs source) |
