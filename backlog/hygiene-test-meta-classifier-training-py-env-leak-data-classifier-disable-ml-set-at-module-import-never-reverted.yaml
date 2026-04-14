@@ -1,21 +1,39 @@
 title: "Hygiene: test_meta_classifier_training.py env leak \u2014 DATA_CLASSIFIER_DISABLE_ML\
   \ set at module import never reverted"
-status: backlog
+status: doing
 priority: P2
 category: bug
-sprint_target: null
+sprint_target: 11
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: "Fix the DATA_CLASSIFIER_DISABLE_ML environment-variable leak in test_meta_classifier_training.py\
+  \ \u2014 the flag is currently set at module import and never restored, contaminating\
+  \ test isolation and potentially masking ML-path bugs in downstream test modules."
+complexity: S
+technical_specs:
+- "File: tests/test_meta_classifier_training.py \u2014 replace the top-of-module os.environ\
+  \ set with a pytest fixture using monkeypatch.setenv, or an autouse fixture with\
+  \ explicit teardown"
+- "File: tests/test_meta_classifier_training.py (same file) \u2014 add test_disable_ml_env_restored_after_fixture_teardown\
+  \ meta-test"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- DATA_CLASSIFIER_DISABLE_ML is restored to its pre-module-import value after every
+  test in test_meta_classifier_training.py completes
+- Running the meta-classifier training tests in isolation (pytest tests/test_meta_classifier_training.py)
+  yields the same results as running them as part of the full suite
+- A meta-test asserts env-var state is unchanged after the module's tests run
+- Full suite passes with no new failures (pytest tests/ -v)
+- Lint clean
+test_plan:
+- "test_disable_ml_env_restored_after_fixture_teardown \u2014 meta-test verifies the\
+  \ fix"
+- Rerun the 13 existing tests in test_meta_classifier_training.py in isolation and
+  confirm same pass count
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

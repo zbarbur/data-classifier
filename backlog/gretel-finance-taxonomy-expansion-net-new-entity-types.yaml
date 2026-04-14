@@ -1,6 +1,6 @@
 title: Sprint 11 taxonomy expansion — net-new entity types surfaced by Gretel-finance
   ingest (account_pin, bban, driver_license_number)
-status: candidate
+status: backlog
 priority: P2
 category: feature
 sprint_target: 11
@@ -95,7 +95,7 @@ notes: |
   67%, gives the meta-classifier explicit training signal for three label
   families it currently ignores, and unblocks the broader Q5 taxonomy
   gap list that the dataset landscape survey documented.
-phase: candidate
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

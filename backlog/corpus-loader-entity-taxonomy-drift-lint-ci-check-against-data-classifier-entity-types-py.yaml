@@ -1,5 +1,5 @@
 title: "Corpus-loader entity-taxonomy drift lint \u2014 CI check against data_classifier/entity_types.py"
-status: backlog
+status: doing
 priority: P2
 category: chore
 sprint_target: 11
@@ -7,9 +7,17 @@ created: 2026-04-14
 updated: 2026-04-14
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: "Add a CI check that diffs every corpus loader's emitted label vocabulary against\
+  \ data_classifier/entity_types.py and fails on drift, so Sprint 10's silent CREDENTIAL\u2192\
+  API_KEY drift cannot recur."
+complexity: S
+technical_specs:
+- "File: tests/benchmarks/lint_corpus_taxonomy.py (new) \u2014 static or runtime extraction\
+  \ of emitted vocab per loader"
+- "File: tests/test_corpus_taxonomy_lint.py (new) \u2014 asserts lint detects a synthetic\
+  \ stale-label loader and passes on real loaders"
+- "File: .github/workflows/ci.yaml \u2014 add lint step, or run via pytest -q in the\
+  \ existing test job (decide during build)"
 description: 'Lesson learned from Sprint 10: corpus loaders emit label strings that
   silently drift from the production entity vocabulary. Sprint 8''s CREDENTIAL->4-subtype
   split wasn''t backported to Nemotron loader, and Sprint 10 item #4''s new definitive-tier
@@ -17,10 +25,22 @@ description: 'Lesson learned from Sprint 10: corpus loaders emit label strings t
   a CI lint that loads each corpus loader''s type map / label emission and fails on
   any label not present in data_classifier.entity_types. Covers Nemotron, Gretel-EN,
   Gretel-finance, SecretBench, gitleaks, detect_secrets, synthetic.'
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- New lint script or pytest test walks all load_*_corpus functions and extracts their
+  emitted entity-type vocabulary
+- Lint fails when any loader emits a label absent from data_classifier/entity_types.py
+- Lint is wired into the project CI command and runs on every PR (via pytest or explicit
+  CI step)
+- 'All existing Sprint 10 corpus loaders pass the lint (baseline green post-item #1
+  refresh)'
+- Tests pass, lint clean
+test_plan:
+- "test_lint_passes_on_current_loaders \u2014 baseline green"
+- "test_lint_fails_on_stale_credential_label \u2014 inject a fake loader emitting\
+  \ 'CREDENTIAL' and assert lint raises"
+- "test_lint_passes_on_valid_api_key_label \u2014 positive control"
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []
