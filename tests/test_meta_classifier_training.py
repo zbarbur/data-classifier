@@ -29,7 +29,37 @@ pytestmark = pytest.mark.skipif(
     reason="Phase 2 training tests require the `[meta]` extra (sklearn/numpy/scipy)",
 )
 
-os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
+
+@pytest.fixture(scope="module", autouse=True)
+def _disable_ml_env() -> "pytest.MonkeyPatch":  # type: ignore[name-defined]
+    """Force ``DATA_CLASSIFIER_DISABLE_ML=1`` for this module only.
+
+    Sprint 11 item #5 fix: the previous implementation set
+    ``os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")`` at
+    module import time and never restored it, which leaked into any
+    downstream test module that ran in the same pytest session and
+    potentially masked ML-path bugs in those tests.
+
+    Using ``pytest.MonkeyPatch`` with module scope gives us
+    set-on-entry + restore-on-exit with the same machinery pytest's
+    own ``monkeypatch`` fixture uses, so the restoration is proven by
+    pytest's own test suite, not by a bespoke teardown hook.
+    """
+    mp = pytest.MonkeyPatch()
+    mp.setenv("DATA_CLASSIFIER_DISABLE_ML", "1")
+    yield mp
+    mp.undo()
+
+
+def test_disable_ml_env_fixture_is_active() -> None:
+    """Meta-test: confirm the autouse fixture actually sets the env var.
+
+    Paired with the fixture's docstring this pins the Sprint 11 item #5
+    hygiene fix. If this test fails, the fixture is misconfigured and
+    downstream test modules may see a leaked ``DATA_CLASSIFIER_DISABLE_ML=1``
+    even after this module completes.
+    """
+    assert os.environ.get("DATA_CLASSIFIER_DISABLE_ML") == "1"
 
 
 def _load_artifact(path: Path) -> dict:
