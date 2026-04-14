@@ -63,16 +63,13 @@ test_plan:
 - 'Manual: tests/benchmarks/accuracy_benchmark.py full pipeline run on both blind
   corpora'
 - 'Manual: install smoke test on a fresh wheel'
-notes: "BLOCKED 2026-04-13 on blind-corpus regression (-0.13 Gretel-EN blind, -0.19\
-  \ Nemotron blind). Fastino over-predicts 'phone number' on any numeric-format column\
-  \ because the eval memo's +0.091 Ai4Privacy lift was measured on corpora with context\
-  \ sentences around values; our blind benchmarks feed raw bag-of-tokens with no grammatical\
-  \ context. Infrastructure salvaged to sprint9/main commit 29db52c (threshold plumbing\
-  \ fix + descriptions_enabled flag + ONNX auto-discovery guard + 7 regression tests)\
-  \ \u2014 the future promotion is now a 2-line model_id swap + re-benchmark. Unblock\
-  \ path: research/gliner-context context-injection work. See docs/learning/sprint9-cv-shortcut-and-gated-architecture.md\
-  \ for the distribution-shift diagnosis."
-phase: null
+notes: "Sprint 10 STRETCH \u2014 gated on promote-s1-nl-prompt-wrapping-gliner-engine\
+  \ landing first. Implementation path: apply docs/research/gliner_fastino/fastino_promotion_draft_20260414.patch\
+  \ (preserved 412-line patch from commit 36f97bf) against post-S1 gliner_engine.py.\
+  \ Hard gates: Gretel-EN blind F1 delta >= -0.005 vs Sprint 9 (was -0.1319) AND Nemotron\
+  \ blind F1 delta >= -0.005 vs Sprint 9 (was -0.1923). Only ship if S1 lands early\
+  \ in week 2 \u2014 otherwise defer to Sprint 11."
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

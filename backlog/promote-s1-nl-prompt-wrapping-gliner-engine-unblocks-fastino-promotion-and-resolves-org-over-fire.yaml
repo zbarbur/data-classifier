@@ -1,6 +1,6 @@
-title: "Promote S1 NL prompt context-wrapping in gliner_engine -- unblocks fastino/gliner2-base-v1\
-  \ promotion by closing the blind-corpus regression gap, and resolves the Sprint\
-  \ 8 gliner2 ORGANIZATION over-fire bug by construction"
+title: Promote S1 NL prompt context-wrapping in gliner_engine -- unblocks fastino/gliner2-base-v1
+  promotion by closing the blind-corpus regression gap, and resolves the Sprint 8
+  gliner2 ORGANIZATION over-fire bug by construction
 status: backlog
 priority: P1
 category: feature
@@ -15,91 +15,89 @@ tags:
 - unblocks-fastino-promotion
 - resolves-gliner2-org-over-fire
 - research-promotion
-goal: "Ship S1 natural-language prompt wrapping in gliner_engine.py _run_ner_on_samples\
-  \ so GLiNER sees a context sentence (column_name + table_name + description + values)\
-  \ instead of a raw ' ; '-joined bag of tokens. This item has two independent positive\
-  \ effects: (1) unblocks promote-gliner-tuning-fastino-base-v1, which was blocked\
-  \ in Sprint 9 on blind-corpus regressions (-0.13 Gretel-EN, -0.19 Nemotron) because\
-  \ fastino was trained/evaluated on context-rich input but our blind benchmarks feed\
-  \ raw values with no grammatical wrapper; (2) resolves gliner2-over-fires-organization-on-numeric-dash-inputs-ssn-format-audit-prompt-descriptions-or-add-content-shape-filter\
-  \ by construction, because Pass 1's false-positive suppression is concentrated on\
-  \ exactly the over-fire pattern that bug tracks (ORGANIZATION false-fires on numeric\
-  \ strings drop from ~25 FPs under baseline to ~8 FPs under S1 at threshold 0.8,\
-  \ n=315). Research track gliner-context Pass 1 measured S1 NL prompt at +0.0887\
-  \ macro F1 vs baseline on Ai4Privacy at threshold 0.8, paired BCa 95% CI [+0.050,\
-  \ +0.131], robust across thresholds 0.5/0.7/0.8 and all three context-kind strata\
-  \ (empty/helpful/misleading). Shipping S1 into the engine is the precursor to the\
-  \ 2-line model_id swap that promote-gliner-tuning-fastino-base-v1 currently blocks\
-  \ on, and it is also a standalone production improvement for the current live urchade\
-  \ v1 model."
+goal: 'Ship S1 natural-language prompt wrapping in gliner_engine.py _run_ner_on_samples
+  so GLiNER sees a context sentence (column_name + table_name + description + values)
+  instead of a raw '' ; ''-joined bag of tokens. This item has two independent positive
+  effects: (1) unblocks promote-gliner-tuning-fastino-base-v1, which was blocked in
+  Sprint 9 on blind-corpus regressions (-0.13 Gretel-EN, -0.19 Nemotron) because fastino
+  was trained/evaluated on context-rich input but our blind benchmarks feed raw values
+  with no grammatical wrapper; (2) resolves gliner2-over-fires-organization-on-numeric-dash-inputs-ssn-format-audit-prompt-descriptions-or-add-content-shape-filter
+  by construction, because Pass 1''s false-positive suppression is concentrated on
+  exactly the over-fire pattern that bug tracks (ORGANIZATION false-fires on numeric
+  strings drop from ~25 FPs under baseline to ~8 FPs under S1 at threshold 0.8, n=315).
+  Research track gliner-context Pass 1 measured S1 NL prompt at +0.0887 macro F1 vs
+  baseline on Ai4Privacy at threshold 0.8, paired BCa 95% CI [+0.050, +0.131], robust
+  across thresholds 0.5/0.7/0.8 and all three context-kind strata (empty/helpful/misleading).
+  Shipping S1 into the engine is the precursor to the 2-line model_id swap that promote-gliner-tuning-fastino-base-v1
+  currently blocks on, and it is also a standalone production improvement for the
+  current live urchade v1 model.'
 complexity: S
 technical_specs:
-- "File: data_classifier/engines/gliner_engine.py:355 -- replace `text = _SAMPLE_SEPARATOR.join(chunk)`\
-  \ with a new `_build_ner_prompt(column, chunk)` helper that emits a natural-language\
-  \ sentence: `f\"Column '{column.column_name}' from table '{column.table_name}'.\
-  \ Description: {column.description}. Sample values: {', '.join(chunk)}\"` when metadata\
-  \ is present"
-- "File: data_classifier/engines/gliner_engine.py -- the _build_ner_prompt helper\
-  \ must graceful-degrade when metadata is empty: omit empty parts, fall back to `f\"\
-  Sample values: {', '.join(chunk)}\"` with no prefix if column_name AND table_name\
-  \ AND description are all empty (preserves current production behavior on metadata-free\
-  \ inputs so this change is strictly additive on ColumnInput schemas without metadata)"
-- "File: data_classifier/engines/gliner_engine.py -- keep the helper pure (no side\
-  \ effects, no model calls, no logging) so it is unit-testable in isolation without\
-  \ touching the model registry"
-- "File: data_classifier/engines/gliner_engine.py -- verify max_len constraints: at\
-  \ chunk_size=50 with 30-char mean values, baseline text is ~1500 chars; NL prefix\
-  \ adds ~150-300 chars. Verify this stays within the model's max_len bound on both\
-  \ urchade v1 and fastino v2 (research measured at chunk_size=30, so max_len at chunk_size=50\
-  \ is the one spec the research doesn't directly validate). If it overflows, fall\
-  \ back to a shorter prefix form or reduce chunk_size for metadata-present columns."
-- "File: tests/test_gliner_engine.py -- add unit tests for _build_ner_prompt covering:\
-  \ (a) all metadata present, (b) only column_name, (c) only description, (d) no metadata\
-  \ (fallback to raw values), (e) table_name with empty column_name, (f) very long\
-  \ description that would push past max_len"
-- "File: tests/test_gliner_engine.py -- add an integration test confirming extract_entities\
-  \ (and predict_entities for v1) is called with an NL-prefixed text when column has\
-  \ metadata, and called with the legacy ' ; '-joined text when column has no metadata"
-- "File: tests/test_gliner_engine.py -- add a regression test that a column with column_name\
-  \ of the form '<sku>-<sku>' (numeric-dash, e.g. '123-45-6789') no longer triggers\
-  \ an ORGANIZATION finding at threshold 0.8 -- this is the Sprint 8 over-fire bug\
-  \ closure"
+- 'File: data_classifier/engines/gliner_engine.py:355 -- replace `text = _SAMPLE_SEPARATOR.join(chunk)`
+  with a new `_build_ner_prompt(column, chunk)` helper that emits a natural-language
+  sentence: `f"Column ''{column.column_name}'' from table ''{column.table_name}''.
+  Description: {column.description}. Sample values: {'', ''.join(chunk)}"` when metadata
+  is present'
+- 'File: data_classifier/engines/gliner_engine.py -- the _build_ner_prompt helper
+  must graceful-degrade when metadata is empty: omit empty parts, fall back to `f"Sample
+  values: {'', ''.join(chunk)}"` with no prefix if column_name AND table_name AND
+  description are all empty (preserves current production behavior on metadata-free
+  inputs so this change is strictly additive on ColumnInput schemas without metadata)'
+- 'File: data_classifier/engines/gliner_engine.py -- keep the helper pure (no side
+  effects, no model calls, no logging) so it is unit-testable in isolation without
+  touching the model registry'
+- 'File: data_classifier/engines/gliner_engine.py -- verify max_len constraints: at
+  chunk_size=50 with 30-char mean values, baseline text is ~1500 chars; NL prefix
+  adds ~150-300 chars. Verify this stays within the model''s max_len bound on both
+  urchade v1 and fastino v2 (research measured at chunk_size=30, so max_len at chunk_size=50
+  is the one spec the research doesn''t directly validate). If it overflows, fall
+  back to a shorter prefix form or reduce chunk_size for metadata-present columns.'
+- 'File: tests/test_gliner_engine.py -- add unit tests for _build_ner_prompt covering:
+  (a) all metadata present, (b) only column_name, (c) only description, (d) no metadata
+  (fallback to raw values), (e) table_name with empty column_name, (f) very long description
+  that would push past max_len'
+- 'File: tests/test_gliner_engine.py -- add an integration test confirming extract_entities
+  (and predict_entities for v1) is called with an NL-prefixed text when column has
+  metadata, and called with the legacy '' ; ''-joined text when column has no metadata'
+- 'File: tests/test_gliner_engine.py -- add a regression test that a column with column_name
+  of the form ''<sku>-<sku>'' (numeric-dash, e.g. ''123-45-6789'') no longer triggers
+  an ORGANIZATION finding at threshold 0.8 -- this is the Sprint 8 over-fire bug closure'
 description: ''
 acceptance_criteria:
-- "Unit tests on _build_ner_prompt covering the 6 metadata-presence scenarios pass"
-- "Existing gliner_engine tests continue to pass unchanged (the prompt change is gated\
-  \ behind the new helper; the rest of _run_ner_on_samples is unaffected)"
-- "Regression test for the ORGANIZATION numeric-dash over-fire passes (closes gliner2-over-fires-organization-on-numeric-dash-inputs\
-  \ by construction)"
-- "tests/benchmarks/accuracy_benchmark.py full-pipeline run on current production\
-  \ model (urchade/gliner_multi_pii-v1 @ threshold 0.5) shows Ai4Privacy macro F1\
-  \ delta >= -0.005 vs current main -- the S1 wrapping must not regress current production\
-  \ on the live model. Ideally positive, but non-regression is the minimum merge gate\
-  \ for this item in isolation."
-- "tests/benchmarks/accuracy_benchmark.py full-pipeline run on (urchade + S1) shows\
-  \ Gretel-EN blind macro F1 delta >= -0.005 vs current main (no regression on the\
-  \ blind corpus that fastino failed on in Sprint 9)"
-- "tests/benchmarks/accuracy_benchmark.py full-pipeline run on (urchade + S1) shows\
-  \ Nemotron-PII blind macro F1 delta >= -0.005 vs current main"
-- "Per-entity regression check: no individual entity_type F1 regresses by more than\
-  \ -0.03 on either blind corpus (this is Pass 1's remaining under-powered gate; at\
-  \ the full-benchmark scale the per-type n is larger and this can be enforced)"
-- "Latency regression check via perf_quick: <= +20% per-column on the GLiNER engine\
-  \ in isolation (Pass 1 measured +6% at n=315; full-benchmark should confirm)"
-- "Shadow-mode validation: run the combined (fastino + threshold 0.80 + S1) benchmark\
-  \ immediately after the (urchade + S1) merge gate, to check whether fastino's Sprint\
-  \ 9 blind regression closes. This is the actual unblock decision for promote-gliner-tuning-fastino-base-v1;\
-  \ do NOT gate THIS item on it (ship S1 into the engine first with urchade, then\
-  \ use the shadow run to decide whether to proceed with the fastino promotion in\
-  \ the same sprint or the next)"
-- "CHANGELOG.md entry under next release documenting both the S1 prompt wrapping and\
-  \ the ORG over-fire resolution"
-- "PROJECT_CONTEXT.md updated with the new baseline numbers on both blind corpora"
-- "SPRINT_HANDOVER.md (current sprint) cites Pass 1 memo and this item as the unblock\
-  \ for the fastino-promotion track, and references the ORG over-fire closure"
-- "gliner2-over-fires-organization-on-numeric-dash-inputs-... backlog item status\
-  \ updated to closed with a reference to this item's PR"
-- "Lint clean, full pytest tests/ -v green"
+- Unit tests on _build_ner_prompt covering the 6 metadata-presence scenarios pass
+- Existing gliner_engine tests continue to pass unchanged (the prompt change is gated
+  behind the new helper; the rest of _run_ner_on_samples is unaffected)
+- Regression test for the ORGANIZATION numeric-dash over-fire passes (closes gliner2-over-fires-organization-on-numeric-dash-inputs
+  by construction)
+- tests/benchmarks/accuracy_benchmark.py full-pipeline run on current production model
+  (urchade/gliner_multi_pii-v1 @ threshold 0.5) shows Ai4Privacy macro F1 delta >=
+  -0.005 vs current main -- the S1 wrapping must not regress current production on
+  the live model. Ideally positive, but non-regression is the minimum merge gate for
+  this item in isolation.
+- tests/benchmarks/accuracy_benchmark.py full-pipeline run on (urchade + S1) shows
+  Gretel-EN blind macro F1 delta >= -0.005 vs current main (no regression on the blind
+  corpus that fastino failed on in Sprint 9)
+- tests/benchmarks/accuracy_benchmark.py full-pipeline run on (urchade + S1) shows
+  Nemotron-PII blind macro F1 delta >= -0.005 vs current main
+- 'Per-entity regression check: no individual entity_type F1 regresses by more than
+  -0.03 on either blind corpus (this is Pass 1''s remaining under-powered gate; at
+  the full-benchmark scale the per-type n is larger and this can be enforced)'
+- 'Latency regression check via perf_quick: <= +20% per-column on the GLiNER engine
+  in isolation (Pass 1 measured +6% at n=315; full-benchmark should confirm)'
+- 'Shadow-mode validation: run the combined (fastino + threshold 0.80 + S1) benchmark
+  immediately after the (urchade + S1) merge gate, to check whether fastino''s Sprint
+  9 blind regression closes. This is the actual unblock decision for promote-gliner-tuning-fastino-base-v1;
+  do NOT gate THIS item on it (ship S1 into the engine first with urchade, then use
+  the shadow run to decide whether to proceed with the fastino promotion in the same
+  sprint or the next)'
+- CHANGELOG.md entry under next release documenting both the S1 prompt wrapping and
+  the ORG over-fire resolution
+- PROJECT_CONTEXT.md updated with the new baseline numbers on both blind corpora
+- SPRINT_HANDOVER.md (current sprint) cites Pass 1 memo and this item as the unblock
+  for the fastino-promotion track, and references the ORG over-fire closure
+- gliner2-over-fires-organization-on-numeric-dash-inputs-... backlog item status updated
+  to closed with a reference to this item's PR
+- Lint clean, full pytest tests/ -v green
 test_plan:
 - 'Unit: tests/test_gliner_engine.py::test_build_ner_prompt_* (6 metadata-presence
   scenarios)'
@@ -177,9 +175,9 @@ notes: "RESEARCH BACKBONE: research/gliner-context @ 7b2ed91 (pushed to origin 2
   \ research/gliner-context commits:\n  - d0e1ba9 queue + coordination setup\n  -\
   \ 702d0a8 smoke test + API mapping (discovered that GLiNER2.extract_entities is\
   \ a thin wrapper over create_schema().entities; dict-of-descriptions IS a live path)\n\
-  \  - 659a358 first F1 run n=21 (preliminary)\n  - 7b2ed91 Pass 1 n=315 (memo,\
-  \ harness, learning guide, queue updates)"
-phase: plan
+  \  - 659a358 first F1 run n=21 (preliminary)\n  - 7b2ed91 Pass 1 n=315 (memo, harness,\
+  \ learning guide, queue updates)"
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

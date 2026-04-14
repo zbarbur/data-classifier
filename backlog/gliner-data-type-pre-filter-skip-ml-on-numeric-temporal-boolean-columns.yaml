@@ -8,64 +8,63 @@ updated: 2026-04-14
 depends_on: []
 tags:
 - gliner,accuracy,sprint9,latency
-goal: "Skip GLiNER inference entirely on columns whose SQL data_type is numeric, temporal,\
-  \ boolean, or bytes. GLiNER is a natural-language NER model \u2014 running it on\
-  \ integer or timestamp columns produces noise and false positives (notably the Sprint\
-  \ 8 ORG-over-fire on numeric-dash inputs). Fail-open on empty data_type so behavior\
-  \ is unchanged when a connector does not populate the field. Secondary latency win:\
-  \ GLiNER is ~99.8% of pipeline time per Sprint 8 benchmark, skipping it on 10-20%\
-  \ of columns is a meaningful perf delta."
+goal: Skip GLiNER2 inference when ColumnInput.data_type is a non-text SQL type (numeric/temporal/boolean/bytes)
+  where NER cannot produce meaningful results. Eliminates a whole class of GLiNER
+  false positives on numeric columns and reduces benchmark wall-time.
 complexity: S
 technical_specs:
-- "File: data_classifier/engines/gliner_engine.py \u2014 add module-level _NON_TEXT_DATA_TYPES:\
-  \ frozenset[str] = frozenset({'INTEGER','INT64','FLOAT','FLOAT64','NUMERIC','BIGNUMERIC','BOOLEAN','BOOL','TIMESTAMP','DATE','DATETIME','TIME','BYTES'})"
-- "File: data_classifier/engines/gliner_engine.py:283 \u2014 in GLiNER2Engine.classify_column,\
-  \ before sample_values check, add: if column.data_type and column.data_type.upper()\
-  \ in _NON_TEXT_DATA_TYPES: return []"
-- "File: data_classifier/engines/gliner_engine.py:309 \u2014 in GLiNER2Engine.classify_batch,\
-  \ apply the same filter at per-column level (skip inference, return empty list for\
-  \ that column)"
-- "File: tests/test_gliner_engine.py \u2014 new TestDataTypePrefilter class. Parameterized\
-  \ over all non-text types plus STRING + empty data_type. Use monkeypatch to assert\
-  \ the model's extract_entities / predict_entities is never called on skipped types."
-- "File: docs/CLIENT_INTEGRATION_GUIDE.md \xA71b \u2014 annotate data_type field docs\
-  \ to note that populating it with the BQ SQL type enables GLiNER pre-filtering and\
-  \ a measurable latency win"
+- 'New module-level constant in data_classifier/engines/gliner_engine.py: _NON_TEXT_DATA_TYPES:
+  frozenset[str] containing the 13 BigQuery-style types: INTEGER, INT64, FLOAT, FLOAT64,
+  NUMERIC, BIGNUMERIC, BOOLEAN, BOOL, TIMESTAMP, DATE, DATETIME, TIME, BYTES. Case-insensitive
+  comparison via column.data_type.upper().'
+- "Skip point 1: GLiNER2Engine.classify_column around line 336 \u2014 add an early\
+  \ return BEFORE the existing 'if not column.sample_values: return []' check and\
+  \ BEFORE model load. Silent return [] (no event, no log) matches existing early-exit\
+  \ pattern."
+- "Skip point 2: GLiNER2Engine.classify_batch around line 362 \u2014 apply the same\
+  \ skip per-column before the per-column inference loop entry."
+- "No v1/v2 branching required \u2014 both _is_v2 codepaths go through _run_ner_on_samples,\
+  \ so a single skip at classify_column/classify_batch level covers both."
+- "Interaction with promote-s1-nl-prompt-wrapping-gliner-engine: item 1 adds an NL-prompt\
+  \ helper INSIDE _run_ner_on_samples; this item adds a skip BEFORE _run_ner_on_samples\
+  \ is called. Zero conflict \u2014 same file, sequential commits (item 2 rebases\
+  \ on top of item 1 before merging)."
+- "Upstream dependency: BQ connector must populate ColumnInput.data_type for the skip\
+  \ to be reachable in production. Fall-through behavior on data_type='' is the safety\
+  \ net \u2014 see confirm-bq-connector-populates-columninput-context-fields for the\
+  \ written verification."
 description: ''
 acceptance_criteria:
-- Columns with data_type in the non-text set (INTEGER/INT64/FLOAT/FLOAT64/NUMERIC/BIGNUMERIC/BOOLEAN/BOOL/TIMESTAMP/DATE/DATETIME/TIME/BYTES)
-  return [] from GLiNER2Engine.classify_column and the model is not invoked (verified
-  via monkeypatch on extract_entities)
-- "Columns with data_type='STRING' or data_type='' (empty) behave identically to current\
-  \ main \u2014 no regression in the existing GLiNER test suite"
-- 'classify_batch honors the same filter at per-column granularity (mixed batch of
-  text + numeric columns: numeric columns return [] without inference, text columns
-  classify normally)'
-- TestDataTypePrefilter covers all ~13 skipped types plus the STRING + empty-data_type
-  fall-through cases
-- "Perf benchmark (perf_quick or equivalent) captures a before/after median per-column\
-  \ latency delta on a mixed corpus containing \u226520% non-text columns \u2014 measurement-only,\
-  \ no hard gate, but the delta should be positive"
-- "docs/CLIENT_INTEGRATION_GUIDE.md \xA71b updated to describe the data_type pre-filter\
-  \ behavior"
-- Lint clean (ruff check . && ruff format --check .)
-- Full pytest tests/ -v green
+- _NON_TEXT_DATA_TYPES is frozenset[str] with the 13 canonical types (tests assert
+  exact membership)
+- classify_column returns [] immediately for each non-text data_type (parametrized
+  test over all 13 values)
+- classify_column falls through normally for data_type='', 'STRING', 'TEXT', and case
+  variants
+- classify_batch applies the same skip per-column
+- Mocked model's extract_entities / predict_entities is never called on skipped types
+  (monkeypatch assertion)
+- 'Benchmark parity: accuracy_benchmark macro F1 unchanged for data_type='''' / STRING
+  fixtures (vast majority of existing corpus)'
+- 'Latency improvement: perf_quick.py on a mixed-type workload shows non-zero per-column
+  reduction (sanity check, not a hard gate)'
+- docs/CLIENT_INTEGRATION_GUIDE.md documents the new skip behavior in the engine-behavior
+  section
+- Existing gliner_engine tests continue passing unchanged (additive change only)
 test_plan:
-- "tests/test_gliner_engine.py::TestDataTypePrefilter::test_skips_non_text_types \u2014\
-  \ parameterized over all 13 non-text types, asserts classify_column returns [] and\
-  \ monkeypatched extract_entities is never called"
-- "tests/test_gliner_engine.py::TestDataTypePrefilter::test_string_type_not_skipped\
-  \ \u2014 regression guard, STRING column must run GLiNER as today"
-- "tests/test_gliner_engine.py::TestDataTypePrefilter::test_empty_data_type_fail_open\
-  \ \u2014 fail-open guard, empty data_type must run GLiNER as today (compat with\
-  \ connectors that do not populate the field)"
-- "tests/test_gliner_engine.py::TestDataTypePrefilter::test_classify_batch_mixed \u2014\
-  \ mixed batch of text + non-text columns, assert per-column skip vs run semantics"
-- 'Manual: python -m tests.benchmarks.perf_benchmark --iterations 5 on a corpus with
-  mixed data_types before and after the change, capture median per-col latency delta
-  in the commit message'
+- "Unit: tests/test_gliner_engine.py::TestDataTypePrefilter::test_non_text_types_skipped\
+  \ \u2014 parametrized over 13 types"
+- "Unit: tests/test_gliner_engine.py::TestDataTypePrefilter::test_case_insensitive\
+  \ \u2014 lowercase/mixed-case variants"
+- "Unit: tests/test_gliner_engine.py::TestDataTypePrefilter::test_text_types_fall_through\
+  \ \u2014 'STRING', 'TEXT', '' still invoke the model"
+- "Unit: tests/test_gliner_engine.py::TestDataTypePrefilter::test_batch_skip \u2014\
+  \ classify_batch applies skip per-column"
+- 'Integration: monkeypatch assertion that extract_entities/predict_entities is never
+  called on skipped types'
+- 'Manual: perf_quick.py latency comparison pre/post on a mixed-type workload'
 notes: ''
-phase: null
+phase: spec
 design_reviewed: false
 code_reviewed: false
 comments: []

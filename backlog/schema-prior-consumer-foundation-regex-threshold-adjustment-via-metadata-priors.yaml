@@ -3,9 +3,9 @@ title: "Schema prior consumer foundation \u2014 regex threshold adjustment via m
 status: backlog
 priority: P2
 category: feature
-sprint_target: 10
+sprint_target: 11
 created: 2026-04-13
-updated: 2026-04-13
+updated: 2026-04-14
 depends_on: []
 tags:
 - schema-prior
@@ -90,14 +90,13 @@ test_plan:
   missing) do not crash; orchestrator logs warnings and proceeds with base thresholds'
 - "Feature-flag state logging verified at orchestrator init for all four (env unset/set\
   \ \xD7 param unset/true/false) combinations"
-notes: "Full implementation plan in docs/plans/schema_prior_consumer.md. Four locked\
-  \ design decisions: consumer-first (build before producer), regex-only v1, Option\
-  \ 3 (threshold adjustment), HTTP-only scanner path (deferred). Honest risks flagged\
-  \ in spec: overlap with existing sibling analysis, Case-C addressable market may\
-  \ be small, transfer function has no theoretical grounding, hand-written priors\
-  \ are upper bound. Kill-switch left in codebase as dormant flag on Kill decision\
-  \ \u2014 no rip-out. Transfer function starting implementation is linear-symmetric-slope-0.4;\
-  \ owner may override with tanh/asymmetric after review."
+notes: "Deferred from Sprint 10 to Sprint 11 during Sprint 10 planning (2026-04-14).\
+  \ Reasons: (a) the gated-meta-classifier architecture work planned for Sprint 11\
+  \ may reshape the consumer side, so committing to the current design now risks rework;\
+  \ (b) Sprint 10 capacity is already at 1M + 5S with the secret-dictionary expansion\
+  \ item; (c) the full plan doc at docs/plans/schema_prior_consumer.md is solid and\
+  \ durable \u2014 deferral costs nothing. Full spec and kill-switch decision still\
+  \ apply unchanged when this item picks up in Sprint 11."
 phase: null
 design_reviewed: false
 code_reviewed: false
