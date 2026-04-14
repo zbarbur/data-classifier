@@ -990,3 +990,172 @@ class TestOrgOverfireRegression:
             "inputs — regression against Sprint 8 bug "
             "gliner2-over-fires-organization-on-numeric-dash-inputs"
         )
+
+
+# ── Test: Sprint 10 data_type pre-filter ────────────────────────────────────
+
+
+_NON_TEXT_TYPES_CANONICAL = [
+    "INTEGER",
+    "INT64",
+    "FLOAT",
+    "FLOAT64",
+    "NUMERIC",
+    "BIGNUMERIC",
+    "BOOLEAN",
+    "BOOL",
+    "TIMESTAMP",
+    "DATE",
+    "DATETIME",
+    "TIME",
+    "BYTES",
+]
+
+
+class TestDataTypePrefilter:
+    """Sprint 10: GLiNER skips non-text SQL types entirely.
+
+    The engine must return ``[]`` immediately for columns whose
+    ``data_type`` is numeric/temporal/boolean/bytes — without invoking
+    the underlying model or loading it into memory.  Text types
+    (``""``, ``"STRING"``, ``"TEXT"``, ``"VARCHAR"``) and unknown
+    types must fall through to the normal inference path.
+    """
+
+    def test_non_text_types_constant_membership(self):
+        """_NON_TEXT_DATA_TYPES must contain exactly the 13 canonical types."""
+        from data_classifier.engines.gliner_engine import _NON_TEXT_DATA_TYPES
+
+        assert isinstance(_NON_TEXT_DATA_TYPES, frozenset)
+        assert _NON_TEXT_DATA_TYPES == frozenset(_NON_TEXT_TYPES_CANONICAL)
+        assert len(_NON_TEXT_DATA_TYPES) == 13
+
+    @pytest.mark.parametrize("data_type", _NON_TEXT_TYPES_CANONICAL)
+    def test_non_text_types_skipped(self, engine_with_mock, mock_gliner_model, data_type):
+        """classify_column returns [] and never invokes the model on non-text types."""
+        column = ColumnInput(
+            column_name="value",
+            column_id="c1",
+            data_type=data_type,
+            sample_values=["1", "2", "3"],
+        )
+
+        findings = engine_with_mock.classify_column(column)
+
+        assert findings == []
+        assert not mock_gliner_model.predict_entities.called
+        assert not mock_gliner_model.extract_entities.called
+
+    @pytest.mark.parametrize("data_type", ["integer", "Integer", "INTEGER", "iNtEgEr"])
+    def test_case_insensitive(self, engine_with_mock, mock_gliner_model, data_type):
+        """Case variants of non-text types all skip."""
+        column = ColumnInput(
+            column_name="amount",
+            column_id="c1",
+            data_type=data_type,
+            sample_values=["42"],
+        )
+
+        findings = engine_with_mock.classify_column(column)
+
+        assert findings == []
+        assert not mock_gliner_model.predict_entities.called
+
+    @pytest.mark.parametrize("data_type", ["", "STRING", "TEXT", "VARCHAR", "UNKNOWN_TYPE"])
+    def test_text_types_fall_through(self, engine_with_mock, mock_gliner_model, data_type):
+        """Text types and empty string still invoke the model."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("John Smith", 0.92)]})
+        column = ColumnInput(
+            column_name="full_name",
+            column_id="c1",
+            data_type=data_type,
+            sample_values=["John Smith", "Maria Garcia"],
+        )
+
+        engine_with_mock.classify_column(column)
+
+        assert mock_gliner_model.predict_entities.called
+
+    @pytest.mark.parametrize("data_type", ["string", "String", "text", "Text", "varchar"])
+    def test_case_insensitive_fallthrough(self, engine_with_mock, mock_gliner_model, data_type):
+        """Lowercase / mixed-case STRING/TEXT/VARCHAR must fall through to the model.
+
+        Belt-and-suspenders: any data_type not in the non-text frozenset
+        (after upper-casing) goes to the model regardless of case.
+        """
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("John Smith", 0.92)]})
+        column = ColumnInput(
+            column_name="full_name",
+            column_id="c1",
+            data_type=data_type,
+            sample_values=["John Smith"],
+        )
+
+        engine_with_mock.classify_column(column)
+
+        assert mock_gliner_model.predict_entities.called
+
+    def test_batch_skip(self, engine_with_mock, mock_gliner_model):
+        """classify_batch applies the skip per-column in the correct output order."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("John Smith", 0.92)]})
+
+        text_col = ColumnInput(
+            column_name="full_name",
+            column_id="c_text",
+            data_type="STRING",
+            sample_values=["John Smith"],
+        )
+        int_col = ColumnInput(
+            column_name="user_id",
+            column_id="c_int",
+            data_type="INTEGER",
+            sample_values=["42", "7", "99"],
+        )
+        ts_col = ColumnInput(
+            column_name="created_at",
+            column_id="c_ts",
+            data_type="TIMESTAMP",
+            sample_values=["2026-04-14T12:00:00Z"],
+        )
+        another_text_col = ColumnInput(
+            column_name="email",
+            column_id="c_text2",
+            data_type="",  # empty falls through
+            sample_values=["user@example.com"],
+        )
+
+        results = engine_with_mock.classify_batch([text_col, int_col, ts_col, another_text_col])
+
+        assert len(results) == 4
+        # Text column got findings from mocked model.
+        assert len(results[0]) == 1
+        assert results[0][0].entity_type == "PERSON_NAME"
+        # Non-text columns were skipped entirely.
+        assert results[1] == []
+        assert results[2] == []
+        # Empty-string data_type falls through to the model.
+        assert len(results[3]) == 1
+
+        # Model was called exactly twice — once per text column, zero on
+        # the non-text columns.
+        assert mock_gliner_model.predict_entities.call_count == 2
+
+    def test_batch_mixed_with_empty_samples(self, engine_with_mock, mock_gliner_model):
+        """Empty-sample non-text columns still yield [] without calling the model."""
+        int_col_no_samples = ColumnInput(
+            column_name="user_id",
+            column_id="c_int",
+            data_type="INTEGER",
+            sample_values=[],
+        )
+        text_col_no_samples = ColumnInput(
+            column_name="notes",
+            column_id="c_text",
+            data_type="STRING",
+            sample_values=[],
+        )
+
+        results = engine_with_mock.classify_batch([int_col_no_samples, text_col_no_samples])
+
+        assert results == [[], []]
+        assert not mock_gliner_model.predict_entities.called
