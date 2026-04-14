@@ -83,26 +83,35 @@ def _fixture_jsonl(tmp_path: Path, rows: list[dict]) -> Path:
 
 
 def _base_feature_vector(**overrides) -> list[float]:
-    vector: dict[str, float] = {
-        "top_overall_confidence": 0.0,
-        "regex_confidence": 0.0,
-        "column_name_confidence": 0.0,
-        "heuristic_confidence": 0.0,
-        "secret_scanner_confidence": 0.0,
-        "engines_agreed": 0.0,
-        "engines_fired": 0.0,
-        "confidence_gap": 0.0,
-        "regex_match_ratio": 0.0,
-        "heuristic_distinct_ratio": 0.0,
-        "heuristic_avg_length": 0.0,
-        "has_column_name_hit": 0.0,
-        "has_secret_indicators": 0.0,
-        "primary_is_pii": 0.0,
-        "primary_is_credential": 0.0,
-    }
-    vector.update(overrides)
-    from data_classifier.orchestrator.meta_classifier import FEATURE_NAMES
+    """Build a schema-v2 feature vector for fixtures.
 
+    Default: every feature is 0.0 EXCEPT the one-hot UNKNOWN slot which
+    defaults to 1.0 (so callers that don't pin a primary_entity_type
+    still produce a well-formed vector with exactly one one-hot set).
+
+    Callers can set the primary_entity_type by passing
+    ``primary_entity_type="EMAIL"`` (or any vocab entry) — this clears
+    UNKNOWN and sets the matching slot instead.
+    """
+    from data_classifier.orchestrator.meta_classifier import (
+        FEATURE_NAMES,
+        PRIMARY_ENTITY_TYPES,
+    )
+
+    vector: dict[str, float] = {name: 0.0 for name in FEATURE_NAMES}
+    # Default one-hot: UNKNOWN.
+    vector["primary_entity_type=UNKNOWN"] = 1.0
+
+    primary_entity_type = overrides.pop("primary_entity_type", None)
+    if primary_entity_type is not None:
+        vector["primary_entity_type=UNKNOWN"] = 0.0
+        vocab_key = f"primary_entity_type={primary_entity_type}"
+        if primary_entity_type in PRIMARY_ENTITY_TYPES:
+            vector[vocab_key] = 1.0
+        else:
+            vector["primary_entity_type=UNKNOWN"] = 1.0
+
+    vector.update(overrides)
     return [vector[n] for n in FEATURE_NAMES]
 
 

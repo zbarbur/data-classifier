@@ -92,6 +92,9 @@ ignore = ["N815"]
 "scripts/*" = ["E501", "N803", "N806"]
 "tests/benchmarks/meta_classifier/evaluate.py" = ["N803", "N806", "E741"]
 "tests/test_meta_classifier_training.py" = ["N806"]
+# sklearn convention: feature matrix is named `X` (uppercase).
+"tests/conftest.py" = ["N806"]
+"tests/test_meta_classifier_features.py" = ["N806"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

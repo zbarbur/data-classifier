@@ -337,7 +337,10 @@ def save_artifacts(
     model = trained["model"]
     scaler = trained["scaler"]
 
+    from data_classifier.orchestrator.meta_classifier import FEATURE_SCHEMA_VERSION
+
     payload = {
+        "feature_schema_version": FEATURE_SCHEMA_VERSION,
         "model": model,
         "scaler": scaler,
         "feature_names": kept_names,

@@ -394,6 +394,18 @@ def test_compute_dropped_indices_canonical() -> None:
     assert set(dropped) == {6, 11}
 
 
+@pytest.mark.xfail(
+    reason=(
+        "Sprint 11 Phase 2 widens the feature schema to v2 (46 features). "
+        "Until Phase 3 retrains and ships a v2 artifact, tests/conftest.py "
+        "autouses a tiny v2 mini-model that uses ALL 46 features (no "
+        "ALWAYS_DROP_REDUNDANT). This assertion will pass again once the "
+        "Phase 3 production retrain ships a v2 artifact trained with the "
+        "engines_fired + has_column_name_hit drops, at which point the "
+        "conftest mini-model overlay can be removed."
+    ),
+    strict=True,
+)
 def test_trained_model_dropped_indices_match_metadata() -> None:
     """The shipped model must drop exactly engines_fired + has_column_name_hit."""
     mc = MetaClassifier()
