@@ -1,0 +1,102 @@
+title: Sprint 11 taxonomy expansion — net-new entity types surfaced by Gretel-finance
+  ingest (account_pin, bban, driver_license_number)
+status: candidate
+priority: P2
+category: feature
+sprint_target: 11
+created: 2026-04-14
+updated: 2026-04-14
+depends_on:
+- ingest-gretel-pii-finance-multilingual
+tags:
+- taxonomy
+- meta-classifier
+- corpora
+- sprint11-candidate
+- surfaced-from-sprint10-gretel-finance
+goal: "Expand the data_classifier entity vocabulary with three net-new types\
+  \ surfaced by the Sprint 10 Gretel-finance ingest discovery sample. These\
+  \ labels are present in the 100-row discovery sample of\
+  \ gretelai/synthetic_pii_finance_multilingual but were deliberately NOT mapped\
+  \ during Sprint 10 ingest because they do not correspond to any entity type in\
+  \ the current production vocabulary, and the Sprint 10 ACC explicitly required\
+  \ that net-new types be surfaced here rather than silently added to the\
+  \ production taxonomy."
+complexity: M
+technical_specs:
+- "Add ACCOUNT_PIN entity type to data_classifier vocabulary. This is the PIN\
+  \ used for account authentication (distinct from CREDENTIAL in that it is\
+  \ always a short numeric/alphanumeric code, typically 4-8 chars). Nemotron\
+  \ maps its raw 'pin' label to CREDENTIAL today; consider whether this sprint\
+  \ should retire that CREDENTIAL mapping in favor of a dedicated ACCOUNT_PIN\
+  \ class, or keep both."
+- "Add BBAN entity type. Basic Bank Account Number is the pre-IBAN country-local\
+  \ account format (e.g., ITALY: 12-char alphanumeric; GERMANY: 10-digit). BBAN\
+  \ and IBAN are sometimes confused — an IBAN is BBAN + country prefix +\
+  \ checksum. Consider whether BBAN merits a dedicated class or should fold\
+  \ into BANK_ACCOUNT."
+- "Add DRIVER_LICENSE entity type (or DRIVER_LICENSE_NUMBER — pick one). US\
+  \ state-specific format varies wildly; international formats are even more\
+  \ varied. Presidio ships per-US-state regexes we can reference for pattern\
+  \ design."
+- "Update tests/benchmarks/corpus_loader.py::GRETEL_FINANCE_TYPE_MAP and\
+  \ scripts/download_corpora.py::GRETEL_FINANCE_TYPE_MAP to add the three new\
+  \ mappings. Regenerate tests/fixtures/corpora/gretel_finance_sample.json to\
+  \ include the new types. Relock the\
+  \ _GRETEL_FINANCE_EXPECTED_RAW_LABELS frozenset and raise\
+  \ _GRETEL_FINANCE_TARGET_TYPES."
+- "Add regex patterns for each new type to data_classifier/profiles/standard.yaml.\
+  \ Write patterns from public specification sources (not copied from Presidio\
+  \ regex — write from format spec per data_classifier IP policy)."
+description: ''
+acceptance_criteria:
+- Three new entity types added to the production vocabulary with regex patterns,
+  validators where applicable, and at least 2 positive / 2 negative examples each
+- GRETEL_FINANCE_TYPE_MAP widened to cover the three new types (18 of 27 labels
+  covered in the discovery sample, 67% label-vocab coverage — up from Sprint 10's
+  55%)
+- Gretel-finance fixture regenerated to include ACCOUNT_PIN / BBAN /
+  DRIVER_LICENSE records, still < 100KB, still with credential-in-prose context
+- No regression on existing corpora F1 after the taxonomy expansion
+- Meta-classifier retrain with the new classes exposed to training data
+test_plan:
+- "Unit: new entity-type tests in tests/test_regex_engine.py, one test per new type"
+- "Unit: tests/test_corpus_loader.py::TestGretelFinanceLoader::test_gretel_finance_type_map_coverage\
+  \ updated to assert 18/27 coverage"
+- "Benchmark: Sprint 11 close benchmark shows no regression on existing types and\
+  \ reports per-type F1 for each new type"
+notes: |
+  SURFACED FROM SPRINT 10 ingest-gretel-pii-finance-multilingual.
+
+  Background: the Sprint 10 Gretel-finance ingest discovered 27 unique span
+  labels in the 100-row discovery sample. 15 of them mapped cleanly to
+  existing data_classifier entity types and were covered by
+  GRETEL_FINANCE_TYPE_MAP. 12 remained unmapped:
+    - 3 are net-new taxonomy candidates (this item): account_pin, bban,
+      driver_license_number
+    - 9 are generic/ambiguous labels with no meaningful mapping: company,
+      customer_id, employee_id, user_name, date, date_time, time,
+      credit_card_security_code, local_latlng
+  The Sprint 10 backlog item ACC required that the net-new types be filed
+  here rather than added silently to the production vocabulary.
+
+  DEVIATION FROM SPRINT 10 ACC #2: the original Sprint 10 ACC listed FOUR
+  net-new types: account_pin, swift_bic_code, bban, driver_license_number.
+  Investigation during Sprint 10 discovery showed that SWIFT_BIC already
+  EXISTS in data_classifier/profiles/standard.yaml (line 186) as a
+  production entity type, and the Sprint 9 NEMOTRON_TYPE_MAP already maps
+  its 'swift_bic' raw label to that existing type. Mapping
+  Gretel-finance's 'swift_bic_code' raw label to the same existing
+  SWIFT_BIC type is therefore NOT a net-new taxonomy addition, and Sprint
+  10 mapped it as such. Only 3 genuinely-net-new types remain for this
+  Sprint 11 item.
+
+  Expected impact: raises Gretel-finance label-vocab coverage from 55% to
+  67%, gives the meta-classifier explicit training signal for three label
+  families it currently ignores, and unblocks the broader Q5 taxonomy
+  gap list that the dataset landscape survey documented.
+phase: candidate
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

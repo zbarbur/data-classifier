@@ -1,0 +1,1522 @@
+[
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "048625793"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "048625793"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "488199520"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "996844047"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "464879966"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "833911755"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "839601484"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "056525888"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "747732803"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "951098396"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "818197854"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "982764511"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "463530284"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "825539754"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "967403110"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "962243102"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "705573645"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "164559595"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "164559595"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "008749619"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "745881548"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "439522584"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "003526891"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "554628032"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "274454828"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "658614023"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "602159324"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "283617569"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "283617569"
+  },
+  {
+    "entity_type": "ABA_ROUTING",
+    "value": "510089216"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "81685 Lopez Lodge, Apt. 6502"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "81685 Lopez Lodge, Apt. 6502"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "406 Joshua Square, 08055, North Andrewberg"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "[Dirección del Prestatario]"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "[Dirección del Prestamista]"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "70 Joëllehof, Egchel"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "123 Rue de Paris, 75001 Paris"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "8055 Tanya Estates"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "[Treating Dentist's Address]"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "76452 Rodriguez Parks, Suite 432"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "76452 Rodriguez Parks, Suite 432"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "1/9 Miguel-Vollbrecht-Gasse"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "141 Camino de Socorro Montes, Apt. 87"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "5 Amystraat, 8244SW, Bruinisse"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "68 Jones plaza, Appartement 60b"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "68 Jones plaza, Appartement 60b"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "69 Ronda de Arcelia Roura"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "61 rue Nicole Perrin"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "51 rue Guillot"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "54 Paseo de Macario Ureña"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "76 chemin Marianne Durand, Guyot"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "24497 Robert Square, Apt. 44142"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "11 Alameda Hernán Sans, Piso 8"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "Järnvägsgatan 451"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "46 rue de Colas, 28277, Parent"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "6646 Welch Street, Apt. 694"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "6646 Welch Street, Apt. 694"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "Kensyallee 03"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "1995 Andrea Ranch, Apt. 9700"
+  },
+  {
+    "entity_type": "ADDRESS",
+    "value": "Fabriksgatan 8"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "oX0h0Fk#^acO7KAgPe",
+    "source_context": "entials: - Company Name: Nilsson AB - Username: [Henrik.Gustafsson] - Password: oX0h0Fk#^acO7KAgPe - Account URL: <https://nilssonab.se/account>  Please note that your password i",
+    "source_document_type": "Policyholder's Report",
+    "source_language": "Swedish",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "sl.jLIsDJ2dBqgbPjp8f9EZcZ3kTEcO",
+    "source_context": ":** - Policyholder: Dusan Hartung - Address: 04295 Brian Hills - Policy Number: sl.jLIsDJ2dBqgbPjp8f9EZcZ3kTEcO  **Policy Amendment Details:** Effective on the date of your renewal, there wil",
+    "source_document_type": "Renewal Reminder",
+    "source_language": "English",
+    "raw_label": "api_key"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "#b3EJm%mBE+0T",
+    "source_context": "on**  - Inventory list - Photographs of the damage - Recei  *Note: The password #b3EJm%mBE+0T is required to access the supporting documentation.*  ---  **Confidentiality St",
+    "source_document_type": "Insurance Claim Form",
+    "source_language": "English",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "8!Qo0Or9Sn^5aqaitW",
+    "source_context": "y collect the following personally identifiable information (PII):  - Password: 8!Qo0Or9Sn^5aqaitW - Local Latitude and Longitude: Latitude: 36.050202, Longitude: -63.833139 - Na",
+    "source_document_type": "Privacy Policy",
+    "source_language": "English",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "c39B37dccbffa83e4bf1FB89De1bb2eb7cbB",
+    "source_context": "n Type: Prepaid Card - Amount: $200.00 USD - Date: 03/12/2022 - Transaction ID: c39B37dccbffa83e4bf1FB89De1bb2eb7cbB  Payer Information: - Name: Victor Eugène Moreno - IBAN: DE53442992045156980404",
+    "source_document_type": "Payment Confirmation",
+    "source_language": "Spanish",
+    "raw_label": "api_key"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "nkl6r!^2J_Z38Vwe^",
+    "source_context": ",\"adresse\" \"ZOAl2pCYMlb0uMEGvgsOiU6FB6x6-Hkjc_NWXFhGuzJLyUqXBuPuTeZVfN1666TI4\",\"nkl6r!^2J_Z38Vwe^\",\"Santen\",\"Evy\",\"Matthijshof 309\"",
+    "source_document_type": "CSV",
+    "source_language": "France",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "y#B5eSlc+_",
+    "source_context": " Atlanta, GA 30301  Please note: For your security, do not share your password (y#B5eSlc+_) with anyone.",
+    "source_document_type": "Renewal Reminder",
+    "source_language": "English",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "34fJ57Pqn12&yMvO+",
+    "source_context": "r may redeem the Convert kj-18041 204 at its option at any time after March 13, 34fJ57Pqn12&yMvO+ 2027 at a price equal to 102% of the principal amount thereof.  The Issuer may ",
+    "source_document_type": "Securities Prospectus",
+    "source_language": "English",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "1c5C49cc003547BEC33AECDb17EE7f7346F6",
+    "source_context": "=\"entity-Acquirer\">     <xbrli:entity>       <xbrli:identifier scheme=\"api_key\">1c5C49cc003547BEC33AECDb17EE7f7346F6</xbrli:identifier>     </xbrli:entity>   </xbrli:context>   <xbrli:context id=\"",
+    "source_document_type": "XBRL",
+    "source_language": "English",
+    "raw_label": "api_key"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "#Ifolqqv4A%lD!zb@B",
+    "source_context": " email account, I would suggest changing it to something strong and unique like #Ifolqqv4A%lD!zb@B. | -----------------------------------------------------------------  Note: The",
+    "source_document_type": "Customer support conversational log",
+    "source_language": "English",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "sq0atp-3P26SER6IVP67VX4QK5QW1",
+    "source_context": "Nordström :59:502 Via de Priscila Villalobos, Apt. 79 :33B:192.225.112.226 :71A:sq0atp-3P26SER6IVP67VX4QK5QW1 :72:/MX658000001/MX6580EXAMPLEBANK/1234567890 :71F:Ivar Maj-Britt Nordström :82",
+    "source_document_type": "SWIFT Message",
+    "source_language": "Spanish",
+    "raw_label": "api_key"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "SKbUwdTgUZ5umKm8cZOa3Fy8X5zaB6aRet",
+    "source_context": "mn] [Företagssignatur]  Christiane Dubois [Arbetstagares signatur]  API-nyckel: SKbUwdTgUZ5umKm8cZOa3Fy8X5zaB6aRet Adress: 3 Piazza Sinisi, 36057, Cavate  *Obs! Detta är en genererad text och sk",
+    "source_document_type": "Employment Contract",
+    "source_language": "Swedish",
+    "raw_label": "api_key"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "xoxb-894324516540-360458525023-tG4dpiTMzHNQVD9TlOmh6Q29",
+    "source_context": "at 01234 567 890. To ensure a seamless experience, kindly provide your api_key (xoxb-894324516540-360458525023-tG4dpiTMzHNQVD9TlOmh6Q29) when making your reservation.  We look forward to welcoming you to The Coastal",
+    "source_document_type": "Email",
+    "source_language": "English",
+    "raw_label": "api_key"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "AIzaMXABWkV72_HdRTUY44kMjiRRotoMFCqrunxfc",
+    "source_context": "FIX:4.4|9=127|35=D|55=Custodia C. Torrecilla|54=4|447=Rose-Hövel-Straße 67|452=AIzaMXABWkV72_HdRTUY44kMjiRRotoMFCqrunxfc|553=IBAN IT89G0306909606100000123456|554=Credit|720=20230220|721=20230222|724=1",
+    "source_document_type": "FIX Protocol",
+    "source_language": "Italian",
+    "raw_label": "api_key"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "SKYGQGD5XNzZCpXrelB7Htifn3MvyTM73T",
+    "source_context": "action Confirmation: Salary Slip  Employee Name: Gabriel Á. Tejera Employee ID: SKYGQGD5XNzZCpXrelB7Htifn3MvyTM73T  Pay Period Summary: - Start Date: 2023-03-01 - End Date: 2023-03-31  Earnings:",
+    "source_document_type": "Transaction Confirmation",
+    "source_language": "English",
+    "raw_label": "api_key"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "5fa5Fde8b4B20CdFe8f32110fFE1ab6FBaCE",
+    "source_context": "h D. Jimenez and her street address, 3717 Ryan Grove. Additionally, the API key 5fa5Fde8b4B20CdFe8f32110fFE1ab6FBaCE is included",
+    "source_document_type": "MT940",
+    "source_language": "English",
+    "raw_label": "api_key"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "or5%VrNQP^",
+    "source_context": "anceItem>     <complianceItem>       <itemName>Password</itemName>       <value>or5%VrNQP^</value>     </complianceItem>     <complianceItem>       <itemName>Name</itemNa",
+    "source_document_type": "XBRL",
+    "source_language": "English",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "TgtZ+dmfq4e@E",
+    "source_context": "Ihr Passwort \"TgtZ+dmfq4e@E\" ein.  Customer: Vielen Dank, mein Passwort lautet \"TgtZ+dmfq4e@E\".  Customer Support: Vielen Dank, Walfried. Ich habe Ihre Rückerstattung bearbe",
+    "source_document_type": "Customer support conversational log",
+    "source_language": "German",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "TgtZ+dmfq4e@E",
+    "source_context": "Ihr Passwort \"TgtZ+dmfq4e@E\" ein.  Customer: Vielen Dank, mein Passwort lautet \"TgtZ+dmfq4e@E\".  Customer Support: Vielen Dank, Walfried. Ich habe Ihre Rückerstattung bearbe",
+    "source_document_type": "Customer support conversational log",
+    "source_language": "German",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "VY6QcsP8goP7!d#h(1",
+    "source_context": "action: None   - Missing Transaction: None - Password Validation:   - Password: VY6QcsP8goP7!d#h(1   - Validation Result: Pass  Data Correction Actions: - Balance Correction:   -",
+    "source_document_type": "BAI Format",
+    "source_language": "Italian",
+    "raw_label": "password"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "3&G_8MNd^4"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "PB9C5IPY"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "sq0atp-GZLNO_3KB3T8RN_35DAT7O"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "6ddsu!Df!3Bmt7Ko!9"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "sl.HdBUo8nQCvHm4amH4NMkpk-TXtjE"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "SKyDLseIwgXQle8Duesx9yk3zRrkEbuhlu"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "ddBeCE5bABDDFeE2AF0C1fB5e48b360e"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "ddBeCE5bABDDFeE2AF0C1fB5e48b360e"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "5&xA1DCv"
+  },
+  {
+    "entity_type": "CREDENTIAL",
+    "value": "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"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "4801941481369267753"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "4801941481369267753"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "3402-5365-6059-559"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "5411959785095265"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "4383412063913293"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "2299164408367720"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "4552704142368449"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "4552704142368449"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "4345788969215"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "347831377000450"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "060423516859"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "4841934772426719"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "2595450004800391"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "5583737096282539"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "5583737096282539"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "6592-8884-2780-402"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "373910301027057"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "342259790684108"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "4436 0554 4344 8840"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "3417-9747-7404-947"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "5194 5575 4975 2008"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "2608513471253140"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "**** 4066-8986-3437-0776"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "4066-8986-3437-0776"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "3470 0818 4725"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "6011-3438-5423-8453"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "5133845168920194"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "3710 1070 3849 090"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "4991080457040835"
+  },
+  {
+    "entity_type": "CREDIT_CARD",
+    "value": "2667781358493950"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "[data di nascita]"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "11/24/2017"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "1908-10-11"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "20 februari 1929"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "23/05/2016"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "08/12/1985"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "03/01/1958"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "1987-04-24"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "12/03/1985"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "01/01/1980"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "01.01.1980"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "01/01/2003"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "12/08/1985"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "01/01/1980"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "27/06/1977"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "27/06/1977"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "Date of Birth"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "01/01/1950"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "06/12/1990"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "01/03/1954"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "[Data di nascita]"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "[Data di nascita]"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "15/12/1975"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "01/01/1975"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "28.04.1923"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "15/08/1985"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "01/01/1985"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "01/01/1980"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "05/03/1990"
+  },
+  {
+    "entity_type": "DATE_OF_BIRTH",
+    "value": "1981-03-15"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "events@companyname.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "events@companyname.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "info@berntsson-jonsson.de"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "support@nilssonab.se"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "support@nilssonab.se"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "dylan.campbell@email.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "dylan.campbell@email.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "info@abc-chemicals.fr"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "[gerrit.beekman@example.com]"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "example@example.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "johndoe@example.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "support@cryptoplatform.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "support@cryptoplatform.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "[email protected]"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "mattssonolov@olsson.net"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "chevalliermargot@roy.net"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "anvanbeek@fictionalbank.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "johndoe@abclines.co.uk"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "johndoe@abclines.co.uk"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "bob.johnson@example.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "alice.williams@example.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "charlie.brown@example.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "info@abc-chemicals.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "info@abc-chemicals.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "support@bank.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "support@bank.com"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "supporto@tecnologiaitaliana.it"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "supporto@tecnologiaitaliana.it"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "[Indirizzo e-mail fittizio]"
+  },
+  {
+    "entity_type": "EMAIL",
+    "value": "john.doe@example.com"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "DE12 1001 0010 0123 4567 89"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB77IOAG92646281636638"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB77IOAG92646281636638"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB77IOAG92646281636638"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB77IOAG92646281636638"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB77IOAG92646281636638"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB77IOAG92646281636638"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB77IOAG92646281636638"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB77IOAG92646281636638"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB77IOAG92646281636638"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB13AYFJ76552398190779"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "NL79TGNQ5899676300"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "DE89370400440532012363"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "DE89370400440532012363"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "DE46801386668274736343"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "DE47065504206360598742"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "DE47065504206360598742"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "DE53442992045156980404"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB50WUHM16064378173598"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB50WUHM16064378173598"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB50WUHM16064378173598"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB50WUHM16064378173598"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB50WUHM16064378173598"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB50WUHM16064378173598"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB50WUHM16064378173598"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB50WUHM16064378173598"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "GB50WUHM16064378173598"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "NL54IEGG3602707805"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "NL05EJWE8391878007"
+  },
+  {
+    "entity_type": "IBAN",
+    "value": "DE12 1234 5678 9012 3456 00"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "150.66.139.244"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "150.66.139.244"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "150.66.139.244"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "150.66.139.244"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "4c93:db15:d431:dcc9:ded3:c3d7:eb69:e696"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "ef77:dbc9:5cb4:cbf2:7db4:a367:2d8a:f943"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "21a9:c109:928a:80d0:d41d:3589:fa0a:f818"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "312d:3061:baef:210b:f232:6eec:80b8:a23e"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "36.255.175.120"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "221.139.78.163"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "387b:6c43:3dcc:70bb:7c0e:c6c5:db3a:5ce4"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "a5c7:c974:acfb:56f9:900f:120c:8e1b:72d0"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "3a5f:ff89:40c1:d0ca:2e48:3f3a:9ea6:8c19"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "9743:bbe9:789f:a384:3495:28c6:b0a0:adcd"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "206.240.62.219"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "85.77.32.192"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "e857:d27a:6c4d:bc44:1c5:2e4c:31d0:fb96"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "e857:d27a:6c4d:bc44:1c5:2e4c:31d0:fb96"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "d4cd:2f8e:cc10:b762:93db:fdc8:db8c:d5c3"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "192.225.112.226"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "146.89.113.67"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "1890:e757:2201:5dc:5f1b:8f82:e5a9:b13e"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "1890:e757:2201:5dc:5f1b:8f82:e5a9:b13e"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "1890:e757:2201:5dc:5f1b:8f82:e5a9:b13e"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "14.91.126.58"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "68.113.112.2"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "16d2:4024:90fa:d964:3b28:2b41:9449:9f92"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "16.203.155.202"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "65.29.246.19"
+  },
+  {
+    "entity_type": "IP_ADDRESS",
+    "value": "8df:a4fa:8008:fe43:313e:632e:ff47:f1e4"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Jann N. Butte"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Romeo R. Druso"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Estrella Pol-Barba"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Maria Oskarsson"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "e\n\n"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "MARK HARRIS"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Eufemia Gordillo-Pagès"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Amy"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Amy"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Amy"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Amy"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Luciano Fittipaldi"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Amy"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Amy"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Luciano Fittipaldi"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Amy"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Amy"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Angelika Stroh"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Angelika Stroh"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Angelika Stroh"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Emir V. Waardeloo"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Emir V. Waardeloo"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Magda Dippel"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Magda Dippel"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Magda Dippel"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Magda Dippel"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Magda Dippel"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Emissie van aandelen"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Lorraine Fischer-Maurice"
+  },
+  {
+    "entity_type": "PERSON_NAME",
+    "value": "Lorraine Fischer-Maurice"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+33 1 23 45 67 89"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+49 30 1234567"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "1-800-123-4567"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+46 8 123 456 78"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "02 58 88 47 07"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "02 58 88 47 07"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "02 58 88 47 07"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+44(0)1154960929"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+44(0)909 879 0604"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "(123) 456-7890"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "0552-935 15"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+33 1 23 45 67 89"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "[+49 123 456 789"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+44 20 1234 5678"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+49 30 12345678"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "(123) 456-7890"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+33 1 23 45 67 89"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "31-20-1234567"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+44 20 1234 5678"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "[Phone Number]"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "[Phone Number]"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "7644921150"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+44 20 1234 5678"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "+44 (0) 20 1234 5678"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "0800 123 4567"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "001-830-619-4423x8227"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "555-555-5555"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "555-555-5556"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "0123456789"
+  },
+  {
+    "entity_type": "PHONE",
+    "value": "(0151) 4960770"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "232-00-8506"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "9101234567"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "9101234567"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "724-45-6996"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "9101234567"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "155027654062937"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "ZZ164381T"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "241039654"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "ZZ 61 06 26 T"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "ZZ 56 11 90 T"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "404-85-4224"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "388-70-2426"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "900711-0902"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "900711-0902"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "339-79-4360"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "ZZ 481545 T"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "MLNSPH31D16F536O"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "980601-0485"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "116-67-0425"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "123-45-6789"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "233-72-9744"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "578-38-9368"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "035-51-1427"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "554-34-6556"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "785-45-2279"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "043-01-9751"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "746-32-2007"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "333-52-6944"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "678491203"
+  },
+  {
+    "entity_type": "SSN",
+    "value": "305-91-5613"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "GYFKUSZD532"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "GMTKGBOQ301"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "OMIMUSKW964"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "CEZDDEDM317"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "SVLRGBJJ102"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "KTUHGBNP349"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "MCRYUSER833"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "VWWWDETX741"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "EPHTGBOL980"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "CSKKDEAY485"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "CSKKDEAY485"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "PBCADEIH733"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "ZVQSDEOC952"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "YVBAUSNP505"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "YJOEGBUE029"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "COGUDEBN379"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "COGUDEBN379"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "KAFRUSKQ219"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "EQZYDEXQ224"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "QFLZUSML848"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "QMGDDEFU232"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "ZLSHGBVB054"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "SPNDDEVK544"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "YPGDGBUS668"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "UMTVDERF159"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "VASHUSGV947"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "YXNBGBKK997"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "ZQWAGBUN128"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "ZQWAGBUN128"
+  },
+  {
+    "entity_type": "SWIFT_BIC",
+    "value": "CGSJUSPC550"
+  }
+]

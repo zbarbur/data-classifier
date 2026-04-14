@@ -59,11 +59,38 @@ include:
 | [detect_secrets fixtures](https://github.com/Yelp/detect-secrets) | Apache-2.0 | `Apache-2.0` | 2026-04-11 | Direct LICENSE fetch |
 | Synthetic (Faker-based, in-repo generator) | MIT (inherited from Faker) | `MIT` | n/a | Generated locally, no external data |
 
-### 🟡 Being ingested — Sprint 9 in-flight
+### 🟡 Being ingested — Sprint 10 in-flight
 
 | Corpus | License | SPDX | Verified on | How verified | Status |
 |---|---|---|---|---|---|
 | [gretelai/gretel-pii-masking-en-v1](https://huggingface.co/datasets/gretelai/gretel-pii-masking-en-v1) | Apache 2.0 | `Apache-2.0` | 2026-04-13 | Dataset card metadata — **to re-verify via direct LICENSE fetch before Sprint 9 close** | Ingest in progress on Sprint 9 |
+| [gretelai/synthetic_pii_finance_multilingual](https://huggingface.co/datasets/gretelai/synthetic_pii_finance_multilingual) | Apache 2.0 | `Apache-2.0` | 2026-04-14 | README YAML frontmatter + HF cardData (see evidence below). **No standalone LICENSE file present in the dataset repo.** See "License verification evidence" note below for the fetched-file audit trail. | Sprint 10 ingest landing |
+
+**License verification evidence for gretelai/synthetic_pii_finance_multilingual
+(2026-04-14):**
+
+The Sprint 9 Gretel-EN row flagged a "re-verify via direct LICENSE fetch"
+follow-up. The direct-fetch approach returns 404 for this dataset
+(confirmed 2026-04-14, same result as Gretel-EN, same custodian): the
+repo tree contains only `data/`, `.gitattributes`, and `README.md` — no
+`LICENSE`, `LICENSE.md`, `LICENSE.txt`, or `license.md` file is present.
+The authoritative license sources we can fetch are:
+
+1. **Direct GET `https://huggingface.co/datasets/gretelai/synthetic_pii_finance_multilingual/raw/main/README.md`**
+   returns HTTP 200 with YAML frontmatter containing `license: apache-2.0`.
+2. **HF datasets API `/api/datasets/gretelai/synthetic_pii_finance_multilingual`**
+   returns `cardData.license: "apache-2.0"` and a `license:apache-2.0`
+   tag. No contradictory custom terms file is indexed.
+3. **Repo tree listing** (`/api/datasets/.../tree/main`) enumerates
+   every file in the repo — no hidden `TERMS.md` or alternative license
+   file exists.
+
+This is the best we can do without a standalone LICENSE file and matches
+the Sprint 9 Gretel-EN verification path. The risk profile is identical
+to Gretel-EN: same custodian, same claim format, Apache-2.0 tag in the
+HF index, no hidden custom terms. **Open follow-up:** both Gretel rows
+should remain flagged until Gretel AI either adds a `LICENSE` file to
+these repos or confirms the license in writing.
 
 ### ⚠️ Flagged for removal — Sprint 9 chore `ai4privacy-license-reaudit-and-compliance-decision`
 
@@ -122,3 +149,4 @@ place.
 | Date | Change | Author |
 |---|---|---|
 | 2026-04-13 | Initial audit. Ai4Privacy flagged for removal, Gretel-EN flagged as incoming replacement, 5 OSI-compatible corpora cataloged. | Sprint 9 kickoff (Claude, `sprint-start` skill) |
+| 2026-04-14 | Added `gretelai/synthetic_pii_finance_multilingual` under Sprint 10 in-flight ingestion. Same license-fetch evidence profile as Gretel-EN (no standalone LICENSE file; README frontmatter + HF cardData both tag Apache-2.0). Open follow-up: both Gretel rows to be promoted to "Currently in use" once written license confirmation is received from Gretel AI. | Sprint 10 ingest (Claude, `ingest-gretel-pii-finance-multilingual`) |
