@@ -1,7 +1,7 @@
 project_name: data_classifier
 language: python
 
-current_sprint: 10
+current_sprint: 11
 
 # Commands — Python toolchain
 test_command: "pytest tests/ -v"
