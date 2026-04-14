@@ -98,6 +98,37 @@ these repos or confirms the license in writing.
 |---|---|---|---|---|
 | [ai4privacy/pii-masking-300k](https://huggingface.co/datasets/ai4privacy/pii-masking-300k) | "Custom, research OK" (dataset card) | **Custom non-OSI — prohibits commercial use, redistribution, and derivative works** | 2026-04-13 via [license.md on pii-masking-400k](https://huggingface.co/datasets/ai4privacy/pii-masking-400k/blob/main/license.md) (same custodian, presumed identical terms) | Remove from training + benchmark pipeline; replace with Gretel-EN |
 
+> **2026-04-14 correction (Sprint 10 scope):** the Sprint 9 removal decision
+> applies **only** to `ai4privacy/pii-masking-300k` and `ai4privacy/pii-masking-400k`
+> — it is NOT a blanket ban on the `ai4privacy` namespace. Direct verification
+> on 2026-04-14 via the HuggingFace dataset page for
+> [`ai4privacy/pii-masking-openpii-1m`](https://huggingface.co/datasets/ai4privacy/pii-masking-openpii-1m)
+> shows that variant is explicitly licensed **CC-BY-4.0** (commercial use,
+> redistribution, and modification all permitted subject to attribution).
+> The corpus page states: *"License: CC-BY-4.0. Copyright © 2026 Ai Suisse SA.
+> Permitted Use: Research, commercial use, redistribution, and modification —
+> subject to attribution requirements under CC-BY-4.0."* The larger
+> `ai4privacy/pii-masking-2m` variant also exists with a claimed 82+ label
+> taxonomy but its license has **not** been independently verified as of
+> this date.
+>
+> **Discipline lesson:** the Sprint 9 verification correctly followed
+> "fetch the actual license file, never trust dataset card metadata" for
+> `pii-masking-400k`, but then **presumed** that finding generalized to
+> `pii-masking-300k` because of shared custodian. The presumption got
+> applied implicitly to the entire `ai4privacy` namespace rather than the
+> single dataset under audit, and that stopped the Sprint 9 team from
+> checking newer variants. Going forward, every corpus variant from a
+> shared custodian gets its own direct license fetch — no presumption.
+>
+> **Sprint 11 follow-up item:**
+> `review-ai4privacy-dataset-family-and-ingest-best-cc-by-4-0-variant-re-open-sprint-9-removal-decision`
+> (P2 feature, sprint 11) — reviews all 4 ai4privacy variants with per-variant
+> verification, picks the best fit (row count × taxonomy × language coverage),
+> and ingests it as a Sprint 11 corpus addition. The Sprint 9 retraining
+> without ai4privacy stands as the current meta-classifier baseline until
+> that work lands.
+
 **Scope of Sprint 9 removal** (in-flight, tracked by backlog item
 `ai4privacy-license-reaudit-and-compliance-decision`):
 
