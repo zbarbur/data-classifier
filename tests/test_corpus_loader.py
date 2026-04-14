@@ -236,9 +236,7 @@ class TestDetectSecretsLoader:
         # PRIVATE_KEY, and OPAQUE_SECRET rather than the legacy flat
         # CREDENTIAL label.
         positive_count = sum(labels.get(lbl, 0) for lbl in _CREDENTIAL_SUBTYPES)
-        assert positive_count > 0, (
-            f"expected at least one credential subtype label; got {sorted(labels)}"
-        )
+        assert positive_count > 0, f"expected at least one credential subtype label; got {sorted(labels)}"
         assert labels.get(NEGATIVE_GROUND_TRUTH, 0) > 0
 
     def test_detect_secrets_value_count(self) -> None:
@@ -533,9 +531,7 @@ class TestLoaderTaxonomyRefresh:
         assert stale == {}, f"Stale CREDENTIAL entries in NEMOTRON_TYPE_MAP: {stale}"
 
     def test_gretel_en_map_no_stale_credential(self) -> None:
-        from tests.benchmarks.corpus_loader import GRETEL_EN_TYPE_MAP as m
-
-        stale = {k: v for k, v in m.items() if v == "CREDENTIAL"}
+        stale = {k: v for k, v in GRETEL_EN_TYPE_MAP.items() if v == "CREDENTIAL"}
         assert stale == {}, f"Stale CREDENTIAL entries in GRETEL_EN_TYPE_MAP: {stale}"
 
     def test_detect_secrets_map_no_stale_credential(self) -> None:
