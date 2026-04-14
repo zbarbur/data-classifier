@@ -1,7 +1,7 @@
 title: Promote S1 NL prompt context-wrapping in gliner_engine -- unblocks fastino/gliner2-base-v1
   promotion by closing the blind-corpus regression gap, and resolves the Sprint 8
   gliner2 ORGANIZATION over-fire bug by construction
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 10
