@@ -423,6 +423,67 @@ def ethereum_address_check(value: str) -> bool:
     return clean.lower() not in _ETH_KNOWN_FAKES
 
 
+# ── Placeholder-credential rejection ────────────────────────────────────────
+#
+# The secret_scanner engine already rejects values in
+# known_placeholder_values.json at its per-value stage. The regex_engine
+# does NOT consume that file (only stopwords.json), so generic-value
+# credential regexes in default_patterns.json (github_token, stripe_key,
+# aws_access_key, etc.) previously let placeholder strings like
+# ``your_api_key_here`` or ``00000000-0000-0000-0000-000000000000``
+# through unchallenged.
+#
+# This validator closes that gap. It is a VALIDATOR-layer filter: it
+# runs AFTER the regex structural match and AFTER the stopword check.
+# Its only job is to reject values that match the regex shape but are
+# semantically placeholders. It loads known_placeholder_values.json
+# lazily on first call and caches the result as a frozenset.
+
+_PLACEHOLDER_VALUES: frozenset[str] | None = None
+
+
+def _load_placeholder_values_once() -> frozenset[str]:
+    """Load known_placeholder_values.json and return a case-insensitive frozenset."""
+    global _PLACEHOLDER_VALUES
+    if _PLACEHOLDER_VALUES is not None:
+        return _PLACEHOLDER_VALUES
+
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).parent.parent / "patterns" / "known_placeholder_values.json"
+    try:
+        with path.open() as f:
+            raw = json.load(f)
+    except FileNotFoundError:
+        _PLACEHOLDER_VALUES = frozenset()
+        return _PLACEHOLDER_VALUES
+
+    if "placeholder_values" not in raw:
+        _PLACEHOLDER_VALUES = frozenset()
+        return _PLACEHOLDER_VALUES
+
+    _PLACEHOLDER_VALUES = frozenset(v.lower() for v in raw["placeholder_values"])
+    return _PLACEHOLDER_VALUES
+
+
+def not_placeholder_credential(value: str) -> bool:
+    """Reject the value if it is a known credential placeholder string.
+
+    Returns True (accept) if the value is a non-placeholder; False (reject)
+    if the value (case-insensitive, whitespace-stripped) is in
+    ``data_classifier/patterns/known_placeholder_values.json``.
+
+    Only applies to credential patterns. The stopwords.json filter (in
+    regex_engine._is_stopword) already runs before this validator, so
+    there is no double-filtering — this validator covers the strictly
+    additional set of placeholder strings that stopwords.json does not.
+    """
+    placeholders = _load_placeholder_values_once()
+    clean = value.strip().lower()
+    return clean not in placeholders
+
+
 def random_password_check(value: str) -> bool:
     """Accept only mixed-class short random strings.
 
@@ -470,4 +531,6 @@ VALIDATORS: dict[str, typing.Callable] = {
     # Sprint 11 Phase 5
     "bitcoin_address": bitcoin_address_check,
     "ethereum_address": ethereum_address_check,
+    # Sprint 11 Phase 6
+    "not_placeholder_credential": not_placeholder_credential,
 }

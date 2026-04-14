@@ -22,6 +22,7 @@ import pytest
 from data_classifier.engines.validators import (
     bitcoin_address_check,
     ethereum_address_check,
+    not_placeholder_credential,
 )
 
 
@@ -139,3 +140,163 @@ class TestEthereumAddressValidator:
         # Same address with one letter case flipped — INVALID EIP-55 but
         # currently accepted by our structural check.
         assert ethereum_address_check("0x32be343B94f860124dC4fEe278FDCBD38C102D88") is True
+
+
+class TestNotPlaceholderCredential:
+    """Sprint 11 Phase 6: validator layer that rejects known
+    credential placeholder strings for patterns that go through the
+    regex_engine (not the secret_scanner).
+
+    known_placeholder_values.json is the source of truth. The
+    validator loads it lazily on first call and caches as a frozenset.
+    Comparison is case-insensitive with whitespace stripping.
+    """
+
+    @pytest.mark.parametrize(
+        "placeholder",
+        [
+            "changeme",
+            "password123",
+            "password",
+            "admin",
+            "root",
+            "12345678",
+            "letmein",
+            "your_api_key_here",
+            "your_secret_here",
+            "akiaiosfodnn7example",
+            "foobar",
+            "example",
+            "CHANGEME",
+            "  changeme  ",
+            "ADMIN",
+        ],
+    )
+    def test_rejects_known_placeholders(self, placeholder: str) -> None:
+        assert not_placeholder_credential(placeholder) is False
+
+    @pytest.mark.parametrize(
+        "non_placeholder",
+        [
+            # High-entropy random strings that are not in the placeholder
+            # list. Deliberately avoid the exact prefixes (AKIA_, sk_, ghp_)
+            # of real credential formats — GitHub push protection scans
+            # any string that matches those shapes, even in test code.
+            "xk9fpq2vLcHmsdFtQRhGJwK7pN4bXmzN",
+            "a8B3cD2eF1gH9iJ0kL7mN6oP5qR4sT",
+            "a random string that is not in the list",
+            "",
+        ],
+    )
+    def test_accepts_non_placeholders(self, non_placeholder: str) -> None:
+        assert not_placeholder_credential(non_placeholder) is True
+
+    def test_validator_loads_from_registry(self) -> None:
+        # The validator must be discoverable via the VALIDATORS dict
+        # so default_patterns.json entries referencing it by name
+        # resolve at pattern-compile time.
+        from data_classifier.engines.validators import VALIDATORS
+
+        assert "not_placeholder_credential" in VALIDATORS
+        assert VALIDATORS["not_placeholder_credential"]("changeme") is False
+        assert VALIDATORS["not_placeholder_credential"]("xk9fpq2vLcHmsd") is True
+
+    def test_credential_patterns_use_validator(self) -> None:
+        """Pin the Phase 6 wiring: every credential pattern that used
+        to have validator="" now has validator="not_placeholder_credential".
+
+        Catches silent re-empties during future pattern edits.
+        """
+        import json
+        from pathlib import Path
+
+        patterns_path = Path(__file__).parent.parent / "data_classifier" / "patterns" / "default_patterns.json"
+        data = json.loads(patterns_path.read_text())
+
+        # Subset of credential patterns that specifically went through
+        # the Phase 6 wiring. Listed explicitly so a net-new credential
+        # pattern added in a future sprint is not required to use this
+        # validator (the contributor can decide).
+        required = {
+            "aws_access_key",
+            "jwt_token",
+            "generic_api_key",
+            "github_token",
+            "stripe_secret_key",
+            "stripe_publishable_key",
+            "slack_bot_token",
+            "slack_webhook_url",
+            "openai_api_key",
+        }
+
+        seen: dict[str, str] = {}
+        for p in data.get("patterns", []):
+            name = p.get("name")
+            if name in required:
+                seen[name] = p.get("validator", "")
+
+        for name in required:
+            assert name in seen, f"pattern '{name}' missing from default_patterns.json"
+            assert seen[name] == "not_placeholder_credential", (
+                f"pattern '{name}' has validator={seen[name]!r}, expected 'not_placeholder_credential'"
+            )
+
+
+class TestExpandedStopwords:
+    """Sprint 11 Phase 6: stopwords.json expanded with well-known fake
+    credential strings from public FP catalogs and SDK docs. The
+    regex_engine's _is_stopword consumes this file; a single case-
+    insensitive exact match rejects the value before it reaches the
+    validator.
+
+    These tests pin the new entries so a future stopwords reorganization
+    doesn't silently drop them.
+    """
+
+    def _stopwords(self) -> set[str]:
+        import json
+        from pathlib import Path
+
+        path = Path(__file__).parent.parent / "data_classifier" / "patterns" / "stopwords.json"
+        data = json.loads(path.read_text())
+        return {s.lower() for s in data.get("stopwords", [])}
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            # Null / repeating UUIDs
+            "00000000-0000-0000-0000-000000000000",
+            "11111111-1111-1111-1111-111111111111",
+            "ffffffff-ffff-ffff-ffff-ffffffffffff",
+            "deadbeef-dead-beef-dead-deadbeefdead",
+            # Stripe documentation card numbers
+            "4242424242424242",
+            "378282246310005",
+            # JWT RFC 7519 example
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+        ],
+    )
+    def test_new_stopword_entries_present(self, entry: str) -> None:
+        sw = self._stopwords()
+        assert entry.lower() in sw, f"stopwords.json missing '{entry}'"
+
+    def test_stopwords_are_case_insensitive_via_regex_engine(self) -> None:
+        """The regex_engine lowercases values before checking, so the
+        JSON entries don't need to enumerate case variants. Pin this
+        behavior via the _is_stopword helper."""
+        from data_classifier.engines.regex_engine import _is_stopword
+        from data_classifier.patterns import ContentPattern
+
+        pattern = ContentPattern(
+            name="test",
+            regex="",
+            entity_type="CREDENTIAL",
+            category="Credential",
+            sensitivity="HIGH",
+            confidence=0.9,
+        )
+        assert _is_stopword("4242424242424242", pattern) is True
+        # Case variant resolves via the lowercase normalization.
+        assert _is_stopword("DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFDEAD", pattern) is True
+        # Non-entry with same length is accepted.
+        assert _is_stopword("4242424242424243", pattern) is False
