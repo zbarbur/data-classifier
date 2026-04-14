@@ -31,7 +31,7 @@ test_plan:
 - 'Peer review: confirm doc is actionable by reading it cold and attempting to dispatch
   a stretch item'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

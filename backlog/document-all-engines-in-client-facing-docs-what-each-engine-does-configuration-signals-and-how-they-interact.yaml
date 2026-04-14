@@ -37,7 +37,7 @@ test_plan:
   \ beyond existing markdown-lint"
 - Verify all code references file:line anchors resolve on main at sprint close
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
