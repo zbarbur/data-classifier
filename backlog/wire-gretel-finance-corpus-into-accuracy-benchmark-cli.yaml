@@ -1,0 +1,25 @@
+title: Wire gretel-finance corpus into accuracy_benchmark CLI
+status: backlog
+priority: P1
+category: chore
+sprint_target: 11
+created: 2026-04-14
+updated: 2026-04-14
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: 'Sprint 10 item #3 landed gretelai/synthetic_pii_finance_multilingual
+  as corpus #8 (loader, shard builder, fixture all in place) but did not add ''gretel_finance''
+  to the tests/benchmarks/accuracy_benchmark.py --corpus flag choices. Add the CLI
+  plumbing and re-run Sprint 10 close benchmarks for the full picture. Should take
+  <30 minutes of wiring.'
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
