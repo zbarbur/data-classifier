@@ -194,6 +194,101 @@ def compute_avg_char_class_diversity(values: list[str]) -> float:
     return sum(diversities) / len(diversities)
 
 
+# ── Dictionary-word-ratio feature (Sprint 11 Phase 7) ───────────────────────
+#
+# Motivation: distinguish English-text-heavy columns (passwords, names,
+# descriptions — often dictionary-word placeholder data) from random-looking
+# identifier columns (hashes, API tokens, UUIDs — no dictionary words).
+#
+# Definition: a value "contains a dictionary word" if, after tokenizing on
+# [a-z]+ boundaries, any token of at least `min_token_length` characters is
+# present in the curated English content-words list. The column's ratio is
+# the fraction of values that contain at least one such dictionary word.
+#
+# Word list: data_classifier/patterns/content_words.json — ~2300 curated
+# common English content words (5+ chars). Explicitly excludes credential
+# prefix tokens (the handful of short words that appear verbatim in real
+# payment-processor keys, version-control PATs, and cloud service tokens)
+# as well as ambiguous technical terms (git, hash, uuid, sha, md5, aws,
+# gcp, http, code) so legitimate credentials are not falsely rejected.
+#
+# The list is loaded lazily on first call and cached as a frozenset.
+
+
+import re as _re  # noqa: E402 — local alias to avoid adding a top-level re import
+
+_CONTENT_WORDS: frozenset[str] | None = None
+_CONTENT_WORDS_MIN_LEN: int = 5
+_CONTENT_WORDS_TOKEN_RE = _re.compile(r"[a-z]+")
+
+
+def _load_content_words_once() -> frozenset[str]:
+    """Load content_words.json and return a frozenset of lowercase words.
+
+    Subsequent calls return the cached set.  If the file is missing or
+    malformed, returns an empty set so the caller (compute_dictionary_word_ratio)
+    gracefully degrades to a 0.0 ratio instead of raising.
+    """
+    global _CONTENT_WORDS, _CONTENT_WORDS_MIN_LEN
+    if _CONTENT_WORDS is not None:
+        return _CONTENT_WORDS
+
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).parent.parent / "patterns" / "content_words.json"
+    try:
+        with path.open() as f:
+            raw = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        _CONTENT_WORDS = frozenset()
+        return _CONTENT_WORDS
+
+    min_len = int(raw.get("min_token_length", 5))
+    words = raw.get("content_words", [])
+    _CONTENT_WORDS_MIN_LEN = min_len
+    _CONTENT_WORDS = frozenset(w.lower() for w in words if isinstance(w, str) and len(w) >= min_len)
+    return _CONTENT_WORDS
+
+
+def _value_contains_dictionary_word(value: str) -> bool:
+    """True iff the value contains at least one English content word
+    (lowercased, 5+ chars) after [a-z]+ tokenization.
+
+    Examples:
+      >>> _value_contains_dictionary_word("password123")  # True
+      >>> _value_contains_dictionary_word("admin_backup")  # True
+      >>> _value_contains_dictionary_word("xk9fpq2vLcHmsdFt")  # False
+      >>> _value_contains_dictionary_word("a8B3cD2eF1gH9iJ0kL")  # False
+    """
+    words = _load_content_words_once()
+    if not words:
+        return False
+    tokens = _CONTENT_WORDS_TOKEN_RE.findall(value.lower())
+    for t in tokens:
+        if len(t) >= _CONTENT_WORDS_MIN_LEN and t in words:
+            return True
+    return False
+
+
+def compute_dictionary_word_ratio(values: list[str]) -> float:
+    """Fraction of sample values that contain at least one English content word.
+
+    Args:
+        values: Sample values from the column.
+
+    Returns:
+        Float between 0.0 and 1.0.  0.0 means no value contains a dictionary
+        word (random-looking identifiers / hashes / tokens).  1.0 means every
+        value contains at least one English content word (passwords, names,
+        descriptions, text).
+    """
+    if not values:
+        return 0.0
+    hits = sum(1 for v in values if v and _value_contains_dictionary_word(v))
+    return hits / len(values)
+
+
 # ── OPAQUE_SECRET detection (Sprint 8 Item 4) ───────────────────────────────
 #
 # Multi-signal guard for high-entropy credential-shaped values that do NOT

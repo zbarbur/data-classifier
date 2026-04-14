@@ -18,10 +18,12 @@ from data_classifier.orchestrator.meta_classifier import (
     extract_features,
 )
 
-# Sprint 11: schema widened from 15 → 46 (15 base + 31 primary_entity_type one-hot).
+# Sprint 11 Phase 2: schema widened from 15 → 46 (15 base + 31 primary_entity_type one-hot).
+# Sprint 11 Phase 7: added heuristic_dictionary_word_ratio at index 46 (total 47, schema v3).
 _BASE_DIM = 15
 _ONE_HOT_DIM = len(PRIMARY_ENTITY_TYPES)
-_EXPECTED_DIM = _BASE_DIM + _ONE_HOT_DIM
+_EXTRA_DIM = 1  # heuristic_dictionary_word_ratio
+_EXPECTED_DIM = _BASE_DIM + _ONE_HOT_DIM + _EXTRA_DIM
 
 
 def _one_hot_index(entity_type: str) -> int:
@@ -73,8 +75,8 @@ def test_feature_dim_matches_names():
     assert FEATURE_DIM == len(FEATURE_NAMES) == _EXPECTED_DIM
 
 
-def test_feature_schema_version_is_v2():
-    assert FEATURE_SCHEMA_VERSION == 2
+def test_feature_schema_version_is_v3():
+    assert FEATURE_SCHEMA_VERSION == 3
 
 
 def test_base_feature_names_order_stable():
@@ -112,15 +114,18 @@ def test_primary_entity_type_slots_are_prefixed_in_feature_names():
 
 
 def test_empty_findings_returns_base_zeros_and_unknown_one_hot():
-    # No top finding → UNKNOWN slot is 1.0, base features are all zero.
+    # No top finding → UNKNOWN slot is 1.0, base features and extras are all zero.
     features = extract_features([])
     assert len(features) == _EXPECTED_DIM
     assert all(isinstance(v, float) for v in features)
     # Base features are zero.
     assert all(v == 0.0 for v in features[:_BASE_DIM])
-    # One-hot tail has exactly one 1.0, on the UNKNOWN slot.
-    assert sum(features[_BASE_DIM:]) == 1.0
+    # One-hot section has exactly one 1.0, on the UNKNOWN slot.
+    one_hot_slice = features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]
+    assert sum(one_hot_slice) == 1.0
     assert features[_one_hot_index("UNKNOWN")] == 1.0
+    # Extras default to zero when the caller does not supply them.
+    assert all(v == 0.0 for v in features[_BASE_DIM + _ONE_HOT_DIM :])
 
 
 def test_empty_findings_respects_heuristic_kwargs():
@@ -158,8 +163,26 @@ def test_single_regex_finding_fills_correct_slots():
     # EMAIL one-hot slot is 1.0; UNKNOWN and all other slots are 0.0.
     assert features[_one_hot_index("EMAIL")] == 1.0
     assert features[_one_hot_index("UNKNOWN")] == 0.0
-    # Exactly one one-hot slot set.
-    assert sum(features[_BASE_DIM:]) == 1.0
+    # Exactly one one-hot slot set in the one-hot section.
+    assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
+
+
+def test_heuristic_dictionary_word_ratio_is_appended_at_schema_tail():
+    # Sprint 11 Phase 7: the dict-word-ratio feature sits at index 46,
+    # after the base (0-14) and one-hot (15-45) sections.
+    dict_ratio = 0.42
+    features = extract_features([], heuristic_dictionary_word_ratio=dict_ratio)
+    # The last slot is the extra.
+    assert features[-1] == dict_ratio
+    # Base + one-hot are unchanged (base is zero, one-hot is UNKNOWN).
+    assert all(v == 0.0 for v in features[:_BASE_DIM])
+    assert features[_one_hot_index("UNKNOWN")] == 1.0
+    assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
+
+
+def test_heuristic_dictionary_word_ratio_defaults_to_zero():
+    features = extract_features([])
+    assert features[-1] == 0.0
 
 
 def test_unknown_entity_type_falls_back_to_unknown_slot():
@@ -173,7 +196,7 @@ def test_unknown_entity_type_falls_back_to_unknown_slot():
     )
     features = extract_features([f])
     assert features[_one_hot_index("UNKNOWN")] == 1.0
-    assert sum(features[_BASE_DIM:]) == 1.0
+    assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
 
 
 def test_multi_engine_agreement_counts_correctly():
@@ -326,7 +349,8 @@ def test_version_gate_refuses_mismatched_artifact(tmp_path):
 def test_version_gate_accepts_matching_artifact(tmp_path):
     # Same-version artifact must load normally. We can't reuse a trained
     # production model here, so we build a tiny 2-class model on the
-    # full 46-feature schema purely for the load-path contract check.
+    # full current-schema feature vector purely for the load-path contract
+    # check. FEATURE_DIM tracks schema upgrades automatically.
     import numpy as np
     from sklearn.linear_model import LogisticRegression
     from sklearn.preprocessing import StandardScaler

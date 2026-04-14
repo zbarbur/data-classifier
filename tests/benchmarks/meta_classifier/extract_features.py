@@ -162,15 +162,22 @@ def extract_training_row(
     source: str,
 ) -> TrainingRow:
     """Extract a single training row for the given labeled column."""
+    from data_classifier.engines.heuristic_engine import compute_dictionary_word_ratio
+
     findings = _run_all_engines(column, profile)
 
     distinct = _distinct_ratio(column.sample_values)
     avg_len = _avg_length_normalized(column.sample_values)
+    # Sprint 11 Phase 7: dictionary-word ratio is a pure column-level
+    # stat (no engine dependency) so it's computed here and threaded
+    # through the meta_classifier feature extractor.
+    dict_ratio = compute_dictionary_word_ratio(column.sample_values)
 
     features = _extract_features_from_findings(
         findings,
         heuristic_distinct_ratio=distinct,
         heuristic_avg_length=avg_len,
+        heuristic_dictionary_word_ratio=dict_ratio,
     )
 
     fired = sorted({f.engine for f in findings})

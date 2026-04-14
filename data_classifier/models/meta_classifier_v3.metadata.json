@@ -1,0 +1,339 @@
+{
+  "training_date": "2026-04-14T19:26:01.337704+00:00",
+  "git_sha": "fdbb0f6339de276a948180d0372be99e406b4ece",
+  "random_state": 42,
+  "cv_folds": 5,
+  "c_grid": [
+    0.01,
+    0.1,
+    1.0,
+    10.0,
+    100.0
+  ],
+  "best_c": 0.01,
+  "cv_mean_macro_f1": 0.546686926101588,
+  "cv_std_macro_f1": 0.2168425012317155,
+  "cv_history": [
+    {
+      "C": 0.01,
+      "mean_f1": 0.546686926101588,
+      "std_f1": 0.2168425012317155
+    },
+    {
+      "C": 0.1,
+      "mean_f1": 0.5330681218432006,
+      "std_f1": 0.20979595165050077
+    },
+    {
+      "C": 1.0,
+      "mean_f1": 0.5160104372688691,
+      "std_f1": 0.23220119619937932
+    },
+    {
+      "C": 10.0,
+      "mean_f1": 0.472206209228042,
+      "std_f1": 0.26549669289484845
+    },
+    {
+      "C": 100.0,
+      "mean_f1": 0.4559028598850244,
+      "std_f1": 0.2526172817815329
+    }
+  ],
+  "held_out_test_macro_f1": 0.9391200538397015,
+  "held_out_test_ci_95_bca": {
+    "low": 0.9285135403075879,
+    "high": 0.9484202582002073,
+    "width": 0.01990671789261933
+  },
+  "total_rows": 10170,
+  "per_class_counts": {
+    "CREDENTIAL": 750,
+    "ABA_ROUTING": 510,
+    "ADDRESS": 510,
+    "CREDIT_CARD": 510,
+    "DATE_OF_BIRTH": 510,
+    "EMAIL": 510,
+    "IP_ADDRESS": 510,
+    "PERSON_NAME": 510,
+    "PHONE": 510,
+    "SSN": 510,
+    "IBAN": 450,
+    "NEGATIVE": 450,
+    "VIN": 450,
+    "SWIFT_BIC": 360,
+    "BITCOIN_ADDRESS": 300,
+    "CANADIAN_SIN": 300,
+    "DATE_OF_BIRTH_EU": 300,
+    "DEA_NUMBER": 300,
+    "EIN": 300,
+    "ETHEREUM_ADDRESS": 300,
+    "MBI": 300,
+    "NPI": 300,
+    "MAC_ADDRESS": 210,
+    "URL": 210,
+    "BANK_ACCOUNT": 150,
+    "HEALTH": 150
+  },
+  "train_rows": 8136,
+  "test_rows": 2034,
+  "feature_names": [
+    "top_overall_confidence",
+    "regex_confidence",
+    "column_name_confidence",
+    "heuristic_confidence",
+    "secret_scanner_confidence",
+    "engines_agreed",
+    "confidence_gap",
+    "regex_match_ratio",
+    "heuristic_distinct_ratio",
+    "heuristic_avg_length",
+    "has_secret_indicators",
+    "primary_is_pii",
+    "primary_is_credential",
+    "primary_entity_type=ABA_ROUTING",
+    "primary_entity_type=ADDRESS",
+    "primary_entity_type=API_KEY",
+    "primary_entity_type=BITCOIN_ADDRESS",
+    "primary_entity_type=CANADIAN_SIN",
+    "primary_entity_type=CREDENTIAL",
+    "primary_entity_type=CREDIT_CARD",
+    "primary_entity_type=DATE_OF_BIRTH",
+    "primary_entity_type=DATE_OF_BIRTH_EU",
+    "primary_entity_type=DEA_NUMBER",
+    "primary_entity_type=EIN",
+    "primary_entity_type=EMAIL",
+    "primary_entity_type=ETHEREUM_ADDRESS",
+    "primary_entity_type=HEALTH",
+    "primary_entity_type=IBAN",
+    "primary_entity_type=IP_ADDRESS",
+    "primary_entity_type=MAC_ADDRESS",
+    "primary_entity_type=MBI",
+    "primary_entity_type=NATIONAL_ID",
+    "primary_entity_type=NPI",
+    "primary_entity_type=OPAQUE_SECRET",
+    "primary_entity_type=ORGANIZATION",
+    "primary_entity_type=PASSWORD_HASH",
+    "primary_entity_type=PERSON_NAME",
+    "primary_entity_type=PHONE",
+    "primary_entity_type=PRIVATE_KEY",
+    "primary_entity_type=SSN",
+    "primary_entity_type=SWIFT_BIC",
+    "primary_entity_type=URL",
+    "primary_entity_type=VIN",
+    "primary_entity_type=UNKNOWN",
+    "heuristic_dictionary_word_ratio"
+  ],
+  "dropped_features": [
+    "has_column_name_hit",
+    "engines_fired"
+  ],
+  "class_labels": [
+    "ABA_ROUTING",
+    "ADDRESS",
+    "BANK_ACCOUNT",
+    "BITCOIN_ADDRESS",
+    "CANADIAN_SIN",
+    "CREDENTIAL",
+    "CREDIT_CARD",
+    "DATE_OF_BIRTH",
+    "DATE_OF_BIRTH_EU",
+    "DEA_NUMBER",
+    "EIN",
+    "EMAIL",
+    "ETHEREUM_ADDRESS",
+    "HEALTH",
+    "IBAN",
+    "IP_ADDRESS",
+    "MAC_ADDRESS",
+    "MBI",
+    "NEGATIVE",
+    "NPI",
+    "PERSON_NAME",
+    "PHONE",
+    "SSN",
+    "SWIFT_BIC",
+    "URL",
+    "VIN"
+  ],
+  "top_5_feature_importances": [
+    {
+      "feature": "primary_entity_type=PHONE",
+      "abs_coef_sum": 4.702909903128297
+    },
+    {
+      "feature": "heuristic_distinct_ratio",
+      "abs_coef_sum": 4.654241649547783
+    },
+    {
+      "feature": "top_overall_confidence",
+      "abs_coef_sum": 4.350719047748993
+    },
+    {
+      "feature": "regex_confidence",
+      "abs_coef_sum": 4.049048234692373
+    },
+    {
+      "feature": "heuristic_dictionary_word_ratio",
+      "abs_coef_sum": 3.9070167868640144
+    }
+  ],
+  "per_class_f1_on_test": {
+    "ABA_ROUTING": {
+      "precision": 1.0,
+      "recall": 0.9411764705882353,
+      "f1": 0.9696969696969697,
+      "support": 102
+    },
+    "ADDRESS": {
+      "precision": 0.868421052631579,
+      "recall": 0.9705882352941176,
+      "f1": 0.9166666666666666,
+      "support": 102
+    },
+    "BANK_ACCOUNT": {
+      "precision": 0.7894736842105263,
+      "recall": 1.0,
+      "f1": 0.8823529411764706,
+      "support": 30
+    },
+    "BITCOIN_ADDRESS": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 60
+    },
+    "CANADIAN_SIN": {
+      "precision": 0.967741935483871,
+      "recall": 1.0,
+      "f1": 0.9836065573770492,
+      "support": 60
+    },
+    "CREDENTIAL": {
+      "precision": 0.927536231884058,
+      "recall": 0.8533333333333334,
+      "f1": 0.8888888888888888,
+      "support": 150
+    },
+    "CREDIT_CARD": {
+      "precision": 0.9529411764705882,
+      "recall": 0.7941176470588235,
+      "f1": 0.8663101604278075,
+      "support": 102
+    },
+    "DATE_OF_BIRTH": {
+      "precision": 0.9873417721518988,
+      "recall": 0.7647058823529411,
+      "f1": 0.861878453038674,
+      "support": 102
+    },
+    "DATE_OF_BIRTH_EU": {
+      "precision": 0.7317073170731707,
+      "recall": 1.0,
+      "f1": 0.8450704225352113,
+      "support": 60
+    },
+    "DEA_NUMBER": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 60
+    },
+    "EIN": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 60
+    },
+    "EMAIL": {
+      "precision": 0.9622641509433962,
+      "recall": 1.0,
+      "f1": 0.9807692307692307,
+      "support": 102
+    },
+    "ETHEREUM_ADDRESS": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 60
+    },
+    "HEALTH": {
+      "precision": 0.967741935483871,
+      "recall": 1.0,
+      "f1": 0.9836065573770492,
+      "support": 30
+    },
+    "IBAN": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 90
+    },
+    "IP_ADDRESS": {
+      "precision": 0.9807692307692307,
+      "recall": 1.0,
+      "f1": 0.9902912621359223,
+      "support": 102
+    },
+    "MAC_ADDRESS": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 42
+    },
+    "MBI": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 60
+    },
+    "NEGATIVE": {
+      "precision": 0.7777777777777778,
+      "recall": 0.7,
+      "f1": 0.7368421052631579,
+      "support": 90
+    },
+    "NPI": {
+      "precision": 0.8571428571428571,
+      "recall": 1.0,
+      "f1": 0.9230769230769231,
+      "support": 60
+    },
+    "PERSON_NAME": {
+      "precision": 0.8547008547008547,
+      "recall": 0.9803921568627451,
+      "f1": 0.91324200913242,
+      "support": 102
+    },
+    "PHONE": {
+      "precision": 0.8165137614678899,
+      "recall": 0.8725490196078431,
+      "f1": 0.8436018957345972,
+      "support": 102
+    },
+    "SSN": {
+      "precision": 1.0,
+      "recall": 0.9803921568627451,
+      "f1": 0.9900990099009901,
+      "support": 102
+    },
+    "SWIFT_BIC": {
+      "precision": 0.972972972972973,
+      "recall": 1.0,
+      "f1": 0.9863013698630136,
+      "support": 72
+    },
+    "URL": {
+      "precision": 0.9523809523809523,
+      "recall": 0.9523809523809523,
+      "f1": 0.9523809523809523,
+      "support": 42
+    },
+    "VIN": {
+      "precision": 1.0,
+      "recall": 0.8222222222222222,
+      "f1": 0.9024390243902439,
+      "support": 90
+    }
+  }
+}

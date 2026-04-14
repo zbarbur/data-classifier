@@ -40,8 +40,9 @@ _log = logging.getLogger(__name__)
 #
 # Version history:
 #   1 — Sprint 6 original (15 features).
-#   2 — Sprint 11 widening (15 base + 31 primary_entity_type one-hot = 46).
-FEATURE_SCHEMA_VERSION: int = 2
+#   2 — Sprint 11 Phase 2 widening (15 base + 31 primary_entity_type one-hot = 46).
+#   3 — Sprint 11 Phase 7: appended heuristic_dictionary_word_ratio at index 46 (total 47).
+FEATURE_SCHEMA_VERSION: int = 3
 
 # Base column-level features. Do NOT reorder these 15 — downstream code
 # indexes them positionally in several places.
@@ -107,8 +108,19 @@ PRIMARY_ENTITY_TYPES: tuple[str, ...] = (
     "UNKNOWN",
 )
 
-# Full feature schema = 15 base + 31 entity-type one-hot slots = 46.
-FEATURE_NAMES: tuple[str, ...] = _BASE_FEATURE_NAMES + tuple(f"primary_entity_type={t}" for t in PRIMARY_ENTITY_TYPES)
+# Extra column-level features appended AFTER the one-hot slots so that
+# the 0-14 base indices and the 15-45 one-hot indices remain positionally
+# stable across schema upgrades. Sprint 11 Phase 7 adds one feature here;
+# future additions should also append at the end rather than inserting.
+_EXTRA_FEATURE_NAMES: tuple[str, ...] = (
+    "heuristic_dictionary_word_ratio",  # Sprint 11 Phase 7 — index 46
+)
+
+# Full feature schema = 15 base + 31 entity-type one-hot slots + N extras.
+# Schema v2 = 46, v3 = 47.
+FEATURE_NAMES: tuple[str, ...] = (
+    _BASE_FEATURE_NAMES + tuple(f"primary_entity_type={t}" for t in PRIMARY_ENTITY_TYPES) + _EXTRA_FEATURE_NAMES
+)
 FEATURE_DIM: int = len(FEATURE_NAMES)
 
 # Precomputed index map: entity_type -> slot in FEATURE_NAMES. Used by
@@ -117,6 +129,10 @@ _PRIMARY_ENTITY_TYPE_INDEX: dict[str, int] = {
     t: len(_BASE_FEATURE_NAMES) + i for i, t in enumerate(PRIMARY_ENTITY_TYPES)
 }
 _UNKNOWN_ENTITY_TYPE_INDEX: int = _PRIMARY_ENTITY_TYPE_INDEX["UNKNOWN"]
+
+# Precomputed index of the extras section. extract_features appends each
+# extra in the same order they appear in _EXTRA_FEATURE_NAMES.
+_EXTRA_BASE_INDEX: int = len(_BASE_FEATURE_NAMES) + len(PRIMARY_ENTITY_TYPES)
 
 # Engine name constants — must match the ``name`` class attribute on each
 # engine (see data_classifier/engines/*.py).
@@ -146,10 +162,11 @@ class MetaClassifierPrediction:
 
 
 _DEFAULT_MODEL_PACKAGE = "data_classifier.models"
-# Sprint 11 Phase 3: point at the v2 artifact (feature_schema_version=2,
-# 44 kept features after ALWAYS_DROP_REDUNDANT). The v1 artifact is
+# Sprint 11 Phase 7: point at the v3 artifact (feature_schema_version=3,
+# 45 kept features after ALWAYS_DROP_REDUNDANT; includes the
+# heuristic_dictionary_word_ratio extra). Older artifacts (v1, v2) are
 # retained on disk but correctly refused by the version gate.
-_DEFAULT_MODEL_RESOURCE = "meta_classifier_v2.pkl"
+_DEFAULT_MODEL_RESOURCE = "meta_classifier_v3.pkl"
 
 
 class MetaClassifier:
@@ -401,8 +418,9 @@ def extract_features(
     *,
     heuristic_distinct_ratio: float = 0.0,
     heuristic_avg_length: float = 0.0,
+    heuristic_dictionary_word_ratio: float = 0.0,
 ) -> list[float]:
-    """Extract the 46-feature vector from a column's per-engine findings.
+    """Extract the 47-feature (schema v3) vector from a column's per-engine findings.
 
     The caller is expected to supply *all* findings produced for a single
     column, across every engine that ran. This function is pure: no I/O,
@@ -438,6 +456,14 @@ def extract_features(
     :data:`PRIMARY_ENTITY_TYPES`). Exactly one slot is 1.0: the slot for
     the top finding's entity_type, or the UNKNOWN slot when there is no
     top finding or the entity_type is outside the vocab.
+
+    46     heuristic_dictionary_word_ratio — caller-supplied column
+           statistic in [0.0, 1.0]. Fraction of sample values that
+           contain at least one English content word (computed via
+           :func:`data_classifier.engines.heuristic_engine.compute_dictionary_word_ratio`).
+           High ratio (>0.5) implies English-text columns (passwords,
+           descriptions, names); low ratio (<0.1) implies random-looking
+           identifiers (hashes, tokens, API keys).
     """
     regex_findings = _findings_for_engine(findings, _ENGINE_REGEX)
     column_name_findings = _findings_for_engine(findings, _ENGINE_COLUMN_NAME)
@@ -530,6 +556,9 @@ def extract_features(
         else:
             one_hot[slot - len(_BASE_FEATURE_NAMES)] = 1.0
     vector.extend(one_hot)
+
+    # Extras — appended in the same order as _EXTRA_FEATURE_NAMES.
+    vector.append(float(heuristic_dictionary_word_ratio))
 
     assert len(vector) == FEATURE_DIM, f"feature vector length {len(vector)} != {FEATURE_DIM}"
     return vector
