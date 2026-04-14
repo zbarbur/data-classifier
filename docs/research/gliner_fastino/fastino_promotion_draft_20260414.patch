@@ -1,0 +1,412 @@
+diff --git a/data_classifier/engines/gliner_engine.py b/data_classifier/engines/gliner_engine.py
+index c0e10af..4f301a3 100644
+--- a/data_classifier/engines/gliner_engine.py
++++ b/data_classifier/engines/gliner_engine.py
+@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
+ # ── GLiNER2 model configuration ────────────────────────────────────────────
+ 
+ _MODEL_NAME = "gliner2-ner"
+-_MODEL_ID = "urchade/gliner_multi_pii-v1"
++_MODEL_ID = "fastino/gliner2-base-v1"
+ _REQUIRED_PACKAGES = ["gliner"]
+ 
+ # ── Entity type mapping with descriptions ─────────────────────────────────
+@@ -42,7 +42,7 @@ _REQUIRED_PACKAGES = ["gliner"]
+ 
+ ENTITY_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
+     "PERSON_NAME": (
+-        "person",
++        "full name",
+         "Names of people or individuals, including first and last names",
+     ),
+     "ADDRESS": (
+@@ -62,7 +62,7 @@ ENTITY_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
+         "Telephone numbers in any international format with country codes, dashes, dots, or spaces",
+     ),
+     "SSN": (
+-        "national identification number",
++        "social security number",
+         "Government-issued personal identification numbers such as SSN, national insurance, or tax ID",
+     ),
+     "EMAIL": (
+@@ -93,8 +93,12 @@ _ENTITY_METADATA: dict[str, dict[str, Any]] = {
+     "IP_ADDRESS": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR"]},
+ }
+ 
+-# Default confidence threshold for GLiNER2 predictions
+-_DEFAULT_GLINER_THRESHOLD = 0.5
++# Default confidence threshold for GLiNER2 predictions.
++# Raised to 0.80 as part of the Sprint 9 fastino/gliner2-base-v1 promotion
++# (GLINER_MODEL_EVALUATION.md, 2026-04-13): the combined "fastino + 0.80
++# threshold + new labels + descriptions-off" config cleared the Gretel-EN
++# blind +0.02 macro F1 gate.
++_DEFAULT_GLINER_THRESHOLD = 0.80
+ 
+ # Separator used when concatenating sample values
+ _SAMPLE_SEPARATOR = " ; "
+@@ -155,6 +159,7 @@ class GLiNER2Engine(ClassificationEngine):
+         model_id: str = _MODEL_ID,
+         onnx_path: str | None = None,
+         api_key: str | None = None,
++        descriptions_enabled: bool | None = None,
+     ) -> None:
+         """Initialize the GLiNER2 engine.
+ 
+@@ -178,29 +183,64 @@ class GLiNER2Engine(ClassificationEngine):
+                 Export with: ``model.export_to_onnx(path, quantize=True)``
+             api_key: GLiNER API key for hosted inference fallback.  If set
+                 and local model loading fails, falls back to API mode.
++            descriptions_enabled: Controls whether entity descriptions are
++                passed to the underlying model.  ``None`` (the default)
++                auto-selects: ``False`` for ``fastino/*`` (v2) models,
++                ``True`` for all other models.  The GLiNER eval memo
++                (docs/research/GLINER_MODEL_EVALUATION.md, 2026-04-13)
++                showed fastino regresses by -0.062 to -0.093 macro F1
++                when descriptions are enabled, so Sprint 9 ships fastino
++                without descriptions.  v1 (``gliner``) models ignore this
++                flag because they only accept a label list.
+         """
+         self._registry = registry or ModelRegistry()
+         self._gliner_threshold = gliner_threshold
+         self._model_id = model_id
+-        # Auto-discover ONNX model if not explicitly configured
+-        self._onnx_path = onnx_path or _find_bundled_onnx_model()
+         self._api_key = api_key
+         self._is_v2 = model_id.startswith("fastino/")
++        # Auto-discover ONNX model if not explicitly configured.
++        # Sprint 9: skip auto-discovery for v2 (fastino) models — the
++        # bundled/cached ONNX bundles shipped pre-Sprint-9 are v1
++        # (``urchade/gliner_multi_pii-v1``) exports and would be loaded
++        # by the v1 ``gliner`` package, silently serving the wrong model.
++        # A fastino ONNX re-export is tracked as a Sprint 9 follow-up;
++        # until then fastino runs on PyTorch.  An explicitly-provided
++        # ``onnx_path`` still wins (escape hatch for a hand-exported bundle).
++        if onnx_path:
++            self._onnx_path: str | None = onnx_path
++        elif self._is_v2:
++            self._onnx_path = None
++        else:
++            self._onnx_path = _find_bundled_onnx_model()
+         self._inference_mode: str | None = None  # set during startup
+         self._registered = False
+ 
++        # Sprint 9: descriptions-off default for fastino.  The GLiNER eval
++        # memo showed descriptions HURT fastino on both blind corpora, so
++        # we pass the label list (no descriptions) as the v2 entity spec.
++        if descriptions_enabled is None:
++            descriptions_enabled = not self._is_v2
++        self._descriptions_enabled = descriptions_enabled
++
+         # Filter to requested entity types (must be in our mapping)
+         if entity_types is not None:
+             self._entity_types = [et for et in entity_types if et in ENTITY_LABEL_DESCRIPTIONS]
+         else:
+             self._entity_types = list(ENTITY_LABEL_DESCRIPTIONS.keys())
+ 
+-        # Build labels — v1 uses plain list, v2 uses dict with descriptions
++        # Build labels.
++        #
++        # v1 (gliner) uses a plain label list via ``predict_entities``.
++        #
++        # v2 (gliner2) ``extract_entities``/``Schema.entities`` accepts
++        # either a list[str] (no descriptions) or dict[str, str]
++        # (label -> description).  We prepare BOTH forms and pick at
++        # inference time based on ``self._descriptions_enabled``.
++        self._gliner_labels: list[str] = [ENTITY_LABEL_DESCRIPTIONS[et][0] for et in self._entity_types]
+         if self._is_v2:
+             self._gliner_labels_v2: dict[str, str] = {
+                 ENTITY_LABEL_DESCRIPTIONS[et][0]: ENTITY_LABEL_DESCRIPTIONS[et][1] for et in self._entity_types
+             }
+-        self._gliner_labels: list[str] = [ENTITY_LABEL_DESCRIPTIONS[et][0] for et in self._entity_types]
+ 
+     def startup(self) -> None:
+         """Register the model in the registry for lazy loading.
+@@ -356,7 +396,18 @@ class GLiNER2Engine(ClassificationEngine):
+ 
+             try:
+                 if self._is_v2:
+-                    result = model.extract_entities(text, self._gliner_labels_v2, include_confidence=True)
++                    # Sprint 9: pick label spec form based on descriptions_enabled.
++                    # - descriptions_enabled=True -> dict[label, description]
++                    # - descriptions_enabled=False -> list[label]  (fastino default)
++                    v2_entity_spec: list[str] | dict[str, str] = (
++                        self._gliner_labels_v2 if self._descriptions_enabled else self._gliner_labels
++                    )
++                    result = model.extract_entities(
++                        text,
++                        v2_entity_spec,
++                        threshold=self._gliner_threshold,
++                        include_confidence=True,
++                    )
+                     for gliner_label, matches in result.get("entities", {}).items():
+                         entity_type = GLINER_LABEL_TO_ENTITY.get(gliner_label)
+                         if entity_type is None:
+diff --git a/tests/test_gliner_engine.py b/tests/test_gliner_engine.py
+index 9ad78f6..ffb0dbb 100644
+--- a/tests/test_gliner_engine.py
++++ b/tests/test_gliner_engine.py
+@@ -47,10 +47,20 @@ def mock_gliner_model():
+ 
+ @pytest.fixture()
+ def engine_with_mock(mock_registry, mock_gliner_model):
+-    """Create a GLiNER2Engine with a mock model pre-loaded in the registry."""
++    """Create a GLiNER2Engine with a mock model pre-loaded in the registry.
++
++    Pinned to the v1 model_id (``urchade/gliner_multi_pii-v1``) so the
++    engine takes the v1 ``predict_entities`` codepath — our mocks return
++    v1-style responses.  The default ``_MODEL_ID`` is fastino (v2) as of
++    Sprint 9, but the v2 path is covered by a separate fixture below.
++    """
+     from data_classifier.engines.gliner_engine import GLiNER2Engine
+ 
+-    engine = GLiNER2Engine(registry=mock_registry, gliner_threshold=0.5)
++    engine = GLiNER2Engine(
++        registry=mock_registry,
++        gliner_threshold=0.5,
++        model_id="urchade/gliner_multi_pii-v1",
++    )
+     mock_registry.register(
+         "gliner2-ner",
+         loader=lambda: mock_gliner_model,
+@@ -95,7 +105,7 @@ class TestPersonNameDetection:
+         """Engine should detect PERSON_NAME from name samples."""
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+-                "person": [("John Smith", 0.92), ("Maria Garcia", 0.89), ("Wei Zhang", 0.87)],
++                "full name": [("John Smith", 0.92), ("Maria Garcia", 0.89), ("Wei Zhang", 0.87)],
+             }
+         )
+ 
+@@ -112,7 +122,7 @@ class TestPersonNameDetection:
+         """Finding should include matched name texts in evidence."""
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+-                "person": [("John Smith", 0.92), ("Maria Garcia", 0.89)],
++                "full name": [("John Smith", 0.92), ("Maria Garcia", 0.89)],
+             }
+         )
+ 
+@@ -127,7 +137,7 @@ class TestPersonNameDetection:
+         """PERSON_NAME findings should include GDPR and CCPA."""
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+-                "person": [("John Smith", 0.92)],
++                "full name": [("John Smith", 0.92)],
+             }
+         )
+ 
+@@ -188,7 +198,7 @@ class TestClassifyBatch:
+     def test_batch_processes_multiple_columns(self, engine_with_mock, mock_gliner_model, name_column, address_column):
+         """classify_batch should process multiple columns."""
+         mock_gliner_model.predict_entities.side_effect = [
+-            _gliner_predictions({"person": [("John Smith", 0.92)]}),
++            _gliner_predictions({"full name": [("John Smith", 0.92)]}),
+             _gliner_predictions({"street address": [("123 Main St", 0.85)]}),
+         ]
+ 
+@@ -206,7 +216,7 @@ class TestClassifyBatch:
+         name_col = ColumnInput(column_name="name", column_id="col_name", sample_values=["John Smith"])
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+-                "person": [("John Smith", 0.92)],
++                "full name": [("John Smith", 0.92)],
+             }
+         )
+ 
+@@ -360,7 +370,7 @@ class TestConfidenceThreshold:
+         """Predictions below min_confidence should not produce findings."""
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+-                "person": [("John Smith", 0.3)],
++                "full name": [("John Smith", 0.3)],
+             }
+         )
+         column = ColumnInput(column_name="name", column_id="c1", sample_values=["John Smith"])
+@@ -372,7 +382,7 @@ class TestConfidenceThreshold:
+         """Predictions above min_confidence should produce findings."""
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+-                "person": [
++                "full name": [
+                     ("John Smith", 0.95),
+                     ("Maria Garcia", 0.92),
+                     ("Wei Zhang", 0.88),
+@@ -432,7 +442,7 @@ class TestEngineProperties:
+         """mask_samples=True should redact evidence text."""
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+-                "person": [("John Smith", 0.92)],
++                "full name": [("John Smith", 0.92)],
+             }
+         )
+         column = ColumnInput(column_name="name", column_id="c1", sample_values=["John Smith"])
+@@ -458,7 +468,7 @@ class TestEngineProperties:
+         engine._registered = True
+ 
+         assert engine._entity_types == ["PERSON_NAME"]
+-        assert "person" in engine._gliner_labels
++        assert "full name" in engine._gliner_labels
+ 
+ 
+ # ── Test: Multiple entity types in one column ──────────────────────────────
+@@ -471,7 +481,7 @@ class TestMultipleEntityTypes:
+         """Column with mixed entity types should produce findings for both."""
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+-                "person": [("John Smith", 0.92)],
++                "full name": [("John Smith", 0.92)],
+                 "street address": [("123 Main St", 0.85)],
+             }
+         )
+@@ -491,7 +501,7 @@ class TestMultipleEntityTypes:
+         # Single prediction
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+-                "person": [("John Smith", 0.90)],
++                "full name": [("John Smith", 0.90)],
+             }
+         )
+         col1 = ColumnInput(column_name="name", column_id="c1", sample_values=["John Smith"])
+@@ -500,7 +510,7 @@ class TestMultipleEntityTypes:
+         # Multiple predictions
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+-                "person": [
++                "full name": [
+                     ("John Smith", 0.90),
+                     ("Maria Garcia", 0.88),
+                     ("Wei Zhang", 0.92),
+@@ -531,7 +541,7 @@ class TestDeduplication:
+         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+             {
+                 "street address": [("Preston Road", 0.85)],
+-                "person": [("Preston", 0.70)],
++                "full name": [("Preston", 0.70)],
+             }
+         )
+         column = ColumnInput(column_name="col_0", column_id="c1", sample_values=["Preston Road"])
+@@ -560,3 +570,124 @@ class TestDeduplication:
+         # Both EMAIL and PHONE have specificity 3 — both kept
+         assert "EMAIL" in entity_types
+         assert "PHONE" in entity_types
++
++
++# ── Test: Sprint 9 fastino config defaults ─────────────────────────────────
++
++
++class TestFastinoDefaults:
++    """Test the Sprint 9 GLiNER tuning defaults."""
++
++    def test_default_model_is_fastino(self):
++        """Default ``_MODEL_ID`` should be the fastino v2 model."""
++        from data_classifier.engines.gliner_engine import _MODEL_ID
++
++        assert _MODEL_ID == "fastino/gliner2-base-v1"
++
++    def test_default_threshold_is_eighty(self):
++        """Default confidence threshold should be 0.80 for fastino."""
++        from data_classifier.engines.gliner_engine import _DEFAULT_GLINER_THRESHOLD
++
++        assert _DEFAULT_GLINER_THRESHOLD == 0.80
++
++    def test_ssn_label_is_social_security_number(self):
++        """SSN gliner label should be 'social security number' (Sprint 9 swap)."""
++        from data_classifier.engines.gliner_engine import ENTITY_LABEL_DESCRIPTIONS
++
++        assert ENTITY_LABEL_DESCRIPTIONS["SSN"][0] == "social security number"
++
++    def test_person_name_label_is_full_name(self):
++        """PERSON_NAME gliner label should be 'full name' (Sprint 9 swap)."""
++        from data_classifier.engines.gliner_engine import ENTITY_LABEL_DESCRIPTIONS
++
++        assert ENTITY_LABEL_DESCRIPTIONS["PERSON_NAME"][0] == "full name"
++
++    def test_fastino_defaults_descriptions_off(self):
++        """fastino model should default to descriptions_enabled=False."""
++        from data_classifier.engines.gliner_engine import GLiNER2Engine
++
++        engine = GLiNER2Engine(model_id="fastino/gliner2-base-v1")
++        assert engine._is_v2 is True
++        assert engine._descriptions_enabled is False
++
++    def test_v1_model_defaults_descriptions_on(self):
++        """v1 (non-fastino) model should default to descriptions_enabled=True.
++
++        v1 ignores the flag at inference time (it only accepts a label list),
++        but the flag is still set for consistency.
++        """
++        from data_classifier.engines.gliner_engine import GLiNER2Engine
++
++        engine = GLiNER2Engine(model_id="urchade/gliner_multi_pii-v1")
++        assert engine._is_v2 is False
++        assert engine._descriptions_enabled is True
++
++    def test_descriptions_enabled_override(self):
++        """Caller can force descriptions on for fastino if needed."""
++        from data_classifier.engines.gliner_engine import GLiNER2Engine
++
++        engine = GLiNER2Engine(model_id="fastino/gliner2-base-v1", descriptions_enabled=True)
++        assert engine._descriptions_enabled is True
++
++
++class TestFastinoV2InferencePath:
++    """Test the v2 ``extract_entities`` inference codepath (fastino)."""
++
++    def _make_v2_engine(self, mock_registry, mock_model, *, descriptions_enabled: bool | None = None):
++        from data_classifier.engines.gliner_engine import GLiNER2Engine
++
++        engine = GLiNER2Engine(
++            registry=mock_registry,
++            model_id="fastino/gliner2-base-v1",
++            descriptions_enabled=descriptions_enabled,
++        )
++        mock_registry.register(
++            "gliner2-ner",
++            loader=lambda: mock_model,
++            model_class="gliner2.GLiNER2",
++            requires=[],
++        )
++        engine._registered = True
++        return engine
++
++    def test_v2_descriptions_off_passes_label_list(self, mock_registry):
++        """When descriptions_enabled=False, engine should pass a list[str]
++        (no descriptions) to ``extract_entities`` and include the
++        configured threshold."""
++        mock_model = MagicMock()
++        mock_model.extract_entities = MagicMock(
++            return_value={"entities": {"full name": [{"text": "Jane Doe", "confidence": 0.91}]}}
++        )
++        engine = self._make_v2_engine(mock_registry, mock_model)
++
++        column = ColumnInput(column_name="name", column_id="c1", sample_values=["Jane Doe"])
++        findings = engine.classify_column(column, min_confidence=0.0)
++
++        assert len(findings) == 1
++        assert findings[0].entity_type == "PERSON_NAME"
++
++        # Verify call shape: positional entity_spec was a list[str].
++        assert mock_model.extract_entities.called
++        call_args = mock_model.extract_entities.call_args
++        entity_spec = call_args.args[1] if len(call_args.args) > 1 else call_args.kwargs.get("entity_types")
++        assert isinstance(entity_spec, list), f"Expected list[str] label spec, got {type(entity_spec).__name__}"
++        assert "full name" in entity_spec
++        assert "social security number" in entity_spec
++        # Threshold must be passed through (Sprint 9: 0.80 default).
++        assert call_args.kwargs.get("threshold") == 0.80
++
++    def test_v2_descriptions_on_passes_label_dict(self, mock_registry):
++        """When descriptions_enabled=True, engine should pass a dict[str, str]."""
++        mock_model = MagicMock()
++        mock_model.extract_entities = MagicMock(return_value={"entities": {}})
++        engine = self._make_v2_engine(mock_registry, mock_model, descriptions_enabled=True)
++
++        column = ColumnInput(column_name="x", column_id="c1", sample_values=["something"])
++        engine.classify_column(column, min_confidence=0.0)
++
++        call_args = mock_model.extract_entities.call_args
++        entity_spec = call_args.args[1] if len(call_args.args) > 1 else call_args.kwargs.get("entity_types")
++        assert isinstance(entity_spec, dict), f"Expected dict[str, str] label spec, got {type(entity_spec).__name__}"
++        assert "full name" in entity_spec
++        # Descriptions must be non-empty in the dict form.
++        assert entity_spec["full name"]
