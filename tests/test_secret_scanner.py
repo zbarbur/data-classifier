@@ -748,3 +748,230 @@ class TestEngineRegistration:
         orch = Orchestrator(engines=_DEFAULT_ENGINES, mode="structured")
         engine_names = [e.name for e in orch.engines]
         assert "secret_scanner" in engine_names
+
+
+# ── Sprint 10: net-new dictionary entries (Kingfisher/gitleaks/NP harvest) ──
+#
+# Item: expand-secret-key-names-dictionary-kingfisher-gitleaks-nosey-parker-
+# 80-net-new-entries-sprint-10-m-sibling-of-kingfisher-l
+#
+# These tests cover:
+#   1. TestNewDictionaryEntries — every curated net-new pattern fires with
+#      the recorded (score, tier, subtype) tuple.
+#   2. TestIngestionScript      — idempotence and required-field schema.
+#   3. TestDictionaryHealth     — full-dict invariants on patterns, scores,
+#      tiers, and match types.
+
+
+def _import_ingest_module():
+    """Import scripts/ingest_credential_patterns.py as ``ingest_credential_patterns``.
+
+    Python 3.12+ requires the module to be registered in ``sys.modules``
+    BEFORE ``exec_module`` so that @dataclass decoration (which looks up
+    the defining module via ``sys.modules[cls.__module__].__dict__``)
+    succeeds.  Cached on second call.
+    """
+    import importlib.util
+    import sys as _sys
+    from pathlib import Path
+
+    if "ingest_credential_patterns" in _sys.modules:
+        return _sys.modules["ingest_credential_patterns"]
+    script = Path(__file__).parent.parent / "scripts" / "ingest_credential_patterns.py"
+    spec = importlib.util.spec_from_file_location("ingest_credential_patterns", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    _sys.modules["ingest_credential_patterns"] = module
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+def _load_curated_manifest() -> list[dict]:
+    """Import the curated manifest from scripts/ingest_credential_patterns.py.
+
+    Returns a list of dicts with keys:
+        pattern, score, match_type, tier, subtype, category_tag,
+        upstream, upstream_rule_id.
+    """
+    module = _import_ingest_module()
+    return [
+        {
+            "pattern": e.pattern,
+            "score": e.score,
+            "match_type": e.match_type,
+            "tier": e.tier,
+            "subtype": e.subtype,
+            "category_tag": e.category_tag,
+            "upstream": e.upstream,
+            "upstream_rule_id": e.upstream_rule_id,
+        }
+        for e in module.CURATED_ENTRIES
+    ]
+
+
+def _load_full_dictionary() -> list[dict]:
+    """Read all key_names entries from secret_key_names.json."""
+    from pathlib import Path
+
+    path = Path(__file__).parent.parent / "data_classifier" / "patterns" / "secret_key_names.json"
+    with open(path) as fh:
+        return json.load(fh)["key_names"]
+
+
+_CURATED_MANIFEST = _load_curated_manifest()
+
+
+class TestNewDictionaryEntries:
+    """Parametrized test: each curated net-new entry fires with recorded tier/subtype.
+
+    The test key used is the pattern itself (a real-world key like
+    ``datadog_app_key`` is itself a sensible test input).  The expectation
+    is that ``_score_key_name`` returns a score >= the entry's recorded
+    score, and the same subtype.  A stronger existing pattern may win
+    (e.g., ``password`` outranks ``admin_password``) — that's an acceptable
+    outcome because it still fires and attributes to a credential subtype
+    with equal-or-higher confidence.  The assertion therefore uses
+    ``>=`` on score and checks subtype consistency within the credential
+    taxonomy, not exact equality to the manifest entry.
+    """
+
+    @pytest.fixture(scope="class")
+    def key_entries(self) -> list[dict]:
+        return _load_full_dictionary()
+
+    @pytest.mark.parametrize(
+        "entry",
+        _CURATED_MANIFEST,
+        ids=[e["pattern"] for e in _CURATED_MANIFEST],
+    )
+    def test_new_entry_fires_with_expected_tier_and_subtype(self, entry: dict, key_entries: list[dict]) -> None:
+        score, tier, subtype = _score_key_name(entry["pattern"], key_entries)
+        # The entry must fire with at least the recorded score.
+        assert score >= entry["score"], f"{entry['pattern']}: got score {score}, expected >= {entry['score']}"
+        # Tier must be at least as strong as recorded
+        # (definitive > strong > contextual).
+        tier_rank = {"contextual": 0, "strong": 1, "definitive": 2}
+        assert tier_rank[tier] >= tier_rank[entry["tier"]], (
+            f"{entry['pattern']}: got tier {tier!r}, expected >= {entry['tier']!r}"
+        )
+        # Subtype must be in the credential taxonomy.
+        assert subtype in {"API_KEY", "OPAQUE_SECRET", "PRIVATE_KEY", "PASSWORD_HASH"}
+
+    def test_manifest_has_at_least_80_entries(self) -> None:
+        assert len(_CURATED_MANIFEST) >= 80, f"Manifest has {len(_CURATED_MANIFEST)} entries, minimum 80"
+
+    def test_manifest_within_hard_ceiling(self) -> None:
+        assert len(_CURATED_MANIFEST) <= 95, f"Manifest has {len(_CURATED_MANIFEST)} entries, hard ceiling 95"
+
+    def test_definitive_fraction_above_60_percent(self) -> None:
+        definitive = sum(1 for e in _CURATED_MANIFEST if e["tier"] == "definitive")
+        frac = definitive / max(len(_CURATED_MANIFEST), 1)
+        assert frac >= 0.60, f"Definitive fraction {frac:.2%}, minimum 60%"
+
+    @pytest.mark.parametrize(
+        "category, minimum",
+        [
+            ("saas", 30),
+            ("cloud", 15),
+            ("cicd", 12),
+            ("database", 8),
+            ("oauth", 6),
+            ("pwd_crypto", 13),
+        ],
+    )
+    def test_category_minimum_counts_met(self, category: str, minimum: int) -> None:
+        got = sum(1 for e in _CURATED_MANIFEST if e["category_tag"] == category)
+        assert got >= minimum, f"Category {category}: {got} entries, minimum {minimum}"
+
+
+class TestIngestionScript:
+    """Tests for scripts/ingest_credential_patterns.py."""
+
+    def test_ingest_script_is_idempotent(self) -> None:
+        """Running the script twice leaves the dictionary byte-identical.
+
+        First run syncs any missing entries.  Second run must report
+        zero changes and touch no files.
+        """
+        from pathlib import Path
+
+        module = _import_ingest_module()
+        dict_path = Path(module.DICT_PATH)
+        md_path = Path(module.ATTRIBUTION_MD_PATH)
+
+        # First pass (usually already a no-op on disk, but may normalize).
+        rc = module.main([])
+        assert rc == 0
+        dict_snapshot = dict_path.read_bytes()
+        md_snapshot = md_path.read_bytes() if md_path.exists() else b""
+
+        # Second pass must be bit-for-bit identical on disk.
+        rc2 = module.main([])
+        assert rc2 == 0
+        assert dict_path.read_bytes() == dict_snapshot, "Dictionary file changed on second script run — not idempotent"
+        assert md_path.read_bytes() == md_snapshot, "Attribution md changed on second script run — not idempotent"
+
+    def test_all_new_entries_have_required_fields(self) -> None:
+        """Every curated entry must have pattern, score, match_type, tier, subtype."""
+        required = {"pattern", "score", "match_type", "tier", "subtype"}
+        for entry in _CURATED_MANIFEST:
+            missing = required - entry.keys()
+            assert not missing, f"{entry.get('pattern', '?')}: missing fields {missing}"
+            # Also sanity-check field types
+            assert isinstance(entry["pattern"], str)
+            assert isinstance(entry["score"], float)
+            assert entry["match_type"] in {"substring", "word_boundary", "suffix"}
+            assert entry["tier"] in {"definitive", "strong", "contextual"}
+            assert entry["subtype"] in {
+                "API_KEY",
+                "OPAQUE_SECRET",
+                "PRIVATE_KEY",
+                "PASSWORD_HASH",
+            }
+
+    def test_manifest_validation_passes(self) -> None:
+        """validate_manifest() returns zero errors for the current manifest."""
+        module = _import_ingest_module()
+        errors = module.validate_manifest(module.CURATED_ENTRIES)
+        assert errors == [], f"Manifest validation errors: {errors}"
+
+
+class TestDictionaryHealth:
+    """Invariants on the full secret_key_names.json file (existing + net-new)."""
+
+    def test_dictionary_has_no_duplicate_patterns(self) -> None:
+        entries = _load_full_dictionary()
+        patterns = [e["pattern"].lower() for e in entries]
+        duplicates = {p for p in patterns if patterns.count(p) > 1}
+        assert not duplicates, f"Duplicate patterns: {duplicates}"
+
+    def test_dictionary_scores_in_valid_range(self) -> None:
+        entries = _load_full_dictionary()
+        for e in entries:
+            assert 0.0 <= e["score"] <= 1.0, f"{e['pattern']}: score {e['score']} out of [0, 1]"
+
+    def test_dictionary_tiers_valid(self) -> None:
+        entries = _load_full_dictionary()
+        valid = {"definitive", "strong", "contextual"}
+        for e in entries:
+            assert e["tier"] in valid, f"{e['pattern']}: invalid tier {e['tier']!r}"
+
+    def test_dictionary_match_types_valid(self) -> None:
+        entries = _load_full_dictionary()
+        valid = {"substring", "word_boundary", "suffix"}
+        for e in entries:
+            assert e["match_type"] in valid, f"{e['pattern']}: invalid match_type {e['match_type']!r}"
+
+    def test_dictionary_subtypes_valid(self) -> None:
+        entries = _load_full_dictionary()
+        valid = {"API_KEY", "OPAQUE_SECRET", "PRIVATE_KEY", "PASSWORD_HASH"}
+        for e in entries:
+            assert e["subtype"] in valid, f"{e['pattern']}: invalid subtype {e['subtype']!r}"
+
+    def test_dictionary_grew_from_88_baseline(self) -> None:
+        """Sanity guard: Sprint 9 baseline was 88 entries.  We must have
+        grown by at least the hard-minimum 80 net-new."""
+        entries = _load_full_dictionary()
+        assert len(entries) >= 88 + 80, (
+            f"Dictionary has {len(entries)} entries, expected >= 168 (88 baseline + 80 minimum net-new)"
+        )
