@@ -38,11 +38,37 @@
       "recall": 0.667,
       "tp_count": 8,
       "note": "IMPROVED vs Sprint 10 (0.6111 -> 0.667, +0.056). The Sprint 10 0.6111 baseline was artificially deflated by the same stale-CREDENTIAL labeling. Taxonomy refresh correctly scores the formerly-invisible credential-column detections."
+    },
+    {
+      "corpus": "gretel_finance",
+      "fn_count": 1,
+      "fp_count": 1,
+      "macro_f1": 0.917,
+      "micro_f1": 0.917,
+      "mode": "named",
+      "precision": 0.917,
+      "primary_label_pct": 0.917,
+      "recall": 0.917,
+      "tp_count": 11,
+      "note": "NEW baseline for Sprint 11. First-ever measurement for the Gretel-finance corpus (Sprint 10 ingested the loader but never wired the CLI flag). Item #2 (wire-gretel-finance-corpus-into-accuracy-benchmark-cli) closed this gap. Named-mode F1 of 0.917 is strong for a credentials-in-financial-prose corpus — the column-name engine carries most of the weight in named mode."
+    },
+    {
+      "corpus": "gretel_finance",
+      "fn_count": 2,
+      "fp_count": 3,
+      "macro_f1": 0.8,
+      "micro_f1": 0.8,
+      "mode": "blind",
+      "precision": 0.769,
+      "primary_label_pct": 0.833,
+      "recall": 0.833,
+      "tp_count": 10,
+      "note": "NEW baseline for Sprint 11. First-ever blind measurement for Gretel-finance. 0.800 is notably higher than Gretel-EN blind 0.667 and Nemotron blind 0.759 — Gretel-finance's long-form financial-document prose gives the regex engine richer context windows than the short isolated-token shapes in Nemotron/Gretel-EN. This validates the Sprint 10 hypothesis that Gretel-finance breaks the 'credentials-as-short-tokens' shortcut learning that M1 CV diagnostics flagged."
     }
   ],
   "date": "2026-04-14",
-  "git_sha": "96b10fb",
-  "note": "Sprint 11 item #1 (corpus loader taxonomy refresh) executed. Scope EXPANDED during execution from Nemotron-only to all 3 loaders that emitted the stale CREDENTIAL label (Nemotron + Gretel-EN + _DETECT_SECRETS_TYPE_MAP). Net effect on benchmarks: 2 hidden wins (Nemotron named +0.077 to perfect 1.000, Gretel-EN blind +0.056), 1 unchanged (Nemotron blind, blocked by independent scanner over-firing bug, filed as separate P1). Sprint 10 handover's 'fake regression' diagnosis was only half right — taxonomy drift was real and worth fixing, but Nemotron blind F1 recovery requires the scanner-side fix. Pending Tier 2-3 items: wire-gretel-finance-cli, corpus-loader-drift-lint, tighten-id_token-match-type, env-leak hygiene, document-all-engines, document-fail-fast-dispatch.",
+  "git_sha": "TBD-item2-commit",
+  "note": "Sprint 11 items #1 (corpus loader taxonomy refresh) and #2 (wire gretel_finance CLI) executed. Item #1 scope EXPANDED during execution from Nemotron-only to all 3 loaders that emitted the stale CREDENTIAL label (Nemotron + Gretel-EN + _DETECT_SECRETS_TYPE_MAP). Net effect: 2 hidden wins from item #1 (Nemotron named +0.077 to perfect 1.000, Gretel-EN blind +0.056), 1 unchanged (Nemotron blind, blocked by independent scanner over-firing bug, filed as separate P1). Item #2 adds first-ever Gretel-finance blind+named baselines (0.800 / 0.917) — the CLI flag was never wired in Sprint 10 despite the loader landing. Sprint 10 handover's 'fake regression' diagnosis was only half right — taxonomy drift was real and worth fixing, but Nemotron blind F1 recovery requires the scanner-side fix. Pending Tier 2-3 items: corpus-loader-drift-lint, tighten-id_token-match-type, env-leak hygiene, document-all-engines, document-fail-fast-dispatch.",
   "perf": null,
   "schema_version": 1,
   "sprint": 11
