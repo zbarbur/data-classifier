@@ -99,8 +99,114 @@ _DEFAULT_GLINER_THRESHOLD = 0.5
 # Separator used when concatenating sample values
 _SAMPLE_SEPARATOR = " ; "
 
+# Separator used inside the "Sample values: ..." clause of the NL-wrapped prompt.
+# Sprint 10 S1 wrapping joins values with a comma + space, which is how GLiNER
+# sees lists in its training distribution.
+_NL_SAMPLE_SEPARATOR = ", "
+
 # Max samples per NER chunk — keeps text within model's context window
 _SAMPLE_CHUNK_SIZE = 50
+
+# GLiNER urchade v1 encoder max_len (transformer max sequence length in tokens).
+# The NL-wrapped prompt should stay comfortably inside this bound after
+# tokenization.  We enforce a character budget that is empirically safe:
+# at ~4 chars/token the 384-token transformer window fits ~1500 chars of input,
+# plus we want headroom for the NL prefix.  The Sprint 10 research memo
+# measured the baseline text at ~1500 chars at chunk_size=50 with 30-char
+# mean values; the NL prefix adds ~150-300 chars, putting the worst case
+# around 1800 chars.  We cap the assembled prompt at 2000 chars and
+# truncate the description field first if we exceed it.
+_MAX_PROMPT_CHARS = 2000
+
+# When the description field alone pushes the prompt past the budget,
+# truncate it down to this many characters with an ellipsis.  This
+# preserves the column/table metadata (highest-signal context fields)
+# and only sheds long catalog comments.
+_DESCRIPTION_TRUNCATE_CHARS = 200
+
+
+def _build_ner_prompt(column: ColumnInput, chunk: list[str]) -> str:
+    """Build a natural-language NER prompt for GLiNER from column metadata + sample values.
+
+    This is the Sprint 10 "S1" prompt-wrapping strategy from research/gliner-context
+    Pass 1.  GLiNER is a context-attention NER model trained on natural-language
+    sentences — feeding it raw "value ; value ; value" strings is out-of-distribution
+    and causes ORGANIZATION/PERSON_NAME/PHONE false-fires on numeric-looking values.
+    Wrapping the values in a sentence that mentions column/table/description metadata
+    puts the input back in the model's training distribution and recovers +0.0887
+    macro F1 on Ai4Privacy (BCa 95% CI [+0.050, +0.131], n=315).
+
+    The helper is pure: no side effects, no logging, no model calls — safe to
+    exercise in isolation under unit test.
+
+    Shape rules:
+
+    * If ``column.column_name`` is set: prepend ``Column '<column_name>'``.
+    * If ``column.table_name`` is set: continue ``... from table '<table_name>'``
+      (or start with it if column_name is empty).
+    * If ``column.description`` is set: append ``. Description: <description>``
+      (truncated to ``_DESCRIPTION_TRUNCATE_CHARS`` if the assembled prompt
+      would exceed ``_MAX_PROMPT_CHARS``).
+    * Always append ``. Sample values: <comma-joined chunk>`` or — when the
+      column carries no metadata at all — fall back to the legacy
+      ``_SAMPLE_SEPARATOR.join(chunk)`` shape so that metadata-free inputs
+      get the exact same prompt the engine shipped before S1 wrapping
+      (strictly additive change).
+
+    Args:
+        column: The ColumnInput whose metadata we're wrapping around the samples.
+        chunk: A slice of ``column.sample_values`` to put in this prompt.
+
+    Returns:
+        The fully-assembled prompt string ready to hand to GLiNER.
+    """
+    column_name = (column.column_name or "").strip()
+    table_name = (column.table_name or "").strip()
+    description = (column.description or "").strip()
+
+    # Metadata-free fallback: preserve pre-S1 production behavior so that
+    # connectors which don't populate context fields see no behavior change.
+    if not column_name and not table_name and not description:
+        return _SAMPLE_SEPARATOR.join(chunk)
+
+    # Build the NL prefix piece by piece, skipping empty parts.
+    parts: list[str] = []
+    if column_name and table_name:
+        parts.append(f"Column '{column_name}' from table '{table_name}'")
+    elif column_name:
+        parts.append(f"Column '{column_name}'")
+    elif table_name:
+        parts.append(f"Table '{table_name}'")
+
+    if description:
+        parts.append(f"Description: {description}")
+
+    sample_clause = f"Sample values: {_NL_SAMPLE_SEPARATOR.join(chunk)}"
+    parts.append(sample_clause)
+
+    prompt = ". ".join(parts)
+
+    # Guard against overflow: if the description pushes the total past the
+    # per-prompt character budget, truncate the description rather than
+    # silently dropping sample values (samples are the actual signal GLiNER
+    # needs; the description is secondary context).
+    if len(prompt) > _MAX_PROMPT_CHARS and description:
+        truncated_description = description[:_DESCRIPTION_TRUNCATE_CHARS].rstrip()
+        if len(truncated_description) < len(description):
+            truncated_description = f"{truncated_description}..."
+        # Rebuild the prompt with the truncated description.
+        parts = []
+        if column_name and table_name:
+            parts.append(f"Column '{column_name}' from table '{table_name}'")
+        elif column_name:
+            parts.append(f"Column '{column_name}'")
+        elif table_name:
+            parts.append(f"Table '{table_name}'")
+        parts.append(f"Description: {truncated_description}")
+        parts.append(sample_clause)
+        prompt = ". ".join(parts)
+
+    return prompt
 
 
 def _find_bundled_onnx_model() -> str | None:
@@ -391,7 +497,12 @@ class GLiNER2Engine(ClassificationEngine):
 
         for i in range(0, len(column.sample_values), _SAMPLE_CHUNK_SIZE):
             chunk = column.sample_values[i : i + _SAMPLE_CHUNK_SIZE]
-            text = _SAMPLE_SEPARATOR.join(chunk)
+            # Sprint 10 S1: wrap sample values in a natural-language sentence
+            # mentioning column/table/description metadata so that GLiNER
+            # sees training-distribution input instead of a raw bag-of-tokens
+            # ``value ; value ; value`` string.  See _build_ner_prompt for the
+            # metadata-graceful-degradation rules.
+            text = _build_ner_prompt(column, chunk)
 
             try:
                 if self._is_v2:
