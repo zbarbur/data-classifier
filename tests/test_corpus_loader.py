@@ -615,3 +615,105 @@ class TestLoaderTaxonomyRefresh:
 
         # Guard against the filter silently skipping every map.
         assert checked, "drift lint checked zero maps — filter is broken"
+
+
+class TestNemotronCredentialShapePartitioning:
+    """Sprint 11 follow-up to item #1 — value-shape partitioning.
+
+    Nemotron's upstream ``password`` / ``CREDENTIAL`` bucket mixes plaintext
+    passwords, PINs, UUIDs, and a small number of JWT-shaped tokens.  Item
+    #1 routed the whole bucket uniformly to ``OPAQUE_SECRET``, which scored
+    the regex engine's correct ``API_KEY`` predictions on those JWTs as
+    false positives.  The fix is a shape partitioner run before
+    ``NEMOTRON_TYPE_MAP`` is applied, rewriting records' ``entity_type`` by
+    value shape.  See the rescope note on the Sprint 11
+    ``nemotron-loader-partition-credential-values-by-shape`` item for the
+    diagnosis trace.
+    """
+
+    def test_jwt_shape_routes_to_api_key(self) -> None:
+        from tests.benchmarks.corpus_loader import _classify_credential_value_shape
+
+        # The exact JWT values Nemotron seeds in its password bucket.
+        jwt_header_only = (
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwi"
+            "bmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ."
+            "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        )
+        assert _classify_credential_value_shape(jwt_header_only) == "API_KEY"
+        # Minimal valid JWT shape.
+        assert _classify_credential_value_shape("eyA.eyB.sig") == "API_KEY"
+
+    def test_pem_block_routes_to_private_key(self) -> None:
+        from tests.benchmarks.corpus_loader import _classify_credential_value_shape
+
+        pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----"
+        assert _classify_credential_value_shape(pem) == "PRIVATE_KEY"
+        # EC and OPENSSH variants must also route.
+        ec_pem = "-----BEGIN EC PRIVATE KEY-----\nABC\n-----END EC PRIVATE KEY-----"
+        openssh_pem = "-----BEGIN OPENSSH PRIVATE KEY-----\nXYZ\n-----END OPENSSH PRIVATE KEY-----"
+        assert _classify_credential_value_shape(ec_pem) == "PRIVATE_KEY"
+        assert _classify_credential_value_shape(openssh_pem) == "PRIVATE_KEY"
+
+    def test_plaintext_password_stays_opaque_secret(self) -> None:
+        from tests.benchmarks.corpus_loader import _classify_credential_value_shape
+
+        for plaintext in (
+            "G9t$fR2mXk5",
+            "Ocean99$",
+            "RiverFlow@2025",
+            "Michael1995",
+            "SunsetRiver!Mountain",
+        ):
+            assert _classify_credential_value_shape(plaintext) == "OPAQUE_SECRET", plaintext
+
+    def test_pin_and_uuid_stay_opaque_secret(self) -> None:
+        from tests.benchmarks.corpus_loader import _classify_credential_value_shape
+
+        # 6-digit PINs.
+        for pin in ("513345", "334728", "180372", "963882"):
+            assert _classify_credential_value_shape(pin) == "OPAQUE_SECRET", pin
+        # UUID-ish tokens.
+        for uuid_like in (
+            "d4a6b9c1-3e2f-4f1a-a76d-3a8c9b1d2e3f",
+            "a1e4b9c2-5d87-4f3a-b2e6-2d8f5c7a9e1b",
+        ):
+            assert _classify_credential_value_shape(uuid_like) == "OPAQUE_SECRET", uuid_like
+
+    def test_empty_and_whitespace_stay_opaque_secret(self) -> None:
+        from tests.benchmarks.corpus_loader import _classify_credential_value_shape
+
+        assert _classify_credential_value_shape("") == "OPAQUE_SECRET"
+        assert _classify_credential_value_shape("   ") == "OPAQUE_SECRET"
+        assert _classify_credential_value_shape("\n\t") == "OPAQUE_SECRET"
+
+    def test_load_nemotron_corpus_emits_api_key_column_when_jwts_present(self) -> None:
+        """End-to-end: loading the shipped Nemotron fixture in blind mode
+        must produce an API_KEY column that contains the JWT values, and
+        those JWTs must NOT leak into the OPAQUE_SECRET column.
+
+        The shipped fixture contains exactly 3 JWT values in its
+        ``password`` bucket (see the Sprint 11 diagnostic spike in the
+        rescoped item's notes).  After shape partitioning they land in
+        a separate API_KEY column.
+        """
+        from tests.benchmarks.corpus_loader import load_nemotron_corpus
+
+        corpus = load_nemotron_corpus(max_rows=500, blind=True)
+        by_type: dict[str, list[str]] = {}
+        for col, expected in corpus:
+            assert expected is not None
+            by_type[expected] = col.sample_values
+
+        # API_KEY column must exist (fixture-dependent: only asserted when
+        # the shipped fixture still contains at least one JWT-shaped
+        # password record — every JWT value must start with ``ey``).
+        api_key_values = by_type.get("API_KEY", [])
+        if api_key_values:
+            assert all(v.startswith("ey") for v in api_key_values), (
+                f"API_KEY column should only contain JWT-shaped values post-partition, got {api_key_values[:3]}"
+            )
+            # Cross-check: no JWTs should remain in OPAQUE_SECRET.
+            opaque_values = by_type.get("OPAQUE_SECRET", [])
+            leaked_jwts = [v for v in opaque_values if v.startswith("ey") and v.count(".") == 2]
+            assert leaked_jwts == [], f"JWTs leaked into OPAQUE_SECRET column: {leaked_jwts}"

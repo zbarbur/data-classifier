@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 
 from data_classifier.core.types import ColumnInput
@@ -182,7 +183,55 @@ NEMOTRON_TYPE_MAP: dict[str, str] = {
     # corpora route to the OPAQUE_SECRET catch-all.
     "CREDENTIAL": "OPAQUE_SECRET",
     "DATE_OF_BIRTH": "DATE_OF_BIRTH",
+    # Sprint 11 credential-shape partitioner identity entries.  The
+    # loader rewrites a record's ``entity_type`` to one of these three
+    # post-taxonomy labels when a raw ``password`` / ``CREDENTIAL``
+    # record's value matches a JWT or PEM shape (see
+    # ``_classify_credential_value_shape``).  Identity entries keep the
+    # rewritten records flowing through the shared ``_records_to_corpus``
+    # type-map lookup without introducing a loader-specific code path.
+    "API_KEY": "API_KEY",
+    "PRIVATE_KEY": "PRIVATE_KEY",
+    "OPAQUE_SECRET": "OPAQUE_SECRET",
 }
+
+
+# JWT shape: three dot-separated base64url segments, header starts with
+# ``ey`` because the JSON header ``{"alg":...}`` base64-encodes to that
+# prefix.  This is the same shape the Nemotron seeded JWTs use and what
+# the regex engine's ``jwt_token`` pattern (correctly) fires on.
+_JWT_SHAPE_RE = re.compile(r"^ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
+
+
+def _classify_credential_value_shape(value: str) -> str:
+    """Return the credential subtype a plaintext value should be labeled as.
+
+    Sprint 11 follow-up to the nemotron-corpus-loader-taxonomy-refresh item.
+    Nemotron's upstream ``password`` / ``CREDENTIAL`` bucket is a
+    grab-bag of plaintext passwords, 6-digit PINs, UUID-ish tokens, and
+    a small number of JWT-shaped tokens.  The Sprint 11 item #1 mapping
+    routed the whole bucket uniformly to ``OPAQUE_SECRET``, so JWT
+    values got scored as FPs when the regex engine correctly identified
+    them as ``API_KEY``.  This helper inspects the value and returns the
+    correct subtype — the caller rewrites each record's ``entity_type``
+    before ``NEMOTRON_TYPE_MAP`` is applied.
+
+    Args:
+        value: A raw credential string from the Nemotron corpus.
+
+    Returns:
+        One of ``"API_KEY"`` (JWT-shaped), ``"PRIVATE_KEY"`` (PEM block),
+        or ``"OPAQUE_SECRET"`` (plaintext password, PIN, UUID, and any
+        empty or whitespace-only input).
+    """
+    stripped = (value or "").strip()
+    if not stripped:
+        return "OPAQUE_SECRET"
+    if _JWT_SHAPE_RE.match(stripped):
+        return "API_KEY"
+    if stripped.startswith("-----BEGIN ") and "KEY" in stripped[:60].upper():
+        return "PRIVATE_KEY"
+    return "OPAQUE_SECRET"
 
 
 def _load_json_corpus(path: Path) -> list[dict]:
@@ -272,7 +321,20 @@ def load_nemotron_corpus(
         logger.warning("No records loaded from Nemotron corpus at %s", path)
         return []
 
-    return _records_to_corpus(records, NEMOTRON_TYPE_MAP, "nemotron", max_rows, blind=blind)
+    # Sprint 11 follow-up: repartition raw ``password`` / ``CREDENTIAL``
+    # records by value shape so JWTs route to API_KEY and PEM blocks to
+    # PRIVATE_KEY.  Leaves every other entity_type untouched.
+    repartitioned: list[dict] = []
+    for record in records:
+        raw_type = record.get("entity_type") or record.get("type") or ""
+        if raw_type in ("password", "CREDENTIAL"):
+            subtype = _classify_credential_value_shape(str(record.get("value", "")))
+            if subtype != "OPAQUE_SECRET":
+                repartitioned.append({**record, "entity_type": subtype})
+                continue
+        repartitioned.append(record)
+
+    return _records_to_corpus(repartitioned, NEMOTRON_TYPE_MAP, "nemotron", max_rows, blind=blind)
 
 
 def load_gretel_en_corpus(
