@@ -185,11 +185,52 @@ regularization shrinks their coefficients to ~0 so they cost nothing.
 Leaving them in keeps the schema forward-compatible if a new corpus
 introduces them.
 
+## Post-Phase-4 update (shard-twin leak fix)
+
+Phase 4 replaced the row-wise `train_test_split` in both
+`scripts/train_meta_classifier.py::train()` and
+`tests/benchmarks/meta_classifier/evaluate.py::primary_split()` with
+`StratifiedGroupKFold` on a base-shard-ID group key that collapses
+named/blind twins. After retraining v2 on the same training data
+with the leak-free split:
+
+| Metric | Phase 3 (leaky) | Phase 4 (leak-free) |
+|---|---|---|
+| best C | 0.1 | 0.01 |
+| CV macro F1 (StratifiedGroupKFold by corpus) | 0.5135 ± 0.2205 | 0.5458 ± 0.1983 |
+| held-out macro F1 (primary_split) | 0.9573 | 0.9349 |
+| BCa 95% CI (width) | 0.0157 | 0.0201 |
+| top feature | heuristic_distinct_ratio (11.03) | primary_entity_type=PHONE (4.75) |
+
+**Smaller drop than expected.** I predicted held-out F1 would collapse
+from 0.96 closer to 0.48. It only dropped to 0.93. On reflection, my
+prediction conflated two different questions:
+
+- **CV macro F1 (~0.55)** measures *cross-corpus* (LOCO-like)
+  generalization: an ABA_ROUTING example from Nemotron can never leak
+  to an ABA_ROUTING example from Gretel-EN, because the CV splitter
+  uses `groups=corpora_train`.
+- **Held-out macro F1 (~0.93)** measures *same-distribution, unseen
+  shard* generalization: base_shard_ids are held out but the corpora
+  in the test fold are all present in training. Row distribution is
+  much closer to training than in LOCO.
+
+Both are honest measurements; they just answer different questions.
+The Phase 4 fix accomplished its purpose — removing the silent leak —
+and the head-to-head drop (-0.022 on held-out) quantifies how much
+the twin leak was inflating the number. Not much, as it turns out:
+most of the "inflation" was actually same-distribution generalization
+being easy.
+
+**Top-feature shift is the more interesting Phase 4 finding.** After
+the tighter regularization, the #1 feature is
+`primary_entity_type=PHONE` (coefficient 4.75), displacing the
+heuristic stats that dominated in Phase 3. The new one-hot is pulling
+its weight exactly as Phase 2 predicted.
+
 ## Known limitations / follow-ups
 
-1. **Shard-twin leak in `primary_split`** (Phase 4 of this sprint
-   batch). The held-out test F1 of 0.96 is inflated by this leak; the
-   honest number is closer to the 0.48 StratifiedGroupKFold result.
+1. ~~**Shard-twin leak in `primary_split`**~~ — FIXED in Phase 4.
 2. **Synthetic-only F1=0 classes** (NOT in this sprint batch). To move
    CANADIAN_SIN, DEA_NUMBER, EIN, NPI, MBI, BITCOIN_ADDRESS,
    ETHEREUM_ADDRESS, DATE_OF_BIRTH_EU off F1=0, we need at least one

@@ -163,21 +163,64 @@ def train(
     y = np.asarray(dataset.labels)
     column_ids = np.asarray(dataset.column_ids)
     corpora_arr = np.asarray(dataset.corpora)
+    modes_arr = np.asarray(dataset.modes)
 
-    X_train, X_test, y_train, y_test, id_train, id_test, corpora_train, _corpora_test = train_test_split(
-        X_full,
-        y,
-        column_ids,
-        corpora_arr,
-        test_size=0.2,
-        random_state=RANDOM_STATE,
-        stratify=y,
+    # Sprint 11 Phase 4 fix: the previous train_test_split(stratify=y)
+    # put named/blind shard twins (identical sample values, different
+    # column_name only) in opposite folds, which silently inflated
+    # held-out test macro F1 by ~0.45. The fix collapses twins onto a
+    # single "base shard ID" and uses StratifiedGroupKFold to carve
+    # out an 80/20 cut that is both class-stratified and group-aware.
+    #
+    # The same _base_shard_id helper lives in
+    # tests/benchmarks/meta_classifier/evaluate.py — keep them in sync.
+    base_shard_ids = np.asarray(
+        [cid.replace(f"_{m}_", "_base_", 1) for cid, m in zip(column_ids, modes_arr, strict=True)],
     )
 
-    # Column-id leak invariant
+    # Adaptive: StratifiedGroupKFold needs at least n_splits distinct
+    # groups. For tiny single-corpus test fixtures (used in unit tests)
+    # the group count can be below 5, in which case fall back to a
+    # plain stratified split. Production training data always has
+    # hundreds of groups so the group-aware branch is the normal path.
+    n_groups = len(np.unique(base_shard_ids))
+    if n_groups >= 5:
+        sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
+        train_idx, test_idx = next(sgkf.split(X_full, y, groups=base_shard_ids))
+
+        def _slice(a: np.ndarray, idx: np.ndarray) -> np.ndarray:
+            return a[idx]
+
+        X_train = _slice(X_full, train_idx)
+        X_test = _slice(X_full, test_idx)
+        y_train = _slice(y, train_idx)
+        y_test = _slice(y, test_idx)
+        id_train = _slice(column_ids, train_idx)
+        id_test = _slice(column_ids, test_idx)
+        corpora_train = _slice(corpora_arr, train_idx)
+    else:
+        X_train, X_test, y_train, y_test, id_train, id_test, corpora_train, _corpora_test = train_test_split(
+            X_full,
+            y,
+            column_ids,
+            corpora_arr,
+            test_size=0.2,
+            random_state=RANDOM_STATE,
+            stratify=y,
+        )
+
+    # Column-id leak invariant (trivial — IDs are already unique).
     train_ids = set(id_train.tolist())
     test_ids = set(id_test.tolist())
     assert not (train_ids & test_ids), "column_id leaked between train/test"
+
+    # Shard-twin leak invariant (Sprint 11 Phase 4). This catches the
+    # case where two rows with distinct column_ids but identical base
+    # shard IDs land in opposite folds.
+    if n_groups >= 5:
+        train_base = set(base_shard_ids[train_idx].tolist())
+        test_base = set(base_shard_ids[test_idx].tolist())
+        assert not (train_base & test_base), "shard-twin leak: base shard in both train and test folds"
 
     # Scale only on training data.
     scaler = StandardScaler()

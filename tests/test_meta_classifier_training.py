@@ -443,6 +443,86 @@ class TestSplitInvariants:
         )
         assert not (set(id_train.tolist()) & set(id_test.tolist()))
 
+    def test_shard_twin_leak_guard_in_primary_split(self) -> None:
+        """Sprint 11 Phase 4: named/blind shard twins must land in the
+        same fold after primary_split.
+
+        The pre-fix row-wise train_test_split silently violated this
+        invariant because named/blind column_ids are distinct strings
+        (``..._named_..._shard0`` vs ``..._blind_..._shard0``) even
+        though their sample values are identical. Constructing a
+        deterministic fixture where every shard has a twin in the
+        other mode and then asserting that both twins share a fold
+        pins the group-aware split contract.
+        """
+        import numpy as np
+
+        from scripts.train_meta_classifier import load_jsonl
+        from tests.benchmarks.meta_classifier.evaluate import (
+            _base_shard_id,
+            primary_split,
+        )
+
+        # Synthesise twin rows: 10 distinct base shards, each with a
+        # named + blind twin → 20 rows, 3 classes, 2 corpora.
+        rows: list[dict] = []
+        for i in range(10):
+            cls = ["EMAIL", "SSN", "PHONE"][i % 3]
+            corpus = ["testA", "testB"][i % 2]
+            for mode in ("named", "blind"):
+                rows.append(
+                    {
+                        "column_id": f"{corpus}_{mode}_{cls}_shard{i}",
+                        "corpus": corpus,
+                        "mode": mode,
+                        "source": "real",
+                        "features": _base_feature_vector(
+                            primary_entity_type=cls,
+                            top_overall_confidence=0.9,
+                            regex_confidence=0.9,
+                            primary_is_pii=1.0,
+                        ),
+                        "ground_truth": cls,
+                    }
+                )
+
+        # Write to a tmp JSONL so the real loader produces a
+        # LoadedDataset.
+        import json
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+            path = Path(f.name)
+
+        try:
+            from data_classifier.orchestrator.meta_classifier import FEATURE_NAMES
+
+            dataset = load_jsonl(path, FEATURE_NAMES)
+            split = primary_split(dataset)
+
+            # Invariant 1: no column_id in both folds.
+            assert not (set(split["id_train"]) & set(split["id_test"]))
+
+            # Invariant 2: no BASE shard ID in both folds.
+            train_base = {_base_shard_id(cid, m) for cid, m in zip(split["id_train"], split["mode_train"], strict=True)}
+            test_base = {_base_shard_id(cid, m) for cid, m in zip(split["id_test"], split["mode_test"], strict=True)}
+            assert not (train_base & test_base), "shard-twin leak: a base shard appears in both folds"
+
+            # Invariant 3: every row that ended up in a fold has its
+            # twin in the SAME fold.
+            train_ids_set = set(split["id_train"])
+            for cid, mode in zip(split["id_train"], split["mode_train"], strict=True):
+                twin_mode = "blind" if mode == "named" else "named"
+                twin_id = cid.replace(f"_{mode}_", f"_{twin_mode}_", 1)
+                assert twin_id in train_ids_set, f"twin {twin_id} of {cid} is missing from train fold"
+            # Not strictly necessary to verify the test fold too —
+            # invariant 2 already forbids leakage in either direction.
+            _ = np  # silence unused-import warning
+        finally:
+            path.unlink()
+
 
 class TestLOCOEvaluation:
     def test_loco_fit_predict_excludes_heldout_corpus(self) -> None:
