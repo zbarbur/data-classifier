@@ -90,6 +90,47 @@ GRETEL_EN_TYPE_MAP: dict[str, str] = {
 _GRETEL_EN_POST_ETL_IDENTITY: dict[str, str] = {label: label for label in set(GRETEL_EN_TYPE_MAP.values())}
 
 
+# Gretel synthetic_pii_finance_multilingual label map — locked
+# 2026-04-14, Sprint 10. Mirrors ``scripts.download_corpora.GRETEL_FINANCE_TYPE_MAP``
+# verbatim; keep these in sync.  See the download-side docstring for the
+# full rationale: the Gretel-finance dataset is the targeted intervention
+# for the ``heuristic_avg_length`` corpus-fingerprint shortcut because
+# it ships credential labels inside long-form financial-document prose,
+# not in isolated KV lines.  15 of 27 raw labels in the discovery sample
+# map to existing ``data_classifier`` entity types; the 12 unmapped
+# labels are either generic/ambiguous (``date``, ``time``, ``company``,
+# ``customer_id``, ``employee_id``, ``user_name``, ``date_time``,
+# ``credit_card_security_code``, ``local_latlng``) or net-new taxonomy
+# candidates filed as a Sprint 11 backlog item (``account_pin``,
+# ``bban``, ``driver_license_number``).  Do NOT widen this map without
+# updating the Sprint 11 follow-up item.
+GRETEL_FINANCE_TYPE_MAP: dict[str, str] = {
+    # Identity / PII
+    "name": "PERSON_NAME",
+    "first_name": "PERSON_NAME",
+    "street_address": "ADDRESS",
+    "phone_number": "PHONE",
+    "email": "EMAIL",
+    "date_of_birth": "DATE_OF_BIRTH",
+    "ssn": "SSN",
+    # Financial
+    "iban": "IBAN",
+    "credit_card_number": "CREDIT_CARD",
+    "bank_routing_number": "ABA_ROUTING",
+    "swift_bic_code": "SWIFT_BIC",
+    # Network
+    "ipv4": "IP_ADDRESS",
+    "ipv6": "IP_ADDRESS",
+    # Credentials (the reason this corpus exists)
+    "password": "CREDENTIAL",
+    "api_key": "CREDENTIAL",
+}
+
+#: Identity map over the already-flattened post-ETL labels in the
+#: Gretel-finance fixture, matching the Gretel-EN approach.
+_GRETEL_FINANCE_POST_ETL_IDENTITY: dict[str, str] = {label: label for label in set(GRETEL_FINANCE_TYPE_MAP.values())}
+
+
 NEMOTRON_TYPE_MAP: dict[str, str] = {
     "first_name": "PERSON_NAME",
     "last_name": "PERSON_NAME",
@@ -258,6 +299,61 @@ def load_gretel_en_corpus(
         return []
 
     return _records_to_corpus(records, _GRETEL_EN_POST_ETL_IDENTITY, "gretel_en", max_rows, blind=blind)
+
+
+def load_gretel_finance_corpus(
+    path: Path | str | None = None,
+    max_rows: int = 500,
+    *,
+    blind: bool = False,
+    language: str | None = None,
+) -> list[tuple[ColumnInput, str | None]]:
+    """Load the Gretel synthetic_pii_finance_multilingual corpus sample.
+
+    Like :func:`load_gretel_en_corpus`, the bundled fixture
+    (``tests/fixtures/corpora/gretel_finance_sample.json``) is
+    **already flattened** to the ``{"entity_type": <data_classifier
+    type>, "value": <raw value>}`` schema.  The download-side ETL in
+    ``scripts/download_corpora.py`` slices span values out of
+    ``generated_text`` via ``pii_spans`` offsets, maps labels through
+    :data:`GRETEL_FINANCE_TYPE_MAP`, and writes the post-ETL taxonomy
+    labels to disk.  Credential records in the fixture additionally
+    retain a ``source_context`` field so that downstream tests can
+    spot-check credentials-in-prose — the loader ignores it.
+
+    Args:
+        path: Path to JSON sample file. Defaults to bundled fixture.
+        max_rows: Maximum sample values per entity type.
+        blind: If True, use generic column names (``col_0``, ``col_1``,
+            ...) so the column-name engine cannot cheat.
+        language: Optional filter on the ``source_language`` metadata
+            field; only applied to records that carry one (credentials
+            only in the bundled fixture).  Reserved for future
+            per-language evaluation hooks.
+
+    Returns:
+        List of ``(ColumnInput, expected_entity_type)`` tuples.
+    """
+    if path is None:
+        path = _FIXTURES_DIR / "gretel_finance_sample.json"
+    else:
+        path = Path(path)
+
+    records = _load_json_corpus(path)
+    if not records:
+        logger.warning("No records loaded from Gretel-finance corpus at %s", path)
+        return []
+
+    if language is not None:
+        records = [r for r in records if r.get("source_language") is None or r.get("source_language") == language]
+
+    return _records_to_corpus(
+        records,
+        _GRETEL_FINANCE_POST_ETL_IDENTITY,
+        "gretel_finance",
+        max_rows,
+        blind=blind,
+    )
 
 
 #: Generic sentinel for "this column's ground truth is that nothing
@@ -543,7 +639,7 @@ def load_corpus(
     Args:
         source: One of ``"synthetic"``, ``"nemotron"``,
             ``"secretbench"``, ``"gitleaks"``, ``"detect_secrets"``,
-            ``"gretel_en"``, or ``"all"``.
+            ``"gretel_en"``, ``"gretel_finance"``, or ``"all"``.
         max_rows: Max rows for real-world corpora.
         path: Optional custom path to corpus file.
         samples_per_type: Samples per type for synthetic corpus.
@@ -565,6 +661,8 @@ def load_corpus(
         return load_detect_secrets_corpus(path=path, blind=blind)
     elif source == "gretel_en":
         return load_gretel_en_corpus(path=path, max_rows=max_rows, blind=blind)
+    elif source == "gretel_finance":
+        return load_gretel_finance_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "all":
         corpus: list[tuple[ColumnInput, str | None]] = []
         corpus.extend(load_synthetic_corpus(samples_per_type=samples_per_type))
@@ -573,11 +671,12 @@ def load_corpus(
         corpus.extend(load_gitleaks_corpus(blind=blind))
         corpus.extend(load_detect_secrets_corpus(blind=blind))
         corpus.extend(load_gretel_en_corpus(max_rows=max_rows, blind=blind))
+        corpus.extend(load_gretel_finance_corpus(max_rows=max_rows, blind=blind))
         return corpus
     else:
         msg = (
             f"Unknown corpus source: {source!r}. Valid: synthetic, "
             "nemotron, secretbench, gitleaks, detect_secrets, "
-            "gretel_en, all"
+            "gretel_en, gretel_finance, all"
         )
         raise ValueError(msg)

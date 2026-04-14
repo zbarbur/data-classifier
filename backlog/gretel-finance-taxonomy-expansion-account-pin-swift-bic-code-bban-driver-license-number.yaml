@@ -1,0 +1,27 @@
+title: "Gretel-finance taxonomy expansion \u2014 account_pin, swift_bic_code, bban,\
+  \ driver_license_number"
+status: backlog
+priority: P2
+category: feature
+sprint_target: 11
+created: 2026-04-14
+updated: 2026-04-14
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: 'Sprint 10 item #3 ingest discovery surfaced 4 net-new entity types in
+  the Gretel-finance raw label vocabulary that have no current data_classifier counterpart:
+  account_pin, swift_bic_code, bban (Basic Bank Account Number), driver_license_number.
+  Each needs: (a) entity type definition in data_classifier/entity_types.py, (b) regex/column-name
+  engine patterns, (c) test fixtures, (d) addition to GRETEL_FINANCE_TYPE_MAP. This
+  was deferred from Sprint 10 to avoid mid-sprint taxonomy changes.'
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

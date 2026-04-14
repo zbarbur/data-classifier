@@ -39,6 +39,9 @@ from tests.benchmarks.corpus_loader import (
 from tests.benchmarks.corpus_loader import (
     _GRETEL_EN_POST_ETL_IDENTITY as _GRETEL_EN_POOL_IDENTITY,
 )
+from tests.benchmarks.corpus_loader import (
+    _GRETEL_FINANCE_POST_ETL_IDENTITY as _GRETEL_FINANCE_POOL_IDENTITY,
+)
 
 # ── Sharding parameters (Session A §7 TL;DR) ───────────────────────────────
 
@@ -119,6 +122,29 @@ def _gretel_en_pool() -> dict[str, list[str]]:
         if not value or not ext:
             continue
         mapped = _GRETEL_EN_POOL_IDENTITY.get(ext)
+        if mapped is None:
+            continue
+        pool.setdefault(mapped, []).append(str(value))
+    return pool
+
+
+def _gretel_finance_pool() -> dict[str, list[str]]:
+    """Return ``{mapped_type: [values...]}`` for the Gretel-finance sample.
+
+    Parallels :func:`_gretel_en_pool`.  The fixture is flattened with
+    post-ETL taxonomy labels (see
+    ``corpus_loader.load_gretel_finance_corpus``) and carries credential
+    records with additional ``source_context`` metadata — the pool only
+    uses ``entity_type`` and ``value``.
+    """
+    records = _load_raw_records(_FIXTURES_DIR / "gretel_finance_sample.json")
+    pool: dict[str, list[str]] = {}
+    for rec in records:
+        ext = rec.get("entity_type", rec.get("type", ""))
+        value = rec.get("value", "")
+        if not value or not ext:
+            continue
+        mapped = _GRETEL_FINANCE_POOL_IDENTITY.get(ext)
         if mapped is None:
             continue
         pool.setdefault(mapped, []).append(str(value))
@@ -381,6 +407,30 @@ def build_real_corpus_shards(
                 values=values,
                 ground_truth=gt,
                 corpus="gretel_en",
+                source="real",
+                num_shards=shards_per_type,
+                rng=rng,
+            )
+        )
+
+    # Gretel synthetic_pii_finance_multilingual — mixed-label corpus
+    # (Sprint 10).  Same handling as Gretel-EN: already-normalised
+    # schema, positives only, one ground-truth per shard.  The reason
+    # it's an *additional* corpus rather than a replacement is that its
+    # credential labels live inside long-form financial-document prose
+    # (loan agreements, MT940 statements, insurance forms), which is
+    # the targeted intervention for the ``heuristic_avg_length``
+    # corpus-fingerprint shortcut diagnosed in M1 — credentials from
+    # this corpus have *long* surrounding context, breaking the
+    # ``short-text == credential`` correlation that dominated the
+    # Sprint 9 meta-classifier.
+    pool_gretel_finance = _gretel_finance_pool()
+    for gt, values in sorted(pool_gretel_finance.items()):
+        shards.extend(
+            _emit_shards_for_type(
+                values=values,
+                ground_truth=gt,
+                corpus="gretel_finance",
                 source="real",
                 num_shards=shards_per_type,
                 rng=rng,

@@ -1,6 +1,6 @@
 title: "GLiNER2 over-fires ORGANIZATION on numeric-dash inputs (SSN-format) \u2014\
   \ audit prompt/descriptions or add content-shape filter"
-status: backlog
+status: done
 priority: P2
 category: bug
 sprint_target: 10
@@ -53,5 +53,24 @@ notes: "Filed 2026-04-13 during Sprint 8 Item 2 execution. The Item 2 fix in tes
 phase: null
 design_reviewed: false
 code_reviewed: false
-comments: []
+comments:
+- text: "Closed 2026-04-14 by subsumption. Sprint 10 item #1 (promote-s1-nl-prompt-wrapping-gliner-engine,\
+    \ commit 2bbe8d1 merged into sprint10/main as part of merge commit 9cd1b8a-ish)\
+    \ added tests/test_gliner_engine.py::TestOrgOverfireRegression::test_no_org_overfire_on_numeric_dash_at_threshold_08\
+    \ which pins the engine to use S1 NL-prompt wrapping on numeric-dash inputs \u2014\
+    \ the structural fix for this bug by construction on the metadata-present code\
+    \ path. Pass 1 research memo (research/gliner-context @ 7b2ed91) measured ~25\
+    \ to ~8 ORG false-fire reduction at threshold 0.8 (68% reduction) which the regression\
+    \ test pins. Caveat: the metadata-absent fallback path still produces legacy baseline\
+    \ text, so this closure covers the BQ production path only (where metadata is\
+    \ populated per docs/process/BQ_INTEGRATION_STATUS.md). A separate observation\
+    \ was logged during item #1 merge: S1 wrapping on gretel_en named-mode added 1\
+    \ new ORG false fire on the gretel_en_health negative column (0.917 to 0.880 micro\
+    \ F1 on 12 columns, outside the acceptance gate list). Filed as a Sprint 11 research\
+    \ question \u2014 the Pass 1 ORG-FP-reduction prediction may not hold uniformly\
+    \ across corpora/models, needs cross-corpus measurement on urchade v1."
+  flagged: false
+  resolved: false
+  created: '2026-04-14'
+  author: agent
 images: []

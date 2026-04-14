@@ -1,0 +1,47 @@
+title: "Review ai4privacy dataset family and ingest best CC-BY-4.0 variant \u2014\
+  \ re-open Sprint 9 removal decision"
+status: backlog
+priority: P2
+category: feature
+sprint_target: 11
+created: 2026-04-14
+updated: 2026-04-14
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: "Sprint 9 removed ai4privacy/pii-masking-300k based on the presumption\
+  \ that all ai4privacy datasets share the non-OSI custom license that pii-masking-400k\
+  \ has. That presumption is wrong: ai4privacy/pii-masking-openpii-1m is explicitly\
+  \ CC-BY-4.0 (commercial use permitted, attribution required), confirmed 2026-04-14\
+  \ via direct HuggingFace page fetch. The dataset is 1,428,143 rows, 4.61GB JSONL,\
+  \ 23 languages, 19 entity labels including high-value PII (IDCARDNUM, DRIVERLICENSENUM,\
+  \ TAXNUM, PASSPORTNUM, SOCIALNUM, CREDITCARDNUMBER) that our current taxonomy covers\
+  \ partially. A larger pii-masking-2m variant also exists (82+ labels, 24 languages,\
+  \ enterprise positioning) \u2014 its license needs independent verification. This\
+  \ item reviews all four ai4privacy dataset variants (300k, 400k, openpii-1m, pii-masking-2m),\
+  \ verifies each license directly via the LICENSE_AUDIT discipline (never trust dataset\
+  \ card metadata alone \u2014 fetch the actual page/LICENSE file from HuggingFace),\
+  \ picks the best variant that balances OSI compatibility + taxonomic fit + row count\
+  \ + language coverage, and ingests it as corpus #9 (or #10 if Gretel-finance is\
+  \ still counted as in-progress). Expected complexity M because the ETL scaffolding\
+  \ is reusable from Sprint 10 Gretel-finance (same HF REST pattern, same _records_to_corpus\
+  \ helper, same shard_builder pattern) but the type map is larger (19 vs 15 labels)\
+  \ and the entity-taxonomy mapping decisions are non-trivial (e.g. GIVENNAME+SURNAME\
+  \ \u2192 PERSON_NAME, BUILDINGNUM+STREET+CITY+ZIPCODE \u2192 ADDRESS, IDCARDNUM/DRIVERLICENSENUM/PASSPORTNUM/TAXNUM\
+  \ \u2192 new national-ID subtypes or map to existing SSN/NATIONAL_ID). License verification\
+  \ and taxonomy design can run in parallel with other Sprint 11 work. Deliverables:\
+  \ updated LICENSE_AUDIT.md with per-variant verification rows (including a correction\
+  \ footnote about the Sprint 9 blanket-ban gap), ingestion script addition, type\
+  \ map, fixture, corpus_loader extension, shard_builder integration, TestOpenPIILoader\
+  \ class, post-ingest meta-classifier retrain, observation memo on training-data\
+  \ scale impact vs post-Gretel-finance baseline."
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

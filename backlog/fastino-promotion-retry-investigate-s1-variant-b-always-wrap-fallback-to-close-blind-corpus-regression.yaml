@@ -1,0 +1,51 @@
+title: "Fastino promotion retry \u2014 investigate S1 variant-B always-wrap fallback\
+  \ to close blind-corpus regression"
+status: backlog
+priority: P2
+category: feature
+sprint_target: 11
+created: 2026-04-14
+updated: 2026-04-14
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: "Sprint 10 wave 3 fastino promotion attempt FAILED gates with very large\
+  \ regressions, even with S1 NL-prompt wrapping (item #1) live in blind mode.\n\n\
+  Measured (sprint10/main + fastino/gliner2-base-v1 + threshold 0.80 + descriptions-off\
+  \ + label swaps person->'full name', SSN->'social security number'):\n- Gretel-EN\
+  \ blind macro F1: 0.413 (Sprint 9 baseline 0.611, gate >= 0.606, delta -0.198)\n\
+  - Nemotron blind macro F1: 0.526 (Sprint 9 baseline 0.821, gate >= 0.816, delta\
+  \ -0.295)\n- Also vs the post-S1 sprint10/main urchade tip: Gretel 0.611->0.413\
+  \ (-0.198), Nemotron 0.774->0.526 (-0.248).\n\nDominant failure mode (observed in\
+  \ benchmark FP/FN dump): fastino fires PHONE at high confidence (avg 0.92, max 0.96+)\
+  \ on numeric-looking columns (ABA_ROUTING, BANK_ACCOUNT, CREDIT_CARD, HEALTH, VIN),\
+  \ and the orchestrator's cross-engine dedup then suppresses correct regex-engine\
+  \ findings in favor of the more confident PHONE. Two integration tests also broke\
+  \ for the same reason: tests/test_date_of_birth_eu.py::TestDateOfBirthInvalid::test_invalid_dates_rejected[32/13/2000]\
+  \ (fastino fires DATE_OF_BIRTH on '32/13/2000') and tests/test_regex_engine.py::TestValidators::test_sin_luhn_validates_formatted_and_unformatted\
+  \ (fastino fires PHONE on Canadian SIN samples, suppressing CANADIAN_SIN finding).\n\
+  \nThe Sprint 10 item #1 Pass 1 memo measured fastino recovering +0.039 macro F1\
+  \ on the *empty-context Ai4Privacy* stratum with S1 wrapping. That single-stratum\
+  \ signal does NOT transfer to Gretel-EN or Nemotron blind corpora \u2014 the regression\
+  \ on numeric/structured columns dominates.\n\nRecommended Sprint 11 path: do NOT\
+  \ pursue another straight fastino promotion. The most promising of the three options\
+  \ is (a) S1 variant B 'always wrap even on metadata-free input' COMBINED WITH (b)\
+  \ a higher fastino threshold (0.85-0.90) AND a hard suppressor for fastino PHONE\
+  \ on columns whose data_type is numeric or whose samples are entirely digit-and-separator\
+  \ strings. If that still doesn't clear gates, (c) abandon fastino and instead invest\
+  \ in either fine-tuning urchade v1 or gating GLiNER behind regex-shape pre-checks.\
+  \ Recommend doing a small Pass 2 research run on the post-S1 corpora before committing\
+  \ to a promotion attempt.\n\nReverted: data_classifier/engines/gliner_engine.py\
+  \ and tests/test_gliner_engine.py.\n\nDO NOT touch the existing promote-gliner-tuning-fastino-base-v1\
+  \ backlog item \u2014 that is owned by the main session for this sprint's status\
+  \ accounting."
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

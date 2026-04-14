@@ -9,6 +9,7 @@ Usage:
     python3 scripts/download_corpora.py --corpus secretbench
     python3 scripts/download_corpora.py --corpus gitleaks
     python3 scripts/download_corpora.py --corpus gretel_en
+    python3 scripts/download_corpora.py --corpus gretel_finance
     python3 scripts/download_corpora.py --corpus all
 
 Note: the ``ai4privacy`` choice is retained for CLI discoverability but
@@ -125,6 +126,59 @@ GRETEL_EN_TYPE_MAP: dict[str, str] = {
     # Health — coarse bucket for MRN (largest single Gretel label in the
     # discovery sample).
     "medical_record_number": "HEALTH",
+}
+
+
+# Gretel synthetic_pii_finance_multilingual label map (locked 2026-04-14,
+# Sprint 10 dataset-landscape Tier-1 #2).
+#
+# The Gretel-finance dataset is the only open corpus where credential
+# labels (``password``, ``api_key``, ``account_pin``) appear inside
+# long-form financial document prose — loan agreements, SWIFT messages,
+# insurance claims, MT940 statements, tax notices. It is the targeted
+# intervention for the ``heuristic_avg_length`` corpus-fingerprint
+# shortcut diagnosed in Sprint 9 M1 work (the other credential corpora
+# all fingerprint as ``short avg-length`` because credentials live in
+# isolated KV lines; Gretel-finance lets them live in prose).
+#
+# Schema surprise versus Gretel-EN: the ``pii_spans`` column is **JSON**
+# (``json.loads``), not a Python ``repr`` string, and each span is
+# ``{start, end, label}`` — the raw value must be sliced out of the
+# ``generated_text`` column by offset, NOT read from the span payload.
+#
+# Coverage: 15 of the 27 raw labels present in the 100-row discovery
+# sample are mapped. All 15 map to entity types already in the
+# ``data_classifier`` production vocabulary (no net-new taxonomy). The
+# 4 labels listed in the backlog item as Sprint 11 expansion candidates
+# (``account_pin``, ``bban``, ``driver_license_number``,
+# ``swift_bic_code``) -- note that ``swift_bic_code`` is intentionally
+# mapped here to the existing ``SWIFT_BIC`` type (not net-new, and the
+# Sprint 9 NEMOTRON_TYPE_MAP already maps ``swift_bic`` the same way).
+# The remaining 3 + 8 generic-or-unmapped labels (``account_pin``,
+# ``bban``, ``driver_license_number``, ``company``, ``customer_id``,
+# ``employee_id``, ``user_name``, ``date``, ``date_time``, ``time``,
+# ``credit_card_security_code``, ``local_latlng``) are surfaced as a
+# Sprint 11 taxonomy expansion backlog item — do NOT add them here.
+GRETEL_FINANCE_TYPE_MAP: dict[str, str] = {
+    # Identity / PII
+    "name": "PERSON_NAME",
+    "first_name": "PERSON_NAME",
+    "street_address": "ADDRESS",
+    "phone_number": "PHONE",
+    "email": "EMAIL",
+    "date_of_birth": "DATE_OF_BIRTH",
+    "ssn": "SSN",
+    # Financial
+    "iban": "IBAN",
+    "credit_card_number": "CREDIT_CARD",
+    "bank_routing_number": "ABA_ROUTING",
+    "swift_bic_code": "SWIFT_BIC",
+    # Network
+    "ipv4": "IP_ADDRESS",
+    "ipv6": "IP_ADDRESS",
+    # Credentials (the reason this corpus exists)
+    "password": "CREDENTIAL",
+    "api_key": "CREDENTIAL",
 }
 
 
@@ -451,6 +505,152 @@ def _fetch_gretel_en_via_rest_api(consumer, *, max_per_type: int) -> None:
         offset += page_size
 
 
+# ── Gretel synthetic_pii_finance_multilingual ───────────────────────────────
+
+
+def download_gretel_finance(
+    max_per_type: int = 1000,
+    languages: list[str] | None = None,
+) -> list[dict]:
+    """Download ``gretelai/synthetic_pii_finance_multilingual`` and extract spans.
+
+    Apache 2.0, 56k rows, 7 languages (English, Spanish, Italian, French,
+    German, Dutch, Swedish), finance domain only. Each row has a
+    ``generated_text`` column (prose financial document: loan agreement,
+    MT940 statement, SWIFT message, insurance form, tax notice, ...) and
+    a ``pii_spans`` column that is a **JSON** string (double quotes, use
+    :func:`json.loads`, NOT :func:`ast.literal_eval` -- this diverges
+    from Gretel-EN's Python-repr format despite the same publisher).
+    Each span is ``{"start": int, "end": int, "label": str}`` and the
+    raw value must be sliced out of ``generated_text`` using those
+    offsets.
+
+    Args:
+        max_per_type: Maximum values kept per mapped entity type.
+        languages: Optional allowlist of ``row["language"]`` strings.
+            Gretel-finance values are ``{"English", "Spanish", "Italian",
+            "France", "German", "Dutch", "Swedish"}`` — note ``"France"``
+            is the raw dataset label, not ``"French"``.  ``None`` means
+            all languages (default).
+
+    Transport preference mirrors ``download_gretel_en``:
+    1. ``datasets`` library if available.
+    2. HuggingFace datasets-server REST ``/rows`` endpoint as fallback.
+
+    Returns flattened records ``[{"entity_type": mapped_type, "value":
+    sliced_value}, ...]``, deduplicated and capped at ``max_per_type``
+    per mapped type. Labels not in :data:`GRETEL_FINANCE_TYPE_MAP` are
+    dropped.
+    """
+    logger.info("Downloading gretelai/synthetic_pii_finance_multilingual...")
+    if languages is not None:
+        logger.info("  languages filter: %s", sorted(languages))
+
+    records_by_type: dict[str, list[str]] = {}
+    allowed_languages: set[str] | None = set(languages) if languages else None
+
+    def _consume_row(row: dict) -> None:
+        lang = row.get("language", "")
+        if allowed_languages is not None and lang not in allowed_languages:
+            return
+        generated_text = row.get("generated_text", "") or ""
+        if not generated_text or not isinstance(generated_text, str):
+            return
+        raw_spans = row.get("pii_spans", "[]")
+        if not raw_spans or not isinstance(raw_spans, str):
+            return
+        try:
+            spans = json.loads(raw_spans)
+        except (ValueError, TypeError):
+            return
+        if not isinstance(spans, list):
+            return
+        for span in spans:
+            if not isinstance(span, dict):
+                continue
+            label = span.get("label", "")
+            start = span.get("start")
+            end = span.get("end")
+            if not label or start is None or end is None:
+                continue
+            our_type = GRETEL_FINANCE_TYPE_MAP.get(label)
+            if our_type is None:
+                continue
+            try:
+                value = generated_text[int(start) : int(end)]
+            except (TypeError, ValueError):
+                continue
+            if not value:
+                continue
+            records_by_type.setdefault(our_type, []).append(str(value))
+
+    # Attempt 1: native datasets library.
+    try:
+        from datasets import load_dataset  # type: ignore[import-not-found]
+
+        ds = load_dataset("gretelai/synthetic_pii_finance_multilingual", split="train")
+        logger.info("Loaded %d rows via datasets library", len(ds))
+        for row in ds:
+            _consume_row(row)
+    except ImportError:
+        logger.info("datasets library not installed -- falling back to datasets-server REST API")
+        _fetch_gretel_finance_via_rest_api(_consume_row, max_per_type=max_per_type)
+    except Exception as exc:
+        logger.warning("datasets library failed (%s) -- falling back to REST API", exc)
+        _fetch_gretel_finance_via_rest_api(_consume_row, max_per_type=max_per_type)
+
+    # Deduplicate and cap per type.
+    records: list[dict] = []
+    for entity_type, values in sorted(records_by_type.items()):
+        unique = list(dict.fromkeys(values))[:max_per_type]
+        logger.info("  %s: %d unique values (from %d total)", entity_type, len(unique), len(values))
+        for v in unique:
+            records.append({"entity_type": entity_type, "value": v})
+
+    return records
+
+
+def _fetch_gretel_finance_via_rest_api(consumer, *, max_per_type: int) -> None:
+    """Page through the HuggingFace datasets-server for Gretel-finance.
+
+    Same pagination shape as :func:`_fetch_gretel_en_via_rest_api` — the
+    only difference is the dataset slug in the base URL.
+    """
+    import urllib.request
+
+    base = (
+        "https://datasets-server.huggingface.co/rows"
+        "?dataset=gretelai/synthetic_pii_finance_multilingual&config=default&split=train"
+    )
+    page_size = 100
+    offset = 0
+    # Finance rows are longer than Gretel-EN rows (full prose documents)
+    # and carry more spans per row on average, so we overshoot less.
+    hard_cap_rows = max(500, max_per_type * 10)
+
+    while offset < hard_cap_rows:
+        url = f"{base}&offset={offset}&length={page_size}"
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            response = urllib.request.urlopen(req, timeout=30)
+            payload = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            logger.error("datasets-server fetch failed at offset=%d: %s", offset, exc)
+            return
+
+        rows = payload.get("rows", [])
+        if not rows:
+            return
+
+        for entry in rows:
+            row = entry.get("row", {})
+            consumer(row)
+
+        if len(rows) < page_size:
+            return
+        offset += page_size
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
@@ -470,7 +670,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Download and process benchmark corpora")
     parser.add_argument(
         "--corpus",
-        choices=["ai4privacy", "nemotron", "secretbench", "gitleaks", "gretel_en", "all"],
+        choices=[
+            "ai4privacy",
+            "nemotron",
+            "secretbench",
+            "gitleaks",
+            "gretel_en",
+            "gretel_finance",
+            "all",
+        ],
         default="all",
         help="Which corpus to download",
     )
@@ -479,7 +687,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    corpora = [args.corpus] if args.corpus != "all" else ["nemotron", "secretbench", "gitleaks", "gretel_en"]
+    corpora = (
+        [args.corpus]
+        if args.corpus != "all"
+        else ["nemotron", "secretbench", "gitleaks", "gretel_en", "gretel_finance"]
+    )
     total_records = 0
 
     for corpus_name in corpora:
@@ -515,6 +727,12 @@ def main() -> None:
             records = download_gretel_en(max_per_type=args.max_per_type)
             if records:
                 save_corpus(records, "gretel_en_sample.json")
+                total_records += len(records)
+
+        elif corpus_name == "gretel_finance":
+            records = download_gretel_finance(max_per_type=args.max_per_type)
+            if records:
+                save_corpus(records, "gretel_finance_sample.json")
                 total_records += len(records)
 
     logger.info("=" * 60)
