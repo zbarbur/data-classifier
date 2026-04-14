@@ -124,6 +124,31 @@ _MAX_PROMPT_CHARS = 2000
 # and only sheds long catalog comments.
 _DESCRIPTION_TRUNCATE_CHARS = 200
 
+# Sprint 10: data_type pre-filter — skip GLiNER inference entirely when
+# ``ColumnInput.data_type`` is a non-text SQL type on which NER cannot
+# produce meaningful results.  Values are upper-cased before comparison;
+# an empty ``data_type`` (legacy connectors / fall-through safety) always
+# falls through to the model.  BQ connector populates this field in
+# BigQuery UPPERCASE convention as of Sprint 10 (see
+# docs/process/BQ_INTEGRATION_STATUS.md).
+_NON_TEXT_DATA_TYPES: frozenset[str] = frozenset(
+    {
+        "INTEGER",
+        "INT64",
+        "FLOAT",
+        "FLOAT64",
+        "NUMERIC",
+        "BIGNUMERIC",
+        "BOOLEAN",
+        "BOOL",
+        "TIMESTAMP",
+        "DATE",
+        "DATETIME",
+        "TIME",
+        "BYTES",
+    }
+)
+
 
 def _build_ner_prompt(column: ColumnInput, chunk: list[str]) -> str:
     """Build a natural-language NER prompt for GLiNER from column metadata + sample values.
@@ -439,6 +464,13 @@ class GLiNER2Engine(ClassificationEngine):
         Processes sample values in chunks, runs NER with descriptions,
         and maps predictions back to our entity taxonomy.
         """
+        # Sprint 10: skip numeric/temporal/boolean/bytes columns entirely
+        # before any model load.  NER cannot produce meaningful results on
+        # these types and running inference burns latency + generates false
+        # positives.  Empty ``data_type`` falls through (legacy connectors).
+        if column.data_type and column.data_type.upper() in _NON_TEXT_DATA_TYPES:
+            return []
+
         if not column.sample_values:
             return []
 
@@ -473,7 +505,11 @@ class GLiNER2Engine(ClassificationEngine):
                 mask_samples=mask_samples,
                 max_evidence_samples=max_evidence_samples,
             )
-            if col.sample_values
+            # Sprint 10: per-column data_type pre-filter — skip non-text types
+            # (numeric/temporal/boolean/bytes) entirely and emit an empty
+            # finding list in the corresponding output slot, matching
+            # classify_column's early-return contract.
+            if col.sample_values and not (col.data_type and col.data_type.upper() in _NON_TEXT_DATA_TYPES)
             else []
             for col in columns
         ]

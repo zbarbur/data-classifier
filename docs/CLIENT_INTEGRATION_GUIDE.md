@@ -1232,6 +1232,8 @@ The library runs up to 5 engines in order. Each engine adds findings; the orches
 
 When the `[ml]` extra is not installed, the GLiNER engine is skipped and the `data_classifier` logger emits a `WARNING` at import time (`GLiNER2 engine disabled — install [ml] extras to enable: …`). Use `get_active_engines()` or `health_check()` to assert the expected engine set at startup.
 
+**Sprint 10 data_type pre-filter.** As of Sprint 10 the GLiNER NER engine also silently skips any column whose `ColumnInput.data_type` is a non-text SQL type — concretely the case-insensitive set `{INTEGER, INT64, FLOAT, FLOAT64, NUMERIC, BIGNUMERIC, BOOLEAN, BOOL, TIMESTAMP, DATE, DATETIME, TIME, BYTES}`. NER cannot produce meaningful results on these types, so the engine returns `[]` immediately and the model is never invoked (no latency, no false positives). Columns with an empty `data_type` (legacy connectors that do not populate the field) and columns with text types (`STRING`, `TEXT`, `VARCHAR`, …) fall through to the normal inference path, so the change is strictly additive and backward-compatible. BQ connectors populate `data_type` in BigQuery's upper-case convention (see `docs/process/BQ_INTEGRATION_STATUS.md`); comparison is case-insensitive so Snowflake/Postgres-style lower-case values work identically.
+
 ## Appendix C: Version History
 
 | Version | Sprint | Key additions |
