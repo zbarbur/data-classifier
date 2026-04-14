@@ -181,3 +181,31 @@ place.
 |---|---|---|
 | 2026-04-13 | Initial audit. Ai4Privacy flagged for removal, Gretel-EN flagged as incoming replacement, 5 OSI-compatible corpora cataloged. | Sprint 9 kickoff (Claude, `sprint-start` skill) |
 | 2026-04-14 | Added `gretelai/synthetic_pii_finance_multilingual` under Sprint 10 in-flight ingestion. Same license-fetch evidence profile as Gretel-EN (no standalone LICENSE file; README frontmatter + HF cardData both tag Apache-2.0). Open follow-up: both Gretel rows to be promoted to "Currently in use" once written license confirmation is received from Gretel AI. | Sprint 10 ingest (Claude, `ingest-gretel-pii-finance-multilingual`) |
+| 2026-04-14 | Added Kingfisher + gitleaks + Nosey Parker as credential pattern upstreams for the Sprint 10 secret key-name dictionary expansion. See "Credential-pattern upstreams" section below and `docs/process/CREDENTIAL_PATTERN_SOURCES.md` for per-entry attribution. | Sprint 10 item `expand-secret-key-names-dictionary` |
+| 2026-04-14 | Correction footnote added to the Sprint 9 ai4privacy removal section: blanket `ai4privacy` namespace ban was wrong. `ai4privacy/pii-masking-openpii-1m` is CC-BY-4.0 (commercial + redistribution + modification permitted with attribution). Sprint 11 follow-up item `review-ai4privacy-dataset-family-and-ingest-best-cc-by-4-0-variant` filed to review all 4 variants and re-ingest the best. | Sprint 10 correction |
+
+## Credential-pattern upstreams (Sprint 10)
+
+Unlike the dataset/corpus entries above, these three repositories provide
+**derivation sources for key-name patterns** — no regex, YAML rule file,
+or code has been copied verbatim.  The Sprint 10 harvest curates key-name
+patterns derived from each upstream's rule *ids*, with each derived
+pattern traceable to an exact rule id at a pinned SHA.  See
+`scripts/ingest_credential_patterns.py` for the script and
+`docs/process/CREDENTIAL_PATTERN_SOURCES.md` for per-entry attribution.
+
+### In use — OSI-compatible, attribution recorded per entry
+
+| Source | License | SPDX | Pinned SHA | Role in harvest | Verified on | How verified |
+|---|---|---|---|---|---|---|
+| [MongoDB Kingfisher](https://github.com/mongodb/kingfisher) | Apache 2.0 | `Apache-2.0` | `be0ce3bae0b14240bb2781ab6ee2b5c65e02144b` | Primary (~50 SaaS + cloud + DB key-names) | 2026-04-14 | Shallow clone + rule-id existence check in `scripts/ingest_credential_patterns.py --clone-sources` |
+| [gitleaks](https://github.com/gitleaks/gitleaks) | MIT | `MIT` | `8863af47d64c3681422523e36837957c74d4af4b` | Secondary (~20 CI/CD + webhook + OAuth) | 2026-04-14 | Same |
+| [Praetorian Nosey Parker](https://github.com/praetorian-inc/noseyparker) | Apache 2.0 | `Apache-2.0` | `2e6e7f36ce36619852532bbe698d8cb7a26d2da7` | Precision cross-check (~10 Jenkins/Django/generic) | 2026-04-14 | Same |
+
+### Explicitly excluded — license-incompatible
+
+| Source | License | Reason |
+|---|---|---|
+| [trufflehog](https://github.com/trufflesecurity/trufflehog) | AGPL-3.0 | Copyleft + network-use clause incompatible with data_classifier's MIT downstream. Consulted for gap-identification only; no regex or code was copied. |
+| [Semgrep Rules](https://github.com/semgrep/semgrep-rules) | SRL v1.0 | Semgrep Rules License v1.0 is non-OSI and restricts redistribution. |
+| [Atlassian SAST](https://github.com/atlassian/gostatic-check-secrets) | LGPL-2.1 | LGPL linking clauses incompatible with static-library downstream use. |
