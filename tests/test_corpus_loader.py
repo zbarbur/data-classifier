@@ -28,6 +28,19 @@ from tests.benchmarks.corpus_loader import (
     load_secretbench_corpus,
 )
 
+# Sprint 8 split the legacy ``CREDENTIAL`` entity type into four deterministic
+# subtypes.  Any loader emitting a label in this set counts as "credential-
+# family positive" for downstream assertions that previously filtered by
+# the flat ``CREDENTIAL`` literal.
+_CREDENTIAL_SUBTYPES: frozenset[str] = frozenset(
+    {
+        "API_KEY",
+        "PRIVATE_KEY",
+        "PASSWORD_HASH",
+        "OPAQUE_SECRET",
+    }
+)
+
 # Target entity types produced by the Gretel-EN loader (post-ETL
 # data_classifier taxonomy labels).
 _GRETEL_EN_TARGET_TYPES: frozenset[str] = frozenset(
@@ -148,7 +161,12 @@ class TestSecretBenchLoader:
         assert corpus, "SecretBench sample fixture should not be empty"
 
         labels = Counter(gt for _, gt in corpus)
-        assert "CREDENTIAL" in labels
+        # After the Sprint 11 taxonomy refresh the SecretBench loader emits
+        # one or more of the four Sprint-8 credential subtypes rather than
+        # the flat ``CREDENTIAL`` label.
+        assert _CREDENTIAL_SUBTYPES & set(labels), (
+            f"expected at least one credential subtype label; got {sorted(labels)}"
+        )
         assert NEGATIVE_GROUND_TRUTH in labels
         # sample is balanced 516 TP / 552 TN
         total_values = sum(len(col.sample_values) for col, _ in corpus)
@@ -174,7 +192,9 @@ class TestGitleaksLoader:
         assert corpus
 
         labels = Counter(gt for _, gt in corpus)
-        assert "CREDENTIAL" in labels
+        assert _CREDENTIAL_SUBTYPES & set(labels), (
+            f"expected at least one credential subtype label; got {sorted(labels)}"
+        )
         assert NEGATIVE_GROUND_TRUTH in labels
 
         total_values = sum(len(col.sample_values) for col, _ in corpus)
@@ -199,7 +219,7 @@ class TestGitleaksLoader:
         # sees per-vendor KV shapes instead of a monolithic credential
         # bucket.
         corpus = load_gitleaks_corpus()
-        positive_columns = [col for col, gt in corpus if gt == "CREDENTIAL"]
+        positive_columns = [col for col, gt in corpus if gt in _CREDENTIAL_SUBTYPES]
         assert len(positive_columns) >= 2, "expected >1 positive column from source_type grouping"
 
 
@@ -211,8 +231,14 @@ class TestDetectSecretsLoader:
         labels = Counter(gt for _, gt in corpus)
         # The fixture has 8 positives (aws, slack, stripe, basic_auth,
         # jwt, private_key, generic_secret, password_in_url) and 5
-        # negatives (non_secret x3, false_positive x2).
-        assert labels.get("CREDENTIAL", 0) > 0
+        # negatives (non_secret x3, false_positive x2).  After Sprint 11
+        # taxonomy refresh those positives are split across API_KEY,
+        # PRIVATE_KEY, and OPAQUE_SECRET rather than the legacy flat
+        # CREDENTIAL label.
+        positive_count = sum(labels.get(lbl, 0) for lbl in _CREDENTIAL_SUBTYPES)
+        assert positive_count > 0, (
+            f"expected at least one credential subtype label; got {sorted(labels)}"
+        )
         assert labels.get(NEGATIVE_GROUND_TRUTH, 0) > 0
 
     def test_detect_secrets_value_count(self) -> None:
@@ -445,10 +471,151 @@ class TestDispatcher:
         corpus = load_corpus("all", max_rows=50, samples_per_type=10)
         labels = Counter(gt for _, gt in corpus)
         assert labels.get(NEGATIVE_GROUND_TRUTH, 0) > 0, "load_corpus('all') must surface NEGATIVE rows"
-        assert labels.get("CREDENTIAL", 0) > 0
+        # After Sprint 11 taxonomy refresh, credential-family positives
+        # are labelled with one of the four Sprint-8 subtypes rather than
+        # the flat ``CREDENTIAL`` literal.  The Gretel-finance loader is
+        # explicitly out of scope for Sprint 11 item #1, so it is still
+        # allowed to carry the legacy ``CREDENTIAL`` label — but at least
+        # one of the credential-family subtypes must also be present.
+        positive_count = sum(labels.get(lbl, 0) for lbl in _CREDENTIAL_SUBTYPES)
+        assert positive_count > 0, f"expected credential-family positives; got {sorted(labels)}"
 
     def test_dispatcher_rejects_unknown_source(self) -> None:
         import pytest
 
         with pytest.raises(ValueError, match="Unknown corpus source"):
             load_corpus("nope")
+
+
+def _load_valid_entity_types() -> set[str]:
+    """Extract the set of valid entity_type names from standard.yaml.
+
+    Reads the bundled default profile directly rather than importing any
+    engine code — this test is the baseline for the Sprint 11 item #3
+    drift lint and must not itself depend on engine behaviour.
+    """
+    import pathlib
+
+    import yaml
+
+    path = pathlib.Path(__file__).parent.parent / "data_classifier" / "profiles" / "standard.yaml"
+    profile_doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    entity_types: set[str] = set()
+    profiles = profile_doc.get("profiles", {})
+    for _name, body in profiles.items():
+        for rule in body.get("rules", []):
+            et = rule.get("entity_type")
+            if et:
+                entity_types.add(et)
+    return entity_types
+
+
+class TestLoaderTaxonomyRefresh:
+    """Sprint 11 item #1 — post-Sprint-8 4-subtype drift guards.
+
+    Sprint 8 split the legacy flat ``CREDENTIAL`` entity type into
+    ``API_KEY``/``PRIVATE_KEY``/``PASSWORD_HASH``/``OPAQUE_SECRET``.
+    Three corpus loaders carried identical drift (they still emitted the
+    flat ``CREDENTIAL`` label, which is no longer in the taxonomy).  The
+    drift showed up as a ~0.05 point Nemotron blind-F1 regression in
+    Sprint 10 benchmarks — a measurement artifact, not a real accuracy
+    loss.
+
+    These tests pin the post-refresh invariants so the drift cannot
+    silently return.  They are also the baseline for the Sprint 11 item
+    #3 drift lint (``corpus-loader-entity-taxonomy-drift-lint``).
+    """
+
+    def test_nemotron_map_no_stale_credential(self) -> None:
+        from tests.benchmarks.corpus_loader import NEMOTRON_TYPE_MAP
+
+        stale = {k: v for k, v in NEMOTRON_TYPE_MAP.items() if v == "CREDENTIAL"}
+        assert stale == {}, f"Stale CREDENTIAL entries in NEMOTRON_TYPE_MAP: {stale}"
+
+    def test_gretel_en_map_no_stale_credential(self) -> None:
+        from tests.benchmarks.corpus_loader import GRETEL_EN_TYPE_MAP as m
+
+        stale = {k: v for k, v in m.items() if v == "CREDENTIAL"}
+        assert stale == {}, f"Stale CREDENTIAL entries in GRETEL_EN_TYPE_MAP: {stale}"
+
+    def test_detect_secrets_map_no_stale_credential(self) -> None:
+        from tests.benchmarks.corpus_loader import _DETECT_SECRETS_TYPE_MAP
+
+        stale = {k: v for k, v in _DETECT_SECRETS_TYPE_MAP.items() if v == "CREDENTIAL"}
+        assert stale == {}, f"Stale CREDENTIAL entries in _DETECT_SECRETS_TYPE_MAP: {stale}"
+
+    def test_nemotron_password_maps_to_opaque_secret(self) -> None:
+        """Spot-check: plaintext ``password`` maps to ``OPAQUE_SECRET``.
+
+        Key subtlety: ``PASSWORD_HASH`` is for hashed passwords only;
+        plaintext passwords route to the OPAQUE_SECRET catch-all.
+        """
+        from tests.benchmarks.corpus_loader import NEMOTRON_TYPE_MAP
+
+        assert NEMOTRON_TYPE_MAP["password"] == "OPAQUE_SECRET"
+        assert NEMOTRON_TYPE_MAP["api_key"] == "API_KEY"
+        assert NEMOTRON_TYPE_MAP["pin"] == "OPAQUE_SECRET"
+
+    def test_detect_secrets_private_key_maps_to_private_key(self) -> None:
+        """Spot-check: ``private_key`` routes to ``PRIVATE_KEY``."""
+        from tests.benchmarks.corpus_loader import _DETECT_SECRETS_TYPE_MAP
+
+        assert _DETECT_SECRETS_TYPE_MAP["private_key"] == "PRIVATE_KEY"
+        # Vendor-specific API tokens all route to API_KEY.
+        for k in ("aws_access_key", "slack_token", "stripe_key", "jwt", "github_token"):
+            assert _DETECT_SECRETS_TYPE_MAP[k] == "API_KEY", f"{k} must route to API_KEY"
+        # Catch-all bucket for embedded-credential shapes.
+        for k in ("basic_auth", "generic_secret", "password_in_url"):
+            assert _DETECT_SECRETS_TYPE_MAP[k] == "OPAQUE_SECRET", f"{k} must route to OPAQUE_SECRET"
+
+    def test_all_loader_maps_emit_only_valid_entity_types(self) -> None:
+        """Every value in any module-level *_TYPE_MAP must be a recognised label.
+
+        This is the baseline for Sprint 11 item #3 (drift lint).  The
+        full lint will extend this with CI integration and a fake-loader
+        regression test; for now we pin the most important invariant:
+        no loader map may emit the legacy flat ``CREDENTIAL`` label, and
+        every emitted value must live in the authoritative taxonomy from
+        ``profiles/standard.yaml`` (plus a small allow-list of
+        engine-emittable labels that are not first-class entity types).
+
+        Gretel-finance is explicitly excluded: its type map still emits
+        the legacy ``CREDENTIAL`` label and its fixture's ``entity_type``
+        field still uses ``CREDENTIAL``.  Refreshing it requires
+        rebuilding the fixture (it carries per-record ``raw_label`` /
+        ``source_context`` metadata), which is out of scope for item #1
+        per the plan in
+        ``docs/plans/nemotron-corpus-loader-taxonomy-refresh.md``.
+        """
+        from tests.benchmarks import corpus_loader
+
+        valid = _load_valid_entity_types()
+        valid.add("NEGATIVE")  # NEGATIVE_GROUND_TRUTH is the non-positive class.
+        # Engine-emittable labels that do not (yet) live in
+        # profiles/standard.yaml but are produced by pattern/regex
+        # engines and accepted by the benchmark scorer.  Item #3 may
+        # revisit this allow-list.
+        valid.add("URL")
+
+        skip = {"GRETEL_FINANCE_TYPE_MAP", "_GRETEL_FINANCE_POST_ETL_IDENTITY"}
+
+        checked: list[str] = []
+        for name in dir(corpus_loader):
+            if name in skip:
+                continue
+            obj = getattr(corpus_loader, name)
+            if not isinstance(obj, dict):
+                continue
+            if not (name.endswith("_TYPE_MAP") or name.endswith("_POST_ETL_IDENTITY")):
+                continue
+            invalid = {k: v for k, v in obj.items() if v not in valid}
+            assert invalid == {}, f"{name} has invalid entity_type values: {invalid}"
+            # Specifically: the Sprint 8 credential split must have
+            # landed in every loader (modulo the explicit Gretel-finance
+            # skip above).
+            stale = {k: v for k, v in obj.items() if v == "CREDENTIAL"}
+            assert stale == {}, f"{name} still emits legacy flat CREDENTIAL: {stale}"
+            checked.append(name)
+
+        # Guard against the filter silently skipping every map.
+        assert checked, "drift lint checked zero maps — filter is broken"
