@@ -1286,11 +1286,12 @@
       "category": "Financial",
       "sensitivity": "HIGH",
       "confidence": 0.9,
-      "description": "Bitcoin address (P2PKH/P2SH/Bech32)",
-      "validator": "",
+      "description": "Bitcoin address (P2PKH/P2SH/Bech32, checksum-verified)",
+      "validator": "bitcoin_address",
       "examples_match": [
         "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
-        "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"
+        "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy",
+        "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
       ],
       "examples_no_match": [
         "1BvB",
@@ -1305,7 +1306,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.9,
       "description": "Ethereum/EVM address",
-      "validator": "",
+      "validator": "ethereum_address",
       "examples_match": [
         "0x32Be343B94f860124dC4fEe278FDCBD38C102D88",
         "0xdAC17F958D2ee523a2206206994597C13D831ec7"

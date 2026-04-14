@@ -261,6 +261,168 @@ def aws_secret_not_hex(value: str) -> bool:
     return has_upper and has_lower
 
 
+# ── Bitcoin address checksum validation ────────────────────────────────────
+#
+# Bitcoin uses two independent address formats, each with its own integrity
+# check. The regex for BITCOIN_ADDRESS matches the STRUCTURE (prefix +
+# charset + length); these helpers verify the cryptographic checksum so
+# random strings that happen to match the structure are rejected.
+
+
+_BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+_BASE58_INDEX = {c: i for i, c in enumerate(_BASE58_ALPHABET)}
+
+
+def _base58_decode(value: str) -> bytes | None:
+    """Decode a base58 string to bytes. Returns None on invalid input."""
+    n = 0
+    for c in value:
+        if c not in _BASE58_INDEX:
+            return None
+        n = n * 58 + _BASE58_INDEX[c]
+
+    # Big-endian byte representation
+    payload = bytearray()
+    while n > 0:
+        payload.append(n & 0xFF)
+        n >>= 8
+    payload.reverse()
+
+    # Each leading '1' in base58 represents a leading zero byte
+    leading_zeros = len(value) - len(value.lstrip("1"))
+    return bytes(leading_zeros) + bytes(payload)
+
+
+def _base58check_verify(value: str) -> bool:
+    """Verify a base58check-encoded payload against its 4-byte checksum."""
+    import hashlib
+
+    decoded = _base58_decode(value)
+    if decoded is None or len(decoded) < 5:
+        return False
+    payload, checksum = decoded[:-4], decoded[-4:]
+    digest = hashlib.sha256(hashlib.sha256(payload).digest()).digest()[:4]
+    return digest == checksum
+
+
+# Bech32 / bech32m: BIP 173 / BIP 350
+_BECH32_ALPHABET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+_BECH32_INDEX = {c: i for i, c in enumerate(_BECH32_ALPHABET)}
+_BECH32_CONST = 1  # bech32 (segwit v0)
+_BECH32M_CONST = 0x2BC830A3  # bech32m (segwit v1+ / taproot)
+
+
+def _bech32_polymod(values: list[int]) -> int:
+    generator = (0x3B6A57B2, 0x26508E6D, 0x1EA119FA, 0x3D4233DD, 0x2A1462B3)
+    chk = 1
+    for v in values:
+        top = chk >> 25
+        chk = ((chk & 0x1FFFFFF) << 5) ^ v
+        for i, g in enumerate(generator):
+            if (top >> i) & 1:
+                chk ^= g
+    return chk
+
+
+def _bech32_hrp_expand(hrp: str) -> list[int]:
+    return [ord(c) >> 5 for c in hrp] + [0] + [ord(c) & 31 for c in hrp]
+
+
+def _bech32_verify(value: str) -> bool:
+    """Verify a bech32 or bech32m checksum. Bitcoin segwit addresses only."""
+    lower = value.lower()
+    # Reject if mixed case
+    if value != lower and value != value.upper():
+        return False
+    pos = lower.rfind("1")
+    # HRP must be 'bc' for mainnet Bitcoin; separator is the last '1';
+    # data portion must have at least 6 chars (checksum length).
+    if pos < 1 or pos + 7 > len(lower):
+        return False
+    hrp = lower[:pos]
+    if hrp != "bc":
+        return False
+    data = lower[pos + 1 :]
+    values: list[int] = []
+    for c in data:
+        if c not in _BECH32_INDEX:
+            return False
+        values.append(_BECH32_INDEX[c])
+    polymod = _bech32_polymod(_bech32_hrp_expand(hrp) + values)
+    return polymod in (_BECH32_CONST, _BECH32M_CONST)
+
+
+def bitcoin_address_check(value: str) -> bool:
+    """Validate a Bitcoin address by its checksum.
+
+    Accepts three formats:
+      - P2PKH (starts with '1'): base58check + length 25 bytes
+      - P2SH (starts with '3'): base58check + length 25 bytes
+      - Bech32/bech32m (starts with 'bc1'): polymod over bech32 alphabet
+
+    A purely structural regex match is not sufficient — random base58
+    alphabet strings will match the shape but almost never satisfy the
+    checksum. Empirically this rejects ~100% of FPs seen in secretbench
+    NEGATIVE and gitleaks NEGATIVE samples for this pattern.
+    """
+    clean = value.strip()
+    if not clean:
+        return False
+    first = clean[0]
+    if first in ("1", "3"):
+        if not _base58check_verify(clean):
+            return False
+        # Decoded length must be 25 bytes (1 version + 20 hash160 + 4 checksum)
+        decoded = _base58_decode(clean)
+        return decoded is not None and len(decoded) == 25
+    if clean.lower().startswith("bc1"):
+        return _bech32_verify(clean)
+    return False
+
+
+# ── Ethereum / EVM address validation ──────────────────────────────────────
+#
+# EIP-55 defines a mixed-case checksum over the keccak256 of the hex digits.
+# Python's stdlib hashlib does NOT ship keccak256 (hashlib.sha3_256 is the
+# final SHA-3 variant which differs from pre-standardization keccak), so we
+# can't verify the mixed-case checksum without a new dependency. For Phase 5
+# we do structural validation plus rejection of well-known fake / null
+# addresses. EIP-55 verification is filed as a follow-up pending a decision
+# on the keccak dependency source.
+
+
+_ETH_KNOWN_FAKES: frozenset[str] = frozenset(
+    {
+        "0x0000000000000000000000000000000000000000",  # zero / null address
+        "0xffffffffffffffffffffffffffffffffffffffff",  # all-ones
+        "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",  # dead-beef placeholder
+    }
+)
+
+
+def ethereum_address_check(value: str) -> bool:
+    """Structural validation for an Ethereum/EVM address.
+
+    Accepts: '0x' followed by exactly 40 hex characters. Rejects well-
+    known fake/placeholder addresses (zero address, all-ones, deadbeef
+    literal). Note: does NOT verify the EIP-55 mixed-case checksum —
+    see module docstring for rationale.
+
+    For Phase 5 this is strictly stronger than no validator (catches
+    the common null/placeholder FPs) without adding a keccak256
+    dependency. True EIP-55 verification is a follow-up item.
+    """
+    clean = value.strip()
+    if not clean.startswith("0x"):
+        return False
+    if len(clean) != 42:
+        return False
+    hex_part = clean[2:]
+    if not all(c in "0123456789abcdefABCDEF" for c in hex_part):
+        return False
+    return clean.lower() not in _ETH_KNOWN_FAKES
+
+
 def random_password_check(value: str) -> bool:
     """Accept only mixed-class short random strings.
 
@@ -305,4 +467,7 @@ VALIDATORS: dict[str, typing.Callable] = {
     "phone_number": phone_number_check,
     "aws_secret_not_hex": aws_secret_not_hex,
     "random_password": random_password_check,
+    # Sprint 11 Phase 5
+    "bitcoin_address": bitcoin_address_check,
+    "ethereum_address": ethereum_address_check,
 }
