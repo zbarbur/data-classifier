@@ -949,7 +949,7 @@ backlog item promotes v1_e10 to production. If outcome C
 
 ### E11 — Gated architecture — tier-1 pattern-hit routing × model class ablation
 
-**Status:** 🟢 in progress (2026-04-14)
+**Status:** ✅ complete (see `runs/20260414-e11-gated-tier1-ablation/result.md`) — **Yellow** verdict: gate+LR beats flat LR by +0.067 CV / +0.035 LOCO; gate+HGB is strictly worse than flat LR on both metrics
 **Priority:** P0 — answers whether the architectural axis has more leverage than the feature-engineering axis on the gated-classifier direction (learning memo §5)
 **Estimated time:** 4-6 research hours (~30 min gate preliminary + ~1 hour per model training + 1 hour writeup)
 **Contract note:** does NOT exercise the feature-schema exception — no changes to `orchestrator/meta_classifier.py` FEATURE_NAMES or `extract_features`. Uses the existing 15-feature schema unchanged.

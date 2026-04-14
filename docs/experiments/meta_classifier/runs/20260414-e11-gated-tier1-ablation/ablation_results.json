@@ -1,0 +1,108 @@
+{
+  "A_flat_lr": {
+    "description": "Flat LogReg on 15 features, 24 classes",
+    "cv": {
+      "cv_mean": 0.24277180942761425,
+      "cv_std": 0.13348240669146733,
+      "cv_folds": [
+        0.3594128643770812,
+        0.33007625114203865,
+        0.3333333333333333,
+        0.1857734403908813,
+        0.005263157894736842
+      ],
+      "n_splits": 5
+    },
+    "loco": {
+      "per_corpus": {
+        "ai4privacy": 0.33007625114203865,
+        "detect_secrets": 0.33221850613154963,
+        "gitleaks": 0.005263157894736842,
+        "nemotron": 0.3594128643770812,
+        "secretbench": 0.3333333333333333,
+        "synthetic": 0.17449022213391313
+      },
+      "mean": 0.2557990558354421
+    }
+  },
+  "B_flat_hgb": {
+    "description": "Flat HGB on 15 features, 24 classes",
+    "cv": {
+      "cv_mean": 0.2633133162306839,
+      "cv_std": 0.0734214062577982,
+      "cv_folds": [
+        0.2556595730600133,
+        0.18494383938189307,
+        0.34797932330827064,
+        0.18157861664507255,
+        0.3464052287581699
+      ],
+      "n_splits": 5
+    },
+    "loco": {
+      "per_corpus": {
+        "ai4privacy": 0.18494383938189307,
+        "detect_secrets": 0.07035175879396985,
+        "gitleaks": 0.3464052287581699,
+        "nemotron": 0.2556595730600133,
+        "secretbench": 0.34797932330827064,
+        "synthetic": 0.1331491873507198
+      },
+      "mean": 0.2230814851088394
+    },
+    "root_split_feature": "heuristic_confidence"
+  },
+  "C_gated_lr": {
+    "description": "Gated tier-1 + LogReg stage-2 (13 features on PII, 15 on credential)",
+    "cv": {
+      "cv_mean": 0.30962668309056696,
+      "cv_std": 0.21039930885720357,
+      "cv_folds": [
+        0.27526986842425516,
+        0.2759014146054171,
+        0.7130068146118506,
+        0.14882018267617714,
+        0.13513513513513514
+      ],
+      "n_splits": 5
+    },
+    "loco": {
+      "per_corpus": {
+        "ai4privacy": 0.2759014146054171,
+        "detect_secrets": 0.21823617339312407,
+        "gitleaks": 0.13513513513513514,
+        "nemotron": 0.27526986842425516,
+        "secretbench": 0.7130068146118506,
+        "synthetic": 0.12469211952643089
+      },
+      "mean": 0.29037358761603554
+    }
+  },
+  "D_gated_hgb": {
+    "description": "Gated tier-1 + HGB stage-2 (13 features on PII, 15 on credential)",
+    "cv": {
+      "cv_mean": 0.2119867436288226,
+      "cv_std": 0.0692591228938832,
+      "cv_folds": [
+        0.23981929871373353,
+        0.15123042228420366,
+        0.3333333333333333,
+        0.18879741705959577,
+        0.14675324675324675
+      ],
+      "n_splits": 5
+    },
+    "loco": {
+      "per_corpus": {
+        "ai4privacy": 0.15123042228420366,
+        "detect_secrets": 0.23684210526315788,
+        "gitleaks": 0.14675324675324675,
+        "nemotron": 0.23981929871373353,
+        "secretbench": 0.3333333333333333,
+        "synthetic": 0.16677875190699976
+      },
+      "mean": 0.21245952637577914
+    },
+    "root_split_feature": "heuristic_confidence"
+  }
+}

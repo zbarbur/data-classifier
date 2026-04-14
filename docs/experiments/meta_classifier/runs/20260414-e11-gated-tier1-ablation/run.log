@@ -1,0 +1,98 @@
+
+WARNING: gate precision 0.6048 < 0.90 threshold.
+Proceeding with full experiment anyway (diagnostic-only pass).
+Loaded 7770 rows from tests/benchmarks/meta_classifier/training_data.jsonl
+========================================================================
+E11 — Preliminary: tier-1 pattern-hit gate on training data
+========================================================================
+Total rows:                7770
+Credential rows (truth):   750 (9.7%)
+Routed to credential:      744 (9.6%)
+
+Confusion matrix:
+  TP (credential, routed):       450
+  FP (not credential, routed):   294
+  FN (credential, not routed):   300
+  TN (not credential, not routed): 6726
+
+  Precision: 0.6048
+  Recall:    0.6000
+  F1:        0.6024
+
+Per-corpus breakdown:
+  corpus                   TP     FP     FN     TN
+  ai4privacy                0      0    150   1050
+  detect_secrets          150      0      0    150
+  gitleaks                150    144      0      6
+  nemotron                  0      0    150   1800
+  secretbench             150    150      0      0
+  synthetic                 0      0      0   3720
+
+Top FP labels (PII mis-routed to credential):
+  NEGATIVE                   294
+========================================================================
+========================================================================
+E11 — 2x2 ablation: flat-vs-gated × LR-vs-HGB
+========================================================================
+
+[A_flat_lr] Flat LogReg on 15 features, 24 classes
+  training CV (5-fold StratifiedGroupKFold)...
+  CV macro F1: 0.2428 ± 0.1335 (folds: ['0.359', '0.330', '0.333', '0.186', '0.005'])
+  LOCO (6 corpora)...
+  LOCO mean: 0.2558
+    ai4privacy           0.3301
+    detect_secrets       0.3322
+    gitleaks             0.0053
+    nemotron             0.3594
+    secretbench          0.3333
+    synthetic            0.1745
+
+[B_flat_hgb] Flat HGB on 15 features, 24 classes
+  training CV (5-fold StratifiedGroupKFold)...
+  CV macro F1: 0.2633 ± 0.0734 (folds: ['0.256', '0.185', '0.348', '0.182', '0.346'])
+  LOCO (6 corpora)...
+  LOCO mean: 0.2231
+    ai4privacy           0.1849
+    detect_secrets       0.0704
+    gitleaks             0.3464
+    nemotron             0.2557
+    secretbench          0.3480
+    synthetic            0.1331
+
+[C_gated_lr] Gated tier-1 + LogReg stage-2 (13 features on PII, 15 on credential)
+  training CV (5-fold StratifiedGroupKFold)...
+  CV macro F1: 0.3096 ± 0.2104 (folds: ['0.275', '0.276', '0.713', '0.149', '0.135'])
+  LOCO (6 corpora)...
+  LOCO mean: 0.2904
+    ai4privacy           0.2759
+    detect_secrets       0.2182
+    gitleaks             0.1351
+    nemotron             0.2753
+    secretbench          0.7130
+    synthetic            0.1247
+
+[D_gated_hgb] Gated tier-1 + HGB stage-2 (13 features on PII, 15 on credential)
+  training CV (5-fold StratifiedGroupKFold)...
+  CV macro F1: 0.2120 ± 0.0693 (folds: ['0.240', '0.151', '0.333', '0.189', '0.147'])
+  LOCO (6 corpora)...
+  LOCO mean: 0.2125
+    ai4privacy           0.1512
+    detect_secrets       0.2368
+    gitleaks             0.1468
+    nemotron             0.2398
+    secretbench          0.3333
+    synthetic            0.1668
+
+── Tree root-split diagnostic (shortcut check) ──
+  B (flat HGB)  root split: heuristic_confidence
+  D (gated HGB, stage-2 PII) root split: heuristic_confidence
+
+── 2x2 comparison table ──
+  model                   CV mean     CV std    LOCO mean
+  A_flat_lr                0.2428     0.1335       0.2558
+  B_flat_hgb               0.2633     0.0734       0.2231
+  C_gated_lr               0.3096     0.2104       0.2904
+  D_gated_hgb              0.2120     0.0693       0.2125
+========================================================================
+
+Results written to docs/experiments/meta_classifier/runs/20260414-e11-gated-tier1-ablation/
