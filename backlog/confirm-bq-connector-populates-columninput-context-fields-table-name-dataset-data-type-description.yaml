@@ -1,6 +1,6 @@
 title: Confirm BQ connector populates ColumnInput context fields (table_name, dataset,
   data_type, description)
-status: backlog
+status: doing
 priority: P1
 category: chore
 sprint_target: 10
