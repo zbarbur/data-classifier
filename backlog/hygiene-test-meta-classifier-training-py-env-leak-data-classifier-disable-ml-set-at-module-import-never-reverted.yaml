@@ -33,7 +33,7 @@ test_plan:
 - Rerun the 13 existing tests in test_meta_classifier_training.py in isolation and
   confirm same pass count
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
