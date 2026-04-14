@@ -37,7 +37,7 @@ test_plan:
 - 'CLI smoke: --corpus all includes gretel_finance rows in output'
 - 'Full benchmark: --samples 50 blind + named, recorded in sprint_11.json'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
