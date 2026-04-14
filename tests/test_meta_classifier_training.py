@@ -372,16 +372,24 @@ class TestFeatureDropping:
         assert "has_secret_indicators" not in kept_names
 
     def test_effective_feature_count_on_phase2_dataset(self) -> None:
-        from data_classifier.orchestrator.meta_classifier import FEATURE_NAMES
-        from scripts.train_meta_classifier import load_jsonl, resolve_feature_subset
+        from data_classifier.orchestrator.meta_classifier import FEATURE_DIM, FEATURE_NAMES
+        from scripts.train_meta_classifier import ALWAYS_DROP_REDUNDANT, load_jsonl, resolve_feature_subset
 
         path = Path("tests/benchmarks/meta_classifier/training_data.jsonl")
         if not path.exists():
             pytest.skip("training_data.jsonl not built")
         dataset = load_jsonl(path, FEATURE_NAMES)
         kept_names, kept_indices = resolve_feature_subset(dataset)
-        assert len(kept_names) == 13
-        assert len(kept_indices) == 13
+        # After Sprint 11 Phase 2 (schema v2, 46 features), the effective
+        # feature count is FEATURE_DIM minus the ALWAYS_DROP_REDUNDANT
+        # columns that appear in the schema (currently
+        # engines_fired + has_column_name_hit = 2 dropped). Avoid a
+        # hardcoded constant so this test tracks future schema changes.
+        expected_base_drops = sum(1 for n in ALWAYS_DROP_REDUNDANT if n in FEATURE_NAMES)
+        assert len(kept_names) == FEATURE_DIM - expected_base_drops
+        assert len(kept_indices) == FEATURE_DIM - expected_base_drops
+        assert "engines_fired" not in kept_names
+        assert "has_column_name_hit" not in kept_names
 
 
 class TestBootstrapCI:

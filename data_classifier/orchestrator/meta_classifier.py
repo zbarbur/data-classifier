@@ -146,7 +146,10 @@ class MetaClassifierPrediction:
 
 
 _DEFAULT_MODEL_PACKAGE = "data_classifier.models"
-_DEFAULT_MODEL_RESOURCE = "meta_classifier_v1.pkl"
+# Sprint 11 Phase 3: point at the v2 artifact (feature_schema_version=2,
+# 44 kept features after ALWAYS_DROP_REDUNDANT). The v1 artifact is
+# retained on disk but correctly refused by the version gate.
+_DEFAULT_MODEL_RESOURCE = "meta_classifier_v2.pkl"
 
 
 class MetaClassifier:

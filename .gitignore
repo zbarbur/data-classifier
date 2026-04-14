@@ -71,6 +71,10 @@ data_classifier/models/*
 !data_classifier/models/meta_classifier_v1.pkl
 !data_classifier/models/meta_classifier_v1.metadata.json
 !data_classifier/models/meta_classifier_v1.eval.json
+# Sprint 11 Phase 2/3: v2 meta-classifier artifact (46-feature schema,
+# 44 kept features after ALWAYS_DROP_REDUNDANT, feature_schema_version=2).
+!data_classifier/models/meta_classifier_v2.pkl
+!data_classifier/models/meta_classifier_v2.metadata.json
 # Keep the gliner_onnx/ placeholder directory (populated by download_models CLI
 # at container build time) so package_data globs have a target, but ignore the
 # actual model weights.
