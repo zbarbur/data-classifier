@@ -1,0 +1,49 @@
+{
+  "accuracy": [
+    {
+      "corpus": "nemotron",
+      "fn_count": 0,
+      "fp_count": 0,
+      "macro_f1": 1.0,
+      "micro_f1": 1.0,
+      "mode": "named",
+      "precision": 1.0,
+      "primary_label_pct": 1.0,
+      "recall": 1.0,
+      "tp_count": 13,
+      "note": "IMPROVED vs Sprint 10 (0.9231 -> 1.000, +0.077). The Sprint 11 item #1 taxonomy refresh unlocked the column-name engine's ability to classify credential columns correctly — before the fix, expected label was CREDENTIAL which had no column_name_engine entry, so credential columns scored as FN even when blinded column names clearly identified them. After the fix, OPAQUE_SECRET matches the blinded column name signal and the column produces a clean TP."
+    },
+    {
+      "corpus": "nemotron",
+      "fn_count": 2,
+      "fp_count": 5,
+      "macro_f1": 0.759,
+      "micro_f1": 0.759,
+      "mode": "blind",
+      "precision": 0.688,
+      "primary_label_pct": 0.846,
+      "recall": 0.846,
+      "tp_count": 11,
+      "note": "UNCHANGED vs Sprint 10 (0.7742 -> 0.759, within averaging noise — TP/FP/FN counts identical). Sprint 10 handover's diagnosis that this regression was 'fake taxonomy drift' turns out to be only partly correct: Sprint 8's CREDENTIAL split WAS stale in the loader, but fixing it does not change the benchmark counts because the root cause is the secret scanner over-firing API_KEY + EMAIL on plaintext passwords / 6-digit PINs / UUID-ish tokens in col_7 (expected=OPAQUE_SECRET). Before fix: predicted=API_KEY vs expected=CREDENTIAL. After fix: predicted=API_KEY vs expected=OPAQUE_SECRET. Same FP+FN either way. Filed new P1 bug secret-scanner-over-fires-api-key-and-email-on-plaintext-password-pin-uuid-values-nemotron-col-7-surface as the real lever for recovery; owned by the parallel sprint11/scanner-tuning-batch session."
+    },
+    {
+      "corpus": "gretel_en",
+      "fn_count": 4,
+      "fp_count": 4,
+      "macro_f1": 0.667,
+      "micro_f1": 0.667,
+      "mode": "blind",
+      "precision": 0.667,
+      "primary_label_pct": 0.667,
+      "recall": 0.667,
+      "tp_count": 8,
+      "note": "IMPROVED vs Sprint 10 (0.6111 -> 0.667, +0.056). The Sprint 10 0.6111 baseline was artificially deflated by the same stale-CREDENTIAL labeling. Taxonomy refresh correctly scores the formerly-invisible credential-column detections."
+    }
+  ],
+  "date": "2026-04-14",
+  "git_sha": "96b10fb",
+  "note": "Sprint 11 item #1 (corpus loader taxonomy refresh) executed. Scope EXPANDED during execution from Nemotron-only to all 3 loaders that emitted the stale CREDENTIAL label (Nemotron + Gretel-EN + _DETECT_SECRETS_TYPE_MAP). Net effect on benchmarks: 2 hidden wins (Nemotron named +0.077 to perfect 1.000, Gretel-EN blind +0.056), 1 unchanged (Nemotron blind, blocked by independent scanner over-firing bug, filed as separate P1). Sprint 10 handover's 'fake regression' diagnosis was only half right — taxonomy drift was real and worth fixing, but Nemotron blind F1 recovery requires the scanner-side fix. Pending Tier 2-3 items: wire-gretel-finance-cli, corpus-loader-drift-lint, tighten-id_token-match-type, env-leak hygiene, document-all-engines, document-fail-fast-dispatch.",
+  "perf": null,
+  "schema_version": 1,
+  "sprint": 11
+}
