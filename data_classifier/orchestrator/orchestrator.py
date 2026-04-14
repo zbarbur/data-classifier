@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from dataclasses import dataclass
 
 from data_classifier.core.types import (
     ClassificationFinding,
@@ -30,6 +31,7 @@ from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.events.emitter import EventEmitter
 from data_classifier.events.types import (
     ClassificationEvent,
+    GateRoutingEvent,
     MetaClassifierEvent,
     TierEvent,
 )
@@ -65,6 +67,122 @@ _AUTHORITY_THRESHOLD: int = 8
 
 # Minimum authority gap to suppress a lower-authority engine's conflicting findings
 _AUTHORITY_GAP_MIN: int = 3
+
+# ── Sprint 11 Phase 9: tier-1 pattern-hit gate ──────────────────────────────
+#
+# The gate fires on a column when either:
+#   (a) the primary finding is a credential AND the regex engine is both
+#       confident (>= 0.85) AND saw the pattern across a meaningful
+#       fraction of sampled values (match_ratio >= 0.30), OR
+#   (b) the secret scanner fired with confidence >= 0.50.
+#
+# Thresholds intentionally loose on (b) because the secret scanner is
+# already authority-gated upstream; the gate's job there is simply to
+# record that a tier-1 credential signal was observed. Thresholds on
+# (a) are tighter because regex alone is prone to prefix-collision
+# false positives.
+_GATE_REGEX_CONFIDENCE_MIN: float = 0.85
+_GATE_REGEX_MATCH_RATIO_MIN: float = 0.30
+_GATE_SECRET_SCANNER_CONFIDENCE_MIN: float = 0.50
+
+
+@dataclass
+class _Tier1GateDecision:
+    """Pure result of evaluating the tier-1 credential pattern-hit gate.
+
+    Returned by :func:`_evaluate_tier1_gate`. Contains everything
+    needed to construct a :class:`GateRoutingEvent`. Kept as a plain
+    dataclass (not the event type itself) so the evaluator stays free
+    of any telemetry concern.
+    """
+
+    gate_fired: bool
+    gate_reason: str
+    primary_entity: str
+    primary_confidence: float
+    primary_is_credential: bool
+    regex_confidence: float
+    regex_match_ratio: float
+    secret_scanner_confidence: float
+
+
+def _evaluate_tier1_gate(
+    result: list[ClassificationFinding],
+    engine_findings: dict[str, list[ClassificationFinding]],
+) -> _Tier1GateDecision | None:
+    """Pure tier-1 credential pattern-hit gate evaluator.
+
+    Returns ``None`` when the gate is not applicable to this column
+    (no credential signal anywhere), so the orchestrator can skip
+    event emission on columns that have no bearing on tier-1
+    coverage. Returns a populated :class:`_Tier1GateDecision` whenever
+    credential signal is present, with ``gate_fired=True`` iff at
+    least one of the two gate conditions holds.
+    """
+    regex_findings = engine_findings.get("regex", [])
+    secret_findings = engine_findings.get("secret_scanner", [])
+
+    regex_confidence = 0.0
+    regex_match_ratio = 0.0
+    if regex_findings:
+        top_regex = max(regex_findings, key=lambda f: f.confidence)
+        regex_confidence = top_regex.confidence
+        if top_regex.sample_analysis is not None:
+            regex_match_ratio = top_regex.sample_analysis.match_ratio
+
+    secret_scanner_confidence = 0.0
+    if secret_findings:
+        secret_scanner_confidence = max(f.confidence for f in secret_findings)
+
+    if result:
+        top = max(result, key=lambda f: f.confidence)
+        primary_entity = top.entity_type
+        primary_confidence = top.confidence
+        primary_is_credential = top.category == "Credential"
+    else:
+        primary_entity = ""
+        primary_confidence = 0.0
+        primary_is_credential = False
+
+    # Applicability guard: only record the gate when the column shows
+    # tier-1 credential signal. Otherwise we'd spam events for every
+    # PII column in the cascade.
+    has_credential_signal = primary_is_credential or secret_scanner_confidence >= _GATE_SECRET_SCANNER_CONFIDENCE_MIN
+    if not has_credential_signal:
+        return None
+
+    # Gate condition (a): regex credential + strong confidence + strong prevalence.
+    regex_path_fires = (
+        primary_is_credential
+        and regex_confidence >= _GATE_REGEX_CONFIDENCE_MIN
+        and regex_match_ratio >= _GATE_REGEX_MATCH_RATIO_MIN
+    )
+    # Gate condition (b): secret scanner confidence threshold alone.
+    secret_path_fires = secret_scanner_confidence >= _GATE_SECRET_SCANNER_CONFIDENCE_MIN
+
+    if regex_path_fires and secret_path_fires:
+        reason = "regex+ratio+secret_scanner"
+    elif regex_path_fires:
+        reason = "regex+ratio"
+    elif secret_path_fires:
+        reason = "secret_scanner"
+    elif primary_is_credential and regex_confidence < _GATE_REGEX_CONFIDENCE_MIN:
+        reason = "regex_confidence_low"
+    elif primary_is_credential and regex_match_ratio < _GATE_REGEX_MATCH_RATIO_MIN:
+        reason = "regex_match_ratio_low"
+    else:
+        reason = "no_tier1_signal"
+
+    return _Tier1GateDecision(
+        gate_fired=regex_path_fires or secret_path_fires,
+        gate_reason=reason,
+        primary_entity=primary_entity,
+        primary_confidence=primary_confidence,
+        primary_is_credential=primary_is_credential,
+        regex_confidence=regex_confidence,
+        regex_match_ratio=regex_match_ratio,
+        secret_scanner_confidence=secret_scanner_confidence,
+    )
 
 
 class Orchestrator:
@@ -238,6 +356,31 @@ class Orchestrator:
                     )
             except Exception:
                 logger.debug("MetaClassifier shadow path failed", exc_info=True)
+
+        # Sprint 11 Phase 9: tier-1 credential pattern-hit gate.
+        # Evaluation is pure and observability-only — the decision
+        # never mutates ``result``. Consumers of the GateRoutingEvent
+        # stream use it to measure how often a strong tier-1 signal
+        # would fire before promoting the gate to a directive rule.
+        try:
+            gate_decision = _evaluate_tier1_gate(result, engine_findings)
+            if gate_decision is not None:
+                self.emitter.emit(
+                    GateRoutingEvent(
+                        column_id=column.column_id,
+                        gate_fired=gate_decision.gate_fired,
+                        gate_reason=gate_decision.gate_reason,
+                        primary_entity=gate_decision.primary_entity,
+                        primary_confidence=gate_decision.primary_confidence,
+                        primary_is_credential=gate_decision.primary_is_credential,
+                        regex_confidence=gate_decision.regex_confidence,
+                        regex_match_ratio=gate_decision.regex_match_ratio,
+                        secret_scanner_confidence=gate_decision.secret_scanner_confidence,
+                        run_id=run_id or "",
+                    )
+                )
+        except Exception:  # pragma: no cover — defensive
+            logger.debug("Tier-1 gate evaluation failed", exc_info=True)
 
         return result
 
