@@ -123,11 +123,11 @@
 
 ## Consumers
 
-| Consumer | Status | Migration |
-|---|---|---|
-| BigQuery connector | Current (Sprint 27 target) | `docs/migration-from-bq-connector.md` |
-| Snowflake connector | Future | Same API via ColumnInput |
-| Postgres connector | Future | Same API via ColumnInput |
+| Consumer | Status | Migration | Integration status |
+|---|---|---|---|
+| BigQuery connector | Current (Sprint 27 target) | `docs/migration-from-bq-connector.md` | `docs/process/BQ_INTEGRATION_STATUS.md` — per-field verification of `ColumnInput` context fields (`table_name`, `dataset`, `schema_name`, `data_type`, `description`) |
+| Snowflake connector | Future | Same API via ColumnInput | — |
+| Postgres connector | Future | Same API via ColumnInput | — |
 
 ## Documentation Map
 
@@ -136,6 +136,7 @@
 | `CLAUDE.md` | Project rules, commands, code style |
 | `docs/CLIENT_INTEGRATION_GUIDE.md` | API contract for connector teams |
 | `docs/migration-from-bq-connector.md` | Sprint 27 migration plan |
+| `docs/process/BQ_INTEGRATION_STATUS.md` | Per-field verification of BQ-populated `ColumnInput` context fields |
 | `docs/ROADMAP.md` | Iterations 1-4 plan |
 | `docs/PATTERN_SOURCES.md` | Pattern sources, license/IP, gap plan, testing corpus strategy |
 | `docs-public/` | Client-facing docs (mkdocs source) |
