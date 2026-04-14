@@ -407,7 +407,7 @@ hours chasing the wrong feature.
 
 ### E1 — Hyperparameter sweep on L2 strength
 
-**Status:** 🟡 queued
+**Status:** ⏸ superseded by M1 — spec is stale
 **Priority:** P3
 **Estimated time:** 30 min
 
@@ -417,6 +417,15 @@ Phase 2 picked `C=100.0` as the best L2 strength from a coarse grid
 over-regularized and a slightly weaker L2 (higher C) might add 0.01-0.02
 to F1. Save the result to `runs/<ts>-e1-c-sweep/result.md`. If a better C
 is found, save the new model to `meta_classifier_v1_e1.pkl` for review.
+
+> **M1 postscript (2026-04-13):** After M1 replaced StratifiedKFold with
+> StratifiedGroupKFold, `best_c` collapsed from 100 → **1.0**. The
+> premise of this experiment — "sweep *around* C=100" — is wrong under
+> honest CV. If we still want a finer C grid, it should be centered on
+> 1.0 (e.g. `{0.1, 0.3, 1.0, 3.0, 10.0}`) and evaluated under
+> StratifiedGroupKFold. Leaving paused rather than deleting in case a
+> future architectural change (gated classifier, feature-schema fix)
+> makes fine-grained C-tuning valuable again.
 
 ### E2 — Feature ablation: drop one at a time
 
@@ -473,7 +482,7 @@ to `runs/<ts>-e5-secretbench-full/result.md`.
 
 ### E6 — XGBoost replacement for LogReg
 
-**Status:** 🟡 queued
+**Status:** ⏸ deferred — promoted to Sprint 10 sprint item
 **Priority:** P3
 **Estimated time:** 1-2 hours
 
@@ -486,9 +495,20 @@ an address" type discriminations. Saves to `runs/<ts>-e6-xgboost/result.md`.
 **Be careful not to overfit** — XGBoost is much higher capacity than
 LogReg on a 7K dataset.
 
+> **Sprint 10 cross-ref (2026-04-13):** This experiment is the research-
+> branch twin of the Sprint 10 backlog item
+> `meta-classifier-model-ablation-logreg-vs-xgboost-vs-lightgbm-on-honest-loco-metric`.
+> The sprint item's scope (honest LOCO metric + tree-root inspection as
+> a diagnostic for the shortcut-feature hypothesis) is strictly wider
+> than E6's original "try XGBoost" framing. Run as the sprint item, not
+> here — unless a research session wants to do a quick diagnostic pass
+> ahead of the sprint start. If it runs here, the result still goes
+> under `runs/<ts>-e6-xgboost/` and the sprint item becomes a
+> promotion step rather than a discovery step.
+
 ### E7 — Pull Nemotron full + Ai4Privacy full
 
-**Status:** 🟡 queued (depends on Q3 ruling LOCO is data-not-feature)
+**Status:** ✅ obsolete — Ai4Privacy retired, Gretel-EN replaced that volume
 **Priority:** P2
 
 If Q3 concludes the LOCO collapse is a data scarcity problem (not just
@@ -498,6 +518,18 @@ N=300 per type, retrains, and re-runs LOCO eval. Hypothesis: more raw
 volume per generator narrows the gap by giving each shard more
 within-corpus variance. **Big download (~800MB combined).** Saves to
 `runs/<ts>-e7-full-corpora/result.md`.
+
+> **Sprint 9 obsolescence note (2026-04-13):** Ai4Privacy was retired in
+> Sprint 9 for a non-OSI license (`project_sprint9_complete` memory +
+> `docs/process/LICENSE_AUDIT.md`). Sprint 9 simultaneously ingested
+> Gretel-EN (~60k mixed-label rows), which replaced the Ai4Privacy volume
+> with a label-mixed source that actively disrupts the
+> `heuristic_avg_length → corpus` shortcut (coefficient 252 → 131). The
+> "pull more Ai4Privacy rows" half of E7 is dead. The "pull more Nemotron
+> rows" half is still technically runnable, but Q3/Q5/Q6/M1 established
+> that LOCO collapse is structural (label-purity + shortcut), not
+> within-corpus data-scarcity — so more Nemotron rows would not move
+> LOCO materially. Closing.
 
 ### E8 — Add structural features
 
@@ -516,9 +548,41 @@ result.md`.
 
 ### E9 — New-corpus diversity expansion (distinct from E7)
 
-**Status:** 🔴 blocked (depends on Q3 ruling "systemic" not "one feature")
+**Status:** ✅ de facto run in Sprint 9 (Gretel-EN ingest) — partial win
 **Priority:** P2
 **Estimated time:** 1-3 days per new corpus
+
+> **Sprint 9 outcome (2026-04-13):** The "add a new independent corpus"
+> half of E9 was executed in Sprint 9 via the Gretel-EN ingest
+> (`tests/benchmarks/corpus_loader.py::load_gretel_en`, commit
+> `e49e1d8`). Gretel-EN is a *mixed-label* source (PII + health +
+> credential in the same documents), which is even better than
+> "single-label new corpus" for breaking the label-corpus purity
+> pathology Q5 identified.
+>
+> **What we learned:** Gretel-EN alone reduced the
+> `heuristic_avg_length` coefficient from 252 to **131** (a 48%
+> reduction) and lifted the honest tertiary blind delta to
+> **+0.2432** (from E10's +0.191 under the old training corpus).
+> LOCO mean moved to **~0.17** under M1's StratifiedGroupKFold — still
+> low, but now an *honest* number rather than the inflated 0.27-0.36
+> range the pre-M1 LOCO harness was reporting.
+>
+> **The implication for E9's hypothesis:** "more corpus diversity
+> closes the LOCO gap" was only half right. Gretel-EN disrupted the
+> shortcut partially but did not eliminate it. The conclusion the
+> learning memo lands on is that data-level fixes + metric-level
+> fixes are **complementary but neither is sufficient**; the
+> structural cure is architectural (gated classifier with a shape-
+> first stage 1). E9's second half — "pull 2-5 more independent
+> sources beyond Gretel" — is still open as a follow-on but the
+> priority has dropped because the architectural direction is the
+> higher-leverage next move.
+>
+> Closing E9 as partially satisfied. If a future session wants to
+> chase the "more corpora" direction, file a fresh entry
+> (e.g. `E11 — third independent corpus after Gretel`) rather than
+> reopening this one.
 
 **How this differs from E7:** E7 pulls *more rows* from corpora we
 already have (full Nemotron, full Ai4Privacy, full SecretBench). E9
@@ -621,13 +685,39 @@ forward is "pull more sources." If it doesn't, feature engineering
 
 ### E10 — Add GLiNER features to the meta-classifier
 
-**Status:** 🟡 queued
+**Status:** ✅ complete (see `runs/20260412-230000-e10-gliner-features/result.md`) — **Outcome B′** — do NOT promote `v1_e10.pkl`
 **Priority:** P0 — the single biggest unanswered question about the
 meta-classifier's production value
 **Estimated time:** 3-4 hours wall clock (mostly unattended GLiNER
 inference + retraining)
 **Exercises the "feature-schema experiment" contract exception**
 (see above)
+
+> **Sprint 9 verdict (2026-04-13):** E10 ran in Session C on
+> `research/e10-gliner-features` and landed a full result memo at
+> `runs/20260412-230000-e10-gliner-features/result.md`. Headline:
+> GLiNER features produced **modest in-distribution gains**
+> (+0.0104 primary F1, +0.0162 tertiary blind F1) but **regressed
+> LOCO on ai4privacy by -0.077** and narrowed the honest tertiary
+> blind delta from +0.2574 (4-engine framing) to **+0.1907
+> (5-engine framing)** — a meaningful re-framing drop rather than a
+> genuine performance change. The BCa CI excludes zero and McNemar
+> p ≈ 0 on both primary and tertiary, so the meta-classifier still
+> beats the honest 5-engine baseline at statistical significance,
+> but the LOCO regression and class-level re-shuffling make
+> v1_e10 a weaker-than-Phase-2 case. **Recommendation: do NOT
+> auto-promote v1_e10.pkl.** Pursue E4 (bin `heuristic_avg_length`)
+> and the structural fixes (M1 CV methodology, Q6 class-purity
+> split, gated architecture) before another promotion attempt.
+>
+> **How E10's outcome updated the honest number:** the Sprint 6
+> "+0.257 blind delta" was measured against a 4-engine live baseline
+> (GLiNER disabled in `evaluate.py`). E10's 5-engine re-measurement
+> moved the honest number to **+0.191** — a pure framing correction,
+> not a model regression. That's the E10 contribution to the
+> "Sprint 6 → honest baseline" narrative in the Sprint 9 learning
+> memo. The current (post-M1 + post-Gretel) honest tertiary blind
+> delta is **+0.2432**, cited everywhere.
 
 **Why it matters:** Phase 2 deliberately excluded GLiNER2 from the
 meta-classifier's feature set for scope-discipline reasons — the
@@ -857,6 +947,70 @@ negative. If outcome A (LOCO closes substantially) a Sprint 7
 backlog item promotes v1_e10 to production. If outcome C
 (GLiNER doesn't help) the meta-classifier direction is likely done.
 
+### E11 — Gated architecture — tier-1 pattern-hit routing × model class ablation
+
+**Status:** 🟢 in progress (2026-04-14)
+**Priority:** P0 — answers whether the architectural axis has more leverage than the feature-engineering axis on the gated-classifier direction (learning memo §5)
+**Estimated time:** 4-6 research hours (~30 min gate preliminary + ~1 hour per model training + 1 hour writeup)
+**Contract note:** does NOT exercise the feature-schema exception — no changes to `orchestrator/meta_classifier.py` FEATURE_NAMES or `extract_features`. Uses the existing 15-feature schema unchanged.
+
+**Why it matters:** Q6 (inverted stage 1, PII-only classifier) verdict was Q6-C: LOCO improved by only +0.016 after filtering CREDENTIAL+NEGATIVE rows from training. That result ruled out class-level filtering as a fix — but it did NOT rule out **architectural gating**. The difference: Q6 treated regex/secret-scanner signals as *features blended into a 13-dim weighted sum*; a real tier-1 gate uses those same signals as a *routing decision* that splits the problem into separable sub-problems before any learned model runs.
+
+This experiment tests whether the gated direction is worth the Sprint 10+ architectural investment implied by the learning memo §5 and the filed Sprint 10 item `gated-meta-classifier-architecture-explicit-credential-gate-specialized-stage-2-classifiers-q8-continuation`. Positive result → architectural direction has leverage, worth building out. Negative result → stick with the feature-engineering axis (cardinality bias fix, dictionary-word features, binning `heuristic_avg_length`).
+
+**Feature schema interpretation (no changes):**
+
+Index 14 (`primary_is_credential`, boolean) is already computed by the existing 15-feature extractor. Combined with indices 1 (`regex_confidence`), 4 (`secret_scanner_confidence`), 8 (`regex_match_ratio`), and 14, the tier-1 gate can be built *entirely from existing features with zero schema changes*. This is what Q6 missed — the signals were already in the feature vector, just used wrong.
+
+**Gate rule (tier 1 only for this experiment):**
+
+```python
+def route_to_credential_stage(features):
+    primary_is_credential = features[14] > 0.5
+    regex_conf              = features[1]
+    secret_scanner_conf     = features[4]
+    regex_match_ratio       = features[8]
+
+    # Route if primary engine claimed credential with high confidence and match density
+    if primary_is_credential and regex_conf >= 0.85 and regex_match_ratio >= 0.30:
+        return True
+    # OR secret scanner alone flagged it strongly
+    if secret_scanner_conf >= 0.50:
+        return True
+    return False
+```
+
+Tier 2 (shape-based OPAQUE_SECRET residual catcher) is **deferred** to a follow-up — this experiment tests whether tier 1 alone is sufficient.
+
+**2×2 comparison:**
+
+| Model | Tier-1 gate | Stage 2 classifier |
+|---|---|---|
+| **A** (flat baseline) | ❌ | LogReg on all 15 features, 24 classes |
+| **B** (flat tree) | ❌ | HistGradientBoostingClassifier on all 15 features, 24 classes |
+| **C** (gated + LR)   | ✅ | LogReg on PII-stage rows with `stage_2_features` (13 features, drops credential-related) |
+| **D** (gated + HGB)  | ✅ | HGB on PII-stage rows with `stage_2_features` (13 features) |
+
+`stage_2_features` excludes indices 4 (`secret_scanner_confidence`) and 14 (`primary_is_credential`) — the stage-2 classifier never sees credential rows, so these features would be near-constant zero and shouldn't inflate the feature vector.
+
+**Training data:** `tests/benchmarks/meta_classifier/training_data.jsonl` as-is (Phase 2 / pre-Gretel-EN, 7770 rows, 15 features). **Caveat explicitly logged:** this is NOT the post-Sprint-9 training corpus — it's the pre-Gretel version that the v1 model was originally trained on. The experiment measures architecture-vs-feature-engineering **slope on the old data**; if slope is positive, we can rebuild on post-Gretel data for confirmation. If slope is negative/flat, the architectural direction probably isn't worth pursuing regardless of data freshness.
+
+**Eval harness:**
+- 5-fold **StratifiedGroupKFold** (M1 methodology) with `groups = [row.corpus for row in rows]`
+- Held-out 20% test slice with the shard-twin-leak caveat (primary_split's known limitation; acceptable as a relative metric across A/B/C/D)
+- Per-class F1 breakdown
+- LOCO (leave-one-corpus-out) for each of the 4 models
+- Tree root-split feature for B and D (diagnostic: if root is `heuristic_avg_length`, the shortcut survived)
+
+**Success criteria:**
+- A/B comparison tells us "does the tree help at all on the flat baseline?"
+- A/C comparison tells us "does gating alone help, holding model class fixed?"
+- A/D comparison tells us "does the whole stack beat the flat LR?"
+- **Green light for Sprint 10+ gated-architecture investment** if A/D LOCO delta ≥ +0.05 macro F1 with CI excluding zero
+- **Red light (stick with feature engineering)** if A/D LOCO delta is within ±0.02
+
+**Deliverable:** `docs/experiments/meta_classifier/runs/<ts>-e11-gated-tier1-ablation/result.md` with the 2×2 table, per-class breakdown, tree root-split diagnostic, gate precision/recall on training data, and a verdict mapping.
+
 ### Q6 — Inverted stage 1 / PII-only meta-classifier
 
 **Status:** ✅ complete (see `runs/20260412-q6-inverted-stage1/result.md`) — **Q6-C** verdict, LOCO +0.016 only, pivot to E10/E4
@@ -1053,11 +1207,37 @@ next decision:
 
 ### Q8 — Opaque-secret specialized meta-classifier
 
-**Status:** 🔴 blocked (depends on Sprint 8 "CREDENTIAL split" item
-landing — OPAQUE_SECRET label must exist)
+**Status:** 🟡 queued — Sprint 8 prerequisite satisfied; scope partially subsumed by Sprint 10 gated-architecture item
 **Priority:** P2
 **Estimated time:** 2-3 hours
-**Depends on:** Sprint 8 production candidate A (CREDENTIAL split)
+**Depends on:** Sprint 8 production candidate A (CREDENTIAL split) — ✅ landed
+
+> **Unblocked (2026-04-13):** Sprint 8 shipped the CREDENTIAL split
+> (API_KEY, PRIVATE_KEY, PASSWORD_HASH, OPAQUE_SECRET — verified in
+> `data_classifier/profiles/standard.yaml` on `main`, item A of the
+> Sprint 8 production candidates below). The OPAQUE_SECRET label
+> now exists and Q8's data filter (rows where the post-Sprint-8
+> OPAQUE_SECRET heuristic would fire) is well-defined.
+>
+> **But the Sprint 10 gated-architecture item partially subsumes
+> Q8's scope.** Q8's original framing — "does meta-classification
+> have value in a scoped opaque-secret-only role?" — is a narrow
+> version of the broader question the Sprint 10 backlog item
+> `gated-meta-classifier-architecture-explicit-credential-gate-specialized-stage-2-classifiers-q8-continuation`
+> asks, which is "what should meta-classification look like
+> structurally, given Q3/Q5/Q6/M1/E10 all established the flat
+> classifier has a ceiling?"
+>
+> **Recommendation:** leave Q8 queued as a cheap diagnostic that
+> could run *ahead of* the Sprint 10 sprint item to inform its
+> design. If Q8-A (specialized meta ≥ 0.80 LOCO on the opaque-
+> secret subset, rule-based ≤ 0.70), the Sprint 10 item's stage-2
+> credential classifier has an empirical precedent. If Q8-C (rule-
+> based wins), the gated architecture skips the stage-2 ML
+> classifier for credentials entirely and uses pure heuristics at
+> that node. Either result is load-bearing for the Sprint 10
+> design, so running Q8 before Sprint 10 starts is high-leverage
+> for ~2-3 hours of work.
 
 **Why it matters:** Q3, Q5, and Q6 established that a general-purpose
 meta-classifier over 24 classes fails LOCO because of structural
@@ -1160,11 +1340,37 @@ systematically optimistic.
 
 ### M1 — CV strategy: StratifiedKFold → StratifiedGroupKFold
 
+**Status:** ✅ shipped Sprint 9 — research run `runs/m1-2026-04-13/result.md`; promoted via sprint commits `6b74da7` + `b331ab1` on sprint9/main
 **Discovered by:** Q3 (`runs/20260412-q3-loco-investigation/
 result.md` §6)
 **Priority:** P0 — blocking correctness on every meta-classifier
 metric, including the shipped v1 model
 **Effort:** S (one-line code change + retrain + metadata refresh)
+
+> **Sprint 9 outcome (2026-04-13):** M1 shipped. Actual measured
+> impact on the retrained `meta_classifier_v1.pkl`:
+> - `best_c`: 100 → **1.0** (Q3's prediction of "≤10" confirmed to
+>   the decimal)
+> - CV mean macro F1: 0.9160 → **0.1940 ± 0.0848**
+> - Held-out macro F1: 0.9185 → **0.8511**
+> - LOCO mean: ~0.30 → **~0.17**
+> - Tertiary blind delta (meta − live, 5-engine framing):
+>   **+0.2432** (post-Gretel ingest + M1)
+>
+> The 0.66-point CV drop is the shortcut finally becoming visible,
+> not the model regressing — a point the Sprint 9 learning memo
+> makes at length (`docs/learning/sprint9-cv-shortcut-and-gated-architecture.md`
+> on main).
+>
+> A follow-on wrinkle — the StratifiedGroupKFold promotion initially
+> broke on the Q6-filtered PII-only dataset because the 3-corpus
+> training data doesn't always satisfy `n_groups ≥ n_splits`; commit
+> `b331ab1` added an adaptive fallback that degrades to `n_splits
+> = min(n_splits, n_groups)` when the group count is too low. The
+> v1 production model is unaffected by this fallback (it trains on
+> the full 6-corpus dataset where `n_groups=6 ≥ n_splits=5`), but
+> any future research experiment that filters the training data
+> should expect to hit the low-group path.
 
 **The bug:** `scripts/train_meta_classifier.py` uses
 `sklearn.model_selection.StratifiedKFold(n_splits=5)` for the
