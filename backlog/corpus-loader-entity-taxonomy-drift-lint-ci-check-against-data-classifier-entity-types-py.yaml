@@ -40,7 +40,7 @@ test_plan:
   \ 'CREDENTIAL' and assert lint raises"
 - "test_lint_passes_on_valid_api_key_label \u2014 positive control"
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
