@@ -368,9 +368,16 @@ class MetaClassifier:
 
 
 def _distinct_ratio(values: list[str]) -> float:
-    if not values:
-        return 0.0
-    return len(set(values)) / len(values)
+    # Sprint 11 Phase 8: delegate to the heuristic engine's Chao-1
+    # bias-corrected cardinality estimator so training, shadow
+    # inference, and the SSN/ABA heuristic rules all agree on a single
+    # distinctness definition. Import locally to keep
+    # ``meta_classifier`` import-time independent of the engines
+    # package (and to avoid cycles once engines grow new orchestrator
+    # back-references).
+    from data_classifier.engines.heuristic_engine import compute_cardinality_ratio
+
+    return compute_cardinality_ratio(values)
 
 
 def _avg_length_normalized(values: list[str]) -> float:

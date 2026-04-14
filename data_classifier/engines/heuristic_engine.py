@@ -32,17 +32,45 @@ logger = logging.getLogger(__name__)
 
 
 def compute_cardinality_ratio(values: list[str]) -> float:
-    """Compute ratio of unique values to total values.
+    """Chao-1 bias-corrected distinctness estimate, ratioed against sample size.
+
+    Starts from the observed distinct count ``D`` and adds the Chao-1
+    richness correction ``f1 * (f1 - 1) / (2 * (f2 + 1))`` to account
+    for unseen species implied by the singleton/doubleton structure,
+    where ``f1`` is the number of values that appear exactly once and
+    ``f2`` is the number that appear exactly twice. The ``+1`` in the
+    denominator is Chao's bias-corrected form — it keeps the estimator
+    well-defined when ``f2 == 0``.
+
+    When ``f1 == 0`` (every value appears two or more times) the
+    correction collapses to zero and the result equals the naive
+    ``D / N``.  When ``f1 > 0`` the estimate grows toward the true
+    cardinality; this is the case we care about for low-sample-count
+    columns where the naive ratio systematically undercounts richness.
 
     Args:
         values: Sample values from the column.
 
     Returns:
-        Float between 0.0 and 1.0.  1.0 means every value is unique.
+        Float clipped to ``[0.0, 1.0]``.  ``1.0`` still means "every
+        sampled value is unique and the sample is too small to rule
+        out unbounded richness" — callers that need absolute counts
+        should consult ``ColumnStats`` instead.
     """
     if not values:
         return 0.0
-    return len(set(values)) / len(values)
+    n = len(values)
+    counts = Counter(values)
+    observed_distinct = len(counts)
+    f1 = sum(1 for c in counts.values() if c == 1)
+    f2 = sum(1 for c in counts.values() if c == 2)
+    estimated_distinct = observed_distinct + (f1 * (f1 - 1)) / (2.0 * (f2 + 1))
+    ratio = estimated_distinct / n
+    if ratio < 0.0:
+        return 0.0
+    if ratio > 1.0:
+        return 1.0
+    return ratio
 
 
 def compute_shannon_entropy(value: str) -> float:

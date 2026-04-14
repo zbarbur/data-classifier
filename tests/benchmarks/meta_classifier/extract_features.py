@@ -102,10 +102,14 @@ class TrainingRow:
 
 
 def _distinct_ratio(values: list[str]) -> float:
-    """Return distinct-value ratio. 0.0 for empty input."""
-    if not values:
-        return 0.0
-    return len(set(values)) / len(values)
+    """Return Chao-1 bias-corrected distinctness ratio. 0.0 for empty input.
+
+    Sprint 11 Phase 8: delegates to the production helper so training
+    and live shadow inference cannot drift.
+    """
+    from data_classifier.engines.heuristic_engine import compute_cardinality_ratio
+
+    return compute_cardinality_ratio(values)
 
 
 def _avg_length_normalized(values: list[str]) -> float:
