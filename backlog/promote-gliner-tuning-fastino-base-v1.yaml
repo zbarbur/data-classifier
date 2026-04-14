@@ -1,9 +1,9 @@
 title: "Promote GLiNER tuning \u2014 fastino/gliner2-base-v1 + threshold 0.80 + SSN/PERSON_NAME\
   \ label swaps"
-status: doing
+status: backlog
 priority: P1
 category: feature
-sprint_target: 10
+sprint_target: 11
 created: 2026-04-13
 updated: 2026-04-14
 depends_on: []
@@ -63,13 +63,14 @@ test_plan:
 - 'Manual: tests/benchmarks/accuracy_benchmark.py full pipeline run on both blind
   corpora'
 - 'Manual: install smoke test on a fresh wheel'
-notes: "Sprint 10 STRETCH \u2014 gated on promote-s1-nl-prompt-wrapping-gliner-engine\
-  \ landing first. Implementation path: apply docs/research/gliner_fastino/fastino_promotion_draft_20260414.patch\
-  \ (preserved 412-line patch from commit 36f97bf) against post-S1 gliner_engine.py.\
-  \ Hard gates: Gretel-EN blind F1 delta >= -0.005 vs Sprint 9 (was -0.1319) AND Nemotron\
-  \ blind F1 delta >= -0.005 vs Sprint 9 (was -0.1923). Only ship if S1 lands early\
-  \ in week 2 \u2014 otherwise defer to Sprint 11."
-phase: spec
+notes: 'Sprint 10 wave 3 attempt FAILED blind-corpus gates. Measured (sprint10/main
+  + fastino + threshold 0.80 + S1 wrapping live, descriptions off, label swaps): Gretel-EN
+  0.611->0.413 (-0.198), Nemotron 0.821->0.526 (-0.295). Dominant failure: fastino
+  fires PHONE@0.92+ on numeric columns (ABA/BANK_ACCOUNT/CC/HEALTH/VIN), orchestrator
+  dedup suppresses correct regex findings. 2 integration tests also regressed (DOB_EU
+  32/13/2000, SIN-luhn). Reverted. Successor: fastino-promotion-retry-investigate-s1-variant-b-always-wrap-fallback-to-close-blind-corpus-regression
+  (Sprint 11 investigation item). This item blocked pending that research.'
+phase: null
 design_reviewed: false
 code_reviewed: false
 comments: []
