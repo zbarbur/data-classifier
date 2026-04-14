@@ -975,3 +975,105 @@ class TestDictionaryHealth:
         assert len(entries) >= 88 + 80, (
             f"Dictionary has {len(entries)} entries, expected >= 168 (88 baseline + 80 minimum net-new)"
         )
+
+
+class TestMatchTypeTightening:
+    """Sprint 11 item #4 — ``id_token`` and ``token_secret`` must not fire
+    on substring-containing compound identifiers.
+
+    The pre-Sprint-11 ``match_type: substring`` rule caused the id_token
+    pattern to over-fire on any key whose middle or suffix happened to
+    contain the literal string ``id_token`` (e.g. ``rapid_token`` — the
+    substring ``id_token`` occurs at positions 3–10). Tightening to
+    ``match_type: word_boundary`` requires the pattern to be preceded
+    and followed by a word-break character (``^``, ``_``, ``-``, ``.``,
+    whitespace, or ``$``).
+
+    These tests pin both the JSON-level invariant and the runtime
+    behaviour so neither can silently regress.
+    """
+
+    def _find_entry(self, pattern: str) -> dict:
+        entries = _load_full_dictionary()
+        matches = [e for e in entries if e["pattern"] == pattern]
+        assert len(matches) == 1, f"expected exactly one entry for {pattern!r}, got {len(matches)}"
+        return matches[0]
+
+    def test_id_token_uses_word_boundary_match_type(self) -> None:
+        entry = self._find_entry("id_token")
+        assert entry["match_type"] == "word_boundary", (
+            f"id_token must use word_boundary match_type (was {entry['match_type']!r})"
+        )
+
+    def test_token_secret_uses_word_boundary_match_type(self) -> None:
+        entry = self._find_entry("token_secret")
+        assert entry["match_type"] == "word_boundary", (
+            f"token_secret must use word_boundary match_type (was {entry['match_type']!r})"
+        )
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "id_token",
+            "user_id_token",
+            "id_token_v2",
+            "oauth.id_token",
+            "ID_TOKEN",  # case-insensitive
+        ],
+    )
+    def test_id_token_still_matches_legitimate_keys(self, key: str) -> None:
+        """Positive regression: the tightened pattern must still fire on real id_token columns."""
+        from data_classifier.engines.secret_scanner import _match_key_pattern
+
+        assert _match_key_pattern(key.lower(), "id_token", "word_boundary"), (
+            f"tightened id_token pattern should still match {key!r}"
+        )
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "rapid_token",  # "id_token" at positions 3–10, preceded by "p"
+            "avid_tokens",  # "id_token" at positions 1–8, preceded by "v"
+            "mid_token_v2",  # "id_token" at positions 1–8, preceded by "m"
+            "squid_token",  # "id_token" at positions 3–10, preceded by "u"
+        ],
+    )
+    def test_id_token_does_not_fire_on_compound_substrings(self, key: str) -> None:
+        """Negative regression: the tightened pattern must NOT fire on unrelated compound keys."""
+        from data_classifier.engines.secret_scanner import _match_key_pattern
+
+        assert not _match_key_pattern(key.lower(), "id_token", "word_boundary"), (
+            f"tightened id_token pattern should NOT match {key!r}"
+        )
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "token_secret",
+            "api_token_secret",
+            "token_secret_v2",
+            "oauth.token_secret",
+            "TOKEN_SECRET",
+        ],
+    )
+    def test_token_secret_still_matches_legitimate_keys(self, key: str) -> None:
+        from data_classifier.engines.secret_scanner import _match_key_pattern
+
+        assert _match_key_pattern(key.lower(), "token_secret", "word_boundary"), (
+            f"tightened token_secret pattern should still match {key!r}"
+        )
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "bigtoken_secret",  # "token_secret" at positions 3–14, preceded by "g"
+            "atoken_secrets",  # preceded by "a", suffix "s"
+            "mytoken_secret_v2",  # preceded by "y"
+        ],
+    )
+    def test_token_secret_does_not_fire_on_compound_substrings(self, key: str) -> None:
+        from data_classifier.engines.secret_scanner import _match_key_pattern
+
+        assert not _match_key_pattern(key.lower(), "token_secret", "word_boundary"), (
+            f"tightened token_secret pattern should NOT match {key!r}"
+        )
