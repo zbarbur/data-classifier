@@ -3,7 +3,7 @@
 > **Theme:** Measurement honesty + Sprint 10 cleanup + meta-classifier v3 / family taxonomy
 > **Dates:** 2026-04-14 → 2026-04-15
 > **Branches:** `sprint11/main` (8 cleanup items, 17 commits) + `sprint11/scanner-tuning-batch` (meta-classifier v3 batch, 14 commits, PR #12)
-> **Test count:** 1374 → **1518** (+144 net-new)
+> **Test count:** 1374 → **1520** (+146 net-new)
 > **Released as:** TBD — merge-pending (`v0.11.0` tag after `sprint11/main` lands on `main`)
 
 ---
@@ -274,7 +274,7 @@ The 10-phase meta-classifier batch's headline finding was that **subtype-level F
 
 | Category | Pre-Sprint-11 | Post-Sprint-11 | Delta |
 |---|---|---|---|
-| Total passing | 1374 | **1518** | +144 |
+| Total passing | 1374 | **1520** | +146 |
 | Skipped | 1 | 1 | 0 |
 | Main-session adds (items #1–#8 + review) | — | **+38** | (new loader tests, drift lint, scanner tightening, engine integration, partitioner, public-key PEM negative, scanner KV integration) |
 | Scanner-tuning-batch adds (PR #12) | — | **+100** | (meta-classifier v2/v3, Chao-1, new validators, family benchmark, gate observability) |
@@ -345,4 +345,4 @@ Priority-ordered, with the 4 PR #12 follow-ups first since they come out of meas
 
 Sprint 11 delivered its headline goal (measurement honesty + Sprint 10 cleanup) plus an unplanned architectural addition from the parallel research track (family taxonomy as a public API field + canonical family benchmark as the new quality gate). Both Nemotron benchmark numbers recovered and now sit above the Sprint 9 baseline; the Nemotron blind F1 win came from a corpus-side fix that the Sprint 10 handover's diagnosis had pointed at incorrectly. The two-track execution finished with zero merge conflicts, full code review on both tracks, and 2 must-fix + 7 yellow review findings remediated pre-merge.
 
-**Total test delta:** 1374 → **1518** (+144). **Main-session commits:** 17. **Scanner-tuning-batch commits:** 14 (PR #12). **Benchmark wins:** Nemotron named +0.077 → 1.000, Nemotron blind +0.059 → 0.833. **Release status:** pending v0.11.0 tag after PR #12 lands and `sprint11/main` → `main` merge.
+**Total test delta:** 1374 → **1520** (+146). **Main-session commits:** 17. **Scanner-tuning-batch commits:** 14 (PR #12). **Benchmark wins:** Nemotron named +0.077 → 1.000, Nemotron blind +0.059 → 0.833. **Release status:** pending v0.11.0 tag after PR #12 lands and `sprint11/main` → `main` merge.
