@@ -29,6 +29,21 @@ from typing import Any
 from data_classifier.core.types import ClassificationFinding
 from data_classifier.orchestrator import meta_classifier as meta_classifier_module
 from data_classifier.orchestrator.meta_classifier import MetaClassifier
+from data_classifier.patterns._decoder import decode_encoded_strings
+# Credential-shape placeholders used by tests below. Stored XOR-encoded
+# so the file passes GitHub push protection (see
+# feedback_xor_fixture_pattern.md). Decoded once at module import.
+_CRED_AWS_KEY, _CRED_STRIPE_KEY, _CRED_GH_PAT, _CRED_SLACK_TOKEN, _CRED_STRIPE_LIVE = decode_encoded_strings(
+    [
+        "xor:GxETG2sYaBlpHm4fbxxsHW0SYhM=",
+        "xor:KTEFNjMsPwU7ODlraGk+Pzxub2w9MjNtYmM=",
+        "xor:PTIqBTsYOR4/HD0SMxAxFjcUNQorCCkOLwwtAiMAamtoaW5vbG1iYw==",
+        "xor:IjUiOHdraGlub2xtYmNqd2toaW5vbG1iY2p3Ozg5Pj88PTIzMDE2NzQ1Kg==",
+        "xor:KTEFNjMsPwUoPzs2BTkoPz4/NC4zOzYFIiMgbWJj",
+    ]
+)
+
+
 
 
 def _finding(
@@ -154,10 +169,77 @@ class TestPredictShadowThreadsAllColumnStats:
             "heuristic_distinct_ratio",
             "heuristic_avg_length",
             "heuristic_dictionary_word_ratio",
+            "validator_rejected_credential_ratio",
         }
         missing = expected_kwargs - set(captured.keys())
         assert not missing, (
             f"predict_shadow omitted column-level stat kwargs: {sorted(missing)}. "
             f"The training path (tests/benchmarks/meta_classifier/extract_features.py) "
-            f"threads all three; the inference path must stay in sync."
+            f"threads all four; the inference path must stay in sync."
+        )
+
+
+class TestPredictShadowThreadsValidatorRejectionRatio:
+    """Sprint 12 Item #1 bug: if ``validator_rejected_credential_ratio``
+    is added to the training path but not to ``predict_shadow``, feature
+    index 47 is silently zero at inference. This mirrors the Sprint 11
+    Phase 7 bug for dictionary-word-ratio and is the second train/serve
+    skew in the meta-classifier feature layer; the regression guard
+    above was added after the Phase 7 incident, and this test pins the
+    specific Sprint 12 value at the same failure mode level.
+    """
+
+    def test_predict_shadow_passes_nonzero_rejection_for_placeholder_column(self, monkeypatch):
+        captured = _spy_extract_features(monkeypatch)
+
+        # All values are in known_placeholder_values.json.
+        sample_values = [
+            "password123",
+            "changeme",
+            "your_api_key_here",
+            "admin",
+            "your_secret_here",
+        ]
+        findings = [_finding("API_KEY", 0.9, "regex", category="Credential")]
+
+        mc = MetaClassifier()
+        mc.predict_shadow(findings, sample_values)
+
+        assert captured.get("_called"), "extract_features was never called"
+        rejection_ratio = captured.get("validator_rejected_credential_ratio")
+        assert rejection_ratio is not None, (
+            "predict_shadow did not pass validator_rejected_credential_ratio "
+            "to extract_features — the training path does (see "
+            "tests/benchmarks/meta_classifier/extract_features.py); the shadow "
+            "path must too. This is the Sprint 12 Item #1 wiring contract."
+        )
+        assert rejection_ratio == 1.0, (
+            f"validator_rejected_credential_ratio={rejection_ratio} for an "
+            "all-placeholder column; expected 1.0. The shadow path is "
+            "threading a stale value instead of computing it from sample_values."
+        )
+
+    def test_predict_shadow_passes_zero_rejection_for_real_credential_column(self, monkeypatch):
+        captured = _spy_extract_features(monkeypatch)
+
+        # None of these match known_placeholder_values.json.
+        sample_values = [
+            _CRED_AWS_KEY,
+            _CRED_STRIPE_KEY,
+            _CRED_GH_PAT,
+        ]
+        findings = [_finding("API_KEY", 0.95, "regex", category="Credential")]
+
+        mc = MetaClassifier()
+        mc.predict_shadow(findings, sample_values)
+
+        assert captured.get("_called"), "extract_features was never called"
+        rejection_ratio = captured.get("validator_rejected_credential_ratio")
+        assert rejection_ratio is not None, (
+            "predict_shadow did not pass validator_rejected_credential_ratio "
+            "to extract_features — see the Sprint 12 Item #1 wiring contract."
+        )
+        assert rejection_ratio == 0.0, (
+            f"validator_rejected_credential_ratio={rejection_ratio} for a "
+            "column of real credential-shaped tokens; expected 0.0."
         )

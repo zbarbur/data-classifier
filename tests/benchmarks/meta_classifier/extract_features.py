@@ -166,7 +166,10 @@ def extract_training_row(
     source: str,
 ) -> TrainingRow:
     """Extract a single training row for the given labeled column."""
-    from data_classifier.engines.heuristic_engine import compute_dictionary_word_ratio
+    from data_classifier.engines.heuristic_engine import (
+        compute_dictionary_word_ratio,
+        compute_placeholder_credential_rejection_ratio,
+    )
 
     findings = _run_all_engines(column, profile)
 
@@ -176,12 +179,18 @@ def extract_training_row(
     # stat (no engine dependency) so it's computed here and threaded
     # through the meta_classifier feature extractor.
     dict_ratio = compute_dictionary_word_ratio(column.sample_values)
+    # Sprint 12 Item #1: placeholder-credential rejection ratio. Same
+    # pattern as dict-word-ratio — a pure column-level statistic
+    # computed here and threaded through so the training path and
+    # predict_shadow see the same value for the same sample_values.
+    rejection_ratio = compute_placeholder_credential_rejection_ratio(column.sample_values)
 
     features = _extract_features_from_findings(
         findings,
         heuristic_distinct_ratio=distinct,
         heuristic_avg_length=avg_len,
         heuristic_dictionary_word_ratio=dict_ratio,
+        validator_rejected_credential_ratio=rejection_ratio,
     )
 
     fired = sorted({f.engine for f in findings})

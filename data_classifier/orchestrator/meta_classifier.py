@@ -42,7 +42,8 @@ _log = logging.getLogger(__name__)
 #   1 — Sprint 6 original (15 features).
 #   2 — Sprint 11 Phase 2 widening (15 base + 31 primary_entity_type one-hot = 46).
 #   3 — Sprint 11 Phase 7: appended heuristic_dictionary_word_ratio at index 46 (total 47).
-FEATURE_SCHEMA_VERSION: int = 3
+#   4 — Sprint 12 Item #1: appended validator_rejected_credential_ratio at index 47 (total 48).
+FEATURE_SCHEMA_VERSION: int = 4
 
 # Base column-level features. Do NOT reorder these 15 — downstream code
 # indexes them positionally in several places.
@@ -114,10 +115,11 @@ PRIMARY_ENTITY_TYPES: tuple[str, ...] = (
 # future additions should also append at the end rather than inserting.
 _EXTRA_FEATURE_NAMES: tuple[str, ...] = (
     "heuristic_dictionary_word_ratio",  # Sprint 11 Phase 7 — index 46
+    "validator_rejected_credential_ratio",  # Sprint 12 Item #1 — index 47
 )
 
 # Full feature schema = 15 base + 31 entity-type one-hot slots + N extras.
-# Schema v2 = 46, v3 = 47.
+# Schema v2 = 46, v3 = 47, v4 = 48.
 FEATURE_NAMES: tuple[str, ...] = (
     _BASE_FEATURE_NAMES + tuple(f"primary_entity_type={t}" for t in PRIMARY_ENTITY_TYPES) + _EXTRA_FEATURE_NAMES
 )
@@ -308,15 +310,22 @@ class MetaClassifier:
         values = sample_values or []
         distinct = _distinct_ratio(values)
         avg_len = _avg_length_normalized(values)
-        # Sprint 11 Phase 7 feature, wired into shadow inference here
-        # so the training row (tests/benchmarks/meta_classifier/
-        # extract_features.py) and the live predict_shadow path compute
-        # the same index-46 value for the same column. Missing this
-        # pass-through silently zeros index 46 for every shadow
-        # prediction — a bug that existed between Phase 7 and the fix.
-        from data_classifier.engines.heuristic_engine import compute_dictionary_word_ratio
+        # Sprint 11 Phase 7 + Sprint 12 Item #1 features, wired into
+        # shadow inference here so the training row
+        # (tests/benchmarks/meta_classifier/extract_features.py) and
+        # the live predict_shadow path compute the same index-46 and
+        # index-47 values for the same column. Missing this
+        # pass-through silently zeros the feature for every shadow
+        # prediction — a bug that existed between Phase 7 and its fix.
+        # The parity tests in tests/test_meta_classifier_inference_parity.py
+        # pin this contract.
+        from data_classifier.engines.heuristic_engine import (
+            compute_dictionary_word_ratio,
+            compute_placeholder_credential_rejection_ratio,
+        )
 
         dict_ratio = compute_dictionary_word_ratio(values)
+        rejection_ratio = compute_placeholder_credential_rejection_ratio(values)
 
         try:
             full_vec = extract_features(
@@ -324,6 +333,7 @@ class MetaClassifier:
                 heuristic_distinct_ratio=distinct,
                 heuristic_avg_length=avg_len,
                 heuristic_dictionary_word_ratio=dict_ratio,
+                validator_rejected_credential_ratio=rejection_ratio,
             )
             dropped = set(self._dropped_feature_indices)
             kept_vec = [v for i, v in enumerate(full_vec) if i not in dropped]
@@ -436,8 +446,9 @@ def extract_features(
     heuristic_distinct_ratio: float = 0.0,
     heuristic_avg_length: float = 0.0,
     heuristic_dictionary_word_ratio: float = 0.0,
+    validator_rejected_credential_ratio: float = 0.0,
 ) -> list[float]:
-    """Extract the 47-feature (schema v3) vector from a column's per-engine findings.
+    """Extract the 48-feature (schema v4) vector from a column's per-engine findings.
 
     The caller is expected to supply *all* findings produced for a single
     column, across every engine that ran. This function is pure: no I/O,
@@ -481,6 +492,17 @@ def extract_features(
            High ratio (>0.5) implies English-text columns (passwords,
            descriptions, names); low ratio (<0.1) implies random-looking
            identifiers (hashes, tokens, API keys).
+
+    47     validator_rejected_credential_ratio — caller-supplied column
+           statistic in [0.0, 1.0]. Fraction of sample values that the
+           :func:`data_classifier.engines.validators.not_placeholder_credential`
+           validator would reject (computed via
+           :func:`data_classifier.engines.heuristic_engine.compute_placeholder_credential_rejection_ratio`).
+           High ratio (>0.5) implies a column full of documentation
+           placeholders / example credentials; used as a NEGATIVE
+           discriminator for the meta-classifier on
+           credential-regex-matching columns that are structurally
+           placeholder-heavy.
     """
     regex_findings = _findings_for_engine(findings, _ENGINE_REGEX)
     column_name_findings = _findings_for_engine(findings, _ENGINE_COLUMN_NAME)
@@ -576,6 +598,7 @@ def extract_features(
 
     # Extras — appended in the same order as _EXTRA_FEATURE_NAMES.
     vector.append(float(heuristic_dictionary_word_ratio))
+    vector.append(float(validator_rejected_credential_ratio))
 
     assert len(vector) == FEATURE_DIM, f"feature vector length {len(vector)} != {FEATURE_DIM}"
     return vector
