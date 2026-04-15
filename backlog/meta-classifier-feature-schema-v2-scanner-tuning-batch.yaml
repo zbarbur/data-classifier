@@ -35,7 +35,7 @@ notes: "Branch: sprint11/scanner-tuning-batch, worktree: /Users/guyguzner/Projec
   \ this batch rebases on top. Known minor Python collision in tests/test_meta_classifier_training.py\
   \ near the top-of-module env-var setup from item #5 \u2014 trivial to resolve."
 phase: review
-design_reviewed: false
-code_reviewed: false
+design_reviewed: true
+code_reviewed: true
 comments: []
 images: []
