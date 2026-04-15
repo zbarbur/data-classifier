@@ -4,7 +4,7 @@ priority: P1
 category: feature
 sprint_target: 11
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-15
 depends_on: []
 tags: []
 goal: "Widen meta-classifier feature schema to v2 and tune scanner behavior across\
@@ -34,7 +34,7 @@ notes: "Branch: sprint11/scanner-tuning-batch, worktree: /Users/guyguzner/Projec
   \ env-leak hygiene, engine docs, fail-fast dispatch doc) will land FIRST on sprint11/main;\
   \ this batch rebases on top. Known minor Python collision in tests/test_meta_classifier_training.py\
   \ near the top-of-module env-var setup from item #5 \u2014 trivial to resolve."
-phase: build
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
