@@ -229,7 +229,12 @@ def _classify_credential_value_shape(value: str) -> str:
         return "OPAQUE_SECRET"
     if _JWT_SHAPE_RE.match(stripped):
         return "API_KEY"
-    if stripped.startswith("-----BEGIN ") and "KEY" in stripped[:60].upper():
+    # PEM match must require "PRIVATE KEY" explicitly — checking for just
+    # "KEY" would incorrectly bucket ``-----BEGIN PUBLIC KEY-----`` blocks
+    # (and other non-private PEM headers) as PRIVATE_KEY.  The header-only
+    # 60-char window is enough to see the full type prefix without pulling
+    # in the base64 body.
+    if stripped.startswith("-----BEGIN ") and "PRIVATE KEY" in stripped[:60].upper():
         return "PRIVATE_KEY"
     return "OPAQUE_SECRET"
 
@@ -323,15 +328,18 @@ def load_nemotron_corpus(
 
     # Sprint 11 follow-up: repartition raw ``password`` / ``CREDENTIAL``
     # records by value shape so JWTs route to API_KEY and PEM blocks to
-    # PRIVATE_KEY.  Leaves every other entity_type untouched.
+    # PRIVATE_KEY.  Leaves every other entity_type untouched.  The rewrite
+    # is applied unconditionally for credential-bucket records (even when
+    # the shape helper returns ``OPAQUE_SECRET``), so the partitioner's
+    # output is self-contained and does not implicitly depend on
+    # ``NEMOTRON_TYPE_MAP["password"] == "OPAQUE_SECRET"`` remaining true.
     repartitioned: list[dict] = []
     for record in records:
         raw_type = record.get("entity_type") or record.get("type") or ""
         if raw_type in ("password", "CREDENTIAL"):
             subtype = _classify_credential_value_shape(str(record.get("value", "")))
-            if subtype != "OPAQUE_SECRET":
-                repartitioned.append({**record, "entity_type": subtype})
-                continue
+            repartitioned.append({**record, "entity_type": subtype})
+            continue
         repartitioned.append(record)
 
     return _records_to_corpus(repartitioned, NEMOTRON_TYPE_MAP, "nemotron", max_rows, blind=blind)

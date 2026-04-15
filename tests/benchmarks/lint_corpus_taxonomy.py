@@ -40,17 +40,33 @@ from typing import Any
 
 import yaml
 
-#: Names of dicts that the lint must NOT walk. These are either legacy
-#: carry-overs with a known fixture-refresh debt, or helper dicts that
-#: do not represent a loader's public vocabulary.
-_SKIP_MAPS: frozenset[str] = frozenset(
-    {
-        # Gretel-finance fixture still uses legacy CREDENTIAL label;
-        # refresh requires rebuilding fixture metadata (Sprint 12+ item).
-        "GRETEL_FINANCE_TYPE_MAP",
-        "_GRETEL_FINANCE_POST_ETL_IDENTITY",
-    }
-)
+#: Names of dicts that the lint must NOT walk, paired with the sprint
+#: by which the skip is expected to be removed.  Every skip MUST carry
+#: an expected-removal sprint and a link to the follow-up backlog item
+#: that will refresh the underlying fixture — this is the guardrail
+#: that prevents "temporary" skips from becoming permanent blind spots
+#: (Sprint 10 drift story, recorded in
+#: docs/sprints/SPRINT10_HANDOVER.md "Lessons learned #1").
+#:
+#: When adding a new skip: also file a backlog item scoped to the
+#: target-removal sprint, cite it here, and do NOT add the entry without
+#: an expiry sprint.  When removing a skip: delete the entry entirely
+#: (do not leave the comment behind as a tombstone — git history is the
+#: record).
+_SKIP_MAPS_WITH_EXPIRY: dict[str, str] = {
+    # Gretel-finance fixture still uses the legacy CREDENTIAL label
+    # because the shipped fixture preserves per-record ``raw_label`` /
+    # ``source_context`` metadata keyed on ``entity_type == "CREDENTIAL"``.
+    # Refreshing requires rebuilding the fixture end-to-end; filed as a
+    # Sprint 12 chore: ``gretel-finance-fixture-refresh-drop-legacy-credential-label``.
+    "GRETEL_FINANCE_TYPE_MAP": "Sprint 12",
+    "_GRETEL_FINANCE_POST_ETL_IDENTITY": "Sprint 12",
+}
+
+#: Frozen-set view used by the walk.  Derived from the source-of-truth
+#: ``_SKIP_MAPS_WITH_EXPIRY`` dict so adding or removing a skip only
+#: requires touching one place.
+_SKIP_MAPS: frozenset[str] = frozenset(_SKIP_MAPS_WITH_EXPIRY.keys())
 
 #: Labels that are legitimately emitted by loaders but are not first-class
 #: ``entity_type`` entries in ``standard.yaml``. Kept small and explicit;
@@ -174,28 +190,37 @@ def _main() -> int:
 
     Kept deliberately tiny so the CI matrix can call it with ``python -m
     tests.benchmarks.lint_corpus_taxonomy`` instead of wrapping it in a
-    pytest invocation. Prints a concise human-readable report when
+    pytest invocation.  Prints a concise human-readable report when
     violations are found.
+
+    Uses ``print`` (not ``logging``) because this is a pre-commit / CI
+    tool whose output IS the user interface — the success line goes to
+    stdout so grep / CI parsers see it, and violation lines go to
+    stderr so a `&&`-chained shell pipeline stops on failure without
+    mixing streams.  CLAUDE.md's "no print statements" rule is for
+    library code; CLI entrypoints are the documented exception here,
+    which is why each print carries an explicit ``# noqa: T201``
+    annotation to survive a future ruff rule addition.
     """
     from tests.benchmarks import corpus_loader
 
     try:
         violations = lint_loader_vocabulary(corpus_loader)
     except ValueError as exc:
-        print(f"lint ERROR: {exc}", file=sys.stderr)
+        print(f"lint ERROR: {exc}", file=sys.stderr)  # noqa: T201
         return 1
 
     if not violations:
-        print("lint_corpus_taxonomy: OK — 0 drift violations")
+        print("lint_corpus_taxonomy: OK — 0 drift violations")  # noqa: T201
         return 0
 
-    print(
+    print(  # noqa: T201
         f"lint_corpus_taxonomy: {len(violations)} drift violation(s) in tests/benchmarks/corpus_loader.py",
         file=sys.stderr,
     )
     for v in violations:
-        print(f"  - {v}", file=sys.stderr)
-    print(
+        print(f"  - {v}", file=sys.stderr)  # noqa: T201
+    print(  # noqa: T201
         "Fix: route each raw_label to a valid entity_type from "
         "data_classifier/profiles/standard.yaml. See "
         "docs/plans/nemotron-corpus-loader-taxonomy-refresh.md for the "

@@ -655,6 +655,26 @@ class TestNemotronCredentialShapePartitioning:
         assert _classify_credential_value_shape(ec_pem) == "PRIVATE_KEY"
         assert _classify_credential_value_shape(openssh_pem) == "PRIVATE_KEY"
 
+    def test_public_key_pem_does_not_route_to_private_key(self) -> None:
+        """Negative regression: a ``-----BEGIN PUBLIC KEY-----`` header must
+        NOT route to PRIVATE_KEY.  The earlier implementation checked for
+        the substring ``"KEY"`` anywhere in the header window, which would
+        incorrectly bucket public-key PEM blocks as private keys — a
+        factual label error that would flip the ground truth for any
+        public-key values the Nemotron corpus happens to ship in its
+        credential bucket.  PEM public keys are not secrets, so they fall
+        through to the OPAQUE_SECRET catch-all (neither API_KEY nor
+        PRIVATE_KEY is correct for a public key).
+        """
+        from tests.benchmarks.corpus_loader import _classify_credential_value_shape
+
+        public_pem = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkq...\n-----END PUBLIC KEY-----"
+        dsa_public_pem = "-----BEGIN DSA PUBLIC KEY-----\nABCDEF...\n-----END DSA PUBLIC KEY-----"
+        rsa_public_pem = "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKC...\n-----END RSA PUBLIC KEY-----"
+        assert _classify_credential_value_shape(public_pem) == "OPAQUE_SECRET"
+        assert _classify_credential_value_shape(dsa_public_pem) == "OPAQUE_SECRET"
+        assert _classify_credential_value_shape(rsa_public_pem) == "OPAQUE_SECRET"
+
     def test_plaintext_password_stays_opaque_secret(self) -> None:
         from tests.benchmarks.corpus_loader import _classify_credential_value_shape
 

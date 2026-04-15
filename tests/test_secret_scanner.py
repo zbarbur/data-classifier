@@ -1077,3 +1077,58 @@ class TestMatchTypeTightening:
         assert not _match_key_pattern(key.lower(), "token_secret", "word_boundary"), (
             f"tightened token_secret pattern should NOT match {key!r}"
         )
+
+    def test_secret_scanner_engine_does_not_fire_via_id_token_on_rapid_token_kv(self) -> None:
+        """End-to-end integration regression: the full ``SecretScannerEngine``
+        must NOT attribute any finding on a ``rapid_token=<value>`` KV pair
+        to the ``id_token`` or ``token_secret`` dictionary entries.  This
+        pins the ENGINE-level behavior (not just the ``_match_key_pattern``
+        helper) so a future refactor that changes how ``_score_key_name``
+        consumes ``match_type`` would still be caught — the low-level
+        helper tests above would pass while the engine silently over-fired,
+        which is exactly the failure mode Sprint 11 item #4 was filed to
+        prevent.
+
+        Note: the generic ``token`` dictionary entry may still (correctly)
+        fire on ``rapid_token`` in the ``strong`` tier — that is a
+        separate dictionary question, out of scope for item #4.  This
+        test specifically checks that ``id_token`` / ``token_secret``
+        substring matches on compound keys are NOT the cause of any
+        finding emitted by the scanner.
+        """
+        from data_classifier.core.types import ColumnInput
+        from data_classifier.engines.secret_scanner import SecretScannerEngine
+
+        engine = SecretScannerEngine()
+        engine.startup()
+
+        # Construct a column whose sample values parse into ``rapid_token``
+        # keyed KV pairs — the exact shape that would have over-fired the
+        # pre-tightening id_token pattern in production.  Value is
+        # deliberately high-entropy / long so any engine-level fire would
+        # reach a visibly large composite score.
+        column = ColumnInput(
+            column_name="api_config",
+            column_id="api_config",
+            data_type="STRING",
+            sample_values=[
+                "rapid_token=k8sR9xMp2wLqV3nT7bY5jH1fD4gA6cE",
+                "rapid_token=aB3cD4eF5gH6iJ7kL8mN9oP0qR1sT2uV",
+                "rapid_token=xY9zW8vU7tS6rQ5pO4nM3lK2jI1hG0fE",
+            ],
+        )
+
+        findings = engine.classify_column(column, min_confidence=0.0)
+        # For every finding emitted, assert its evidence string does NOT
+        # cite ``id_token`` or ``token_secret`` as the matched key —
+        # because ``rapid_token`` only has those as interior substrings
+        # and the Sprint 11 tightening moved both to ``word_boundary``.
+        # If a finding's evidence mentions ``key='rapid_token'`` via a
+        # ``token`` (generic) match, that's the existing broad-token
+        # behavior and is allowed here.
+        forbidden_keys = ("'id_token'", "'token_secret'")
+        offenders = [f for f in findings if any(k in (f.evidence or "") for k in forbidden_keys)]
+        assert offenders == [], (
+            f"SecretScannerEngine attributed a rapid_token finding to id_token / "
+            f"token_secret: {[(f.entity_type, f.confidence, f.evidence) for f in offenders]}"
+        )

@@ -203,13 +203,15 @@ These are the failure modes the protocol prevents. Recognize them and reject the
 
 ## Integration with sprint workflow
 
-- **Sprint start** — Label stretch items in the sprint YAML with a `stretch: true` marker (or tag). The main session uses the marker to decide whether to apply this protocol on dispatch.
-- **Sprint mid** — When dispatching a stretch item, copy the dispatch prompt template and fill in the gates. Do NOT omit the REVERT PROTOCOL block.
-- **Sprint end** — Reverted stretch items show up in the handover doc under "Attempted, reverted" with their failure magnitudes. The retry YAML (if any) is listed under "Sprint N+1 candidates."
+> **Status of these hooks:** The dispatch prompt and REVERT protocol (§ above) are in force today and should be applied on any stretch item immediately. The sprint-YAML `stretch: true` marker and the handover "Attempted, reverted" section below describe the *intended* integration points — neither is wired into `SPRINT_START_CHECKLIST.md` / `SPRINT_END_CHECKLIST.md` yet. A follow-up chore will add both. Until then, treat these bullets as the forward-looking plan, and rely on the author of the sprint to manually recognize stretch items and apply the protocol.
+
+- **Sprint start** *(planned hook)* — Label stretch items in the sprint YAML with a `stretch: true` marker (or tag). The main session uses the marker to decide whether to apply this protocol on dispatch. Until the sprint-start checklist is updated, label stretch items explicitly in the sprint-start summary message instead.
+- **Sprint mid** *(active today)* — When dispatching a stretch item, copy the dispatch prompt template and fill in the gates. Do NOT omit the REVERT PROTOCOL block. This rule is in effect regardless of the other hooks.
+- **Sprint end** *(planned hook)* — Reverted stretch items should show up in the handover doc under an "Attempted, reverted" section with their failure magnitudes. The retry YAML (if any) should be listed under "Sprint N+1 candidates." The Sprint 10 handover (the origin case) already follows this shape by hand; the checklist update is a follow-up chore.
 
 ## Cross-references
 
 - `docs/sprints/SPRINT10_HANDOVER.md` — Sprint 10 handover, sections "6. Fastino promotion (wave 3 stretch)" and "Lessons learned #3" (the origin of this doc).
 - `docs/research/gliner_fastino/fastino_promotion_draft_20260414.patch` — the preserved patch (example of the "preserve the patch" rule).
 - `backlog/fastino-promotion-retry-investigate-s1-variant-b-always-wrap-fallback-to-close-blind-corpus-regression.yaml` — the worked-example retry YAML.
-- `docs/process/SPRINT_START_CHECKLIST.md` and `docs/process/SPRINT_END_CHECKLIST.md` — where stretch-item labeling and reporting plug in.
+- `docs/process/SPRINT_START_CHECKLIST.md` and `docs/process/SPRINT_END_CHECKLIST.md` — future home of the sprint-start labeling and sprint-end reporting hooks above (not yet wired; see the status note above the workflow integration section).
