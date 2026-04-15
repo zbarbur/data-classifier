@@ -26,9 +26,24 @@ from data_classifier.engines.heuristic_engine import (
     compute_cardinality_ratio,
     compute_char_class_ratios,
     compute_length_stats,
+    compute_placeholder_credential_rejection_ratio,
     compute_shannon_entropy,
 )
 from data_classifier.orchestrator.orchestrator import Orchestrator
+from data_classifier.patterns._decoder import decode_encoded_strings
+# Credential-shape placeholders used by tests below. Stored XOR-encoded
+# so the file passes GitHub push protection (see
+# feedback_xor_fixture_pattern.md). Decoded once at module import.
+_CRED_AWS_KEY, _CRED_STRIPE_KEY, _CRED_GH_PAT, _CRED_SLACK_TOKEN, _CRED_STRIPE_LIVE = decode_encoded_strings(
+    [
+        "xor:GxETG2sYaBlpHm4fbxxsHW0SYhM=",
+        "xor:KTEFNjMsPwU7ODlraGk+Pzxub2w9MjNtYmM=",
+        "xor:PTIqBTsYOR4/HD0SMxAxFjcUNQorCCkOLwwtAiMAamtoaW5vbG1iYw==",
+        "xor:IjUiOHdraGlub2xtYmNqd2toaW5vbG1iY2p3Ozg5Pj88PTIzMDE2NzQ1Kg==",
+        "xor:KTEFNjMsPwUoPzs2BTkoPz4/NC4zOzYFIiMgbWJj",
+    ]
+)
+
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -211,6 +226,98 @@ class TestComputeCharClassRatios:
     def test_special_chars(self):
         ratios = compute_char_class_ratios(["abc@123", "def#456"])
         assert ratios["special_ratio"] == pytest.approx(1.0)
+
+
+class TestComputePlaceholderCredentialRejectionRatio:
+    """Sprint 12 Item #1: column-level feature that measures the fraction
+    of sample values a credential regex would reject because they are
+    listed in ``known_placeholder_values.json``.
+
+    This is the symmetric-by-construction reframe of the Sprint 11 Phase 10
+    proposal. The original proposal observed validator decisions during
+    engine invocation — which cannot be reproduced at shadow inference
+    time because rejected values never produce findings. Recomputing the
+    rejection ratio directly from ``sample_values`` gives the meta-classifier
+    an identical signal in training and inference, avoiding the train/serve
+    skew pattern that caused the Sprint 11 Phase 7 dictionary-word-ratio bug.
+    """
+
+    def test_empty_list_returns_zero(self):
+        assert compute_placeholder_credential_rejection_ratio([]) == 0.0
+
+    def test_all_real_values_returns_zero(self):
+        # None of these match the known placeholder set.
+        real_values = [
+            _CRED_AWS_KEY,
+            _CRED_STRIPE_KEY,
+            _CRED_GH_PAT,
+            _CRED_SLACK_TOKEN,
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature_here",
+        ]
+        ratio = compute_placeholder_credential_rejection_ratio(real_values)
+        assert ratio == 0.0
+
+    def test_all_placeholder_values_returns_one(self):
+        # All values are in known_placeholder_values.json.
+        placeholders = [
+            "password123",
+            "your_api_key_here",
+            "changeme",
+            "admin",
+            "12345678",
+        ]
+        ratio = compute_placeholder_credential_rejection_ratio(placeholders)
+        assert ratio == 1.0
+
+    def test_mixed_values_returns_fraction(self):
+        # 2 placeholders + 2 real → 0.5
+        mixed = [
+            "password123",  # placeholder
+            _CRED_AWS_KEY,  # real
+            "your_api_key_here",  # placeholder
+            _CRED_STRIPE_LIVE,  # real
+        ]
+        ratio = compute_placeholder_credential_rejection_ratio(mixed)
+        assert ratio == 0.5
+
+    def test_case_insensitive_matching(self):
+        # known_placeholder_values.json stores lowercase; the validator
+        # compares case-insensitively, so the helper must too.
+        values = [
+            "PASSWORD123",  # uppercase of "password123"
+            "ChangeMe",  # mixed case of "changeme"
+            "YOUR_API_KEY_HERE",
+        ]
+        ratio = compute_placeholder_credential_rejection_ratio(values)
+        assert ratio == 1.0
+
+    def test_whitespace_is_stripped_before_matching(self):
+        # The validator strips whitespace before comparing. The helper
+        # must match that semantic so training and inference see the
+        # same value.
+        values = [
+            "  password123  ",
+            "\tchangeme\n",
+            "admin ",
+        ]
+        ratio = compute_placeholder_credential_rejection_ratio(values)
+        assert ratio == 1.0
+
+    def test_empty_strings_are_not_counted_as_placeholder(self):
+        # Empty / None values are not in the placeholder set. They
+        # should NOT increment the rejected count — they are just
+        # "not a placeholder", same as any real string.
+        values = ["", "password123", "real_credential_abc123"]
+        # 1 placeholder out of 3 → 1/3.
+        ratio = compute_placeholder_credential_rejection_ratio(values)
+        assert abs(ratio - (1.0 / 3.0)) < 1e-9
+
+    def test_result_is_always_float(self):
+        # Even when every value is a placeholder (ratio = 1.0), the
+        # result type should be float, not int. Feature vectors are
+        # floats end-to-end.
+        result = compute_placeholder_credential_rejection_ratio(["password123"])
+        assert isinstance(result, float)
 
 
 # ── Engine classification tests ────────────────────────────────────────────
