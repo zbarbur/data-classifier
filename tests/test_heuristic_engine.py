@@ -91,9 +91,43 @@ class TestComputeCardinalityRatio:
         assert compute_cardinality_ratio(["x", "x", "x", "x"]) == 0.25
 
     def test_mixed(self):
-        # 3 unique out of 6
+        # Every value appears twice → f1=0, Chao-1 correction = 0, so
+        # the estimate equals the naive 3/6 = 0.5.
         ratio = compute_cardinality_ratio(["a", "b", "c", "a", "b", "c"])
         assert ratio == pytest.approx(0.5)
+
+    def test_chao1_singletons_inflate_toward_full_distinctness(self):
+        # Sprint 11 Phase 8: many singletons + few doubletons should
+        # push the estimator above the naive D/N ratio. Here D=6,
+        # N=8, naive=0.75; f1=4 singletons, f2=2 doubletons →
+        #   correction = 4 * 3 / (2 * 3) = 2.0
+        #   estimate = (6 + 2) / 8 = 1.0 (clipped, reflects sparse-sample bias).
+        ratio = compute_cardinality_ratio(
+            ["a", "b", "c", "d", "e", "e", "f", "f"],
+        )
+        assert ratio == pytest.approx(1.0)
+
+    def test_chao1_collapses_to_naive_when_no_singletons(self):
+        # f1=0 → correction disappears → estimator equals naive D/N.
+        # Here every value appears exactly twice → D=4, N=8 → 0.5.
+        values = ["a", "a", "b", "b", "c", "c", "d", "d"]
+        ratio = compute_cardinality_ratio(values)
+        assert ratio == pytest.approx(0.5)
+
+    def test_chao1_stays_in_unit_interval(self):
+        # Large singleton population must not push the ratio above 1.0
+        # or go negative — downstream rules rely on ``ratio in [0, 1]``.
+        values = [f"unique_{i}" for i in range(32)]
+        ratio = compute_cardinality_ratio(values)
+        assert 0.0 <= ratio <= 1.0
+        assert ratio == pytest.approx(1.0)
+
+    def test_chao1_low_cardinality_stays_low(self):
+        # ABA-routing-style column: 3 distinct values, each repeated ~33
+        # times, N=100. f1=0, f2=0 → correction=0 → naive 0.03.
+        values = (["111"] * 34) + (["222"] * 33) + (["333"] * 33)
+        ratio = compute_cardinality_ratio(values)
+        assert ratio == pytest.approx(0.03)
 
 
 class TestComputeShannonEntropy:

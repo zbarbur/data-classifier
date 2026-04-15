@@ -1,0 +1,88 @@
+{
+  "accuracy": [
+    {
+      "corpus": "nemotron",
+      "fn_count": 0,
+      "fp_count": 0,
+      "macro_f1": 1.0,
+      "micro_f1": 1.0,
+      "mode": "named",
+      "precision": 1.0,
+      "primary_label_pct": 1.0,
+      "recall": 1.0,
+      "tp_count": 14,
+      "note": "IMPROVED vs Sprint 10 (0.9231 -> 1.000, +0.077). Two Sprint 11 items contributed: (1) item #1 taxonomy refresh unlocked the column-name engine on credential columns by replacing the legacy CREDENTIAL label with the 4 subtypes; (2) item #8 credential-shape partitioner added a new API_KEY column from 81 JWT-shaped values previously buried in the Nemotron password bucket. 14 columns (was 13) all at perfect precision / recall."
+    },
+    {
+      "corpus": "nemotron",
+      "fn_count": 2,
+      "fp_count": 2,
+      "macro_f1": 0.8333,
+      "micro_f1": 0.8571,
+      "mode": "blind",
+      "precision": 0.8571,
+      "primary_label_pct": 0.8571,
+      "recall": 0.8571,
+      "tp_count": 12,
+      "note": "IMPROVED vs Sprint 10 (0.7742 -> 0.8333, +0.059) AND ABOVE the Sprint 9 baseline (0.821). Root cause for recovery: item #8's credential-shape partitioner routes 81 JWT-shaped values from the Nemotron `password` bucket into a new API_KEY column where the regex engine's correct jwt_token matches score as TPs instead of FPs against stale ground truth. Net count change: TP 11->12, FP 5->2, FN 2->2. The originally-filed 'secret scanner over-fires' P1 bug was a mis-attribution discovered by a mid-sprint diagnostic spike: the secret_scanner engine produces ZERO findings on col_7 because the parsers find no key=value shape in plaintext secrets; the API_KEY predictions came from the regex engine correctly firing jwt_token on JWTs buried in the password bucket. See SPRINT11_HANDOVER.md decision log."
+    },
+    {
+      "corpus": "gretel_en",
+      "fn_count": 1,
+      "fp_count": 2,
+      "macro_f1": 0.9167,
+      "micro_f1": 0.88,
+      "mode": "named",
+      "precision": 0.8462,
+      "primary_label_pct": 0.9167,
+      "recall": 0.9167,
+      "tp_count": 11,
+      "note": "FLAT vs Sprint 10 (0.9167 unchanged). The Gretel-EN loader was part of Sprint 11 item #1's taxonomy refresh (_GRETEL_EN_POST_ETL_IDENTITY now uses post-split labels) but the named-mode number is dominated by the column-name engine, which was already correct."
+    },
+    {
+      "corpus": "gretel_en",
+      "fn_count": 4,
+      "fp_count": 4,
+      "macro_f1": 0.6111,
+      "micro_f1": 0.6667,
+      "mode": "blind",
+      "precision": 0.6667,
+      "primary_label_pct": 0.6667,
+      "recall": 0.6667,
+      "tp_count": 8,
+      "note": "FLAT vs Sprint 10 (0.6111 unchanged). Gretel-EN ships post-ETL labels (no raw `password` bucket to repartition), so item #8 is Nemotron-only. Gretel-EN blind remains the weakest real-corpus measurement: column-name signal is stripped, value shapes are credential-shaped, no domain context in values. Sprint 12 candidate: targeted detection lift on credential-shaped values without column hints."
+    },
+    {
+      "corpus": "gretel_finance",
+      "fn_count": 1,
+      "fp_count": 1,
+      "macro_f1": 0.9167,
+      "micro_f1": 0.9167,
+      "mode": "named",
+      "precision": 0.9167,
+      "primary_label_pct": 0.9167,
+      "recall": 0.9167,
+      "tp_count": 11,
+      "note": "First formal Sprint 11 measurement. 12 columns, 11 TPs - the one FN is the legacy CREDENTIAL column (unchanged; out-of-scope for item #1 per the explicit Gretel-finance skip). Refreshing the Gretel-finance fixture is filed as a Sprint 12 chore."
+    },
+    {
+      "corpus": "gretel_finance",
+      "fn_count": 2,
+      "fp_count": 3,
+      "macro_f1": 0.8056,
+      "micro_f1": 0.8,
+      "mode": "blind",
+      "precision": 0.769,
+      "primary_label_pct": 0.75,
+      "recall": 0.833,
+      "tp_count": 10,
+      "note": "First formal Sprint 11 blind measurement (0.806 macro / 0.800 micro). Marginally better than the mid-sprint preliminary 0.800. Gretel-finance blind is notably higher than Gretel-EN blind (0.611) despite its CREDENTIAL column still emitting the legacy label - validates the Sprint 10 hypothesis that long-form financial-document prose gives the regex engine richer context windows. FPs: API_KEY over-fire on the legacy CREDENTIAL column (same root cause as Nemotron's fixed case), DATE_OF_BIRTH_EU, SSN. Sprint 12 candidates: (a) refresh Gretel-finance fixture to drop legacy CREDENTIAL label; (b) extend the shape partitioner to Gretel-finance post-refresh."
+    }
+  ],
+  "date": "2026-04-15",
+  "git_sha": "b05c896",
+  "note": "Sprint 11 theme: 'Measurement honesty + Sprint 10 cleanup'. 8 main-session items delivered + 9 review findings remediated. Headline wins: Nemotron named 0.923->1.000 (+0.077) and Nemotron blind 0.774->0.833 (+0.059, now ABOVE the Sprint 9 baseline of 0.821). Both wins trace to a single root cause: the Nemotron corpus loader was emitting stale CREDENTIAL labels (Sprint 8 drift) AND bucketing JWT values with plaintext passwords. Item #1 fixed the flat-label drift; item #8 added a value-shape partitioner that routes 81 JWT values to a new API_KEY column. Gretel-EN held flat as expected (post-ETL format means item #8 is Nemotron-only). Gretel-finance first formal measurement at 0.917 named / 0.806 blind. Item #4 (secret-scanner match_type tightening) did not produce a measurable delta on any corpus - no current corpus exercises the rapid_token compound-substring over-fire case - but regression tests pin the invariant for real-world production columns. Docs: CLIENT_INTEGRATION_GUIDE.md §5A Engines Reference (329 lines), FAIL_FAST_STRETCH_DISPATCH.md. Drift lint + env-leak hygiene shipped. Scanner-tuning-batch research item deferred to Sprint 12 via sprint-end Phase 2 decision.",
+  "perf": null,
+  "schema_version": 1,
+  "sprint": 11
+}

@@ -165,7 +165,8 @@ class ClassificationFinding:
 
     category: str
     """Data category: ``PII``, ``Financial``, ``Credential``, ``Health``.
-    Groups entity types by the kind of sensitive data."""
+    Groups entity types by regulatory framework (GDPR scope, HIPAA
+    scope, etc.)."""
 
     sensitivity: str
     """Sensitivity level: ``CRITICAL``, ``HIGH``, ``MEDIUM``, ``LOW``."""
@@ -186,6 +187,26 @@ class ClassificationFinding:
     # ── Sample detail ─────────────────────────────────────
     sample_analysis: SampleAnalysis | None = None
     """Populated when finding was derived from sample value analysis."""
+
+    # ── Family (Sprint 11) ────────────────────────────────
+    family: str = ""
+    """Structural handling family: ``CONTACT``, ``CREDENTIAL``,
+    ``FINANCIAL``, ``PAYMENT_CARD``, etc. Distinct from
+    :attr:`category` — ``category`` is the regulatory grouping,
+    ``family`` is the downstream DLP-policy grouping. See
+    ``data_classifier.core.taxonomy.ENTITY_TYPE_TO_FAMILY`` for the
+    full mapping. Auto-populated from ``entity_type`` in
+    ``__post_init__`` when left empty."""
+
+    def __post_init__(self) -> None:
+        # Auto-populate family from entity_type so every finding
+        # carries its family tag without the caller having to know
+        # the taxonomy. Callers that want to override can still pass
+        # family explicitly.
+        if not self.family and self.entity_type:
+            from data_classifier.core.taxonomy import family_for
+
+            self.family = family_for(self.entity_type)
 
 
 @dataclass

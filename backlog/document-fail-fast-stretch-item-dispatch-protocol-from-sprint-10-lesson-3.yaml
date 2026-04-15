@@ -1,10 +1,10 @@
 title: Document fail-fast stretch-item dispatch protocol from Sprint 10 lesson 3
-status: doing
+status: done
 priority: P2
 category: docs
 sprint_target: 11
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-15
 depends_on: []
 tags: []
 goal: 'Codify the fail-fast stretch-item dispatch protocol (Sprint 10 lesson #3) as
@@ -31,8 +31,8 @@ test_plan:
 - 'Peer review: confirm doc is actionable by reading it cold and attempting to dispatch
   a stretch item'
 notes: ''
-phase: plan
-design_reviewed: false
-code_reviewed: false
+phase: review
+design_reviewed: true
+code_reviewed: true
 comments: []
 images: []

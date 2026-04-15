@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from collections import Counter
 
 from data_classifier.config import load_engine_config
@@ -32,17 +33,45 @@ logger = logging.getLogger(__name__)
 
 
 def compute_cardinality_ratio(values: list[str]) -> float:
-    """Compute ratio of unique values to total values.
+    """Chao-1 bias-corrected distinctness estimate, ratioed against sample size.
+
+    Starts from the observed distinct count ``D`` and adds the Chao-1
+    richness correction ``f1 * (f1 - 1) / (2 * (f2 + 1))`` to account
+    for unseen species implied by the singleton/doubleton structure,
+    where ``f1`` is the number of values that appear exactly once and
+    ``f2`` is the number that appear exactly twice. The ``+1`` in the
+    denominator is Chao's bias-corrected form — it keeps the estimator
+    well-defined when ``f2 == 0``.
+
+    When ``f1 == 0`` (every value appears two or more times) the
+    correction collapses to zero and the result equals the naive
+    ``D / N``.  When ``f1 > 0`` the estimate grows toward the true
+    cardinality; this is the case we care about for low-sample-count
+    columns where the naive ratio systematically undercounts richness.
 
     Args:
         values: Sample values from the column.
 
     Returns:
-        Float between 0.0 and 1.0.  1.0 means every value is unique.
+        Float clipped to ``[0.0, 1.0]``.  ``1.0`` still means "every
+        sampled value is unique and the sample is too small to rule
+        out unbounded richness" — callers that need absolute counts
+        should consult ``ColumnStats`` instead.
     """
     if not values:
         return 0.0
-    return len(set(values)) / len(values)
+    n = len(values)
+    counts = Counter(values)
+    observed_distinct = len(counts)
+    f1 = sum(1 for c in counts.values() if c == 1)
+    f2 = sum(1 for c in counts.values() if c == 2)
+    estimated_distinct = observed_distinct + (f1 * (f1 - 1)) / (2.0 * (f2 + 1))
+    ratio = estimated_distinct / n
+    if ratio < 0.0:
+        return 0.0
+    if ratio > 1.0:
+        return 1.0
+    return ratio
 
 
 def compute_shannon_entropy(value: str) -> float:
@@ -192,6 +221,99 @@ def compute_avg_char_class_diversity(values: list[str]) -> float:
     if not diversities:
         return 0.0
     return sum(diversities) / len(diversities)
+
+
+# ── Dictionary-word-ratio feature (Sprint 11 Phase 7) ───────────────────────
+#
+# Motivation: distinguish English-text-heavy columns (passwords, names,
+# descriptions — often dictionary-word placeholder data) from random-looking
+# identifier columns (hashes, API tokens, UUIDs — no dictionary words).
+#
+# Definition: a value "contains a dictionary word" if, after tokenizing on
+# [a-z]+ boundaries, any token of at least `min_token_length` characters is
+# present in the curated English content-words list. The column's ratio is
+# the fraction of values that contain at least one such dictionary word.
+#
+# Word list: data_classifier/patterns/content_words.json — ~2300 curated
+# common English content words (5+ chars). Explicitly excludes credential
+# prefix tokens (the handful of short words that appear verbatim in real
+# payment-processor keys, version-control PATs, and cloud service tokens)
+# as well as ambiguous technical terms (git, hash, uuid, sha, md5, aws,
+# gcp, http, code) so legitimate credentials are not falsely rejected.
+#
+# The list is loaded lazily on first call and cached as a frozenset.
+
+
+_CONTENT_WORDS: frozenset[str] | None = None
+_CONTENT_WORDS_MIN_LEN: int = 5
+_CONTENT_WORDS_TOKEN_RE = re.compile(r"[a-z]+")
+
+
+def _load_content_words_once() -> frozenset[str]:
+    """Load content_words.json and return a frozenset of lowercase words.
+
+    Subsequent calls return the cached set.  If the file is missing or
+    malformed, returns an empty set so the caller (compute_dictionary_word_ratio)
+    gracefully degrades to a 0.0 ratio instead of raising.
+    """
+    global _CONTENT_WORDS, _CONTENT_WORDS_MIN_LEN
+    if _CONTENT_WORDS is not None:
+        return _CONTENT_WORDS
+
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).parent.parent / "patterns" / "content_words.json"
+    try:
+        with path.open() as f:
+            raw = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        _CONTENT_WORDS = frozenset()
+        return _CONTENT_WORDS
+
+    min_len = int(raw.get("min_token_length", 5))
+    words = raw.get("content_words", [])
+    _CONTENT_WORDS_MIN_LEN = min_len
+    _CONTENT_WORDS = frozenset(w.lower() for w in words if isinstance(w, str) and len(w) >= min_len)
+    return _CONTENT_WORDS
+
+
+def _value_contains_dictionary_word(value: str) -> bool:
+    """True iff the value contains at least one English content word
+    (lowercased, 5+ chars) after [a-z]+ tokenization.
+
+    Examples:
+      >>> _value_contains_dictionary_word("password123")  # True
+      >>> _value_contains_dictionary_word("admin_backup")  # True
+      >>> _value_contains_dictionary_word("xk9fpq2vLcHmsdFt")  # False
+      >>> _value_contains_dictionary_word("a8B3cD2eF1gH9iJ0kL")  # False
+    """
+    words = _load_content_words_once()
+    if not words:
+        return False
+    tokens = _CONTENT_WORDS_TOKEN_RE.findall(value.lower())
+    for t in tokens:
+        if len(t) >= _CONTENT_WORDS_MIN_LEN and t in words:
+            return True
+    return False
+
+
+def compute_dictionary_word_ratio(values: list[str]) -> float:
+    """Fraction of sample values that contain at least one English content word.
+
+    Args:
+        values: Sample values from the column.
+
+    Returns:
+        Float between 0.0 and 1.0.  0.0 means no value contains a dictionary
+        word (random-looking identifiers / hashes / tokens).  1.0 means every
+        value contains at least one English content word (passwords, names,
+        descriptions, text).
+    """
+    if not values:
+        return 0.0
+    hits = sum(1 for v in values if v and _value_contains_dictionary_word(v))
+    return hits / len(values)
 
 
 # ── OPAQUE_SECRET detection (Sprint 8 Item 4) ───────────────────────────────

@@ -1,10 +1,10 @@
 title: "Corpus-loader entity-taxonomy drift lint \u2014 CI check against data_classifier/entity_types.py"
-status: doing
+status: done
 priority: P2
 category: chore
 sprint_target: 11
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-15
 depends_on: []
 tags: []
 goal: "Add a CI check that diffs every corpus loader's emitted label vocabulary against\
@@ -41,7 +41,7 @@ test_plan:
 - "test_lint_passes_on_valid_api_key_label \u2014 positive control"
 notes: ''
 phase: review
-design_reviewed: false
-code_reviewed: false
+design_reviewed: true
+code_reviewed: true
 comments: []
 images: []

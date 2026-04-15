@@ -1,0 +1,78 @@
+title: "Sprint 12 (stretch): Shadow -> directive promotion decision"
+status: backlog
+priority: P2
+category: feature
+sprint_target: 12
+created: 2026-04-15
+updated: 2026-04-15
+depends_on:
+- sprint12-validator-rejected-credential-feature
+- sprint12-has-dictionary-name-match-feature
+tags:
+- sprint12
+- shadow
+- directive-promotion
+- family-metric
+goal: >
+  After Sprint 12 Items 1 + 2 land and NEGATIVE / CONTACT families
+  meet their quality targets, decide whether the shadow meta-classifier
+  is ready to become a directive path that modifies classify_columns
+  output.
+complexity: medium
+technical_specs:
+- Pre-condition: shadow cross_family_rate < 0.030 on the family benchmark
+- Pre-condition: NEGATIVE family F1 >= 0.75 (currently 0.595)
+- Pre-condition: CONTACT family precision >= 0.93 (currently 0.882)
+- Design a directive fallback mechanism (shadow prediction overrides
+  live top prediction only when shadow confidence > X and live
+  authority < Y)
+- Gate the promotion behind an env flag initially
+  (DATA_CLASSIFIER_ENABLE_META_DIRECTIVE=1) so it can be enabled
+  per-consumer
+- Update CLIENT_INTEGRATION_GUIDE.md to document the new behavior
+- Coordinate release with BQ connector team
+description: |
+  Sprint 11 Phase 10 shadow A/B showed the shadow path is structurally
+  capable of emitting classes the live cascade cannot produce:
+
+  - HEALTH family: live F1 0.000 / shadow F1 0.967
+  - CREDENTIAL (generic): live F1 0.000 / shadow F1 0.867
+  - NEGATIVE: live F1 0.000 / shadow F1 0.595
+
+  Promoting shadow to directive would add ~1,066 newly-correct
+  predictions (out of 10,170 test shards) at the Sprint 11 batch level
+  of shadow quality. With Sprint 12 Items 1 + 2 landed, the NEGATIVE
+  recall issue resolves and the upside grows further.
+
+  However, promoting before Items 1 + 2 would ship the NEGATIVE recall
+  regression as a user-visible false positive increase. The shadow
+  path currently over-commits to positive classes on secretbench
+  placeholder strings and catch-all columns — promoting directly would
+  hurt precision on business data that should be scored NEGATIVE.
+
+  This item is the Sprint 12 *stretch* goal, gated on Items 1 + 2
+  actually delivering their projected impact. If they don't, this
+  item defers to Sprint 13.
+acceptance_criteria:
+- Shadow cross_family_rate < 0.030 confirmed on family benchmark
+- NEGATIVE family F1 >= 0.75 confirmed
+- Directive fallback mechanism documented and opt-in
+- Env flag default OFF at library level
+- Opt-in enabled in BQ connector via coordinated release
+- No live-path regression on existing benchmark vs Sprint 11 baseline
+test_plan:
+- Run family benchmark with directive mode ON vs OFF
+- Confirm live path F1 improvements on HEALTH, CREDENTIAL, NEGATIVE
+- Confirm no regression on any family that was >= 0.95 on live
+- Soak test on real BQ production traffic in shadow first, then flip
+notes: |
+  This is the Sprint 12 *stretch* goal, not a commitment. Priority
+  depends on Items 1 + 2 landing successfully.
+
+  The flag-guarded rollout pattern mirrors the shadow meta-classifier
+  original landing in Sprint 6 — we shipped the observability first,
+  waited to measure, then decided on policy. Same pattern here: ship
+  the directive path behind a flag, measure, then flip on.
+phase: null
+design_reviewed: false
+code_reviewed: false
