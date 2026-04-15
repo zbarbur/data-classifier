@@ -9,7 +9,11 @@ updated: 2026-04-15
 depends_on:
 - sprint12-validator-rejected-credential-feature
 - sprint12-has-dictionary-name-match-feature
-- review-ai4privacy-dataset-family-and-ingest-best-cc-by-4-0-variant-re-open-sprint-9-removal-decision
+# review-ai4privacy-...-re-open-sprint-9-removal-decision deferred 2026-04-16 to Sprint 13.
+# Left out of the active depends_on list because Sprint 12 is proceeding without it.
+# Reopen and re-add if Phase 5b safety audit returns RED on the current corpus and
+# multilingual training signal is needed to close the LOCO gap. See
+# docs/research/meta_classifier/sprint12_item4_directive_promotion_investigation.md §7.
 - sprint12-shadow-directive-promotion-gate-safety-analysis-memo
 tags:
 - sprint12
