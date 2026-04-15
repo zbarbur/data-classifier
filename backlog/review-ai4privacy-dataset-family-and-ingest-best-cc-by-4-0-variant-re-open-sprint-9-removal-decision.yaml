@@ -1,46 +1,171 @@
-title: "Review ai4privacy dataset family and ingest best CC-BY-4.0 variant \u2014\
-  \ re-open Sprint 9 removal decision"
-status: backlog
-priority: P2
+title: "Sprint 12: Ingest ai4privacy openpii-1m corpus (CC-BY-4.0) \u2014 re-open\
+  \ Sprint 9 removal decision"
+status: doing
+priority: P1
 category: feature
-sprint_target: 11
+sprint_target: 12
 created: 2026-04-14
-updated: 2026-04-14
+updated: 2026-04-15
 depends_on: []
-tags: []
-goal: ''
-complexity: null
-technical_specs: []
-description: "Sprint 9 removed ai4privacy/pii-masking-300k based on the presumption\
-  \ that all ai4privacy datasets share the non-OSI custom license that pii-masking-400k\
-  \ has. That presumption is wrong: ai4privacy/pii-masking-openpii-1m is explicitly\
-  \ CC-BY-4.0 (commercial use permitted, attribution required), confirmed 2026-04-14\
-  \ via direct HuggingFace page fetch. The dataset is 1,428,143 rows, 4.61GB JSONL,\
-  \ 23 languages, 19 entity labels including high-value PII (IDCARDNUM, DRIVERLICENSENUM,\
-  \ TAXNUM, PASSPORTNUM, SOCIALNUM, CREDITCARDNUMBER) that our current taxonomy covers\
-  \ partially. A larger pii-masking-2m variant also exists (82+ labels, 24 languages,\
-  \ enterprise positioning) \u2014 its license needs independent verification. This\
-  \ item reviews all four ai4privacy dataset variants (300k, 400k, openpii-1m, pii-masking-2m),\
-  \ verifies each license directly via the LICENSE_AUDIT discipline (never trust dataset\
-  \ card metadata alone \u2014 fetch the actual page/LICENSE file from HuggingFace),\
-  \ picks the best variant that balances OSI compatibility + taxonomic fit + row count\
-  \ + language coverage, and ingests it as corpus #9 (or #10 if Gretel-finance is\
-  \ still counted as in-progress). Expected complexity M because the ETL scaffolding\
-  \ is reusable from Sprint 10 Gretel-finance (same HF REST pattern, same _records_to_corpus\
-  \ helper, same shard_builder pattern) but the type map is larger (19 vs 15 labels)\
-  \ and the entity-taxonomy mapping decisions are non-trivial (e.g. GIVENNAME+SURNAME\
-  \ \u2192 PERSON_NAME, BUILDINGNUM+STREET+CITY+ZIPCODE \u2192 ADDRESS, IDCARDNUM/DRIVERLICENSENUM/PASSPORTNUM/TAXNUM\
-  \ \u2192 new national-ID subtypes or map to existing SSN/NATIONAL_ID). License verification\
-  \ and taxonomy design can run in parallel with other Sprint 11 work. Deliverables:\
-  \ updated LICENSE_AUDIT.md with per-variant verification rows (including a correction\
-  \ footnote about the Sprint 9 blanket-ban gap), ingestion script addition, type\
-  \ map, fixture, corpus_loader extension, shard_builder integration, TestOpenPIILoader\
-  \ class, post-ingest meta-classifier retrain, observation memo on training-data\
-  \ scale impact vs post-Gretel-finance baseline."
-acceptance_criteria: []
-test_plan: []
-notes: ''
-phase: null
+tags:
+- sprint12
+- corpus-expansion
+- ai4privacy
+- meta-classifier-prereq
+- critical-path
+goal: "Ingest ai4privacy/pii-masking-openpii-1m (CC-BY-4.0, 1.4M rows, 23 languages,\
+  \ 19 entity labels) as a new training corpus for the meta-classifier v3\u2192v4/v5\
+  \ retrain. This unblocks the directive flip in sprint12-shadow-directive-promotion-gate\
+  \ by giving the v3 retrain more diverse multilingual training data alongside the\
+  \ new validator_rejected_credential and has_dictionary_name_match features."
+complexity: L
+technical_specs:
+- "Variant choice: openpii-1m specifically (decided 2026-04-15). Skip the multi-variant\
+  \ survey from the original item description \u2014 the user has selected this variant\
+  \ and the others (300k, 400k, pii-masking-2m) are out of scope for Sprint 12."
+- 'License: CC-BY-4.0, confirmed 2026-04-14 via direct HuggingFace page fetch. Sprint
+  9 removed an older non-OSI ai4privacy dataset; this variant is NOT covered by that
+  ban. Add LICENSE_AUDIT.md row with the verification date and the correction footnote
+  about the Sprint 9 blanket-ban gap.'
+- "File: tests/benchmarks/corpus_loader.py \u2014 add OPENPII_1M_TYPE_MAP and load_openpii_1m_corpus\
+  \ following the same shape as Gretel-EN / Gretel-finance loaders. Reuse the _records_to_corpus\
+  \ helper. Type map covers the 19 ai4privacy labels mapped to standard.yaml entity\
+  \ types: GIVENNAME / SURNAME \u2192 PERSON_NAME, BUILDINGNUM / STREET / CITY / ZIPCODE\
+  \ \u2192 ADDRESS, IDCARDNUM / DRIVERLICENSENUM / PASSPORTNUM / TAXNUM \u2192 SSN\
+  \ or new national-ID subtype (decision needed during ingest), CREDITCARDNUMBER \u2192\
+  \ CREDIT_CARD, SOCIALNUM \u2192 SSN, etc."
+- "File: tests/benchmarks/accuracy_benchmark.py \u2014 add 'openpii_1m' to the --corpus\
+  \ argparse choices tuple, following the Sprint 11 wire-gretel-finance pattern."
+- "File: tests/test_corpus_loader.py \u2014 add TestOpenPII1mLoader class with positive\
+  \ load test, negative invalid-row test, and a _records_to_corpus integration test."
+- "File: tests/benchmarks/lint_corpus_taxonomy.py \u2014 verify the new OPENPII_1M_TYPE_MAP\
+  \ passes the Sprint 11 drift lint (only emits valid entity_types from standard.yaml).\
+  \ If new national-ID subtypes are introduced, they must first be added to standard.yaml\
+  \ and the family taxonomy."
+- "File: data_classifier/profiles/standard.yaml \u2014 if the openpii-1m taxonomy\
+  \ review surfaces new entity types (e.g. NATIONAL_ID_GENERIC, DRIVERS_LICENSE),\
+  \ add them with appropriate family assignment in data_classifier/__init__.py ENTITY_TYPE_TO_FAMILY\
+  \ mapping."
+- "File: docs/process/LICENSE_AUDIT.md \u2014 add openpii-1m row with CC-BY-4.0 verification\
+  \ date, link, and the Sprint 9 correction footnote."
+- "Storage: download to ~/.cache/data_classifier/datasets/ai4privacy_openpii_1m/ (NOT\
+  \ committed to git \u2014 4.61GB). Loader resolves path via env var or default cache\
+  \ location, same as other large corpora."
+- "Meta-classifier retrain: after ingest lands, retrain v3 \u2192 v4 (or v5 if combined\
+  \ with the validator_rejected_credential and has_dictionary_name_match features)\
+  \ on the expanded training set. Document the delta in docs/research/meta_classifier/sprint12_openpii_retrain_memo.md."
+description: 'Sprint 9 removed ai4privacy/pii-masking-300k based on the presumption
+  that
+
+  all ai4privacy datasets share the non-OSI custom license that pii-masking-400k
+
+  has. That presumption is wrong: ai4privacy/pii-masking-openpii-1m is
+
+  explicitly CC-BY-4.0 (commercial use permitted, attribution required),
+
+  confirmed 2026-04-14 via direct HuggingFace page fetch.
+
+
+  The dataset is 1,428,143 rows, 4.61GB JSONL, 23 languages, 19 entity
+
+  labels including high-value PII (IDCARDNUM, DRIVERLICENSENUM, TAXNUM,
+
+  PASSPORTNUM, SOCIALNUM, CREDITCARDNUMBER) that our current taxonomy
+
+  covers partially.
+
+
+  Sprint 12 reframe places this item on the critical path for the v3
+
+  directive flip: the meta-classifier retrain that produces the v4 (or v5)
+
+  artifact for the directive promotion needs the new training data alongside
+
+  the validator_rejected_credential and has_dictionary_name_match features.
+
+  Without this corpus, the retrain runs on the same data as v3 and any
+
+  family-metric improvements are bounded by the existing training set.
+
+
+  Variant decision (2026-04-15): user chose openpii-1m specifically. The
+
+  other variants (300k, 400k, pii-masking-2m) are out of scope. The
+
+  pii-masking-2m variant has 82+ labels and 24 languages but its license
+
+  has not been independently verified, and the additional taxonomy work
+
+  would not fit Sprint 12''s critical-path budget.
+
+
+  Order-of-operations: this item runs in parallel with the
+
+  validator_rejected_credential and has_dictionary_name_match feature items
+
+  in the first half of Sprint 12. All three must complete before the v3
+
+  retrain step in sprint12-shadow-directive-promotion-gate.
+
+
+  Risk: 4.61GB download. The corpus is too large to commit and must be
+
+  fetched at training time. Loader needs to handle the missing-file case
+
+  gracefully (skip with clear error message) so CI without the corpus does
+
+  not break. Pattern is already established by Gretel-EN / Gretel-finance.
+
+  '
+acceptance_criteria:
+- ai4privacy openpii-1m corpus downloaded to ~/.cache/data_classifier/datasets/ and
+  fetchable via the standard cache pattern
+- tests/benchmarks/corpus_loader.py exposes load_openpii_1m_corpus() with a complete
+  OPENPII_1M_TYPE_MAP for all 19 ai4privacy labels
+- Type map passes tests/benchmarks/lint_corpus_taxonomy.py (no drift, all emitted
+  types are valid in standard.yaml)
+- tests/benchmarks/accuracy_benchmark.py --corpus openpii_1m runs from the CLI without
+  errors
+- TestOpenPII1mLoader class in tests/test_corpus_loader.py with positive / negative
+  / integration coverage
+- docs/process/LICENSE_AUDIT.md updated with openpii-1m CC-BY-4.0 verification row
+  and Sprint 9 correction footnote
+- Meta-classifier v3 retrained on expanded training set including openpii-1m; v4 (or
+  v5) artifact shipped
+- docs/research/meta_classifier/sprint12_openpii_retrain_memo.md documents the family-metric
+  delta from openpii-1m inclusion
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . --exclude .claude/worktrees && ruff format --check . --exclude
+  .claude/worktrees)
+test_plan:
+- "tests/test_corpus_loader.py: TestOpenPII1mLoader positive load \u2014 returns expected\
+  \ number of records with valid entity_types"
+- "tests/test_corpus_loader.py: TestOpenPII1mLoader negative \u2014 invalid row format\
+  \ raises ValueError with clear message"
+- "tests/test_corpus_loader.py: TestOpenPII1mLoader integration \u2014 loaded records\
+  \ pass through _records_to_corpus and emit shards"
+- 'tests/test_corpus_taxonomy_lint.py: drift lint passes with new OPENPII_1M_TYPE_MAP'
+- 'tests/test_accuracy_benchmark_cli.py: --corpus openpii_1m accepted, unknown corpus
+  still rejected, all Sprint 11 corpus choices preserved'
+- "Manual: family benchmark sweep with openpii-1m included in training set, compared\
+  \ to without \u2014 document delta in retrain memo"
+- 'Manual: download script tested on a clean ~/.cache/data_classifier/datasets/ directory
+  to verify the cache-miss path'
+notes: "Re-tagged for Sprint 12 and re-prioritized P2 \u2192 P1 on 2026-04-15 at\n\
+  /sprint-start 12. The original item was filed at Sprint 11 close as a\ngeneral \"\
+  review the family and pick a variant\" exploration; the Sprint 12\nreframe makes\
+  \ openpii-1m specifically a critical-path prerequisite for\nthe directive flip,\
+  \ so the scope is now a directed ingest, not a survey.\n\nThe other ai4privacy variants\
+  \ (300k, 400k, pii-masking-2m) are explicitly\nout of scope. If any of them looks\
+  \ attractive after Sprint 12 closes,\nfile a separate Sprint 13+ item.\n\nKey risk:\
+  \ ai4privacy openpii-1m has labels (IDCARDNUM, DRIVERLICENSENUM,\nTAXNUM, PASSPORTNUM)\
+  \ that don't have clean 1:1 mappings in the current\ntaxonomy. The mapping decisions\
+  \ need to happen during the type-map\nauthoring step and may surface new entity\
+  \ types that need to be added to\nstandard.yaml + the family taxonomy. If new entity\
+  \ types are added,\nthey must be classified into one of the 13 existing families\n\
+  (CONTACT, FINANCIAL, GOVERNMENT_ID, etc.) and the cross_family_rate\nmetric on the\
+  \ canonical family benchmark must not regress as a result.\n"
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

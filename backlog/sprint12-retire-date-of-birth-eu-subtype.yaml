@@ -1,7 +1,7 @@
-title: "Sprint 12: Retire DATE_OF_BIRTH_EU subtype (taxonomy cleanup)"
-status: backlog
+title: 'Sprint 12: Retire DATE_OF_BIRTH_EU subtype (taxonomy cleanup)'
+status: doing
 priority: P2
-category: taxonomy
+category: chore
 sprint_target: 12
 created: 2026-04-15
 updated: 2026-04-15
@@ -10,9 +10,10 @@ tags:
 - sprint12
 - taxonomy
 - family-metric
-goal: >
-  Remove DATE_OF_BIRTH_EU as a distinct subtype label. All dates of
-  birth collapse to DATE_OF_BIRTH regardless of format.
+goal: 'Remove DATE_OF_BIRTH_EU as a distinct subtype label. All dates of birth collapse
+  to DATE_OF_BIRTH regardless of format.
+
+  '
 complexity: S
 technical_specs:
 - Remove DATE_OF_BIRTH_EU from standard.yaml
@@ -20,46 +21,54 @@ technical_specs:
 - Remove DATE_OF_BIRTH_EU from data_classifier/core/taxonomy.py (singleton line)
 - Keep the DATE family (now containing only DATE_OF_BIRTH)
 - Remove DATE_OF_BIRTH_EU from test fixtures
-- Retrain meta-classifier (schema stays — this is just a class count reduction)
-- Rebuild corpus_loader taxonomy maps to redirect any EU-format samples
-  to DATE_OF_BIRTH
-description: |
-  Sprint 11 Phase 10 A/B analysis confirmed that the DATE_OF_BIRTH vs
-  DATE_OF_BIRTH_EU split is a classification mistake:
-
-  1. Sensitivity tier, regulatory scope, and downstream handling are
-     identical regardless of format. GDPR / CCPA / HIPAA / etc. treat
-     dates of birth as PII irrespective of whether stored as MM/DD/YYYY
-     or DD/MM/YYYY.
-  2. Format does NOT indicate jurisdiction — a US company may store
-     dates in EU format for internal reasons, a European company may
-     use ISO-8601. Format != residency.
-  3. The ambiguity is fundamentally unresolvable for dates with day
-     <= 12 (more than half the year). No feature engineering can fix
-     a distinction that is unknowable from the value alone.
-  4. Shadow cross-family A/B shows v3 gets the DATE *family* 100%
-     correct (P=1.000, R=1.000, F1=1.000) — all 810 DOB-family shards
-     land in DATE. The remaining 150 within-family confusions are
-     pure tie-breaking noise with identical confidences on both sides.
-
-  Retiring the subtype removes ~0.018 macro F1 penalty from the
-  benchmark while simplifying the taxonomy. Zero product impact.
+- "Retrain meta-classifier (schema stays \u2014 this is just a class count reduction)"
+- Rebuild corpus_loader taxonomy maps to redirect any EU-format samples to DATE_OF_BIRTH
+description: "Sprint 11 Phase 10 A/B analysis confirmed that the DATE_OF_BIRTH vs\n\
+  DATE_OF_BIRTH_EU split is a classification mistake:\n\n1. Sensitivity tier, regulatory\
+  \ scope, and downstream handling are\n   identical regardless of format. GDPR /\
+  \ CCPA / HIPAA / etc. treat\n   dates of birth as PII irrespective of whether stored\
+  \ as MM/DD/YYYY\n   or DD/MM/YYYY.\n2. Format does NOT indicate jurisdiction \u2014\
+  \ a US company may store\n   dates in EU format for internal reasons, a European\
+  \ company may\n   use ISO-8601. Format != residency.\n3. The ambiguity is fundamentally\
+  \ unresolvable for dates with day\n   <= 12 (more than half the year). No feature\
+  \ engineering can fix\n   a distinction that is unknowable from the value alone.\n\
+  4. Shadow cross-family A/B shows v3 gets the DATE *family* 100%\n   correct (P=1.000,\
+  \ R=1.000, F1=1.000) \u2014 all 810 DOB-family shards\n   land in DATE. The remaining\
+  \ 150 within-family confusions are\n   pure tie-breaking noise with identical confidences\
+  \ on both sides.\n\nRetiring the subtype removes ~0.018 macro F1 penalty from the\n\
+  benchmark while simplifying the taxonomy. Zero product impact.\n"
 acceptance_criteria:
-- DATE_OF_BIRTH_EU removed from all sources of truth (profile YAML,
-  pattern library, taxonomy, tests, corpus loader)
-- tests/test_date_of_birth_eu.py either retired or rewritten to assert
-  EU-format DOBs land in DATE_OF_BIRTH
+- DATE_OF_BIRTH_EU removed from all sources of truth (profile YAML, pattern library,
+  taxonomy, tests, corpus loader)
+- tests/test_date_of_birth_eu.py either retired or rewritten to assert EU-format DOBs
+  land in DATE_OF_BIRTH
 - Family benchmark DATE family F1 remains 1.000
 - Family benchmark cross_family_rate does not regress
-notes: |
-  This is a taxonomy simplification, not a feature-engineering item.
+test_plan:
+- 'tests/test_date_of_birth_eu.py: assert EU-format DOB strings classify to DATE_OF_BIRTH
+  (not DATE_OF_BIRTH_EU); negative cases preserved'
+- 'tests/test_corpus_taxonomy_lint.py: drift lint passes after DATE_OF_BIRTH_EU removal
+  from corpus loader maps'
+- "Manual: family benchmark sweep \u2014 confirm DATE family F1 stays 1.000 and cross_family_rate\
+  \ does not regress"
+notes: 'This is a taxonomy simplification, not a feature-engineering item.
+
   Sprint 11 misframed DOB_EU as a feature gap; family A/B showed it
+
   is actually a taxonomy granularity error. See
+
   docs/research/meta_classifier/sprint11_family_ab_result.md section
+
   "Taxonomy decisions and tradeoffs" for the reasoning.
 
+
   Estimated scope: a few hours. Can be bundled with other Sprint 12
+
   taxonomy cleanups.
-phase: null
+
+  '
+phase: plan
 design_reviewed: false
 code_reviewed: false
+comments: []
+images: []

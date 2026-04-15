@@ -1,6 +1,7 @@
-title: "Sprint 12 (stretch): Shadow -> directive promotion decision"
-status: backlog
-priority: P2
+title: "Sprint 12: Promote meta-classifier v3 to directive \u2014 orchestrator wiring\
+  \ + shadow path deletion"
+status: doing
+priority: P1
 category: feature
 sprint_target: 12
 created: 2026-04-15
@@ -8,67 +9,117 @@ updated: 2026-04-15
 depends_on:
 - sprint12-validator-rejected-credential-feature
 - sprint12-has-dictionary-name-match-feature
+- review-ai4privacy-dataset-family-and-ingest-best-cc-by-4-0-variant-re-open-sprint-9-removal-decision
 tags:
 - sprint12
-- shadow
+- meta-classifier
 - directive-promotion
 - family-metric
-goal: >
-  After Sprint 12 Items 1 + 2 land and NEGATIVE / CONTACT families
-  meet their quality targets, decide whether the shadow meta-classifier
-  is ready to become a directive path that modifies classify_columns
-  output.
-complexity: M
+- critical-path
+goal: "Promote meta-classifier v3 (or its v4/v5 successor trained on the new features)\
+  \ from shadow to directive: wire the orchestrator to use v3 prediction as the source\
+  \ of truth for subtype ranking, delete the shadow emission codepath entirely, and\
+  \ re-baseline the canonical family benchmark on directive output. No env flag \u2014\
+  \ v3 is on by default for all consumers."
+complexity: L
 technical_specs:
-- "Pre-condition: shadow cross_family_rate < 0.030 on the family benchmark"
-- "Pre-condition: NEGATIVE family F1 >= 0.75 (currently 0.595)"
-- "Pre-condition: CONTACT family precision >= 0.93 (currently 0.882)"
-- Design a directive fallback mechanism (shadow prediction overrides live top prediction only when shadow confidence > X and live authority < Y)
-- Gate the promotion behind an env flag initially (DATA_CLASSIFIER_ENABLE_META_DIRECTIVE=1) so it can be enabled per-consumer
-- Update CLIENT_INTEGRATION_GUIDE.md to document the new behavior
-- Coordinate release with BQ connector team
-description: |
-  Sprint 11 Phase 10 shadow A/B showed the shadow path is structurally
-  capable of emitting classes the live cascade cannot produce:
-
-  - HEALTH family: live F1 0.000 / shadow F1 0.967
-  - CREDENTIAL (generic): live F1 0.000 / shadow F1 0.867
-  - NEGATIVE: live F1 0.000 / shadow F1 0.595
-
-  Promoting shadow to directive would add ~1,066 newly-correct
-  predictions (out of 10,170 test shards) at the Sprint 11 batch level
-  of shadow quality. With Sprint 12 Items 1 + 2 landed, the NEGATIVE
-  recall issue resolves and the upside grows further.
-
-  However, promoting before Items 1 + 2 would ship the NEGATIVE recall
-  regression as a user-visible false positive increase. The shadow
-  path currently over-commits to positive classes on secretbench
-  placeholder strings and catch-all columns — promoting directly would
-  hurt precision on business data that should be scored NEGATIVE.
-
-  This item is the Sprint 12 *stretch* goal, gated on Items 1 + 2
-  actually delivering their projected impact. If they don't, this
-  item defers to Sprint 13.
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 replace the existing\
+  \ 7-pass merge / dedup / suppression pipeline's subtype-ranking step with a v3-driven\
+  \ dispatch. v3 prediction becomes the source of truth when multiple candidate findings\
+  \ collide on a column."
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 delete the meta_classification\
+  \ event emission. There is one decision per finding, not two. No feature flag \u2014\
+  \ the shadow codepath is removed, not gated."
+- "File: data_classifier/events/types.py \u2014 remove or deprecate the shadow MetaClassificationEvent\
+  \ type if it is unused after the deletion. Confirm no other consumer touches it."
+- "File: tests/benchmarks/family_accuracy_benchmark.py \u2014 re-baseline against\
+  \ directive predictions. Write the new baseline to docs/research/meta_classifier/sprint12_family_benchmark.json.\
+  \ The Sprint 11 file (sprint11_family_benchmark.json) becomes the historical reference;\
+  \ the Sprint 12 file becomes the new ship gate."
+- "File: docs/CLIENT_INTEGRATION_GUIDE.md \u2014 update \xA75A.6 (orchestrator merge\
+  \ pipeline) to describe the new v3-directive dispatch. Remove all shadow-mode references."
+- "File: data_classifier/__init__.py \u2014 verify ClassificationFinding.family auto-population\
+  \ still works after the orchestrator change (added in Sprint 11)."
+- 'Run a directive A/B before flipping the switch: shadow-v3 numbers (5.85% / 0.9286)
+  are not guaranteed to translate one-for-one to directive. The new directive baseline
+  must hit the ship gates before the shadow codepath is deleted.'
+description: "This is THE headline item for Sprint 12 \u2014 the sprint where v3 stops\
+  \ being\nshadow and becomes the only classification decision path. Everything else\n\
+  in Sprint 12 (the validator-rejected-credential feature, the\nhas_dictionary_name_match\
+  \ feature, the ai4privacy openpii-1m re-ingest)\nexists to make this item land safely.\n\
+  \nSprint 12 reframe (decided 2026-04-15 at Sprint 11 close): the original\nplan\
+  \ was to ship shadow v3 in v0.11.0 to BQ, measure for a sprint, then\nflip to directive\
+  \ in Sprint 12 behind an env flag. User explicitly\nrejected this approach: \"We're\
+  \ not going to deliver it to BQ yet, I'd\nprefer to move directly to sprint 12 where\
+  \ it's turned on, eliminate the\ncomplexity of multiple scanner and handle all issues.\"\
+  \n\nSprint 11 Phase 10 shadow A/B showed the shadow path is structurally\ncapable\
+  \ of emitting classes the live cascade cannot produce:\n\n- HEALTH family: live\
+  \ F1 0.000 / shadow F1 0.967\n- CREDENTIAL (generic): live F1 0.000 / shadow F1\
+  \ 0.867\n- NEGATIVE: live F1 0.000 / shadow F1 0.595 (lifted to ~0.75 by item #1)\n\
+  \nPromoting v3 to directive adds ~1,066 newly-correct predictions (out of\n10,170\
+  \ test shards) at the Sprint 11 batch level of shadow quality, with\nthe Sprint\
+  \ 12 prerequisite items lifting that further. The risk is that\nshadow numbers don't\
+  \ translate to directive numbers \u2014 hence the directive\nA/B in the test plan\
+  \ and the hard re-baseline against the new family\nbenchmark file.\n\nDependencies:\
+  \ this item is gated on (a) the validator-rejected-credential\nfeature landing and\
+  \ lifting NEGATIVE F1, (b) the has_dictionary_name_match\nfeature landing and lifting\
+  \ CONTACT precision, and (c) the ai4privacy\nopenpii-1m re-ingest feeding the v3\
+  \ retrain. All three must complete and\nthe new model must be trained before the\
+  \ orchestrator wiring step. If any\nof the prerequisites slip the directive flip\
+  \ cannot ship in Sprint 12 and\nthis item rolls to Sprint 13 with the rest of the\
+  \ release sequence.\n"
 acceptance_criteria:
-- Shadow cross_family_rate < 0.030 confirmed on family benchmark
-- NEGATIVE family F1 >= 0.75 confirmed
-- Directive fallback mechanism documented and opt-in
-- Env flag default OFF at library level
-- Opt-in enabled in BQ connector via coordinated release
-- No live-path regression on existing benchmark vs Sprint 11 baseline
+- Orchestrator subtype-ranking dispatch uses meta-classifier v3 (or its v4/v5 successor)
+  prediction as source of truth when multiple candidate findings collide on a column
+- "Shadow MetaClassificationEvent emission code is deleted from data_classifier/orchestrator/orchestrator.py\
+  \ \u2014 not feature-flagged"
+- Family benchmark cross_family_rate < 0.040 measured on DIRECTIVE predictions (not
+  shadow)
+- Family benchmark family_macro_f1 >= 0.92 measured on DIRECTIVE predictions
+- 'NEGATIVE family F1 >= 0.70 on directive (combined effect of item #1 + directive
+  flip)'
+- 'CONTACT family precision >= 0.93 on directive (combined effect of item #2 + directive
+  flip)'
+- New baseline file docs/research/meta_classifier/sprint12_family_benchmark.json committed
+  and referenced as the new ship gate in CLAUDE.md sprint completion gate
+- "docs/CLIENT_INTEGRATION_GUIDE.md \xA75A.6 updated to describe v3-directive dispatch\
+  \ with no shadow-mode references"
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . --exclude .claude/worktrees && ruff format --check . --exclude
+  .claude/worktrees)
+- Family benchmark CLI command in CLAUDE.md sprint completion gate updated to point
+  at sprint12_family_benchmark.json
 test_plan:
-- Run family benchmark with directive mode ON vs OFF
-- Confirm live path F1 improvements on HEALTH, CREDENTIAL, NEGATIVE
-- Confirm no regression on any family that was >= 0.95 on live
-- Soak test on real BQ production traffic in shadow first, then flip
-notes: |
-  This is the Sprint 12 *stretch* goal, not a commitment. Priority
-  depends on Items 1 + 2 landing successfully.
-
-  The flag-guarded rollout pattern mirrors the shadow meta-classifier
-  original landing in Sprint 6 — we shipped the observability first,
-  waited to measure, then decided on policy. Same pattern here: ship
-  the directive path behind a flag, measure, then flip on.
-phase: null
+- "tests/benchmarks/family_accuracy_benchmark.py: directive A/B run BEFORE deleting\
+  \ shadow code \u2014 both directive and shadow predictions emitted, side-by-side\
+  \ comparison written to /tmp/directive_ab.json"
+- 'tests/test_orchestrator.py: add directive-dispatch tests covering the collision-resolution
+  paths that previously went through the 7-pass merge'
+- "tests/test_meta_classifier_features.py: regression \u2014 feature vector dimensionality\
+  \ unchanged from v3 baseline (or correctly bumped to v4/v5)"
+- 'Family benchmark sweep: run on full 10,170-shard set with directive ON, write summary.json
+  to docs/research/meta_classifier/sprint12_family_benchmark.json'
+- 'Regression check: no existing family that was >= 0.95 on live drops below 0.93
+  on directive'
+- Compare-to check against sprint11_family_benchmark.json for cross_family_rate regression
+  detection
+notes: "Re-scoped 2026-04-15 at /sprint-start 12 from the original env-flag opt-in\n\
+  design to the reframe's \"single landing, no flag, shadow path deleted\"\ndesign.\
+  \ The original goal/AC/tech-specs are preserved in git history\nbefore this commit\
+  \ if needed for context.\n\nOrder-of-operations within Sprint 12:\n1. Land items\
+  \ #1 (validator-rejected-credential) + #2 (has_dictionary_name_match)\n   and the\
+  \ ai4privacy openpii-1m ingest\n2. Retrain v3 \u2192 v4 (or v5) on the new features\
+  \ + new corpus\n3. Run the directive A/B with the new model\n4. If A/B passes ship\
+  \ gates, do the orchestrator wiring + shadow deletion\n   in one commit\n5. Re-run\
+  \ the family benchmark on directive output and write the new\n   baseline file\n\
+  6. THEN hand off to the v0.12.0 release item\n\nRisk to flag: family_macro_f1 >\
+  \ 0.92 and cross_family_rate < 0.06 are\nshadow numbers from Sprint 11. Directive\
+  \ numbers may differ in either\ndirection. Build a \"stop here and roll back\" decision\
+  \ point into the A/B\nstep \u2014 if directive numbers regress vs shadow by more\
+  \ than 2 percentage\npoints on cross_family_rate, the directive flip rolls to Sprint\
+  \ 13 and\nSprint 12 ships v0.11.x with shadow-only.\n"
+phase: plan
 design_reviewed: false
 code_reviewed: false
+comments: []
+images: []

@@ -1,0 +1,108 @@
+title: 'Sprint 12: v0.12.0 release and BQ consumer bump'
+status: doing
+priority: P1
+category: chore
+sprint_target: 12
+created: 2026-04-15
+updated: 2026-04-15
+depends_on:
+- sprint12-shadow-directive-promotion-gate
+tags:
+- sprint12
+- release-ops
+- bq-coordination
+- critical-path
+goal: "Cut v0.12.0, publish to the AR Python repo, and coordinate the BQ connector\
+  \ consumer bump from v0.8.0 \u2192 v0.12.0. v0.12.0 is the first BQ release since\
+  \ v0.8.0 and contains everything from Sprints 9, 10, 11 (regex + validator + secret-dict\
+  \ + family taxonomy) plus the Sprint 12 v3-as-default decision change. One coordinated\
+  \ BQ bump, not two \u2014 Sprint 11 deliberately did not cut v0.11.0."
+complexity: M
+technical_specs:
+- 'Pre-condition: sprint12-shadow-directive-promotion-gate has landed and the directive
+  A/B passed the family benchmark ship gates'
+- "File: pyproject.toml \u2014 bump version 0.8.0 \u2192 0.12.0 (skipping intermediate\
+  \ sprints' unreleased numbers per the Sprint 12 reframe decision)"
+- "File: CHANGELOG.md \u2014 write the v0.12.0 entry covering all Sprint 9 / 10 /\
+  \ 11 / 12 user-visible changes: family taxonomy on ClassificationFinding, new patterns\
+  \ from Sprints 9-10 (Gretel-EN ingest, secret-dict 88\u2192178, Chao-1 cardinality),\
+  \ v3 directive promotion, ai4privacy openpii-1m corpus, etc. Reference the relevant\
+  \ sprint handover docs."
+- "File: docs/CLIENT_INTEGRATION_GUIDE.md \u2014 add v0.12.0 entry to the migration\
+  \ section. Document the directive v3 behavior change for connector teams: the orchestrator\
+  \ now uses v3 as the source of truth for subtype ranking, no env flag required,\
+  \ no opt-in."
+- 'Build: run the standard build pipeline to produce the wheel; verify it imports
+  cleanly with DATA_CLASSIFIER_DISABLE_ML=0 and =1'
+- 'Publish: push the wheel to the AR Python repo (Sprint 8 established this as the
+  distribution path)'
+- 'ONNX model artifact: confirm the GLiNER2 ONNX model bundling from Sprint 8 still
+  works for the v0.12.0 release. The ML model is decoupled from the wheel (254MB AR
+  Generic), so this is a separate verification step.'
+- "BQ coordination: file the BQ consumer bump as a coordinated PR on the BigQuery-connector\
+  \ side (do NOT touch ../BigQuery-connector/ directly \u2014 coordinate via the connector\
+  \ team). Document the bump in the Sprint 12 handover."
+- 'Verification: connector team reports v0.12.0 deployment success on at least one
+  BQ environment before sprint close'
+description: "This is the release-ops bookend of Sprint 12. The reframe decision at\n\
+  Sprint 11 close was to skip v0.11.0 entirely and ship Sprints 9 + 10 + 11\n+ 12\
+  \ as a single coordinated v0.12.0 bump to BQ \u2014 eliminating the\noperational\
+  \ cost of two BQ rollouts and the cognitive cost of explaining\nshadow-vs-directive\
+  \ to consumers across two releases.\n\nThis means v0.12.0 is unusually large by\
+  \ changelog volume \u2014 it contains:\n\n- Sprint 9: Gretel-EN ingest, ai4privacy\
+  \ retired, M1 CV methodology fix\n- Sprint 10: secret-dict 88\u2192178 (Kingfisher/gitleaks/Nosey\
+  \ Parker),\n  Gretel-finance loader, GLiNER data_type pre-filter\n- Sprint 11: meta-classifier\
+  \ v3, family taxonomy public API, Chao-1\n  cardinality, Bitcoin/Ethereum validators,\
+  \ placeholder credential\n  validator, Engines Reference \xA75A, fail-fast dispatch\
+  \ protocol\n- Sprint 12: validator_rejected_credential feature, has_dictionary_name_match\n\
+  \  feature, ai4privacy openpii-1m corpus, v3 directive promotion (THE\n  headline\
+  \ behavior change for consumers), shadow path deletion\n\nDefinition of done includes\
+  \ the BQ consumer cut-over, not just the wheel\npublish. Historically BQ coordination\
+  \ has cost ~1 day per release \u2014\ncapacity for that is built into Sprint 12.\n\
+  \nRisk: the directive flip is a behavior change for connector teams. They\nmay see\
+  \ different classifications on the same input data after the bump.\nThe CLIENT_INTEGRATION_GUIDE.md\
+  \ migration entry needs to be unambiguous\nabout what's changing and why, including\
+  \ a link back to the family\nbenchmark numbers and the Sprint 12 reframe rationale.\n"
+acceptance_criteria:
+- pyproject.toml version is 0.12.0
+- CHANGELOG.md v0.12.0 entry covers all user-visible changes from Sprints 9, 10, 11,
+  12 with cross-references to handover docs
+- docs/CLIENT_INTEGRATION_GUIDE.md migration section has v0.12.0 entry documenting
+  the v3-directive behavior change
+- v0.12.0 wheel built and published to AR Python repo
+- Wheel imports cleanly with DATA_CLASSIFIER_DISABLE_ML=0 and DATA_CLASSIFIER_DISABLE_ML=1
+- GLiNER2 ONNX model artifact verified compatible with v0.12.0 wheel
+- BQ connector consumer bump coordinated and at least one BQ environment reports successful
+  deployment before sprint close
+- Sprint 12 handover doc references the coordinated release outcome
+- git tag v0.12.0 created on the merge commit and pushed
+- Lint clean (ruff check . --exclude .claude/worktrees && ruff format --check . --exclude
+  .claude/worktrees)
+test_plan:
+- 'Manual: clean-room install of v0.12.0 wheel in a fresh venv, run ''python -c "from
+  data_classifier import classify_columns, ColumnInput, ClassificationFinding; print(ClassificationFinding.__dataclass_fields__.keys())"''
+  and verify family field is present'
+- 'Manual: clean-room install with DATA_CLASSIFIER_DISABLE_ML=1, verify regex-only
+  path classifies correctly and v3 directive falls back gracefully'
+- 'Manual: family benchmark sweep on the v0.12.0 wheel (not the editable install)
+  to confirm the ship gates hold post-build'
+- 'BQ side: connector team runs their integration tests against v0.12.0 in a staging
+  env before production rollout'
+- 'Rollback drill: confirm that pinning back to v0.8.0 is still possible if the directive
+  flip causes unexpected production issues (this is a release-ops sanity check, not
+  an actual rollback)'
+notes: "Filed 2026-04-15 at /sprint-start 12 per the Sprint 12 reframe memo\n(project_sprint12_reframe.md).\
+  \ The reframe explicitly identified this\nitem as needed: \"v0.12.0 is the first\
+  \ wheel BQ bumps to ... one\ncoordinated BQ bump, not two.\"\n\nOrder-of-operations:\
+  \ this item is the LAST critical-path item in\nSprint 12. It depends on sprint12-shadow-directive-promotion-gate\
+  \ having\nfully landed (orchestrator wired, shadow path deleted, family benchmark\n\
+  re-baselined). It cannot start until the directive flip ships green on\nthe family\
+  \ benchmark.\n\nCoordination with BQ team: the BQ track has been on v0.8.0 since\
+  \ Sprint\n8 (per BQ track priority memory). They are aware that v0.12.0 is the\n\
+  next bump they receive \u2014 no incremental versions. Surface the v3\ndirective\
+  \ change explicitly in the bump request so they can plan their\nstaging soak appropriately.\n"
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
