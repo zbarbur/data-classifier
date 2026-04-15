@@ -1,5 +1,5 @@
 title: Wire gretel-finance corpus into accuracy_benchmark CLI
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 11

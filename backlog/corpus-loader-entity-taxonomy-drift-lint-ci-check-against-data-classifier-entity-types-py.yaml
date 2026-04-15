@@ -1,5 +1,5 @@
 title: "Corpus-loader entity-taxonomy drift lint \u2014 CI check against data_classifier/entity_types.py"
-status: doing
+status: done
 priority: P2
 category: chore
 sprint_target: 11

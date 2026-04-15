@@ -1,6 +1,6 @@
 title: "Hygiene: test_meta_classifier_training.py env leak \u2014 DATA_CLASSIFIER_DISABLE_ML\
   \ set at module import never reverted"
-status: doing
+status: done
 priority: P2
 category: bug
 sprint_target: 11

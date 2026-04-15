@@ -1,6 +1,6 @@
 title: "Document all engines in client-facing docs \u2014 what each engine does, configuration,\
   \ signals, and how they interact"
-status: doing
+status: done
 priority: P2
 category: docs
 sprint_target: 11
