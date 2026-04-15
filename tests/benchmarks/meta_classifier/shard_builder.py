@@ -55,7 +55,7 @@ SYNTH_SHARDS_BACKED: int = 30
 
 #: Synthetic shards emitted for types that exist only in the Faker
 #: synthetic generator (IBAN, BITCOIN_ADDRESS, VIN, MBI, NPI, DEA, EIN,
-#: CANADIAN_SIN, DATE_OF_BIRTH_EU, ETHEREUM_ADDRESS).
+#: CANADIAN_SIN, ETHEREUM_ADDRESS).
 SYNTH_SHARDS_SYNTHETIC_ONLY: int = 150
 
 #: Bucketed M distribution: (weight, lo, hi).
@@ -483,7 +483,6 @@ SYNTHETIC_ONLY_TYPES: frozenset[str] = frozenset(
         "DEA_NUMBER",
         "EIN",
         "CANADIAN_SIN",
-        "DATE_OF_BIRTH_EU",
     }
 )
 
