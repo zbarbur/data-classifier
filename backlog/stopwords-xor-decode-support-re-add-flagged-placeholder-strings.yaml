@@ -65,7 +65,7 @@ test_plan:
 - 'Manual smoke: push test branch to a personal fork and verify GitHub push protection
   accepts the encoded entries'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
