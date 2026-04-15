@@ -25,6 +25,7 @@ from data_classifier.engines.heuristic_engine import (
     compute_avg_entropy,
     compute_cardinality_ratio,
     compute_char_class_ratios,
+    compute_dictionary_name_match_ratio,
     compute_length_stats,
     compute_placeholder_credential_rejection_ratio,
     compute_shannon_entropy,
@@ -317,6 +318,96 @@ class TestComputePlaceholderCredentialRejectionRatio:
         # result type should be float, not int. Feature vectors are
         # floats end-to-end.
         result = compute_placeholder_credential_rejection_ratio(["password123"])
+        assert isinstance(result, float)
+
+
+class TestComputeDictionaryNameMatchRatio:
+    """Sprint 12 Item #2: column-level feature that measures the fraction
+    of sample values containing at least one English first name or US
+    surname from ``data_classifier/patterns/name_lists.json``.
+
+    Used by the meta-classifier to discriminate PERSON_NAME from the
+    CONTACT catch-all drain (the Sprint 11 Phase 10 failure class where
+    non-name columns land in PERSON_NAME because no other class has a
+    confident signal). Mirrors the ``compute_dictionary_word_ratio``
+    pattern byte-for-byte: same loader shape, same tokenizer, same
+    ratio computation — only the word list and minimum-length threshold
+    differ (4 for names vs 5 for content words; names are shorter on
+    average).
+    """
+
+    def test_empty_list_returns_zero(self):
+        assert compute_dictionary_name_match_ratio([]) == 0.0
+
+    def test_first_name_values_match(self):
+        # Top-10 SSA first names. Each value contains exactly one name
+        # token so the ratio should be 1.0.
+        values = ["james", "mary", "john", "michael", "patricia"]
+        assert compute_dictionary_name_match_ratio(values) == 1.0
+
+    def test_surname_values_match(self):
+        # Top-10 Census 2010 surnames.
+        values = ["smith", "johnson", "williams", "brown", "jones"]
+        assert compute_dictionary_name_match_ratio(values) == 1.0
+
+    def test_mixed_name_columns_match(self):
+        # Full-name strings with both first + surname. The tokenizer
+        # splits on [a-z]+ so each value yields two tokens; either one
+        # matching is enough to count the value as a hit.
+        values = [
+            "James Smith",
+            "Mary Johnson",
+            "Michael Williams",
+        ]
+        assert compute_dictionary_name_match_ratio(values) == 1.0
+
+    def test_random_tokens_do_not_match(self):
+        # Random opaque identifiers — no token is a dictionary name.
+        values = [
+            "xK9pQ2mN7vL4jH8r",
+            "a8B3cD2eF1gH9iJ0kL",
+            "zxcv1234mnop",
+        ]
+        assert compute_dictionary_name_match_ratio(values) == 0.0
+
+    def test_numeric_values_do_not_match(self):
+        # Pure-numeric columns (IDs, counts, amounts) must never match.
+        values = ["12345", "67890", "42", "3.14159"]
+        assert compute_dictionary_name_match_ratio(values) == 0.0
+
+    def test_short_tokens_below_min_length_do_not_match(self):
+        # min_token_length=4. Values shorter than 4 letters must not
+        # match even if they would match an entry in the list at a
+        # lower threshold.
+        values = ["jo", "al", "ed"]
+        assert compute_dictionary_name_match_ratio(values) == 0.0
+
+    def test_case_insensitive_matching(self):
+        # Names in DB columns come in every case variant. The tokenizer
+        # lowercases before comparison.
+        values = ["JAMES", "Mary", "jOhN"]
+        assert compute_dictionary_name_match_ratio(values) == 1.0
+
+    def test_mixed_values_returns_fraction(self):
+        # 2 name hits + 2 non-name values → 0.5.
+        values = [
+            "james",  # first name hit
+            "xK9pQ2mN7vL4jH8r",  # miss
+            "smith",  # surname hit
+            "zxcv1234",  # miss
+        ]
+        assert compute_dictionary_name_match_ratio(values) == 0.5
+
+    def test_empty_string_values_do_not_count(self):
+        # Empty / None values are counted toward the denominator but
+        # never produce a hit — same semantic as
+        # compute_dictionary_word_ratio.
+        values = ["", "james", "mary"]
+        # 2 name hits out of 3 → 2/3.
+        assert abs(compute_dictionary_name_match_ratio(values) - (2.0 / 3.0)) < 1e-9
+
+    def test_result_is_always_float(self):
+        result = compute_dictionary_name_match_ratio(["james"])
         assert isinstance(result, float)
 
 
