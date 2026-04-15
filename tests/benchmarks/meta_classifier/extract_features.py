@@ -167,6 +167,7 @@ def extract_training_row(
 ) -> TrainingRow:
     """Extract a single training row for the given labeled column."""
     from data_classifier.engines.heuristic_engine import (
+        compute_dictionary_name_match_ratio,
         compute_dictionary_word_ratio,
         compute_placeholder_credential_rejection_ratio,
     )
@@ -184,6 +185,10 @@ def extract_training_row(
     # computed here and threaded through so the training path and
     # predict_shadow see the same value for the same sample_values.
     rejection_ratio = compute_placeholder_credential_rejection_ratio(column.sample_values)
+    # Sprint 12 Item #2: dictionary-name match ratio. Same symmetry
+    # rule — computed from the same sample_values the inference path
+    # sees, so training and serving stay in lockstep.
+    name_ratio = compute_dictionary_name_match_ratio(column.sample_values)
 
     features = _extract_features_from_findings(
         findings,
@@ -191,6 +196,7 @@ def extract_training_row(
         heuristic_avg_length=avg_len,
         heuristic_dictionary_word_ratio=dict_ratio,
         validator_rejected_credential_ratio=rejection_ratio,
+        has_dictionary_name_match_ratio=name_ratio,
     )
 
     fired = sorted({f.engine for f in findings})

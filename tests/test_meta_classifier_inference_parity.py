@@ -170,12 +170,13 @@ class TestPredictShadowThreadsAllColumnStats:
             "heuristic_avg_length",
             "heuristic_dictionary_word_ratio",
             "validator_rejected_credential_ratio",
+            "has_dictionary_name_match_ratio",
         }
         missing = expected_kwargs - set(captured.keys())
         assert not missing, (
             f"predict_shadow omitted column-level stat kwargs: {sorted(missing)}. "
             f"The training path (tests/benchmarks/meta_classifier/extract_features.py) "
-            f"threads all four; the inference path must stay in sync."
+            f"threads all five; the inference path must stay in sync."
         )
 
 
@@ -243,3 +244,66 @@ class TestPredictShadowThreadsValidatorRejectionRatio:
             f"validator_rejected_credential_ratio={rejection_ratio} for a "
             "column of real credential-shaped tokens; expected 0.0."
         )
+
+
+class TestPredictShadowThreadsNameMatchRatio:
+    """Sprint 12 Item #2 bug: if ``has_dictionary_name_match_ratio`` is
+    added to the training path but not to ``predict_shadow``, feature
+    index 48 is silently zero at inference. Same failure mode as the
+    Sprint 11 Phase 7 dict-word-ratio bug and the Sprint 12 Item #1
+    validator-rejection bug — this test pins the wiring contract at the
+    specific-value level.
+    """
+
+    def test_predict_shadow_passes_nonzero_name_match_for_name_column(self, monkeypatch):
+        captured = _spy_extract_features(monkeypatch)
+
+        # Full-name strings that should hit both first-name and surname
+        # lists. compute_dictionary_name_match_ratio should return 1.0.
+        sample_values = [
+            "James Smith",
+            "Mary Johnson",
+            "Michael Williams",
+            "Patricia Brown",
+            "Robert Jones",
+        ]
+        findings = [_finding("PERSON_NAME", 0.8, "regex")]
+
+        mc = MetaClassifier()
+        mc.predict_shadow(findings, sample_values)
+
+        assert captured.get("_called"), "extract_features was never called"
+        name_ratio = captured.get("has_dictionary_name_match_ratio")
+        assert name_ratio is not None, (
+            "predict_shadow did not pass has_dictionary_name_match_ratio "
+            "to extract_features — the training path does (see "
+            "tests/benchmarks/meta_classifier/extract_features.py); the shadow "
+            "path must too. This is the Sprint 12 Item #2 wiring contract."
+        )
+        assert name_ratio == 1.0, (
+            f"has_dictionary_name_match_ratio={name_ratio} for a column of "
+            "real full names; expected 1.0. The shadow path is threading a "
+            "stale value instead of computing it from sample_values."
+        )
+
+    def test_predict_shadow_passes_zero_name_match_for_random_tokens(self, monkeypatch):
+        captured = _spy_extract_features(monkeypatch)
+
+        # Random opaque tokens — no value contains a dictionary name.
+        sample_values = [
+            "xK9pQ2mN7vL4jH8r",
+            "a8B3cD2eF1gH9iJ0kL",
+            "zxcv1234mnop",
+        ]
+        findings = [_finding("API_KEY", 0.9, "regex", category="Credential")]
+
+        mc = MetaClassifier()
+        mc.predict_shadow(findings, sample_values)
+
+        assert captured.get("_called"), "extract_features was never called"
+        name_ratio = captured.get("has_dictionary_name_match_ratio")
+        assert name_ratio is not None, (
+            "predict_shadow did not pass has_dictionary_name_match_ratio "
+            "to extract_features — see the Sprint 12 Item #2 wiring contract."
+        )
+        assert name_ratio == 0.0, f"has_dictionary_name_match_ratio={name_ratio} for random tokens; expected 0.0."
