@@ -18,17 +18,13 @@ goal: >
   meet their quality targets, decide whether the shadow meta-classifier
   is ready to become a directive path that modifies classify_columns
   output.
-complexity: medium
+complexity: M
 technical_specs:
-- Pre-condition: shadow cross_family_rate < 0.030 on the family benchmark
-- Pre-condition: NEGATIVE family F1 >= 0.75 (currently 0.595)
-- Pre-condition: CONTACT family precision >= 0.93 (currently 0.882)
-- Design a directive fallback mechanism (shadow prediction overrides
-  live top prediction only when shadow confidence > X and live
-  authority < Y)
-- Gate the promotion behind an env flag initially
-  (DATA_CLASSIFIER_ENABLE_META_DIRECTIVE=1) so it can be enabled
-  per-consumer
+- "Pre-condition: shadow cross_family_rate < 0.030 on the family benchmark"
+- "Pre-condition: NEGATIVE family F1 >= 0.75 (currently 0.595)"
+- "Pre-condition: CONTACT family precision >= 0.93 (currently 0.882)"
+- Design a directive fallback mechanism (shadow prediction overrides live top prediction only when shadow confidence > X and live authority < Y)
+- Gate the promotion behind an env flag initially (DATA_CLASSIFIER_ENABLE_META_DIRECTIVE=1) so it can be enabled per-consumer
 - Update CLIENT_INTEGRATION_GUIDE.md to document the new behavior
 - Coordinate release with BQ connector team
 description: |

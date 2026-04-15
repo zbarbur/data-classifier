@@ -15,7 +15,7 @@ goal: >
   Add a dictionary-based first-name / surname match feature to the
   meta-classifier vector so PERSON_NAME stops being used as the
   catch-all drain for columns where other features are indeterminate.
-complexity: medium
+complexity: M
 technical_specs:
 - New feature "has_dictionary_name_match" at the tail of FEATURE_NAMES
 - Float in [0.0, 1.0] representing fraction of sample values that
@@ -54,9 +54,9 @@ acceptance_criteria:
 - Family benchmark cross_family_rate < 0.040 (combined with
   validator_rejected_credential item = combined target < 0.030)
 test_plan:
-- Unit tests for compute_dictionary_name_match_ratio
-- Regression check: PERSON_NAME recall must stay >= 0.95
-- Family benchmark delta measurement before and after
+- "Unit tests for compute_dictionary_name_match_ratio"
+- "Regression check: PERSON_NAME recall must stay >= 0.95"
+- "Family benchmark delta measurement before and after"
 notes: |
   This item is the #2 Sprint 12 priority. It complements the
   validator_rejected_credential item — together they should get shadow

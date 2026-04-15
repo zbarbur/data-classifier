@@ -13,7 +13,7 @@ tags:
 goal: >
   Remove DATE_OF_BIRTH_EU as a distinct subtype label. All dates of
   birth collapse to DATE_OF_BIRTH regardless of format.
-complexity: low
+complexity: S
 technical_specs:
 - Remove DATE_OF_BIRTH_EU from standard.yaml
 - Remove DATE_OF_BIRTH_EU entries from default_patterns.json

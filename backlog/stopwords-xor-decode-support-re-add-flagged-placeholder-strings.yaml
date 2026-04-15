@@ -60,10 +60,8 @@ description: |
   before the next stopwords expansion item to avoid repeating the same
   push-protection block.
 acceptance_criteria:
-- _load_global_stopwords decodes xor: and b64: prefixed entries identically
-  to data_classifier.patterns._decode_examples
-- At least the 2 Stripe docs test keys are re-added as xor:-encoded entries
-  and verified to be in the runtime stopwords set
+- "_load_global_stopwords decodes xor: and b64: prefixed entries identically to data_classifier.patterns._decode_examples"
+- "At least the 2 Stripe docs test keys are re-added as xor:-encoded entries and verified to be in the runtime stopwords set"
 - Full test suite passes; no new lint violations
 - GitHub push protection accepts the commit (smoke-test push to a personal
   fork or branch)
