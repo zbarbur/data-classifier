@@ -1,0 +1,200 @@
+title: 'Sprint 12: Safety analysis memo — directive promotion capacity, architecture,
+  and heterogeneous-column audit'
+status: backlog
+priority: P1
+category: chore
+sprint_target: 12
+created: 2026-04-15
+updated: 2026-04-15
+depends_on: []
+tags:
+- sprint12
+- meta-classifier
+- safety-audit
+- loco-gap
+- architecture-decision
+- critical-path
+- prerequisite
+goal: >
+  Produce a safety analysis memo that answers three questions before Sprint 12
+  executes the shadow→directive promotion of the meta-classifier. The memo
+  returns a GREEN / YELLOW / RED verdict that the sprint12-shadow-directive-promotion-gate
+  item consumes as a go/no-go input, so the team makes an explicit data-driven
+  decision about whether to flip the flag on v3 as the sole classification path
+  for all consumers.
+complexity: M
+technical_specs:
+- 'Question 1 — Capacity axis (is LR the ceiling?): run a 3-arm diagnostic on
+  the post-Sprint-12 training data using M1 StratifiedGroupKFold CV methodology.
+  Arm A0: current v3 LR baseline. Arm A1: soft-gated MLP (sklearn MLPClassifier,
+  2x32 hidden, dropout 0.5 via alpha=1e-3, early stopping, random_state=42).
+  Arm A2: LR + top-5 hand-engineered pairwise interaction features (select by
+  mutual information on the training data). Report CV macro F1, honest LOCO
+  macro F1, per-class family F1, Brier score calibration error. Pattern 1:
+  A1 beats A0 on CV AND LOCO → LR has real capacity ceiling, v4 should use
+  MLP stage-2. Pattern 2: A1 beats A0 on CV only (regression on LOCO) → E11
+  shortcut-learning pathology is back, stay with LR. Pattern 3: A1 ties A0 →
+  v3 is at information ceiling, beyond-LR is unproductive, features are the
+  remaining lever (GLiNER-as-feature).'
+- 'Question 2 — Architecture axis (does v3 need hard gating for LOCO?): re-run
+  the Sprint 9 gated-architecture analysis on the post-Sprint-12 v3 training
+  data. Specifically: partition the training rows by stage-1 gate outcome
+  (HOMOGENEOUS_CREDENTIAL / HOMOGENEOUS_PII / HETEROGENEOUS), train three
+  specialized classifiers (using the Question 1 winner as the stage-2 model
+  class), evaluate each on its own LOCO hold-out. Compare to the soft-gated
+  single-model baseline. If the sum of per-branch LOCO F1s exceeds the
+  single-model LOCO F1 by >= 0.10, hard-gating is unlocking real headroom
+  that soft-gating cannot capture — in which case Sprint 12 directive
+  promotion should wait for the Sprint 13 gated-architecture item to land.
+  If the sum ties the single-model, soft-gating is sufficient and Sprint 12
+  can proceed.'
+- 'Question 3 — Heterogeneous axis (does v3 crash on log columns?): create
+  a synthetic log-column test fixture — 50 rows where each value is a
+  log-line containing 2-5 distinct embedded entities (email + API key + phone +
+  IP + free text). Run v3 classify_column on it. Inspect output: does it emit
+  a single entity with high confidence (flat classifier collapse), multiple
+  entities with reasonable confidences (partial success), or degrade gracefully
+  (low confidence across all entities)? If the flat classifier emits a single
+  high-confidence collapsed answer, the heterogeneous case is silently broken
+  and the Sprint 12 promotion should include a minimal mitigation (e.g.,
+  low-confidence fallback to live cascade for heterogeneous columns) or wait
+  for the Sprint 13 HeterogeneousColumnFinding type.'
+- 'Output: docs/research/meta_classifier/sprint12_safety_audit.md with sections
+  per question + a concluding GREEN / YELLOW / RED verdict. Verdict definitions:
+  GREEN = flat v3 is safe for directive promotion as scoped, Sprint 12 proceeds
+  as planned. YELLOW = specific gaps exist and require mitigations (e.g.,
+  confidence threshold fallback, excluding heterogeneous columns from
+  directive), Sprint 12 adjusts scope and ships with mitigations. RED =
+  fundamental gaps that require the gated architecture, Sprint 12 ships
+  v0.12.0 with shadow-only and the directive flip defers to Sprint 13.'
+- 'File: tests/benchmarks/meta_classifier/sprint12_safety_audit.py — new
+  script that runs the 3 questions above. Outputs a JSON summary consumed by
+  the memo writeup. Reuses existing M1 StratifiedGroupKFold infrastructure.'
+- 'Reuse existing harnesses: scripts/train_meta_classifier.py for model
+  training, tests/benchmarks/meta_classifier/evaluate.py for the LOCO eval,
+  tests/benchmarks/family_accuracy_benchmark.py for the family breakdown.
+  No new training infrastructure is needed.'
+- 'Dependency on post-Sprint-12 training data: this memo runs AFTER Sprint 12
+  items #1 (validator-rejected-credential-feature) and #2 (has_dictionary_name_match-feature)
+  land and the v3→v4 retrain completes against the new openpii-1m corpus. It
+  must run BEFORE the orchestrator wiring + shadow deletion in the promotion-gate
+  item. Order-of-operations is: #1 + #2 + corpus → retrain → THIS MEMO → directive
+  A/B → if memo is GREEN or YELLOW-with-mitigations, proceed with orchestrator
+  wiring.'
+description: |
+  Sprint 12's original promotion-gate acceptance criteria measured only
+  in-distribution (training-corpus) metrics: cross_family_rate, family_macro_f1,
+  per-family F1 bars. The honest out-of-distribution LOCO estimate for v3 is
+  ~0.17 under M1 StratifiedGroupKFold, and the flat classifier cannot represent
+  mixed-content (log-shaped) columns at all because ClassificationFinding is
+  single-valued. Both gaps were designed to be closed by the 3-branch gated
+  architecture in the Sprint 9 learning memo (docs/learning/sprint9-cv-shortcut-and-gated-architecture.md
+  §5), but Sprint 11 shipped a soft-gating workaround (primary_entity_type
+  one-hot) that delivered +0.27 macro F1 on in-distribution metrics without
+  addressing them.
+
+  The Sprint 12 directive flip is a no-feature-flag, no-fallback, all-or-nothing
+  promotion. Shipping v3 as directive without measuring the LOCO gap and the
+  heterogeneous gap means BQ customers on new data sources (i.e. all of them
+  in practice) could see catastrophic out-of-distribution quality. This memo's
+  job is to produce an evidence-backed go/no-go decision BEFORE the irreversible
+  code change, so the team does not inherit the gaps silently.
+
+  The memo runs three specific experiments on the post-Sprint-12 v4 model and
+  answers three specific questions:
+
+  1. Is LR the capacity ceiling? (LR vs MLP vs LR+interactions diagnostic)
+  2. Does flat v3 need hard gating for LOCO? (Sprint 9 3-branch analysis
+     re-run on post-Sprint-12 data)
+  3. Does flat v3 crash on heterogeneous log-shaped columns? (synthetic
+     fixture regression check)
+
+  The memo's final section is a single-page verdict: GREEN (ship directive as
+  planned), YELLOW (ship with mitigations), or RED (defer directive to Sprint
+  13, ship v0.12.0 with shadow-only).
+
+  This memo does NOT rebuild the gated architecture — that is the Sprint 13
+  item (gated-meta-classifier-architecture-...-q8-continuation, fleshed out
+  2026-04-15). The memo only produces the decision input for Sprint 12.
+  It is an evidence-generating spike, not a feature build.
+acceptance_criteria:
+- 'docs/research/meta_classifier/sprint12_safety_audit.md exists, committed
+  to main, with sections: (1) capacity audit results, (2) architecture audit
+  results, (3) heterogeneous audit results, (4) single-page verdict with
+  GREEN/YELLOW/RED classification and recommended Sprint 12 action.'
+- 'tests/benchmarks/meta_classifier/sprint12_safety_audit.py exists and is
+  runnable end-to-end via `python -m tests.benchmarks.meta_classifier.sprint12_safety_audit`.
+  Produces /tmp/sprint12_safety_audit.json with the three question outputs.'
+- 'Capacity audit: 3 arms (LR / MLP / LR+interactions) evaluated on M1
+  StratifiedGroupKFold with CV, LOCO, and Brier score reported for each.
+  Winner by CV+LOCO combined is identified.'
+- 'Architecture audit: per-branch LOCO evaluated on 3 branches (credential /
+  PII / heterogeneous marker), sum compared to single-model soft-gated LOCO,
+  delta reported. Threshold: delta >= 0.10 means hard-gating is load-bearing
+  for LOCO and directive flip should wait for Sprint 13.'
+- 'Heterogeneous audit: synthetic log-column fixture with 50 rows tested,
+  output inspected, verdict reported. Threshold: if flat v3 emits a single
+  high-confidence (>0.8) entity type across the fixture, the heterogeneous
+  case is silently broken and the memo is at least YELLOW with a mitigation
+  requirement.'
+- 'Verdict is GREEN only if: LOCO >= 0.30 AND architecture audit delta < 0.10
+  AND heterogeneous audit does not emit single-high-confidence collapse.'
+- 'Verdict is RED if: LOCO < 0.20 OR architecture audit delta >= 0.15 OR
+  heterogeneous audit emits single-high-confidence collapse on ALL 50 fixture
+  rows. Any RED → Sprint 12 directive flip defers to Sprint 13.'
+- 'Verdict is YELLOW otherwise. YELLOW cases specify the exact mitigation
+  needed (e.g., per-entity confidence thresholds, heterogeneous-column
+  fallback to live cascade, per-family promotion scoping).'
+- 'Memo is reviewed by the Sprint 12 owner before the orchestrator wiring
+  step in the promotion-gate item proceeds. If the review results in a
+  different action than the memo recommends, the deviation is documented
+  in the promotion-gate item notes.'
+test_plan:
+- 'End-to-end test: run sprint12_safety_audit.py on a synthetic
+  small-corpus sample (not the full training data) and confirm it produces
+  the JSON output structure and doesn''t crash. Verifies the harness works
+  before full-corpus run.'
+- 'Full run on post-Sprint-12 v4 training data once items #1 + #2 +
+  corpus-ingest have landed and retrain is complete.'
+- 'Manual review of the sprint12_safety_audit.md memo before merging
+  the promotion-gate code change.'
+notes: |
+  Filed 2026-04-15 as part of the Sprint 12 salvage intervention. This
+  item addresses the discovery that the Sprint 12 promotion-gate's
+  original acceptance criteria did not measure out-of-distribution
+  quality (LOCO) or heterogeneous-column handling, both of which are
+  known risks the Sprint 9 learning memo explicitly identified and
+  designed the gated architecture to address.
+
+  Companion items in the salvage intervention:
+  - sprint12-shadow-directive-promotion-gate (updated 2026-04-15 to
+    add LOCO and heterogeneous acceptance criteria + dependency on
+    this memo)
+  - gated-meta-classifier-architecture-explicit-credential-gate-
+    specialized-stage-2-classifiers-q8-continuation (fleshed out
+    2026-04-15 to target Sprint 13 with the full rebuild)
+
+  This memo is the decision point. It does not commit to any
+  particular Sprint 12 outcome — it produces evidence that the
+  Sprint 12 owner uses to make the final go/no-go call on the
+  directive flip. Three outcomes:
+
+  1. GREEN → Sprint 12 proceeds as planned, directive flip ships,
+     v0.12.0 to BQ with v4 as the sole classification path.
+  2. YELLOW → Sprint 12 ships with specific mitigations (e.g.,
+     confidence-threshold fallback to live cascade, per-family
+     scoped promotion), v0.12.0 to BQ with v4 gated by
+     conservatism mechanisms.
+  3. RED → Sprint 12 ships v0.12.0 with shadow-only, the directive
+     flip defers to Sprint 13 where the gated-architecture item
+     closes the gaps. BQ consumer bump still happens (gets the
+     2 new Sprint 12 features as shadow improvements) but the
+     architectural change rolls to Sprint 13.
+
+  Whichever outcome the memo produces, the decision is explicit and
+  backed by measurement rather than inherited silently.
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

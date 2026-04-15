@@ -10,6 +10,7 @@ depends_on:
 - sprint12-validator-rejected-credential-feature
 - sprint12-has-dictionary-name-match-feature
 - review-ai4privacy-dataset-family-and-ingest-best-cc-by-4-0-variant-re-open-sprint-9-removal-decision
+- sprint12-shadow-directive-promotion-gate-safety-analysis-memo
 tags:
 - sprint12
 - meta-classifier
@@ -80,6 +81,22 @@ acceptance_criteria:
   flip)'
 - 'CONTACT family precision >= 0.93 on directive (combined effect of item #2 + directive
   flip)'
+- 'LOCO macro F1 >= 0.30 on directive, measured via 5-corpus StratifiedGroupKFold
+  held-out evaluation. This is the primary out-of-distribution safety check: BQ
+  customers are, by definition, running against corpora the classifier has never
+  seen. The current honest LOCO estimate (M1 methodology on v3 shadow) is ~0.17,
+  so 0.30 is a ~2x improvement bar. Added 2026-04-15 after discovery that the
+  original acceptance criteria measured only in-distribution (training-corpus)
+  metrics and did not catch the out-of-distribution risk. If this bar is not
+  met by the directive flip, see the companion safety-analysis memo dependency.'
+- 'Heterogeneous column regression check: run the new log-shaped column test
+  fixture (tests/test_heterogeneous_column_regression.py — to be created as part
+  of this work) on both directive and live cascade. Confirm that directive does
+  not emit degenerate (constant-entity) predictions on columns containing mixed
+  content (emails + API keys + free text in one column). If directive emits
+  worse output than live on heterogeneous columns, the HeterogeneousColumnFinding
+  gap blocks the promotion — see companion gated-architecture backlog item
+  (Q8 continuation, sprint_target 13).'
 - New baseline file docs/research/meta_classifier/sprint12_family_benchmark.json committed
   and referenced as the new ship gate in CLAUDE.md sprint completion gate
 - "docs/CLIENT_INTEGRATION_GUIDE.md \xA75A.6 updated to describe v3-directive dispatch\
@@ -103,21 +120,79 @@ test_plan:
   on directive'
 - Compare-to check against sprint11_family_benchmark.json for cross_family_rate regression
   detection
-notes: "Re-scoped 2026-04-15 at /sprint-start 12 from the original env-flag opt-in\n\
-  design to the reframe's \"single landing, no flag, shadow path deleted\"\ndesign.\
-  \ The original goal/AC/tech-specs are preserved in git history\nbefore this commit\
-  \ if needed for context.\n\nOrder-of-operations within Sprint 12:\n1. Land items\
-  \ #1 (validator-rejected-credential) + #2 (has_dictionary_name_match)\n   and the\
-  \ ai4privacy openpii-1m ingest\n2. Retrain v3 \u2192 v4 (or v5) on the new features\
-  \ + new corpus\n3. Run the directive A/B with the new model\n4. If A/B passes ship\
-  \ gates, do the orchestrator wiring + shadow deletion\n   in one commit\n5. Re-run\
-  \ the family benchmark on directive output and write the new\n   baseline file\n\
-  6. THEN hand off to the v0.12.0 release item\n\nRisk to flag: family_macro_f1 >\
-  \ 0.92 and cross_family_rate < 0.06 are\nshadow numbers from Sprint 11. Directive\
-  \ numbers may differ in either\ndirection. Build a \"stop here and roll back\" decision\
-  \ point into the A/B\nstep \u2014 if directive numbers regress vs shadow by more\
-  \ than 2 percentage\npoints on cross_family_rate, the directive flip rolls to Sprint\
-  \ 13 and\nSprint 12 ships v0.11.x with shadow-only.\n"
+- 'LOCO eval harness run: re-run tests/benchmarks/meta_classifier/evaluate.py (or
+  the M1-methodology LOCO audit script) on the post-Sprint-12 v4/v5 artifact.
+  Emit per-corpus F1 breakdown to /tmp/loco_audit.json. Assert mean LOCO F1 >= 0.30.
+  If assertion fails, block the promotion and defer to the companion safety memo.'
+- 'Heterogeneous column fixture: create tests/test_heterogeneous_column_regression.py
+  with a synthetic log-line column containing 10+ values that each embed a
+  different entity (email, API key, phone, free text). Run classify_column on it
+  with the directive path. Assert that the output is NOT a single constant-entity
+  classification (i.e., the flat classifier did not collapse the mixed content
+  to one wrong label with no indication of the other entities present). This is
+  a minimal regression gate — it does not require the full HeterogeneousColumnFinding
+  implementation, only that directive does not silently emit worse output than
+  live on this case.'
+notes: |
+  Re-scoped 2026-04-15 at /sprint-start 12 from the original env-flag opt-in
+  design to the reframe's "single landing, no flag, shadow path deleted"
+  design. The original goal/AC/tech-specs are preserved in git history
+  before this commit if needed for context.
+
+  Order-of-operations within Sprint 12:
+  1. Land items #1 (validator-rejected-credential) + #2 (has_dictionary_name_match)
+     and the ai4privacy openpii-1m ingest
+  2. Retrain v3 → v4 (or v5) on the new features + new corpus
+  3. Run the directive A/B with the new model
+  4. Run the safety-analysis-memo (new dependency, 2026-04-15) — produces
+     a GREEN / YELLOW / RED verdict on whether directive is safe to ship.
+     Must land before step 5. Covers capacity (LR vs MLP), architecture
+     (flat vs gated), and heterogeneous-column risks.
+  5. If A/B passes ship gates AND safety memo returns GREEN (or YELLOW
+     with mitigations), do the orchestrator wiring + shadow deletion in
+     one commit. If RED, block the directive flip and ship v0.12.0 with
+     shadow-only, deferring the promotion to Sprint 13 where the gated
+     architecture item closes the gaps.
+  6. Re-run the family benchmark on directive output and write the new
+     baseline file
+  7. THEN hand off to the v0.12.0 release item
+
+  Risk to flag — original (cross_family_rate regression): family_macro_f1
+  > 0.92 and cross_family_rate < 0.06 are shadow numbers from Sprint 11.
+  Directive numbers may differ in either direction. Build a "stop here
+  and roll back" decision point into the A/B step — if directive numbers
+  regress vs shadow by more than 2 percentage points on cross_family_rate,
+  the directive flip rolls to Sprint 13 and Sprint 12 ships v0.11.x with
+  shadow-only.
+
+  Risk to flag — added 2026-04-15 (architectural gap):
+    Sprint 12's original acceptance criteria measured only in-distribution
+    (training-corpus) metrics. The honest out-of-distribution LOCO estimate
+    for v3 is ~0.17 under M1 StratifiedGroupKFold — a number that the
+    original promotion-gate criteria did not surface. The flat v3
+    classifier also cannot represent mixed-content (log-shaped) columns
+    because ClassificationFinding is single-valued; the Sprint 9 learning
+    memo at docs/learning/sprint9-cv-shortcut-and-gated-architecture.md §5
+    designed a 3-branch gated architecture (credential / PII /
+    heterogeneous + HeterogeneousColumnFinding type) to address exactly
+    these gaps, but Sprint 11 shipped a soft-gating workaround
+    (primary_entity_type one-hot) that delivered +0.27 macro F1 without
+    addressing LOCO or the heterogeneous case. The designed architecture
+    is filed as a P1 backlog item (gated-meta-classifier-architecture-...-q8-continuation),
+    fleshed out 2026-04-15 and targeting Sprint 13.
+
+    The acceptance criteria additions made on 2026-04-15 (LOCO ≥ 0.30,
+    heterogeneous regression check) exist to surface these gaps BEFORE
+    the Sprint 12 promotion flip — so the team makes an explicit go/no-go
+    decision with out-of-distribution evidence, rather than inheriting
+    the 0.17 LOCO silently.
+
+    If the LOCO bar is missed, the honest answer is Sprint 12 ships
+    v0.12.0 with shadow-only and the directive flip waits for Sprint 13
+    where the gated architecture lands. This is not a failure of Sprint
+    12 — it is Sprint 12 correctly refusing to ship a model that doesn't
+    generalize to new data sources.
+
 phase: plan
 design_reviewed: false
 code_reviewed: false
