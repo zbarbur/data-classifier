@@ -308,12 +308,22 @@ class MetaClassifier:
         values = sample_values or []
         distinct = _distinct_ratio(values)
         avg_len = _avg_length_normalized(values)
+        # Sprint 11 Phase 7 feature, wired into shadow inference here
+        # so the training row (tests/benchmarks/meta_classifier/
+        # extract_features.py) and the live predict_shadow path compute
+        # the same index-46 value for the same column. Missing this
+        # pass-through silently zeros index 46 for every shadow
+        # prediction — a bug that existed between Phase 7 and the fix.
+        from data_classifier.engines.heuristic_engine import compute_dictionary_word_ratio
+
+        dict_ratio = compute_dictionary_word_ratio(values)
 
         try:
             full_vec = extract_features(
                 findings,
                 heuristic_distinct_ratio=distinct,
                 heuristic_avg_length=avg_len,
+                heuristic_dictionary_word_ratio=dict_ratio,
             )
             dropped = set(self._dropped_feature_indices)
             kept_vec = [v for i, v in enumerate(full_vec) if i not in dropped]
