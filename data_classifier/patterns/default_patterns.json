@@ -1196,11 +1196,11 @@
     {
       "name": "dob_european",
       "regex": "\\b(0[1-9]|[12]\\d|3[01])[/.](0[1-9]|1[0-2])[/.](19|20)\\d{2}\\b",
-      "entity_type": "DATE_OF_BIRTH_EU",
+      "entity_type": "DATE_OF_BIRTH",
       "category": "PII",
       "sensitivity": "HIGH",
       "confidence": 0.6,
-      "description": "Date of birth European format DD/MM/YYYY or DD.MM.YYYY. Ambiguous cases like 04/03/1990 will also match the US date_of_birth_format pattern, producing both DATE_OF_BIRTH and DATE_OF_BIRTH_EU findings for downstream region-based disambiguation.",
+      "description": "Date of birth European format DD/MM/YYYY or DD.MM.YYYY. Sprint 12 retired the separate DATE_OF_BIRTH_EU subtype — format does not indicate jurisdiction, and GDPR / CCPA / HIPAA treat dates of birth as PII regardless of format. Ambiguous cases (day<=12) also match the US date_of_birth_format pattern; both findings collapse to DATE_OF_BIRTH.",
       "validator": "",
       "examples_match": [
         "15/03/1985",

@@ -273,10 +273,6 @@ _ENTITY_GENERATORS: dict[str, dict] = {
         "column_name": "test_mac_column",
         "generator": lambda fake, n: [fake.mac_address() for _ in range(n)],
     },
-    "DATE_OF_BIRTH_EU": {
-        "column_name": "test_dob_eu_column",
-        "generator": lambda fake, n: [fake.date_of_birth().strftime("%d/%m/%Y") for _ in range(n)],
-    },
 }
 
 # "None" generators — columns that should NOT match any entity type
