@@ -206,6 +206,14 @@ Phase 2 included them. The current 95% BCa CI width of 0.0577 might be
 optimistic. We don't know whether the model still passes the tight ship gate
 when resampled rows are excluded.
 
+> **Sprint 11 post-mortem (2026-04-15):** Methodology question remains
+> valid, but the motivating CI width (0.0577) is stale. Under the v3
+> feature schema (46 features, shipped Sprint 11) the bootstrap CI
+> number is different and must be re-measured against the current
+> `meta_classifier_v3.pkl` before deciding whether the resampled-row
+> exclusion materially changes the ship verdict. Re-snap first, then
+> decide if this experiment is worth running.
+
 **Task prompt for parallel session:**
 ```
 Working in /Users/guyguzner/Projects/data_classifier on branch
@@ -300,7 +308,7 @@ LOCO F1 ≥ 0.55 vs current 0.27-0.36).
 
 ### Q4 — DOB / DOB-EU merge experiment
 
-**Status:** 🟡 queued
+**Status:** ⏸ SUPERSEDED — validated by Sprint 11 Phase 10 A/B; DATE_OF_BIRTH_EU being retired in Sprint 12
 **Priority:** P2
 **Estimated time:** 30-60 min
 **Why it matters:** Phase 2's worst per-class F1 is `DATE_OF_BIRTH = 0.527`
@@ -311,6 +319,17 @@ output space. Session A's research doc §9 explicitly flagged this as a
 profile-hygiene issue. We want to know whether collapsing the two labels
 back into a single `DATE_OF_BIRTH` improves overall macro F1, and by how
 much.
+
+> **Sprint 11 post-mortem (2026-04-15):** Hypothesis validated and in
+> the process of shipping. Sprint 11 Phase 10 cross-family A/B analysis
+> confirmed the DOB/DOB-EU split is a classification mistake: DATE
+> family F1 = 1.000 under v3, and the 150 within-family confusions are
+> pure tie-breaking noise with identical confidences on both sides.
+> Sprint 12 is retiring `DATE_OF_BIRTH_EU` entirely via the
+> `sprint12-retire-date-of-birth-eu-subtype` backlog item (currently
+> `status: doing`). Do not run this experiment — the answer is already
+> production-bound. Once Sprint 12 delivers and the sync ritual runs,
+> the label collapses to `DATE_OF_BIRTH` on its own.
 
 **Task prompt for parallel session:**
 ```
@@ -475,7 +494,7 @@ is found, save the new model to `meta_classifier_v1_e1.pkl` for review.
 
 ### E2 — Feature ablation: drop one at a time
 
-**Status:** 🟡 queued
+**Status:** ⏸ STALE — schema mismatch (premise is 13 features; v3 has 46)
 **Priority:** P3
 **Estimated time:** 1 hour
 
@@ -484,9 +503,23 @@ delta for each ablation. Identify the 2 most-important and 2
 least-important features. Cross-reference with Q3's LOCO ablation results
 if both are run. Saves to `runs/<ts>-e2-ablation/result.md`.
 
+> **Sprint 11 post-mortem (2026-04-15):** The "train 13 models" premise
+> is obsolete — Sprint 11 widened the feature schema to 46 slots
+> (`_BASE_FEATURE_NAMES` + `primary_entity_type` one-hot + Chao-1 +
+> dict-word-ratio in `_EXTRA_FEATURE_NAMES`). A 46-way drop-one-at-a-time
+> ablation is a different experiment: (a) the per-entity-type one-hot
+> slots can't be meaningfully ablated individually — dropping one slot
+> just reroutes its samples to the `UNKNOWN` bucket; (b) many v3
+> features are near-zero-coefficient on the current model and their
+> ablation delta is expected noise. If this experiment is rewritten
+> against v3, the useful framing is probably "ablate feature groups"
+> (all engine-confidence slots / the one-hot block / the Chao-1 +
+> dict-word-ratio extras) rather than individual features. File as a
+> new entry with a v3-aware scope instead of resurrecting this one.
+
 ### E3 — Class collapse: 4-class meta-classifier
 
-**Status:** 🟡 queued
+**Status:** ✅ SUPERSEDED — Sprint 11 FAMILY taxonomy (13 families, items 11-H/11-I)
 **Priority:** P3
 **Estimated time:** 30-45 min
 
@@ -497,9 +530,21 @@ a 4-class problem is dramatically easier and might give us a stable
 baseline classifier even if the 24-class one struggles. Compare macro F1
 + LOCO + per-class. Saves to `runs/<ts>-e3-class-collapse/result.md`.
 
+> **Sprint 11 post-mortem (2026-04-15):** Hypothesis validated at a
+> different granularity. Sprint 11 shipped the FAMILY taxonomy with
+> 13 families (DATE / CREDENTIAL / PII_PERSON / FINANCIAL_ACCOUNT /
+> HEALTH / etc. — see `ClassificationFinding.family` on main, items
+> 11-H and 11-I). The canonical family accuracy benchmark
+> (`tests/benchmarks/family_accuracy_benchmark.py`) is now the new
+> quality gate with `family_macro_f1 = 0.9286` and `cross_family_rate
+> = 5.85%` (from MEMORY `project_sprint11_complete`). The 4-class
+> collapse proposed here would be strictly coarser than the 13-family
+> taxonomy and throw away useful within-super-category structure —
+> Sprint 11 already found the right granularity. Do not run.
+
 ### E4 — Distribution-invariant features (binning)
 
-**Status:** 🟡 queued (depends on Q3)
+**Status:** ⏸ EFFECTIVELY DEAD — problem solved differently in Sprint 9-11
 **Priority:** P3
 **Estimated time:** 1-2 hours
 
@@ -511,9 +556,25 @@ fingerprint corpus-specific distributions while preserving the gross
 "long values look like addresses, short values look like names" signal.
 Saves to `runs/<ts>-e4-binning/result.md`.
 
+> **Sprint 11 post-mortem (2026-04-15):** Q3 did confirm the leak
+> (`heuristic_avg_length` coefficient was 2x runner-up pre-M1), but
+> the distributional-shortcut problem was addressed through different
+> mechanisms: (a) Gretel-EN ingest in Sprint 9 reduced the
+> `heuristic_avg_length` coefficient 252→131 (48% drop) by adding a
+> mixed-label corpus that breaks the label-corpus purity pathology;
+> (b) Sprint 11 shipped Chao-1 bias-corrected cardinality (item 11-E,
+> commit `987194c`) and dictionary-word-ratio (item 11-D, commit
+> `d3d29d8`) as *additive* distribution-invariant features rather
+> than a binning transformation on `heuristic_avg_length`. Binning
+> per se remains untested, but it's now a retrospective
+> "would-X-have-been-better-than-what-shipped" question, not a
+> forward research direction. Not load-bearing for any current
+> thread. Do not run unless a specific reason emerges to compare
+> binning against the additive-features approach.
+
 ### E5 — Pull SecretBench full vs sample
 
-**Status:** 🟡 queued
+**Status:** 🟡 queued — confirmed live post Sprint 11
 **Priority:** P3
 **Estimated time:** 1 hour
 
@@ -525,6 +586,17 @@ more KV-structured credential rows lifts the meta-classifier's
 `secret_scanner_confidence` non-zero rate from 9.5% to ~30%+, which is
 where Session B's research said it would become a strong signal. Saves
 to `runs/<ts>-e5-secretbench-full/result.md`.
+
+> **Sprint 11 post-mortem (2026-04-15):** Still live. Sprint 10's
+> secret-dict harvest (88→178 patterns from Kingfisher/gitleaks/Nosey
+> Parker) was orthogonal — that was about the pattern library (the
+> *what* the scanner detects), not the corpus volume (the *where*
+> the meta-classifier measures scanner agreement). The hypothesis
+> "4× more KV-structured credential rows lifts `secret_scanner_confidence`
+> non-zero rate to ~30%+" is unchanged by Sprint 11 and can run
+> against the v3 feature schema as-is. Low priority (P3) because the
+> v3 classifier is already passing the canonical family benchmark —
+> this is incremental signal improvement, not a gap fix.
 
 ### E6 — XGBoost replacement for LogReg
 
@@ -579,7 +651,7 @@ within-corpus variance. **Big download (~800MB combined).** Saves to
 
 ### E8 — Add structural features
 
-**Status:** 🟡 queued
+**Status:** 🟡 queued — confirmed live post Sprint 11; targets a real gap
 **Priority:** P3
 **Estimated time:** 1-2 hours
 
@@ -591,6 +663,19 @@ in named mode, not blind mode — but blind mode is where the meta-
 classifier is already winning. This experiment specifically targets
 the few named-mode failures we have. Saves to `runs/<ts>-e8-structural/
 result.md`.
+
+> **Sprint 11 post-mortem (2026-04-15):** Still live, unchanged by the
+> v3 rebuild. `column_name_engine` exists and contributes a feature to
+> v3, but it provides *entity-match* confidence via the column name,
+> not *structural properties* of the name itself. The v3
+> `_EXTRA_FEATURE_NAMES` tuple (Chao-1, dictionary-word-ratio) is
+> content-based, not name-structural. The column-name structural
+> features proposed here (length of name, separator chars, casing,
+> digit presence) target a gap that production has not addressed.
+> One schema-compatibility note: this experiment qualifies for the
+> feature-schema exception, so the additive column-name-structural
+> features would be appended to `_EXTRA_FEATURE_NAMES` under an
+> incremented `FEATURE_SCHEMA_VERSION` per the contract.
 
 ### E9 — New-corpus diversity expansion (distinct from E7)
 
@@ -1284,6 +1369,24 @@ next decision:
 > that node. Either result is load-bearing for the Sprint 10
 > design, so running Q8 before Sprint 10 starts is high-leverage
 > for ~2-3 hours of work.
+
+> **Sprint 11 post-mortem (2026-04-15) — scope tightened:** Sprint 11
+> item 11-F (tier-1 credential pattern-hit gate, commit `bb1644f`)
+> is effectively the Q8-C outcome applied at the *gate* layer:
+> rule-based credential routing shipped as the default v3 path and
+> it works — pattern-hit routing has 100% precision on shape with
+> 100% engine-detected credential recall per the E11 diagnostic.
+> That closes the original Q8 question ("does meta-classification
+> have value at all on opaque secrets"). The *reframed* Q8 for
+> post-Sprint-11 is narrower: "on rows that PASS the tier-1
+> credential gate (are routed into the credential stage) but
+> v3's default stage-2 classifier still mis-predicts within the
+> credential family, does a specialized stage-2 ML classifier
+> beat it?" This is a smaller, more actionable question because
+> the subset is now well-defined (rows that trigger the gate) and
+> the baseline is now well-defined (v3's within-family accuracy
+> on that subset). Scope-tighten this entry before running; the
+> old task prompt below is pre-gate and will need rewriting.
 
 **Why it matters:** Q3, Q5, and Q6 established that a general-purpose
 meta-classifier over 24 classes fails LOCO because of structural

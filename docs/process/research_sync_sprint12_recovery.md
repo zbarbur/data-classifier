@@ -123,14 +123,44 @@ in full, substituting `N=12` throughout.
   just replaced. Refresh the worktree (`git clean -fd` untracked or
   restart the Python interpreter) and retry.
 
-### Step 7 — Queue.md corrections (multi-sprint batch)
+### Step 7 — Queue.md corrections (mostly pre-done)
 
-The standard runbook Step 5 asks for queue.md annotations for items
-shipped in the latest sprint. For this sync specifically, multiple
-sprints' worth of shipping has accumulated. Work through the queue
-top-to-bottom and add `✅ SHIPPED` annotations for at least the
-following entries (cross-reference against Sprint 9, 10, 11, and 12
-handover docs for completeness):
+**Pre-work completed 2026-04-15** — the multi-sprint annotation batch
+originally specified for this step was executed ahead of Sprint 12
+delivery, not during recovery. All 8 `🟡 queued` entries were walked
+against what shipped in Sprints 9-11 and annotated with "Sprint 11
+post-mortem (2026-04-15)" blockquotes. See the commit on
+`research/meta-classifier` immediately after `4483ffa` for the
+annotation pass. Summary of verdicts:
+
+- **Q2** — still 🟡, needs v3 CI re-snap (motivating 0.0577 number is stale)
+- **Q4** — ⏸ SUPERSEDED (Sprint 11 Phase 10 A/B + Sprint 12 retirement)
+- **E2** — ⏸ STALE (13-feature premise obsolete under v3's 46 features)
+- **E3** — ✅ SUPERSEDED (Sprint 11 FAMILY taxonomy shipped at 13 families)
+- **E4** — ⏸ EFFECTIVELY DEAD (dict-word-ratio + Chao-1 + Gretel-EN solved it differently)
+- **E5** — still 🟡 (Sprint 10 pattern harvest orthogonal, question unchanged)
+- **E8** — still 🟡 (v3 extras are content-based, not name-structural)
+- **Q8** — still 🟡, **scope tightened** (Sprint 11 item 11-F is Q8-C at gate layer; reframed as "stage-2 ML beyond the tier-1 gate")
+
+**During recovery, Step 7 becomes a verify-and-adjust pass**, not a
+write pass. Read the annotations against Sprint 12's handover and:
+
+1. Confirm each existing annotation still holds after Sprint 12's
+   changes. Sprint 12 is primarily single-path unification and
+   DOB_EU retirement, not new feature-engineering, so most will.
+2. If DOB_EU retirement shipped in Sprint 12, upgrade **Q4's** status
+   from `⏸ SUPERSEDED` to `✅ SHIPPED — retirement item delivered
+   Sprint 12 via commit <hash>` and point to the commit.
+3. Add annotations for any other Sprint 12 shipped item that landed
+   a research-thread answer during the sync window (check SPRINT12
+   handover "Delivered" section).
+
+Budget for Step 7 in this recovery: 5-10 minutes instead of 20-30.
+
+---
+
+**Historical reference (the original write list — kept for audit trail,
+now pre-done by the 2026-04-15 annotation commit):**
 
 - **E11 — Gated architecture** (queue.md line ~950)
 
