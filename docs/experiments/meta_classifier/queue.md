@@ -138,6 +138,52 @@ cadences (sprint end is the default) so project history captures
 learnings even when nothing promoted to production. Candidate pkls stay
 on the research branch until a promotion sprint item ships them.
 
+### Merging main into research
+
+Main absorbs production changes continuously — schema widening, gate
+architectures, new features, new family taxonomies. The research branch
+must periodically pull those changes back in, or experiments start
+measuring a schema that no longer exists in production. In the Sprint 9
+→ Sprint 11 window this branch fell 117 commits behind main; the E11
+ablation was run against a 15-feature layout that main had already
+replaced with 46 features, and its "yellow verdict on gating" findings
+were an under-estimate of work that had already shipped as Sprint 11
+item 11-F. That drift is the failure mode this subsection prevents.
+
+**Trigger.** Once per sprint, after **both**:
+1. The sprint-end commit has landed on `origin/main`, and
+2. The GitHub Actions CI workflow (`ci.yaml`) is green for that commit.
+
+Both conditions are required. Never sync mid-sprint (main is unstable).
+Never sync on yellow/red CI (main is broken or in-flight).
+
+**Operation.** Merge, never rebase. `research/meta-classifier` is a
+pushed remote branch and parallel agent worktrees cut from it; a rebase
+would force every active worktree to reset. The existing research log
+is already braided — Q3/Q5/Q6 sub-experiments landed via merge commits
+— so a sprint-boundary `git merge origin/main` fits the shape of the
+history.
+
+**Conflict policy.** `docs/experiments/meta_classifier/queue.md` is
+research-authoritative: on any conflict, keep `ours`. As a safety check,
+**before the merge**, diff `origin/main:queue.md` against
+`research:queue.md`; if main has any lines research does not, that is
+a workflow bug (main's queue.md should only ever be a snapshot from the
+previous sprint-end merge-back) and the sync stops until the drift is
+understood. All other files: standard three-way merge. Unexpected
+conflicts in `data_classifier/**` mean research has been editing
+production code paths, which violates the ownership contract above —
+stop and investigate.
+
+**Rollback.** The runbook's first step is tagging
+`research/pre-sprintN-sync` as a local-only anchor. If post-sync
+validation fails, `git reset --hard` to that tag and file a blocker.
+
+**Detailed runbook.** See
+[`docs/process/research_branch_sync_runbook.md`](../../process/research_branch_sync_runbook.md)
+for exact commands, pre-flight checks, post-sync validation, the stale
+training-data caveat, and the rollback procedure.
+
 ## Status legend
 
 - 🔴 **blocked** — depends on something else
