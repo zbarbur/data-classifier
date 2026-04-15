@@ -13,6 +13,13 @@ tests.benchmarks.meta_classifier.evaluate's feature-loading helpers.
 Usage:
     python -m tests.benchmarks.meta_classifier.per_class_diagnostic \\
         --training tests/benchmarks/meta_classifier/training_data.jsonl
+
+This module uses ``print`` (not ``logging``) because it is a CLI
+diagnostic whose stdout output IS the user interface — the per-class
+table goes to stdout so a human operator can read it directly. CLAUDE.md's
+"no print statements" rule is for library code; CLI entrypoints are the
+documented exception, which is why each ``print`` carries an explicit
+``# noqa: T201`` annotation to survive a future ruff rule addition.
 """
 
 from __future__ import annotations
@@ -128,34 +135,34 @@ def per_class_report(rows: list[Row], *, best_c: float = 0.1) -> None:
         per_class_pr[cls] = precision_score(y_true_bin, y_pred_bin, zero_division=0.0)
         per_class_rc[cls] = recall_score(y_true_bin, y_pred_bin, zero_division=0.0)
 
-    print(
+    print(  # noqa: T201
         f"{'class':<22} {'N':>6} {'corpora':<32} "
         f"{'P':>6} {'R':>6} {'F1':>6}  "
         f"{'regex':>6} {'col':>6} {'heur':>6} {'secret':>6}"
     )
-    print("-" * 120)
+    print("-" * 120)  # noqa: T201
 
     sorted_classes = sorted(all_classes, key=lambda c: per_class_f1[c])
     for cls in sorted_classes:
         n = class_counts[cls]
         corpora_summary = ", ".join(f"{c}:{v}" for c, v in per_class_corpora[cls].most_common(3))[:32]
         fires = per_class_engine_fires.get(cls, {})
-        print(
+        print(  # noqa: T201
             f"{cls:<22} {n:>6} {corpora_summary:<32} "
             f"{per_class_pr[cls]:>6.3f} {per_class_rc[cls]:>6.3f} {per_class_f1[cls]:>6.3f}  "
             f"{fires.get('regex', 0):>6.2%} {fires.get('column_name', 0):>6.2%} "
             f"{fires.get('heuristic', 0):>6.2%} {fires.get('secret_scanner', 0):>6.2%}"
         )
 
-    print()
-    print(f"Total rows: {len(rows)}")
-    print(f"Total classes: {len(all_classes)}")
+    print()  # noqa: T201
+    print(f"Total rows: {len(rows)}")  # noqa: T201
+    print(f"Total classes: {len(all_classes)}")  # noqa: T201
     macro = sum(per_class_f1.values()) / len(per_class_f1) if per_class_f1 else 0.0
-    print(f"Macro F1 (unweighted mean): {macro:.4f}")
-    print(f"Classes with F1 < 0.1:  {sum(1 for f in per_class_f1.values() if f < 0.1)}")
-    print(f"Classes with F1 < 0.3:  {sum(1 for f in per_class_f1.values() if f < 0.3)}")
-    print(f"Classes with F1 >= 0.5: {sum(1 for f in per_class_f1.values() if f >= 0.5)}")
-    print(f"Classes with F1 >= 0.8: {sum(1 for f in per_class_f1.values() if f >= 0.8)}")
+    print(f"Macro F1 (unweighted mean): {macro:.4f}")  # noqa: T201
+    print(f"Classes with F1 < 0.1:  {sum(1 for f in per_class_f1.values() if f < 0.1)}")  # noqa: T201
+    print(f"Classes with F1 < 0.3:  {sum(1 for f in per_class_f1.values() if f < 0.3)}")  # noqa: T201
+    print(f"Classes with F1 >= 0.5: {sum(1 for f in per_class_f1.values() if f >= 0.5)}")  # noqa: T201
+    print(f"Classes with F1 >= 0.8: {sum(1 for f in per_class_f1.values() if f >= 0.8)}")  # noqa: T201
 
 
 def main(argv: list[str] | None = None) -> int:

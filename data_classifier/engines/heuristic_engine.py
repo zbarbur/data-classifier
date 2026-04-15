@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from collections import Counter
 
 from data_classifier.config import load_engine_config
@@ -243,11 +244,9 @@ def compute_avg_char_class_diversity(values: list[str]) -> float:
 # The list is loaded lazily on first call and cached as a frozenset.
 
 
-import re as _re  # noqa: E402 — local alias to avoid adding a top-level re import
-
 _CONTENT_WORDS: frozenset[str] | None = None
 _CONTENT_WORDS_MIN_LEN: int = 5
-_CONTENT_WORDS_TOKEN_RE = _re.compile(r"[a-z]+")
+_CONTENT_WORDS_TOKEN_RE = re.compile(r"[a-z]+")
 
 
 def _load_content_words_once() -> frozenset[str]:

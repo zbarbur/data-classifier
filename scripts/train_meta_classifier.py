@@ -4,8 +4,8 @@ Usage (from repo root)::
 
     python -m scripts.train_meta_classifier \\
         --input tests/benchmarks/meta_classifier/training_data.jsonl \\
-        --output data_classifier/models/meta_classifier_v1.pkl \\
-        --metadata data_classifier/models/meta_classifier_v1.metadata.json
+        --output data_classifier/models/meta_classifier_v3.pkl \\
+        --metadata data_classifier/models/meta_classifier_v3.metadata.json
 
 The model artifact is a pickled dict (decision D5 in the Phase 2 dispatch):
 ``{model, scaler, feature_names, class_labels, dropped_features,
@@ -38,9 +38,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import subprocess
-import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,6 +53,10 @@ os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
 # the pickle and load only from a committed in-repo path, so there is no
 # untrusted-input exposure.  See D5 in the Phase 2 dispatch.
 import pickle as _pickle_impl  # noqa: S403
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+_log = logging.getLogger(__name__)
+
 
 # ── Features to drop (Session A §2.1) ──────────────────────────────────────
 
@@ -439,15 +443,15 @@ def save_artifacts(
     }
     metadata_path.write_text(json.dumps(metadata, indent=2, default=str))
 
-    print(f"Saved model to {output}")
-    print(f"Saved metadata to {metadata_path}")
-    print(f"  best C = {trained['best_c']}")
-    print(f"  CV mean macro F1 = {trained['cv_mean_f1']:.4f} ± {trained['cv_std_f1']:.4f}")
-    print(f"  held-out test macro F1 = {test_f1:.4f}")
-    print(f"  95% BCa CI = [{ci_low:.4f}, {ci_high:.4f}] (width {ci_high - ci_low:.4f})")
-    print("  top 5 features:")
+    _log.info("Saved model to %s", output)
+    _log.info("Saved metadata to %s", metadata_path)
+    _log.info("  best C = %s", trained["best_c"])
+    _log.info("  CV mean macro F1 = %.4f ± %.4f", trained["cv_mean_f1"], trained["cv_std_f1"])
+    _log.info("  held-out test macro F1 = %.4f", test_f1)
+    _log.info("  95%% BCa CI = [%.4f, %.4f] (width %.4f)", ci_low, ci_high, ci_high - ci_low)
+    _log.info("  top 5 features:")
     for entry in trained["top_importances"]:
-        print(f"    {entry['feature']:<32} {entry['abs_coef_sum']:.4f}")
+        _log.info("    %-32s %.4f", entry["feature"], entry["abs_coef_sum"])
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────
@@ -463,12 +467,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("data_classifier/models/meta_classifier_v1.pkl"),
+        default=Path("data_classifier/models/meta_classifier_v3.pkl"),
     )
     parser.add_argument(
         "--metadata",
         type=Path,
-        default=Path("data_classifier/models/meta_classifier_v1.metadata.json"),
+        default=Path("data_classifier/models/meta_classifier_v3.metadata.json"),
     )
     return parser.parse_args(argv)
 
@@ -481,11 +485,11 @@ def main(argv: list[str] | None = None) -> int:
 
     dataset = load_jsonl(args.input, FEATURE_NAMES)
     if not dataset.labels:
-        print(f"No training rows in {args.input}", file=sys.stderr)
+        _log.error("No training rows in %s", args.input)
         return 1
 
     kept_names, kept_indices = resolve_feature_subset(dataset)
-    print(f"Loaded {len(dataset.labels)} rows; using {len(kept_names)} features: {kept_names}")
+    _log.info("Loaded %d rows; using %d features: %s", len(dataset.labels), len(kept_names), kept_names)
 
     trained = train(dataset, kept_indices=kept_indices)
     save_artifacts(

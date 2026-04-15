@@ -588,7 +588,7 @@ class ClassificationFinding:
     # Populated when finding was derived from sample value analysis.
     # None when finding was derived from column name/metadata only.
 
-    # ── Family (Sprint 11, v0.11.0+) ──────────────────────
+    # ── Family (Sprint 11) ────────────────────────────────
     family: str = ""
     # Structural handling family: a coarser grouping than
     # ``entity_type`` (26 labels) but finer than ``category`` (4

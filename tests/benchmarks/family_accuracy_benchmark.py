@@ -45,6 +45,15 @@ summary from the previous sprint)::
         --out /tmp/new.predictions.jsonl \\
         --summary /tmp/new.summary.json \\
         --compare-to docs/research/meta_classifier/sprint11_family_benchmark.json
+
+This module uses ``print`` (not ``logging``) because it is a CLI
+entrypoint whose stderr output IS the user interface — progress lines
+and the headline report go to stderr so a human operator running the
+benchmark sees them, while the structured ``predictions.jsonl`` and
+``summary.json`` are the machine-readable artifacts. CLAUDE.md's "no
+print statements" rule is for library code; CLI entrypoints are the
+documented exception, which is why each ``print`` carries an explicit
+``# noqa: T201`` annotation to survive a future ruff rule addition.
 """
 
 from __future__ import annotations
@@ -263,40 +272,43 @@ def _compare_to(current: dict, previous_path: Path) -> dict:
 def _print_report(summary: dict) -> None:
     live_overall = summary["live"]["overall"]["family"]
     shadow_overall = summary["shadow"]["overall"]["family"]
-    print(f"\n{'=' * 72}", file=sys.stderr)
-    print("FAMILY-LEVEL ACCURACY BENCHMARK", file=sys.stderr)
-    print(f"{'=' * 72}", file=sys.stderr)
-    print(f"N shards:             {summary['n_shards']}", file=sys.stderr)
-    print("", file=sys.stderr)
-    print("LIVE path:", file=sys.stderr)
-    print(
+    print(f"\n{'=' * 72}", file=sys.stderr)  # noqa: T201
+    print("FAMILY-LEVEL ACCURACY BENCHMARK", file=sys.stderr)  # noqa: T201
+    print(f"{'=' * 72}", file=sys.stderr)  # noqa: T201
+    print(f"N shards:             {summary['n_shards']}", file=sys.stderr)  # noqa: T201
+    print("", file=sys.stderr)  # noqa: T201
+    print("LIVE path:", file=sys.stderr)  # noqa: T201
+    print(  # noqa: T201
         f"  cross_family_rate:  {live_overall['cross_family_rate']:.4f}  "
         f"({live_overall['cross_family_errors']}/{live_overall['n_shards']})",
         file=sys.stderr,
     )
-    print(f"  family_macro_f1:    {live_overall['family_macro_f1']:.4f}", file=sys.stderr)
-    print(
+    print(f"  family_macro_f1:    {live_overall['family_macro_f1']:.4f}", file=sys.stderr)  # noqa: T201
+    print(  # noqa: T201
         f"  within_family_mislabels: {live_overall['within_family_mislabels']}",
         file=sys.stderr,
     )
-    print("", file=sys.stderr)
-    print("SHADOW path (meta-classifier):", file=sys.stderr)
-    print(
+    print("", file=sys.stderr)  # noqa: T201
+    print("SHADOW path (meta-classifier):", file=sys.stderr)  # noqa: T201
+    print(  # noqa: T201
         f"  cross_family_rate:  {shadow_overall['cross_family_rate']:.4f}  "
         f"({shadow_overall['cross_family_errors']}/{shadow_overall['n_shards']})",
         file=sys.stderr,
     )
-    print(f"  family_macro_f1:    {shadow_overall['family_macro_f1']:.4f}", file=sys.stderr)
-    print(
+    print(f"  family_macro_f1:    {shadow_overall['family_macro_f1']:.4f}", file=sys.stderr)  # noqa: T201
+    print(  # noqa: T201
         f"  within_family_mislabels: {shadow_overall['within_family_mislabels']}",
         file=sys.stderr,
     )
-    print("", file=sys.stderr)
-    print("Per-family F1 (shadow, sorted ascending — lowest is the constraint):", file=sys.stderr)
+    print("", file=sys.stderr)  # noqa: T201
+    print(  # noqa: T201
+        "Per-family F1 (shadow, sorted ascending — lowest is the constraint):",
+        file=sys.stderr,
+    )
     per_fam = shadow_overall["per_family"]
     rows = sorted(per_fam.items(), key=lambda kv: kv[1]["f1"])
     for name, m in rows:
-        print(
+        print(  # noqa: T201
             f"  {name:15s} N={m['support']:>5d}  P={m['precision']:.3f}  R={m['recall']:.3f}  F1={m['f1']:.3f}",
             file=sys.stderr,
         )
@@ -316,13 +328,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    print(f"Building synthetic pool and shards (seed={args.seed})...", file=sys.stderr)
+    print(f"Building synthetic pool and shards (seed={args.seed})...", file=sys.stderr)  # noqa: T201
     profile = load_profile("standard")
     synthetic_pool = _build_synthetic_pool()
     shards = build_shards(synthetic_pool=synthetic_pool, seed=args.seed)
     if args.limit:
         shards = shards[: args.limit]
-    print(f"Classifying {len(shards)} shards...", file=sys.stderr)
+    print(f"Classifying {len(shards)} shards...", file=sys.stderr)  # noqa: T201
 
     t_start = time.monotonic()
     predictions = []
@@ -333,10 +345,10 @@ def main(argv: list[str] | None = None) -> int:
             predictions.append(rec)
             if (i + 1) % 500 == 0:
                 elapsed = time.monotonic() - t_start
-                print(f"  {i + 1}/{len(shards)} ({elapsed:.1f}s)", file=sys.stderr)
+                print(f"  {i + 1}/{len(shards)} ({elapsed:.1f}s)", file=sys.stderr)  # noqa: T201
 
     elapsed = time.monotonic() - t_start
-    print(f"Finished {len(shards)} shards in {elapsed:.1f}s", file=sys.stderr)
+    print(f"Finished {len(shards)} shards in {elapsed:.1f}s", file=sys.stderr)  # noqa: T201
 
     def _build_tiered(preds: list[dict], field: str) -> dict:
         return {

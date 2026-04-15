@@ -23,7 +23,7 @@ The relationship to ``category``:
 * ``category`` is the **regulatory** classification (GDPR scope,
   HIPAA scope, GLBA scope, SOC2 scope). Four values.
 * ``family`` is the **handling** classification (what does a DLP
-  policy do with this?). Twelve values.
+  policy do with this?). Thirteen values.
 
 Both are useful and both are kept on ``ClassificationFinding``.
 Consumers that want regulatory bucketing read ``category``;

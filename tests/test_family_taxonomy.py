@@ -20,6 +20,8 @@ from data_classifier import (
     ENTITY_TYPE_TO_FAMILY,
     FAMILIES,
     ClassificationFinding,
+    ColumnInput,
+    classify_columns,
     family_for,
     load_profile,
 )
@@ -122,4 +124,44 @@ class TestProfileCoverage:
         assert not missing, (
             f"Profile entity types without a family mapping: {sorted(missing)}. "
             f"Update data_classifier/core/taxonomy.py::ENTITY_TYPE_TO_FAMILY."
+        )
+
+
+class TestEndToEndFamilyOnFinding:
+    """Family field is populated on findings returned from the public API.
+
+    The unit tests above exercise ``__post_init__`` directly on synthetic
+    findings. This class closes the gap caught by the upstream
+    ``855f60c`` review: anything reachable through ``classify_columns``
+    must also have an end-to-end test, so a future refactor that bypasses
+    ``__post_init__`` (e.g. ``dataclass(field(init=False))``) cannot
+    silently strip the field.
+    """
+
+    @pytest.fixture(scope="class")
+    def profile(self):
+        return load_profile("standard")
+
+    @pytest.mark.parametrize(
+        ("column_name", "sample_values", "expected_family"),
+        [
+            ("email_address", ["alice@example.com", "bob@example.org"], "CONTACT"),
+            ("credit_card", ["4111111111111111", "5500000000000004"], "PAYMENT_CARD"),
+        ],
+    )
+    def test_classify_columns_populates_family(self, profile, column_name, sample_values, expected_family):
+        findings = classify_columns(
+            [ColumnInput(column_name=column_name, sample_values=sample_values)],
+            profile,
+            min_confidence=0.0,
+        )
+        assert findings, f"expected at least one finding for {column_name}"
+        # Every finding (not just the top one) must carry a non-empty
+        # family that matches the expected family for its entity_type.
+        for f in findings:
+            assert f.family, f"family unset on finding {f.entity_type!r}"
+            assert f.family == family_for(f.entity_type)
+        assert any(f.family == expected_family for f in findings), (
+            f"no finding landed in expected family {expected_family}; "
+            f"got {[(f.entity_type, f.family) for f in findings]}"
         )
