@@ -1,0 +1,84 @@
+title: "Stopwords XOR decode support — re-add Phase 6 flagged placeholder strings"
+status: backlog
+priority: P3
+category: chore
+sprint_target: 12
+created: 2026-04-14
+updated: 2026-04-14
+depends_on: []
+tags:
+- sprint11-followup
+- scanner-tuning
+- false-positive-reduction
+goal: "Extend the stopwords.json loader to support the xor: prefix encoding (mirroring
+  the existing decode path in data_classifier/patterns/__init__.py used for default_patterns.json
+  examples_match / examples_no_match), then re-add the Phase 6 placeholder strings
+  that were removed from the original commit because GitHub push protection blocked
+  them."
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/regex_engine.py::_load_global_stopwords \u2014 extend
+  to decode xor: and b64: prefixed entries using the same _XOR_KEY and _decode_examples
+  helper from data_classifier/patterns/__init__.py (refactor into a shared module
+  if needed to avoid circular imports)"
+- "File: data_classifier/patterns/stopwords.json \u2014 re-add xor-encoded entries
+  for the two Stripe docs test keys that were stripped from Phase 6 (commit e1ea2dc)
+  plus the full-length github PAT / openai / slack token placeholder shapes that
+  were also blocked"
+- "File: tests/test_bitcoin_ethereum_validators.py::TestExpandedStopwords \u2014 add
+  coverage for the re-added entries (tests can decode via the same helper at runtime;
+  the entries land in the loaded set regardless of their on-disk encoding)"
+description: |
+  Sprint 11 Phase 6 (commit e1ea2dc) expanded stopwords.json from 19 to 34
+  entries with well-known fake credential strings from public FP catalogs.
+  An additional ~5 high-value entries were prepared but removed from the
+  final commit because GitHub push protection blocked them. The removed
+  entries belonged to three categories of public-documentation placeholder
+  values used by major SDKs: (a) published payment-processor test keys,
+  (b) full-length version-control PAT placeholders, (c) messaging-platform
+  bot / user token placeholders. In every case the string is a published
+  doc value — not a real secret — but GitHub's secret scanner pattern-
+  matches on the shape and rejects the push regardless.
+
+  The codebase already has a solution for this exact problem:
+  data_classifier/patterns/default_patterns.json stores credential examples
+  using an xor: prefix with base64-encoded bodies, decoded at load time
+  by data_classifier/patterns/__init__.py::_decode_examples. This item
+  extends the same decoding path to the stopwords loader in
+  data_classifier/engines/regex_engine.py::_load_global_stopwords so the
+  blocked entries can be re-added using the encoded form.
+
+  Phase 6 took the simpler path of removing the strings entirely to land
+  the rest of the expansion on time. The loss is narrow — each removed
+  entry would only reject columns whose sample values are exactly that
+  literal string — but the pattern of "avoid entries that look like real
+  credentials even though they aren't" is a durable blocker for every
+  future stopwords expansion, so wiring XOR support once is the right
+  long-term fix.
+
+  Not urgent (Sprint 11 Phase 6 is otherwise complete) but should land
+  before the next stopwords expansion item to avoid repeating the same
+  push-protection block.
+acceptance_criteria:
+- _load_global_stopwords decodes xor: and b64: prefixed entries identically
+  to data_classifier.patterns._decode_examples
+- At least the 2 Stripe docs test keys are re-added as xor:-encoded entries
+  and verified to be in the runtime stopwords set
+- Full test suite passes; no new lint violations
+- GitHub push protection accepts the commit (smoke-test push to a personal
+  fork or branch)
+risks:
+- "Stopwords loader refactor risk: moving the XOR decode helper into a shared
+  module could introduce a circular import between data_classifier/patterns/__init__.py
+  and data_classifier/engines/regex_engine.py. Mitigation: keep the decode logic
+  standalone (duplicated inline) or place it in a new
+  data_classifier/patterns/_encoding.py helper that neither side imports from the other."
+- "Low-probability regression: the base64 + XOR round-trip has to produce exactly
+  the same lowercase-stripped output that _is_stopword compares against. Unit tests
+  must pin this explicitly."
+out_of_scope:
+- "Entropy-based credential rejection (deferred from Phase 6 for risk reasons,
+  separate item)"
+- "Credential sub-type one-hot expansion in meta_classifier FEATURE_NAMES
+  (Sprint 12+ if credential sub-type resolution becomes a priority, see
+  docs/research/meta_classifier/sprint11_phase2_3_schema_widening_result.md)"

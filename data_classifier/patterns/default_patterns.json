@@ -348,7 +348,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "AWS Access Key ID (AKIA prefix + 16 alphanumeric)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -402,7 +402,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "JSON Web Token (three base64url segments starting with eyJ)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -426,7 +426,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "PEM-encoded private key header",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -450,7 +450,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.8,
       "description": "Generic API key assignment pattern (api_key=... or api-key: ...)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -474,7 +474,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.9,
       "description": "Database connection string with protocol prefix",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -664,7 +664,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "GitHub personal access token or OAuth token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -688,7 +688,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Stripe secret or restricted key (sk_live_*, rk_live_*, sk_test_*)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -712,7 +712,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.95,
       "description": "Stripe publishable key (less sensitive than secret, but still a credential)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -736,7 +736,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Slack bot token (xoxb- prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -760,7 +760,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Slack user token (xoxp- prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -784,7 +784,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.99,
       "description": "Slack incoming webhook URL",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -808,7 +808,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "SendGrid API key (SG. prefix with two base64 segments)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -832,7 +832,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Twilio API key (SK prefix + 32 hex chars)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -856,7 +856,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Mailgun API key (key- prefix + 32 hex chars)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -880,7 +880,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Google API key (AIza prefix + 35 chars)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -904,7 +904,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "OpenAI project API key (sk-proj- prefix, 80+ chars)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -928,7 +928,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "GitLab personal access token (glpat- prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -952,7 +952,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Shopify access token (shpat_, shpca_, shppa_, shpss_ prefix + 32 hex)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -976,7 +976,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Databricks personal access token (dapi prefix + 32 hex-like chars)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -1286,11 +1286,12 @@
       "category": "Financial",
       "sensitivity": "HIGH",
       "confidence": 0.9,
-      "description": "Bitcoin address (P2PKH/P2SH/Bech32)",
-      "validator": "",
+      "description": "Bitcoin address (P2PKH/P2SH/Bech32, checksum-verified)",
+      "validator": "bitcoin_address",
       "examples_match": [
         "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
-        "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"
+        "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy",
+        "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
       ],
       "examples_no_match": [
         "1BvB",
@@ -1305,7 +1306,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.9,
       "description": "Ethereum/EVM address",
-      "validator": "",
+      "validator": "ethereum_address",
       "examples_match": [
         "0x32Be343B94f860124dC4fEe278FDCBD38C102D88",
         "0xdAC17F958D2ee523a2206206994597C13D831ec7"
@@ -1392,7 +1393,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Discord bot token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Fw4TIBQeD2gUID1vFx4fIxcgC2sUMDludB0yAiMFIHQbGBkeHxwdEhMQERYXFBUKCwgJDg8MDQIDADs="
       ],
@@ -1420,7 +1421,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "npm access token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:NCo3BTsYOR4/HD0SMxAxFjcUNQorCCkOLwwtAiMAamtoaW5vbG1iYw=="
       ],
@@ -1448,7 +1449,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "HashiCorp Vault token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:MiwpdBkbHwkTEBQyAw4MMxUNFDAWDggxFzAfLg=="
       ],
@@ -1476,7 +1477,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Pulumi access token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Ki82dzs4OT4/PGtoaW5vbG1iY2o7ODk+PzxraGlub2xtYmNqOzg5Pj88a2g="
       ],
@@ -1504,7 +1505,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "DigitalOcean Personal Access Token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PjUqBSxrBTs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -1532,7 +1533,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "DigitalOcean OAuth access token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PjU1BSxrBTg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg="
       ],
@@ -1560,7 +1561,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Azure Storage Account key (AccountKey= connection string fragment)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Gzk5NS80LhE/I2cbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbG2dn"
       ],
@@ -1587,7 +1588,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Cloudflare API token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:LGt0anc5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5"
       ],
@@ -1614,7 +1615,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Hugging Face API token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:MjwFHh4eHh4eHh4eHh4eHh4eHh4eHh4="
       ],
@@ -1641,7 +1642,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Sentry auth token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KTQuKCMpBR8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f"
       ],
@@ -1668,7 +1669,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Supabase service role / personal access token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KTgqBTw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw="
       ],
@@ -1695,7 +1696,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Terraform Cloud / HCP Terraform API token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Oy42Oyksa3Q9PT09PT09PT09PT09PT09PT09PT09PT0="
       ],
@@ -1722,7 +1723,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Vercel API token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:LD8oOT82BRISEhISEhISEhISEhISEhISEhISEhISEg=="
       ],
@@ -1749,7 +1750,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Linear API key",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:NjM0BTsqMwUzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMz"
       ],
@@ -1776,7 +1777,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Netlify Personal Access Token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:NDwqBRAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBA="
       ],
@@ -1803,7 +1804,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Fly.io API token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PDVrBTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="
       ],
@@ -1869,7 +1870,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "bcrypt password hash ($2a$/$2b$/$2y$ prefix, cost + 22-char salt + 31-char hash).",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
         "$2b$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW"
@@ -1887,7 +1888,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Argon2 password hash ($argon2id$, $argon2i$, $argon2d$ prefix + version/params/salt/hash segments).",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
       ],
@@ -1904,7 +1905,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "scrypt password hash ($scrypt$ prefix with optional params + salt + hash).",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "$scrypt$ln=16,r=8,p=1$c29tZXNhbHQ$aGFzaGVkdmFsdWU"
       ],
@@ -1920,7 +1921,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "SHA-256 ($5$) or SHA-512 ($6$) crypt password hash (glibc/Linux shadow format).",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "$6$rounds=5000$saltstring$0J6J2HRZp0vzjvNhe7kwYJrRJvXuyxXdQH.CnyRmH4cLdlR.aO8xvsRlvFbkQjy8HCM1e9kc3Jl0gTcMrDd0V1",
         "$5$saltstring$5B8vYYiY.CVt1RlTTf8KbXBH3hsxY/GNooZaBBGWEc5"

@@ -83,26 +83,35 @@ def _fixture_jsonl(tmp_path: Path, rows: list[dict]) -> Path:
 
 
 def _base_feature_vector(**overrides) -> list[float]:
-    vector: dict[str, float] = {
-        "top_overall_confidence": 0.0,
-        "regex_confidence": 0.0,
-        "column_name_confidence": 0.0,
-        "heuristic_confidence": 0.0,
-        "secret_scanner_confidence": 0.0,
-        "engines_agreed": 0.0,
-        "engines_fired": 0.0,
-        "confidence_gap": 0.0,
-        "regex_match_ratio": 0.0,
-        "heuristic_distinct_ratio": 0.0,
-        "heuristic_avg_length": 0.0,
-        "has_column_name_hit": 0.0,
-        "has_secret_indicators": 0.0,
-        "primary_is_pii": 0.0,
-        "primary_is_credential": 0.0,
-    }
-    vector.update(overrides)
-    from data_classifier.orchestrator.meta_classifier import FEATURE_NAMES
+    """Build a schema-v2 feature vector for fixtures.
 
+    Default: every feature is 0.0 EXCEPT the one-hot UNKNOWN slot which
+    defaults to 1.0 (so callers that don't pin a primary_entity_type
+    still produce a well-formed vector with exactly one one-hot set).
+
+    Callers can set the primary_entity_type by passing
+    ``primary_entity_type="EMAIL"`` (or any vocab entry) — this clears
+    UNKNOWN and sets the matching slot instead.
+    """
+    from data_classifier.orchestrator.meta_classifier import (
+        FEATURE_NAMES,
+        PRIMARY_ENTITY_TYPES,
+    )
+
+    vector: dict[str, float] = {name: 0.0 for name in FEATURE_NAMES}
+    # Default one-hot: UNKNOWN.
+    vector["primary_entity_type=UNKNOWN"] = 1.0
+
+    primary_entity_type = overrides.pop("primary_entity_type", None)
+    if primary_entity_type is not None:
+        vector["primary_entity_type=UNKNOWN"] = 0.0
+        vocab_key = f"primary_entity_type={primary_entity_type}"
+        if primary_entity_type in PRIMARY_ENTITY_TYPES:
+            vector[vocab_key] = 1.0
+        else:
+            vector["primary_entity_type=UNKNOWN"] = 1.0
+
+    vector.update(overrides)
     return [vector[n] for n in FEATURE_NAMES]
 
 
@@ -363,16 +372,24 @@ class TestFeatureDropping:
         assert "has_secret_indicators" not in kept_names
 
     def test_effective_feature_count_on_phase2_dataset(self) -> None:
-        from data_classifier.orchestrator.meta_classifier import FEATURE_NAMES
-        from scripts.train_meta_classifier import load_jsonl, resolve_feature_subset
+        from data_classifier.orchestrator.meta_classifier import FEATURE_DIM, FEATURE_NAMES
+        from scripts.train_meta_classifier import ALWAYS_DROP_REDUNDANT, load_jsonl, resolve_feature_subset
 
         path = Path("tests/benchmarks/meta_classifier/training_data.jsonl")
         if not path.exists():
             pytest.skip("training_data.jsonl not built")
         dataset = load_jsonl(path, FEATURE_NAMES)
         kept_names, kept_indices = resolve_feature_subset(dataset)
-        assert len(kept_names) == 13
-        assert len(kept_indices) == 13
+        # After Sprint 11 Phase 2 (schema v2, 46 features), the effective
+        # feature count is FEATURE_DIM minus the ALWAYS_DROP_REDUNDANT
+        # columns that appear in the schema (currently
+        # engines_fired + has_column_name_hit = 2 dropped). Avoid a
+        # hardcoded constant so this test tracks future schema changes.
+        expected_base_drops = sum(1 for n in ALWAYS_DROP_REDUNDANT if n in FEATURE_NAMES)
+        assert len(kept_names) == FEATURE_DIM - expected_base_drops
+        assert len(kept_indices) == FEATURE_DIM - expected_base_drops
+        assert "engines_fired" not in kept_names
+        assert "has_column_name_hit" not in kept_names
 
 
 class TestBootstrapCI:
@@ -425,6 +442,86 @@ class TestSplitInvariants:
             stratify=labels,
         )
         assert not (set(id_train.tolist()) & set(id_test.tolist()))
+
+    def test_shard_twin_leak_guard_in_primary_split(self) -> None:
+        """Sprint 11 Phase 4: named/blind shard twins must land in the
+        same fold after primary_split.
+
+        The pre-fix row-wise train_test_split silently violated this
+        invariant because named/blind column_ids are distinct strings
+        (``..._named_..._shard0`` vs ``..._blind_..._shard0``) even
+        though their sample values are identical. Constructing a
+        deterministic fixture where every shard has a twin in the
+        other mode and then asserting that both twins share a fold
+        pins the group-aware split contract.
+        """
+        import numpy as np
+
+        from scripts.train_meta_classifier import load_jsonl
+        from tests.benchmarks.meta_classifier.evaluate import (
+            _base_shard_id,
+            primary_split,
+        )
+
+        # Synthesise twin rows: 10 distinct base shards, each with a
+        # named + blind twin → 20 rows, 3 classes, 2 corpora.
+        rows: list[dict] = []
+        for i in range(10):
+            cls = ["EMAIL", "SSN", "PHONE"][i % 3]
+            corpus = ["testA", "testB"][i % 2]
+            for mode in ("named", "blind"):
+                rows.append(
+                    {
+                        "column_id": f"{corpus}_{mode}_{cls}_shard{i}",
+                        "corpus": corpus,
+                        "mode": mode,
+                        "source": "real",
+                        "features": _base_feature_vector(
+                            primary_entity_type=cls,
+                            top_overall_confidence=0.9,
+                            regex_confidence=0.9,
+                            primary_is_pii=1.0,
+                        ),
+                        "ground_truth": cls,
+                    }
+                )
+
+        # Write to a tmp JSONL so the real loader produces a
+        # LoadedDataset.
+        import json
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+            path = Path(f.name)
+
+        try:
+            from data_classifier.orchestrator.meta_classifier import FEATURE_NAMES
+
+            dataset = load_jsonl(path, FEATURE_NAMES)
+            split = primary_split(dataset)
+
+            # Invariant 1: no column_id in both folds.
+            assert not (set(split["id_train"]) & set(split["id_test"]))
+
+            # Invariant 2: no BASE shard ID in both folds.
+            train_base = {_base_shard_id(cid, m) for cid, m in zip(split["id_train"], split["mode_train"], strict=True)}
+            test_base = {_base_shard_id(cid, m) for cid, m in zip(split["id_test"], split["mode_test"], strict=True)}
+            assert not (train_base & test_base), "shard-twin leak: a base shard appears in both folds"
+
+            # Invariant 3: every row that ended up in a fold has its
+            # twin in the SAME fold.
+            train_ids_set = set(split["id_train"])
+            for cid, mode in zip(split["id_train"], split["mode_train"], strict=True):
+                twin_mode = "blind" if mode == "named" else "named"
+                twin_id = cid.replace(f"_{mode}_", f"_{twin_mode}_", 1)
+                assert twin_id in train_ids_set, f"twin {twin_id} of {cid} is missing from train fold"
+            # Not strictly necessary to verify the test fold too —
+            # invariant 2 already forbids leakage in either direction.
+            _ = np  # silence unused-import warning
+        finally:
+            path.unlink()
 
 
 class TestLOCOEvaluation:

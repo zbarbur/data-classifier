@@ -39,6 +39,11 @@ from __future__ import annotations
 
 import logging
 
+from data_classifier.core.taxonomy import (
+    ENTITY_TYPE_TO_FAMILY,
+    FAMILIES,
+    family_for,
+)
 from data_classifier.core.types import (
     SENSITIVITY_ORDER,
     ClassificationFinding,
@@ -87,6 +92,10 @@ __all__ = [
     "get_pattern_library",
     "get_active_engines",
     "health_check",
+    # Taxonomy (Sprint 11)
+    "ENTITY_TYPE_TO_FAMILY",
+    "FAMILIES",
+    "family_for",
     # Constants
     "SENSITIVITY_ORDER",
 ]

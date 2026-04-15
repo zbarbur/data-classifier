@@ -588,6 +588,33 @@ class ClassificationFinding:
     # Populated when finding was derived from sample value analysis.
     # None when finding was derived from column name/metadata only.
 
+    # ── Family (Sprint 11) ────────────────────────────────
+    family: str = ""
+    # Structural handling family: a coarser grouping than
+    # ``entity_type`` (26 labels) but finer than ``category`` (4
+    # labels). 13 family values covering distinct downstream
+    # handling needs. Auto-populated from entity_type at finding
+    # construction — callers never need to set it explicitly.
+    #
+    # The distinction between ``category`` and ``family``:
+    #   - ``category`` = regulatory grouping (GDPR scope, HIPAA
+    #     scope, etc.). Use for compliance reporting.
+    #   - ``family``  = DLP-policy grouping (which policy template
+    #     applies?). Use for downstream handling logic.
+    #
+    # Family values: CONTACT, CREDENTIAL, CRYPTO, DATE, DEMOGRAPHIC,
+    # FINANCIAL, GOVERNMENT_ID, HEALTHCARE, NEGATIVE, NETWORK,
+    # PAYMENT_CARD, URL, VEHICLE.
+    #
+    # PCI-distinct split: CREDIT_CARD is in PAYMENT_CARD family
+    # (PCI-DSS scope) while IBAN / BANK_ACCOUNT / ABA_ROUTING are
+    # in FINANCIAL family (GLBA scope). Connectors that apply
+    # different DLP policy to PCI vs non-PCI data can branch on
+    # ``family`` cleanly.
+    #
+    # See ``data_classifier.core.taxonomy`` for the full mapping
+    # and ``tests/benchmarks/README.md`` for the rationale.
+
 
 @dataclass
 class ClassificationProfile:

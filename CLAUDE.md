@@ -92,3 +92,17 @@ Before closing any sprint:
 2. `ruff format --check .` — zero diffs
 3. `pytest tests/ -v` — all green
 4. GitHub Actions CI passing on main
+5. **Family accuracy benchmark** — run and attach the resulting
+   `summary.json` to the sprint handover doc:
+   ```
+   DATA_CLASSIFIER_DISABLE_ML=1 \
+       python -m tests.benchmarks.family_accuracy_benchmark \
+       --out /tmp/bench.predictions.jsonl \
+       --summary /tmp/bench.summary.json \
+       --compare-to docs/research/meta_classifier/sprint11_family_benchmark.json
+   ```
+   The `shadow.overall.family.cross_family_rate` metric must not
+   regress from the committed baseline without a written
+   justification in the sprint handover. See
+   `tests/benchmarks/README.md` for the full explanation of Tier 1
+   vs Tier 2 scoring.
