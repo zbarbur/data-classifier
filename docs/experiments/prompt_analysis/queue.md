@@ -17,6 +17,60 @@ feature engineering, and structured-data accuracy research.
 
 ---
 
+## Architectural commitments
+
+### Multi-label is fundamental (committed 2026-04-16)
+
+Intent classification in this branch commits to **multi-label output
+from Day 1** of any classifier work. A prompt can legitimately express
+multiple parallel intents (`{summarize, translate}` or
+`{data_processing, knowledge_request}`). Forcing argmax-one-winner at
+the prompt level would reproduce the Sprint 12 mistake that the
+structured branch just corrected — softmax on heterogeneous columns
+returned confidently-wrong single-class predictions on 3/6 fixtures,
+triggered a RED safety-audit verdict, and caused the directive-
+promotion item to be retired.
+
+See the library-wide philosophy memo (research-side location pending
+promotion to spec):
+`../../../data_classifier-research-ops/docs/research/multi_label_philosophy.md`
+on `research/meta-classifier`. Post-Sprint-12 close, promoted to
+`docs/spec/10-multi-label-architecture.md`.
+
+**Practical implications for the Intent readiness track:**
+
+- **Stage 0 (label-set design)** must produce a taxonomy that
+  accommodates multi-label per prompt. Flat "one intent per prompt"
+  taxonomies are not viable even if they appear cleaner on paper.
+- **Stage 3 (gold-set hand-labeling)** accepts multi-label per prompt
+  — annotators label the set of intents present, not a single winner.
+- **Stage 4 (LLM-labeled training set)** the labeler prompt must
+  return a list of intents per input, not a single top label.
+- **Stage 5 (intent model benchmark)** metrics must be multi-label
+  (precision@k / recall@k / Jaccard / subset-F1). Single-label macro
+  F1 is not the right quality gate — it would reward argmax-style
+  predictions that silently miss parallel intents.
+
+This is a **pre-committed architectural decision, not a design
+question to be re-opened during Stage 0.** Discussion during Stage 0
+is about *which* taxonomy to pick; it is not about whether the
+taxonomy should be multi-label.
+
+### Scope note — single-label may apply at narrow sub-tasks
+
+Per philosophy memo §3, single-label primitives remain valid at
+narrow sub-tasks where labels are mutually exclusive (e.g., given a
+prompt already classified as carrying `data_processing`, which
+specific task-type child is the strongest match — `summarize` vs
+`translate` vs `rewrite`?). The multi-label commitment is at the
+prompt-level output, not at every internal sub-task.
+
+The risk engine's cross-correlation (content × intent × zone)
+benefits: a risk verdict is a function over three parallel lists, not
+three winners.
+
+---
+
 ## Intent readiness track
 
 The intent classification dimension of prompt analysis requires a labeled
@@ -30,6 +84,11 @@ stage blocks the next.
 - **Blocks:** Stages 2-6 (all labeled work depends on the taxonomy)
 - **Reference:** `docs/spec/08-prompt-analysis-module-spec.md`
   §"Intent Taxonomy Design"
+- **Constraint:** per Architectural commitments § above, the chosen
+  taxonomy MUST accommodate multi-label output per prompt. Flat "one
+  intent per prompt" taxonomies are not viable. Parallel intents
+  (`{summarize, translate}`, `{data_processing, knowledge_request}`)
+  must be representable.
 
 Decide the intent taxonomy. Current proposal from the 2026-04-16 discussion:
 **hybrid** — 3 top-level data-flow directions (`data_processing`,
