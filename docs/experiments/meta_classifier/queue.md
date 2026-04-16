@@ -1198,6 +1198,78 @@ Companion to the `cd3a5cc` landscape survey (2026-04-13) which catalogued **labe
 - Private BQ datasets (customer-owned, not applicable to public survey)
 - Running the gated architecture on any of these datasets — that's a training/eval experiment downstream of this one
 
+### E12b — Real-PII free-text BQ survey (follow-up to E12 with reframe)
+
+**Status:** 🟢 in progress (2026-04-16)
+**Priority:** P1 — the reframed version of the question E12 answered. E12 focused on the gated-architecture shape taxonomy (TRUE_LOG / HETEROGENEOUS / HOMOGENEOUS). User reframe: what matters more is real BQ tables with **real embedded PII** in free-text columns, because that's the actual production scenario — a BQ customer loads a messy table with a `complaint_narrative` / `incident_description` / `bio` field and the library has to get it right.
+**Estimated time:** ~30-45 min subagent survey + ~15 min review
+**Contract note:** append-only to `docs/experiments/meta_classifier/dataset_landscape.md` (research-owned file) — no writes to `data_classifier/**`
+
+**Why it matters:**
+
+The E12 memo (Tier 7) optimized for the gated-architecture shape taxonomy and identified top picks accordingly (SO users for 3-outcome coverage, austin_311 for clean address, crypto_ethereum for structured negative control). Under the reframed question — "what real BQ data looks like production tables with free-text PII columns?" — the priority order shifts:
+
+- Synthetic datasets (fhir_synthea) drop in priority because they lack real PII.
+- Customer-voice narrative columns rise in priority because they're the closest open-data analogue of "actual BQ customer data the library will encounter."
+- Public-domain datasets of real named individuals (FEC, NPPES, IRS 990) are uniquely valuable — they provide **real** PII-at-scale that neither synthetic generators nor training corpora can match.
+
+This survey fills that gap. Tier 7b covers the 5-7 highest-signal "real PII in real text" candidates.
+
+**Scope:**
+
+Candidate shortlist (subagent may add/drop based on discovery):
+
+1. **`cfpb_complaints.consumer_complaint_narrative`** — consumer financial complaints. Free-text customer voice with embedded account IDs, dates, employee names, company interactions. Public domain (CFPB federal agency). Probably #1 candidate for this framing.
+2. **`fec.individual_contributions`** — campaign donors: name + address + employer + occupation + freeform memo fields. Legally public.
+3. **`nppes.npi_raw`** — National Provider Identifier directory: names + addresses + phones + specialties. Legally public, ~7M real providers.
+4. **`irs_990`** — nonprofit tax filings: org names + officer names + compensation + addresses + mission text. Legally public.
+5. **Emergency/incident narratives:**
+   - `san_francisco_sfpd_incidents` (SF police)
+   - `san_francisco_sffd_service_calls` (SF fire)
+   - `london_fire_brigade`
+   - `new_york_mv_collisions`
+   - `austin_crime` / `austin_incidents` (not surveyed in E12 — austin_311 was, and was enum-shaped; austin_crime may have narrative content)
+
+Per candidate:
+- Schema (column names, types, nullability)
+- Row count + byte-length stats per interesting text column
+- 100-row sample for shape inspection (do NOT transcribe raw PII values — characterize shape and entity density only)
+- License review (most are public-domain federal/municipal but confirm per dataset)
+- **Entity density estimate** per entity type: PERSON, LOCATION, EMAIL, PHONE, SSN, ACCOUNT_ID, DATE_OF_BIRTH, ORG, FINANCIAL (CREDIT_CARD/IBAN/ROUTING), HEALTH (DIAGNOSIS/MEDICATION) — qualitative (dense / sparse / absent)
+- **PII-realism score**: high (real named individuals, typical production shape), medium (real PII but sparse/atypical), low (mostly structured with occasional PII)
+- Staging recommendation: 🟢 / 🟡 / 🔴
+
+**Methodology:**
+
+- General-purpose research subagent, `bq` CLI access
+- Billing project: `dag-bigquery-dev`
+- Query budget: <$2 (~5-7 candidates × schema/count/stats/sample)
+- Follows the 2026-04-16 E12 subagent pattern
+
+**Success criteria:**
+
+- ≥ 5 candidates characterized
+- Each with entity-density estimate + PII-realism score
+- License risk flagged per candidate
+- Clear "stage this / skip this" recommendation
+- Explicit map: which candidate is the closest analogue of which BQ customer scenario (customer support ticket / incident report / provider directory / donor CRM / nonprofit compliance)
+
+**Deliverable:**
+
+- New section "Tier 7b — Real-PII free-text validation (BQ public)" appended to `dataset_landscape.md`, immediately after Tier 7 and before the license+effort matrix
+- Matrix extended with Tier 7b rows
+- Single commit on `research/meta-classifier` after review
+
+**Out of scope:**
+
+- Actual corpus staging (separate follow-up)
+- Re-surveying E12 candidates — Tier 7 stays as-is; Tier 7b is additive
+- Synthetic candidates (fhir_synthea is covered in E12 discussion, not needed here)
+
+**Ethical / discipline note:**
+
+All these datasets are *legally* public. That does not mean row-level content should be transcribed into the memo or pulled into the repo casually. Shape characterization only. Staging (if any) must sample, hash, or redact — never store raw customer complaint narratives or real donor/provider rows in the test fixtures directory. This discipline matches the Tier 7 memo's stance on HN spam posts and StackOverflow bios.
+
 ### Q6 — Inverted stage 1 / PII-only meta-classifier
 
 **Status:** ✅ complete (see `runs/20260412-q6-inverted-stage1/result.md`) — **Q6-C** verdict, LOCO +0.016 only, pivot to E10/E4
