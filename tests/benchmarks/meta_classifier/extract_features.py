@@ -113,17 +113,14 @@ def _distinct_ratio(values: list[str]) -> float:
 
 
 def _avg_length_normalized(values: list[str]) -> float:
-    """Return mean string length / 100, clipped to [0, 1]. 0.0 for empty."""
-    if not values:
-        return 0.0
-    total = sum(len(v) for v in values)
-    mean = total / len(values)
-    normalized = mean / 100.0
-    if normalized < 0.0:
-        return 0.0
-    if normalized > 1.0:
-        return 1.0
-    return normalized
+    """Return mean string length / 100, clipped to [0, 1]. 0.0 for empty.
+
+    Sprint 13 Item A Task 1 follow-up: delegates to the production helper so
+    training and live shadow inference cannot drift.
+    """
+    from data_classifier.engines.heuristic_engine import compute_avg_length_normalized
+
+    return compute_avg_length_normalized(values)
 
 
 # ── Main entry point ────────────────────────────────────────────────────────

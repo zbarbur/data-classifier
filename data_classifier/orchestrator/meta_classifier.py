@@ -348,6 +348,11 @@ class MetaClassifier:
         # prediction — a bug that existed between Phase 7 and its fix.
         # The parity tests in tests/test_meta_classifier_inference_parity.py
         # pin this contract.
+        # Lazy imports for engines.* helpers — same rationale as the
+        # _distinct_ratio block below (avoid future import cycles if
+        # engines gain orchestrator back-references). Keep this and the
+        # _distinct_ratio block in sync: if one becomes non-lazy, so
+        # should the other.
         from data_classifier.engines.heuristic_engine import (
             compute_avg_length_normalized,
             compute_dictionary_name_match_ratio,
