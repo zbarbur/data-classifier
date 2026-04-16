@@ -250,45 +250,47 @@ infrastructure.
 
 ### Stage S0 — Prevalence scan on WildChat-1M
 
-- **Status:** 🟢 in progress — smoke (500) + 50K complete 2026-04-16,
-  full 1M deferred pending v2 script with deduplication
-- **Blocks:** S1; informs the client product conversation
-- **Effort:** ~½ day
+- **Status:** ✅ COMPLETE 2026-04-16 — smoke (500) + 50K + 1M all run,
+  artifacts committed, findings memo published
+- **Blocks (resolved):** S1 (gap audit folded into S0 — 3 Sprint 13
+  backlog items drafted); informed the client product conversation
+- **Effort actual:** ~1 day (vs ½-day estimate; expanded scope from
+  finding more bugs than expected)
 
-Run the existing Python `secret_scanner` + `regex_engine` over the
-WildChat-1M user-message column. Output:
+**Headline numbers (full 1M scan)**:
 
-- Prevalence rate by entity type (hit count / total prompts)
-- Hit distribution histograms
-- Hand-audit ~50 random hits for FP estimate
-- Top-K most-fired patterns
-- Captured examples (XOR-encoded per the fixture rule)
+- **0.12% of real ChatGPT prompts contain a leaked credential** (1,171 / 1M)
+- **1,712 raw credential findings** (1,025 API_KEY + 680 OPAQUE_SECRET
+  + 6 PRIVATE_KEY + 1 PASSWORD_HASH)
+- Distinct credential prompts: 1,171 (after SHA-256 dedup)
+- Throughput: 2,022 prompts/sec on warm HF cache (8.2 min for 1M)
+- Engine breakdown: 1,069 secret_scanner + 643 regex
 
-**Findings as of 2026-04-16 (50K)**:
+**Real credential examples** (anonymizable for client demo):
 
-- Engine-level prevalence (any entity type): **3.66%** (1,830 / 50K)
-- **Credential-family prevalence**: **0.12%** (59 = 36 OPAQUE_SECRET + 23 API_KEY)
-- One real positive confirmed in the 500-smoke audit: hardcoded
-  `password = "stcmalta"` in pasted C# login code, caught by
-  `secret_scanner`. Extrapolation: ~720 OPAQUE_SECRET + ~460 API_KEY = ~1,200 real credential leaks per 1M prompts.
-- Two general-classifier precision bugs surfaced + filed as Sprint 13
-  backlog items: SWIFT_BIC missing validator (593 FPs in 50K) +
-  IPv4 validator-too-narrow + boundary issue.
-- Two missing patterns surfaced + filed as Sprint 13 backlog item:
-  OpenAI legacy `sk-*` (no `proj-` prefix) + Anthropic `sk-ant-api03-*`.
-- Throughput: 1,140 prompts/sec on warm cache; 1M run ≈ 15 min wall.
+- Live Shopify access token + secret pair (PHP code)
+- Instagram username + password (Selenium scraper)
+- Telegram bot token (Russian bot Python code)
+- Facebook Graph API access token (Instagram automation)
+- OpenAI API key (legacy `sk-` format — Sprint 13 pattern gap)
 
-**Script v2 deferred work** (not blocking v1 findings):
+**Bugs surfaced + Sprint 13 backlog items drafted** (file from
+`/tmp/backlog_drafts/` via the sprint13/main session):
 
-- Drop finditer accounting (overcounts because validators are bypassed)
-- Capture engine-only positives in audit_sample (current bug skips
-  secret_scanner-only finds)
-- Deduplicate repeated-substring matches (one base64 blob produced
-  11 AWS_secret_key sub-spans in smoke — engine validator caught it,
-  but pattern_hits.json overcounted)
+1. `sprint13-s0-pattern-precision-pass.yaml` (P1 bugfix, ~1d) —
+   SWIFT_BIC validator (~11K FPs in 1M extrapolation) + IPv4
+   validator/boundary
+2. `sprint13-add-legacy-llm-provider-patterns.yaml` (P2 feature, ~½d)
+   — OpenAI legacy `sk-*` + Anthropic `sk-ant-*`
+3. `sprint13-secret-key-dict-stoplist.yaml` (P2 bugfix, ~½d) —
+   secret-key dictionary stoplist for `*_address`, `*_field`, etc.
 
-Output location: `docs/experiments/prompt_analysis/s0_artifacts/`
-(committed at end of Stage S0 with the formal memo).
+**Cross-references**:
+
+- Memo: `s0_artifacts/s0_findings_memo.md`
+- 50K artifacts: `s0_artifacts/{s0_credentials.jsonl, s0_non_credential_sample.jsonl, s0_curate_summary.json}`
+- 1M artifacts: `s0_artifacts/s0_1m/{s0_credentials.jsonl, s0_non_credential_sample.jsonl, s0_curate_summary.json}`
+- Reproduction: `scripts/s0_curate_credentials.py --limit N --out-dir ...`
 
 ### Stage S1 — Pattern gap audit
 
