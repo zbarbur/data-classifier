@@ -32,6 +32,7 @@ from data_classifier.engines.heuristic_engine import (
 )
 from data_classifier.orchestrator.orchestrator import Orchestrator
 from data_classifier.patterns._decoder import decode_encoded_strings
+
 # Credential-shape placeholders used by tests below. Stored XOR-encoded
 # so the file passes GitHub push protection (see
 # feedback_xor_fixture_pattern.md). Decoded once at module import.

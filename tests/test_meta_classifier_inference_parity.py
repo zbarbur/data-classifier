@@ -30,6 +30,7 @@ from data_classifier.core.types import ClassificationFinding
 from data_classifier.orchestrator import meta_classifier as meta_classifier_module
 from data_classifier.orchestrator.meta_classifier import MetaClassifier
 from data_classifier.patterns._decoder import decode_encoded_strings
+
 # Credential-shape placeholders used by tests below. Stored XOR-encoded
 # so the file passes GitHub push protection (see
 # feedback_xor_fixture_pattern.md). Decoded once at module import.
@@ -42,8 +43,6 @@ _CRED_AWS_KEY, _CRED_STRIPE_KEY, _CRED_GH_PAT, _CRED_SLACK_TOKEN, _CRED_STRIPE_L
         "xor:KTEFNjMsPwUoPzs2BTkoPz4/NC4zOzYFIiMgbWJj",
     ]
 )
-
-
 
 
 def _finding(
