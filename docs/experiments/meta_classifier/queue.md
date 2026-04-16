@@ -2115,6 +2115,203 @@ sprint, with A landing first. This gives the sprint a visible
 milestone (new taxonomy is live) mid-sprint before the larger
 pattern import finishes.
 
+## Multi-label evaluation (M4 track)
+
+**Rationale:** Sprint 13's column-shape router (filed on `sprint12/main` as
+`backlog/sprint13-column-shape-router.yaml`, plus companion items
+`-per-value-gliner-aggregation` and `-opaque-token-branch-tuning`)
+produces multi-label output via `list[ClassificationFinding]`.
+Sprint 11-era single-label metrics (`family_macro_f1`,
+`cross_family_rate`) cannot honestly measure its heterogeneous-column
+accuracy. Without M4, we cannot prove the router helps on the cases
+it was designed for, and we cannot regression-guard its single-label
+subset against Sprint 11's numbers.
+
+See the multi-label philosophy memo at
+`docs/research/multi_label_philosophy.md` (§6 especially) for the
+architectural framing that produced this track.
+
+Filed as five sub-items (M4a-M4e) that partially parallelize. Total
+effort ~4 weeks sequential, ~2 weeks if parallelized. Critical path:
+**M4a → M4e** (shortest loop to Sprint 13 readiness). Parallel path:
+**M4a → M4c → M4d** (scales to Sprint 15+ research-bet prerequisite).
+Gated path: **Sprint 13 Item A → M4b**.
+
+### M4a — Multi-label metric definitions + computation helper
+
+**Status:** 🟡 unblocked — can start immediately, no dependencies
+**Priority:** P1 — unblocks M4b / M4c / M4e; Sprint 13 ships unable to self-measure without this
+**Estimated time:** ~3 days
+**Contract note:** `tests/benchmarks/meta_classifier/**` is research-owned; adds a fresh helper module, no production-code changes
+
+**Goal:** Define the multi-label metric set and build the computation
+helper used by all other M4 sub-items.
+
+**Metrics to implement** (per philosophy memo §6.3 and the M4 analysis):
+
+- **Primary (quality gate):** Jaccard similarity per column, averaged across benchmark
+- **Secondary (reported for context):** micro-F1, macro-F1, per-class precision/recall/F1 breakdown
+- **Tertiary (diagnostic):** Hamming loss, subset accuracy (exact-match rate — expected low, fine as diagnostic)
+- **Optional (deferred unless BQ top-K rollup confirmed):** precision@k, recall@k for k=1..5
+
+**What shipped:**
+
+- `tests/benchmarks/meta_classifier/multi_label_metrics.py` — pure
+  functions per metric taking `(pred: list[str], true: list[str]) -> float`
+  at the per-column layer, plus aggregation functions across a benchmark
+- Unit tests covering edge cases: empty prediction, empty ground truth,
+  perfect match, total mismatch, partial overlap
+- Benchmark JSON schema extension: optionally emit `multi_label` section
+  alongside existing `single_label` section (both coexist per M4e design)
+
+**Success criteria:**
+
+- All primary + secondary metrics computable on list-valued predictions vs list-valued ground truth
+- Unit tests pass
+- Zero regression on existing single-label benchmarks
+
+**Deliverable:** `docs/experiments/meta_classifier/runs/<ts>-m4a-metric-helper/result.md` + the committed helper module.
+
+### M4b — Gate vs downstream evaluation harness
+
+**Status:** ⏸ blocked on Sprint 13 Item A landing on main + M4a
+**Priority:** P1
+**Estimated time:** ~3-4 days
+**Contract note:** research-owned benchmark extension
+
+**Goal:** Split M4 benchmark reporting into three evaluation surfaces so
+the router's two failure modes — misrouting vs correct-routing-wrong-
+output — can be measured and debugged independently. An end-to-end
+0.75 could be 0.95 gate / 0.80 downstream or 0.85 gate / 0.88
+downstream; very different diagnoses.
+
+**What shipped:**
+
+Three reporting surfaces added to the benchmark:
+
+1. **Router gate accuracy** — confusion matrix of predicted × true
+   column shape. Plus per-shape precision/recall.
+2. **Per-branch downstream accuracy** — measured using ground-truth
+   shape as an oracle for branch selection:
+   - `structured_single`: v5 accuracy (existing single-label metrics apply)
+   - `free_text_heterogeneous`: per-value GLiNER + aggregation accuracy (M4a multi-label metrics)
+   - `opaque_tokens`: secret_scanner tuned accuracy (binary detection metrics)
+3. **End-to-end accuracy** — customer-visible metric. Aggregates gate + downstream errors.
+
+**Success criteria:**
+
+- Benchmark JSON carries all three surfaces clearly delineated
+- Misrouted columns are attributable via log output (which surface failed)
+- End-to-end vs branch-isolated metrics differ by the expected amount given measured gate precision/recall
+
+### M4c — Hand-labeled heterogeneous gold set (50 columns)
+
+**Status:** 🟡 unblocked — can start in parallel with M4a
+**Priority:** P1 — without gold ground truth, nothing downstream is honest
+**Estimated time:** ~1 week of careful annotation work
+
+**Goal:** Produce 50 hand-labeled heterogeneous columns with complete
+multi-label annotation. This is the honest evaluation anchor — every
+M4b / M4e measurement eventually validates against this set.
+
+**Sources:**
+
+| Source | Count | Notes |
+|---|---|---|
+| Sprint 12 safety audit fixtures | 6 | Already have ground truth — re-format to gold-set schema |
+| CFPB `consumer_complaint_narrative` (Tier 7b R1) | 15 | Real customer-voice narratives, CFPB pre-redacted |
+| `stackoverflow.users.about_me` (Tier 7 A1) | 10 | User bios, CC-BY-SA |
+| `hacker_news.full.text` (Tier 7 A2) | 5 | Long comments |
+| Structured-PII anchors (SO location / austin_311 address / FEC / NPPES / crypto_ethereum hex) | 14 | Structured-single + opaque-tokens anchors |
+| **Total** | **50** | |
+
+**Annotation protocol** (initial proposal; revisit-able before work starts):
+
+1. **Prevalence floor:** everything-counts with ≥1 observed instance in sample. No ignore-rare-things filter.
+2. **Entity granularity:** top-level entities only. `EMAIL`, not `DOMAIN` / `LOCAL_PART` subcomponents. Keeps taxonomy tractable.
+3. **Ambiguous values:** one label per value; annotator judgment on primary class; weak signals (e.g., `admin` as CREDENTIAL-placeholder) excluded unless ≥0.5 confidence.
+
+**Output format** (`tests/benchmarks/meta_classifier/heterogeneous_gold_set.jsonl`):
+
+Per-column JSONL entries with `column_id`, `source`, `source_reference`,
+`values` (first 100, hashed/truncated for PII-dense sources), `true_shape`
+(one of `structured_single` / `free_text_heterogeneous` / `opaque_tokens`),
+`true_labels` (list of entity types), `true_labels_prevalence` (per-label
+fraction), `annotator`, `annotated_on`.
+
+**Ethical discipline:** real customer data in CFPB / SO / HN / FEC / NPPES
+rows. Characterize shape; do NOT transcribe raw values except public-
+agency top-10-by-count examples (e.g., real named corporations in CFPB's
+`company_name` which are already public). Raw customer narratives must be
+hashed, sampled, or synthetic-regenerated before inclusion. Follows
+Tier 7b discipline.
+
+**Deliverables:**
+
+- `tests/benchmarks/meta_classifier/heterogeneous_gold_set.jsonl`
+- `docs/research/multi_label_gold_set_annotator_guide.md` — 1-page annotator guideline
+
+### M4d — LLM-labeled multi-label scale corpus (500-1000 columns)
+
+**Status:** ⏸ blocked on M4c (need gold set to validate labeler prompt)
+**Priority:** P2 — M4a + M4c + M4e are sufficient for Sprint 13 evaluation; M4d scales beyond hand-labeling for Sprint 15+ research-bet prerequisite
+**Estimated time:** ~1 week
+
+**Goal:** Scale evaluation beyond hand-labeling by using a strong LLM
+(Claude / GPT-4 class) as a multi-label annotator on 500-1000 columns
+from Tier 7b candidates. Measure LLM-vs-human agreement on M4c gold set
+as quality check.
+
+**Methodology:**
+
+1. Design labeler prompt with explicit multi-label output shape
+2. Run on M4c gold set (50 columns); compute Jaccard agreement vs human
+3. Iterate prompt until agreement ≥ 0.8 Jaccard (tunable)
+4. Once validated, run at scale on Tier 7b candidates (CFPB volume, SO users at scale, HN comments at scale)
+
+**Output:**
+
+- `corpora/bq_public_multilabel/labeled.jsonl` — LLM-labeled volume corpus
+- `docs/research/llm_labeler_prompt_evaluation.md` — prompt iteration log with agreement numbers
+
+**Success criteria:**
+
+- LLM-vs-human Jaccard agreement ≥ 0.8 on the M4c gold set
+- 500-1000 columns committed with per-column multi-label annotations
+- Labeler prompt reproducible from committed memo
+
+### M4e — Dual-report harness (Sprint 11 single-label + Sprint 13+ multi-label)
+
+**Status:** ⏸ blocked on M4a
+**Priority:** P1 — Sprint 13 ships needs continuity with Sprint 11 baseline; downstream M4 work depends on this scaffold
+**Estimated time:** ~2 days
+
+**Goal:** Extend the family benchmark to emit **two top-level report
+sections**: Sprint 11-compatible single-label metrics alongside
+Sprint 13+ multi-label metrics. Do not drop the single-label metrics —
+extend.
+
+**What shipped:**
+
+- Benchmark JSON top-level schema carries `single_label_metrics`,
+  `multi_label_metrics`, and (post-M4b) `gate_accuracy` +
+  `per_branch_accuracy` sections
+- **Projection logic:** router output `list[Finding]` projected to
+  single-label by `findings[0]` (highest-confidence finding) for
+  single-label metric computation. Sprint 11 single-label prediction
+  projected to multi-label as `[class]` (K=1 list) for multi-label
+  metric computation. Both directions support fair apples-to-apples
+  comparison.
+
+**Success criteria:**
+
+- Sprint 11 baseline (0.9286 family_macro_f1, 0.0585 cross_family_rate) reproduces under the dual-report harness with zero regression
+- Multi-label numbers emit alongside single-label
+- Router output produces both metric families from a single benchmark run
+- Regression tests catch silent degradation on either family
+
+**Deliverable:** `tests/benchmarks/meta_classifier/family_accuracy_benchmark.py` extended + new `tests/test_multi_label_metrics_benchmark_parity.py` for regression guarding.
+
 ## Workflow for completed experiments
 
 When a parallel session finishes an experiment:
