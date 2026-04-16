@@ -66,8 +66,13 @@ from collections import defaultdict
 from pathlib import Path
 
 from data_classifier import FAMILIES, classify_columns, family_for, load_profile
+from data_classifier.core.taxonomy import ENTITY_TYPE_TO_FAMILY
 from data_classifier.events.emitter import CallbackHandler, EventEmitter
 from tests.benchmarks.meta_classifier.build_training_data import _build_synthetic_pool
+from tests.benchmarks.meta_classifier.multi_label_metrics import (
+    ColumnResult,
+    aggregate_multi_label,
+)
 from tests.benchmarks.meta_classifier.shard_builder import build_shards
 
 try:
@@ -237,6 +242,74 @@ def _compute_subtype_metrics(predictions: list[dict], pred_field: str) -> dict:
     }
 
 
+# ── Multi-label view (M4e dual-report harness) ──────────────────────────────
+
+
+def _project_to_multi_label_rows(
+    predictions: list[dict],
+    field: str,
+    scope: str,
+) -> list[ColumnResult]:
+    """Project single-label benchmark predictions to K=1 multi-label rows.
+
+    Sprint 11 predictions are one-string-per-column; the multi-label
+    metric helper consumes ``list[str]`` pairs. The projection is the
+    identity that makes the two representations comparable:
+
+    - ``scope='subtype'``: `true=[ground_truth]`, `pred=[predicted]`
+      (entity-type granularity, ~25 labels)
+    - ``scope='family'``: `true=[family_for(ground_truth)]`,
+      `pred=[family_for(predicted)]` (family granularity, 13 labels)
+
+    Empty predictions map to ``[]``; empty ground truth never happens
+    in this benchmark (every shard carries a label) but the helper
+    handles it correctly either way.
+
+    Post-Sprint-13 the classifier will emit ``list[Finding]`` per
+    column; at that point the pred list grows past K=1 and the
+    multi-label metrics start to diverge from the single-label ones.
+    Today, K=1 projections give the baseline against which future
+    multi-label gains are measured.
+    """
+    rows: list[ColumnResult] = []
+    for p in predictions:
+        gt = p["ground_truth"] or ""
+        pr = p.get(field) or ""
+        if scope == "family":
+            true_labels = [family_for(gt)] if gt else []
+            pred_labels = [family_for(pr)] if pr else []
+        elif scope == "subtype":
+            true_labels = [gt] if gt else []
+            pred_labels = [pr] if pr else []
+        else:
+            raise ValueError(f"unknown scope: {scope!r}")
+        rows.append(
+            ColumnResult(
+                column_id=p["column_id"],
+                pred=pred_labels,
+                true=true_labels,
+            )
+        )
+    return rows
+
+
+def _compute_multi_label_metrics(predictions: list[dict], pred_field: str) -> dict:
+    """Family + subtype multi-label metrics for one prediction field.
+
+    Reported at both granularities so multi-label results stay
+    apples-to-apples with the existing single-label tiers. Label spaces
+    are the canonical ones from the taxonomy — using these (rather
+    than "whatever labels showed up") gives stable Hamming loss across
+    runs and a predictable label universe for M4d / M4b consumers.
+    """
+    family_rows = _project_to_multi_label_rows(predictions, pred_field, scope="family")
+    subtype_rows = _project_to_multi_label_rows(predictions, pred_field, scope="subtype")
+    return {
+        "family": aggregate_multi_label(family_rows, label_space=FAMILIES),
+        "subtype": aggregate_multi_label(subtype_rows, label_space=sorted(ENTITY_TYPE_TO_FAMILY.keys())),
+    }
+
+
 def _compare_to(current: dict, previous_path: Path) -> dict:
     """Produce a delta summary against a previously-saved summary JSON."""
     try:
@@ -354,6 +427,12 @@ def main(argv: list[str] | None = None) -> int:
         return {
             "family": _compute_family_metrics(preds, field),
             "subtype": _compute_subtype_metrics(preds, field),
+            # M4e dual-report: multi-label view of the same predictions
+            # at both family and subtype scopes. For today's K=1
+            # projection the multi-label subset_accuracy converges to
+            # the single-label accuracy; the divergence is where
+            # Sprint 13's router earns its keep.
+            "multi_label": _compute_multi_label_metrics(preds, field),
         }
 
     def _split(preds: list[dict]) -> dict:
