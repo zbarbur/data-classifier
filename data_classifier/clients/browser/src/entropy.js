@@ -55,6 +55,7 @@ export function relativeEntropy(value) {
 }
 
 export function charClassDiversity(value) {
+  if (!value) return 0;
   let hasLower = false;
   let hasUpper = false;
   let hasDigit = false;
@@ -63,7 +64,7 @@ export function charClassDiversity(value) {
     if (ch >= 'a' && ch <= 'z') hasLower = true;
     else if (ch >= 'A' && ch <= 'Z') hasUpper = true;
     else if (ch >= '0' && ch <= '9') hasDigit = true;
-    else if (!/\s/.test(ch)) hasSymbol = true;
+    else hasSymbol = true;
   }
   return +hasLower + +hasUpper + +hasDigit + +hasSymbol;
 }

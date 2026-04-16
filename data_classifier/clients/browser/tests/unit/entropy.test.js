@@ -74,6 +74,17 @@ describe('charClassDiversity', () => {
     expect(charClassDiversity('abc123')).toBe(2);
     expect(charClassDiversity('Abc123')).toBe(3);
   });
+
+  it('returns 0 for an empty string', () => {
+    expect(charClassDiversity('')).toBe(0);
+  });
+
+  it('counts whitespace as symbol class (matches Python parity)', () => {
+    // Python's compute_char_class_diversity uses else → has_special, which
+    // catches whitespace. "hello world" → lower + symbol = 2 classes.
+    expect(charClassDiversity('hello world')).toBe(2);
+    expect(charClassDiversity('pass word1')).toBe(3);
+  });
 });
 
 describe('scoreRelativeEntropy', () => {
