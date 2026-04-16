@@ -1,0 +1,18 @@
+{
+  "name": "s2-browser-port-spike",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "extract:patterns": "node extract_patterns.mjs",
+    "extract:corpus": "../../../.venv/bin/python extract_corpus.py",
+    "bench": "node run_benchmark.mjs",
+    "audit:redos": "node audit_redos.mjs",
+    "bundle": "node measure_bundle.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.45.0",
+    "recheck": "4.4.5",
+    "esbuild": "0.21.5"
+  }
+}
