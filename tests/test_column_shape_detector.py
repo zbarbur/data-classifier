@@ -169,3 +169,53 @@ def test_unambiguous_signal_ignores_column_name_hint():
     result = detect_column_shape(column, engine_findings)
     assert result.shape == "structured_single"
     assert result.column_name_hint_applied is False  # content decisive — hint didn't fire
+
+
+def test_tiebreaker_does_not_override_content_authoritative_heterogeneous():
+    """Content router decisively picks free_text_heterogeneous at dict_ratio >= 0.1;
+    the tiebreaker must NOT override that even with a 'structured' hint like 'email'.
+    Regression guard for the Task 4 middle-band overlap fix.
+    """
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    # Build a fixture that lands around dict_ratio ≈ 0.12 (clearly above the 0.1
+    # content-authoritative threshold) with avg_len_norm in the former middle-band
+    # range. A mix of dictionary-word-containing values and random-looking ones.
+    values = ["data point for user record " + "x" * 20 for _ in range(3)]
+    values += ["token_" + "x" * 30 for _ in range(22)]
+    column = ColumnInput(
+        column_id="col_1",
+        column_name="email",  # structured hint — must NOT override
+        sample_values=values,
+    )
+    result = detect_column_shape(column, {})
+    assert result.dict_word_ratio >= 0.1  # content-authoritative zone
+    assert result.shape == "free_text_heterogeneous"
+    assert result.column_name_hint_applied is False
+
+
+def test_structured_tiebreaker_requires_n_cascade_le_1():
+    """If the tiebreaker fires toward 'structured', it must also honor the
+    n_cascade <= 1 guard that the content router's structured_single requires.
+    A middle-band column with a structured name but 2+ cascade entities must NOT
+    be misrouted to structured_single.
+    """
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    # Middle-band fixture: long-ish values with some dictionary words to
+    # land in [0.3, 0.45] × [0.05, <0.1]. Reuse the same base as the
+    # existing tiebreaker tests but with exactly one dict-word value.
+    values = ["error_0001_xkqzmpfw_jnrt_vbcd_xyz"] + [f"xkqzmpfw_{i:04d}_jnrt_vbcd_xyz_end_" for i in range(19)]
+    column = ColumnInput(
+        column_id="col_1",
+        column_name="email",  # structured hint
+        sample_values=values,
+    )
+    # Two cascade entities — structured_single shouldn't apply
+    engine_findings = {"regex": [_finding("EMAIL"), _finding("PHONE")]}
+    result = detect_column_shape(column, engine_findings)
+    assert result.n_cascade_entities == 2
+    # Tiebreaker's structured branch refused to fire → shape is whatever content decided
+    # (opaque_tokens per the else branch), NOT structured_single
+    assert result.shape != "structured_single"
+    assert result.column_name_hint_applied is False

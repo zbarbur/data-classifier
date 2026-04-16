@@ -51,7 +51,6 @@ _DICT_WORD_HETERO_MIN: float = 0.1
 _TIEBREAKER_AVG_LEN_MIN: float = 0.3
 _TIEBREAKER_AVG_LEN_MAX: float = 0.45
 _TIEBREAKER_DICT_RATIO_MIN: float = 0.05
-_TIEBREAKER_DICT_RATIO_MAX: float = 0.15
 
 
 @dataclass(frozen=True)
@@ -98,16 +97,25 @@ def detect_column_shape(
     # Column-name tiebreaker (Sprint 13 scoping Q1): only when content
     # signal is ambiguous (middle band). Content remains authoritative
     # outside this narrow zone.
+    # Middle band EXCLUDES the content-authoritative heterogeneous zone
+    # (dict_ratio >= _DICT_WORD_HETERO_MIN is confidently heterogeneous per
+    # the content router; the tiebreaker must not override a content decision
+    # that was already clear). The tiebreaker only fires where content is
+    # genuinely ambiguous: long-ish values with few dictionary words.
     in_middle_band = (
         _TIEBREAKER_AVG_LEN_MIN <= avg_len <= _TIEBREAKER_AVG_LEN_MAX
-        and _TIEBREAKER_DICT_RATIO_MIN <= dict_ratio <= _TIEBREAKER_DICT_RATIO_MAX
+        and _TIEBREAKER_DICT_RATIO_MIN <= dict_ratio < _DICT_WORD_HETERO_MIN
     )
     if in_middle_band:
         hint = _lookup_column_name_hint(column.column_name)
         if hint == "heterogeneous":
             shape = "free_text_heterogeneous"
             hint_applied = True
-        elif hint == "structured":
+        elif hint == "structured" and n_cascade <= 1:
+            # Mirror the content router's structured_single contract — requires
+            # BOTH content-ambiguous AND <= 1 cascade entity. A column with
+            # multiple cascade entities is not structured-single regardless of
+            # what the column name hints at.
             shape = "structured_single"
             hint_applied = True
 
