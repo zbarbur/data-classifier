@@ -1,10 +1,10 @@
 title: 'Sprint 12: Retire DATE_OF_BIRTH_EU subtype (taxonomy cleanup)'
-status: doing
+status: done
 priority: P2
 category: chore
 sprint_target: 12
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-16
 depends_on: []
 tags:
 - sprint12
@@ -84,8 +84,8 @@ notes: 'This is a taxonomy simplification, not a feature-engineering item.
   sprint13-meta-classifier-v4-retrain-drop-dob-eu.
 
   '
-phase: review
-design_reviewed: false
-code_reviewed: false
+phase: done
+design_reviewed: true
+code_reviewed: true
 comments: []
 images: []

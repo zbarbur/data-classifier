@@ -1,10 +1,10 @@
 title: 'Sprint 12: has_dictionary_name_match feature in meta-classifier vector'
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 12
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-16
 depends_on: []
 tags:
 - sprint12
@@ -54,8 +54,8 @@ notes: "This item is the #2 Sprint 12 priority. It complements the\nvalidator_re
   \ 12 target of 0.030.\n\nDictionary sourcing is the main scoping risk. US Census\
   \ name data is\npublic domain; international names may need vetting. Consider starting\n\
   with a US-only dictionary and expanding in later sprints.\n"
-phase: plan
-design_reviewed: false
-code_reviewed: false
+phase: done
+design_reviewed: true
+code_reviewed: true
 comments: []
 images: []

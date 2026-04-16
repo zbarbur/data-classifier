@@ -1,11 +1,11 @@
 title: 'Sprint 12: Safety analysis memo — directive promotion capacity, architecture,
   and heterogeneous-column audit'
-status: backlog
+status: done
 priority: P1
 category: chore
 sprint_target: 12
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-16
 depends_on: []
 tags:
 - sprint12
@@ -193,8 +193,8 @@ notes: |
 
   Whichever outcome the memo produces, the decision is explicit and
   backed by measurement rather than inherited silently.
-phase: null
-design_reviewed: false
-code_reviewed: false
+phase: done
+design_reviewed: true
+code_reviewed: true
 comments: []
 images: []
