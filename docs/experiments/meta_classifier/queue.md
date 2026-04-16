@@ -1142,6 +1142,62 @@ Tier 2 (shape-based OPAQUE_SECRET residual catcher) is **deferred** to a follow-
 
 **Deliverable:** `docs/experiments/meta_classifier/runs/<ts>-e11-gated-tier1-ablation/result.md` with the 2×2 table, per-class breakdown, tree root-split diagnostic, gate precision/recall on training data, and a verdict mapping.
 
+### E12 — Production-shape validation corpora survey (BQ public datasets)
+
+**Status:** 🟢 in progress (2026-04-16)
+**Priority:** P1 — validates the heterogeneous-column path in the gated architecture design and fills a corpus gap that synthetic/crowdsourced datasets cannot close
+**Estimated time:** ~30-45 min subagent survey + ~15 min review
+**Contract note:** append-only to `docs/experiments/meta_classifier/dataset_landscape.md` (research-owned file) — no writes to `data_classifier/**` or main-owned files
+
+**Why it matters:**
+
+Every training/eval corpus we currently use (PII-43k, Gretel-EN, Gretel-finance, openpii-1m, Nemotron, gitleaks/secretbench/detect_secrets) is either synthetic or crowdsourced. None represent production-shape tables with log-shaped columns or mixed-content freeform fields. BigQuery — the only consumer of this library — has customer tables that include exactly these shapes (audit logs, application message fields, complaint-description fields, JSON columns).
+
+The gated architecture backlog item (`gated-meta-classifier-architecture-*-q8-continuation`) designs `HeterogeneousColumnFinding` output for log-shaped columns and a stage-1 gate that routes `HOMOGENEOUS_CREDENTIAL` / `HOMOGENEOUS_PII` / `HETEROGENEOUS`. That design has **no validation data** today. This survey closes that gap by characterizing BQ public datasets against those three shape categories.
+
+Companion to the `cd3a5cc` landscape survey (2026-04-13) which catalogued **labeled training corpora**. This survey catalogues **production-shape validation data** — orthogonal axis.
+
+**Scope:**
+
+1. Enumerate `bigquery-public-data` datasets with log-shaped or mixed-content columns
+2. Candidate shortlist (starting points — subagent may add/drop based on discovery):
+   - Mixed-content freeform: `austin_311.311_service_requests`, `new_york_311`, `chicago_crime.crime`
+   - User-generated text: `stackoverflow.posts_questions`, `github_repos.commits`, `hacker_news.comments`
+   - Structured baseline (for contrast): `usa_names.usa_1910_current`, `google_analytics_sample`
+3. Per candidate:
+   - Schema (column names, types, nullability)
+   - Row count and byte-length distribution per text column
+   - 100-row sample (values redacted/truncated in memo if PII-dense)
+   - License review (BQ public datasets vary: Stack Exchange CC-BY-SA, GitHub per-repo, Austin 311 public domain)
+   - Shape classification: `TRUE_LOG` (key=value/structured events) / `MIXED_CONTENT_FREEFORM` (NL with embedded entities) / `JSON_TYPED` / `HOMOGENEOUS_STRUCTURED` (for contrast)
+4. Staging recommendation: top 2-3 for actual corpus pull (separate follow-up entry)
+
+**Methodology:**
+
+- General-purpose research subagent with `bq` CLI access
+- Billing project: `dag-bigquery-dev` (user's gcloud default)
+- Query budget: < $5 (schema + 100-row samples across ~10 candidates)
+- Follows the 2026-04-13 survey subagent pattern (~30-45 min wall, ~60k tokens)
+
+**Success criteria:**
+
+- ≥ 5 candidates characterized across ≥ 3 shape classes
+- License risk flagged per candidate (green/yellow/red)
+- Clear "stage this / skip this" recommendation
+- Explicit map: which candidate validates which gated-architecture stage (stage-1 gate shape accuracy / stage-2c heterogeneous NER / stage-2a+b homogeneous baseline)
+
+**Deliverable:**
+
+- New section "Tier 7 — Production-shape validation (BQ public)" appended to `docs/experiments/meta_classifier/dataset_landscape.md`
+- Single commit on `research/meta-classifier`
+- Status flip to ✅ when survey completes
+
+**Out of scope:**
+
+- Actual corpus staging (downloading samples into `corpora/`) — separate follow-up entry
+- Private BQ datasets (customer-owned, not applicable to public survey)
+- Running the gated architecture on any of these datasets — that's a training/eval experiment downstream of this one
+
 ### Q6 — Inverted stage 1 / PII-only meta-classifier
 
 **Status:** ✅ complete (see `runs/20260412-q6-inverted-stage1/result.md`) — **Q6-C** verdict, LOCO +0.016 only, pivot to E10/E4
