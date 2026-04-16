@@ -31,12 +31,14 @@ from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.events.emitter import EventEmitter
 from data_classifier.events.types import (
     ClassificationEvent,
+    ColumnShapeEvent,
     GateRoutingEvent,
     MetaClassifierEvent,
     TierEvent,
 )
 from data_classifier.orchestrator.calibration import calibrate_finding
 from data_classifier.orchestrator.meta_classifier import MetaClassifier
+from data_classifier.orchestrator.shape_detector import detect_column_shape
 from data_classifier.orchestrator.table_profile import (
     TableProfile,
     build_table_profile,
@@ -307,7 +309,22 @@ class Orchestrator:
 
         total_ms = (time.monotonic() - t_start) * 1000
 
-        # Apply engine priority weighting: suppress/boost based on cross-engine agreement
+        # ── Sprint 13 Item A: column-shape detection ──────────────────────
+        # Deterministic routing on structural shape. Detects AFTER the
+        # cascade populates engine_findings (needs the entity-type count)
+        # but BEFORE post-processing merges so the shape decision can gate
+        # downstream behavior (specifically: whether to emit the v5 shadow
+        # prediction, which is documented to collapse on non-structured
+        # shapes per the Sprint 12 safety audit §3).
+        try:
+            shape_detection = detect_column_shape(column, engine_findings)
+        except Exception:  # pragma: no cover — defensive
+            logger.debug("Shape detection failed; defaulting to structured_single behavior", exc_info=True)
+            shape_detection = None
+
+        # Post-processing merges run on ALL shapes — deterministic dedup +
+        # FP suppression is valuable regardless of shape. Only the v5
+        # shadow emission below is gated by the detected shape.
         all_findings = self._apply_engine_weighting(all_findings, finding_authority, engine_findings)
 
         # Suppress ML-only findings when a non-ML engine already has a strong match
@@ -335,12 +352,34 @@ class Orchestrator:
             )
         )
 
+        # ── Sprint 13 Item A: emit ColumnShapeEvent ──────────────────────
+        # Observability event carries the routing decision + signals. The
+        # per_value_inference_ms and sampled_row_count fields are None on
+        # the structured_single and opaque_tokens branches; Item B's
+        # per-value handler populates them on free_text_heterogeneous
+        # columns once that item lands.
+        if shape_detection is not None:
+            self.emitter.emit(
+                ColumnShapeEvent(
+                    column_id=column.column_id,
+                    shape=shape_detection.shape,
+                    avg_len_normalized=shape_detection.avg_len_normalized,
+                    dict_word_ratio=shape_detection.dict_word_ratio,
+                    cardinality_ratio=shape_detection.cardinality_ratio,
+                    n_cascade_entities=shape_detection.n_cascade_entities,
+                    column_name_hint_applied=shape_detection.column_name_hint_applied,
+                    run_id=run_id or "",
+                )
+            )
+
         # Shadow inference (Sprint 6 Phase 3) — observability only.
-        # The shadow path must NEVER mutate ``result`` or raise. All
-        # failure modes inside predict_shadow already return None, but
-        # we belt-and-suspenders with a broad try/except so no bug in
-        # the shadow path can ever break the live classification API.
-        if self._meta_classifier is not None:
+        # Sprint 13 Item A gates on shape detection. v5 is documented to
+        # collapse on free_text_heterogeneous and opaque_tokens shapes
+        # (see docs/research/meta_classifier/sprint12_safety_audit.md §3).
+        # Skip shadow emission on those branches to stop feeding wrong-
+        # class predictions into downstream telemetry.
+        shape_allows_shadow = shape_detection is None or shape_detection.shape == "structured_single"
+        if self._meta_classifier is not None and shape_allows_shadow:
             try:
                 shadow = self._meta_classifier.predict_shadow(
                     result,

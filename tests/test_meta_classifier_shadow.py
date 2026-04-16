@@ -316,8 +316,12 @@ def test_meta_classifier_event_emitted(standard_profile: ClassificationProfile) 
 
     classify_columns([_email_column("c1"), _ip_column("c2")], standard_profile, event_emitter=emitter)
     meta_events = [e for e in events if isinstance(e, MetaClassifierEvent)]
-    # One event per column
-    assert len(meta_events) == 2
+    # Sprint 13 Item A: MetaClassifierEvent only fires on structured_single columns.
+    # _email_column is structured_single → 1 event.
+    # _ip_column produces ADDRESS + IP_ADDRESS from the cascade (n_cascade_entities=2),
+    # so the shape router classifies it as opaque_tokens and suppresses v5 shadow.
+    assert len(meta_events) == 1
+    assert meta_events[0].column_id == "c1"
     for ev in meta_events:
         assert ev.column_id != ""
         assert ev.predicted_entity != ""
