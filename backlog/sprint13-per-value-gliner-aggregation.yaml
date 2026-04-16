@@ -85,25 +85,23 @@ acceptance_criteria:
 - aggregate_per_value_spans helper exists and converts per-value spans to
   column-level list[ClassificationFinding]
 - Orchestrator free_text_heterogeneous branch routes to the per-value handler
-- On all 6 Q3 fixtures from sprint12_safety_audit.py: per-value GLiNER output
-  entity types >= cascade''s entity types (coverage), AND no entity type
-  emitted that is not in the cascade''s set (precision)
-- Integration test: tests/benchmarks/meta_classifier/sprint12_safety_audit.py
-  Q3 aggregate verdict stays GREEN after this item lands (Item A already
-  lifted it by routing away from v5; Item B improves the actual handler)
+- "On all 6 Q3 fixtures from sprint12_safety_audit.py, per-value GLiNER
+  output entity types >= cascade entity types (coverage), AND no entity
+  type is emitted that is not in the cascade set (precision)"
+- "Integration test on tests/benchmarks/meta_classifier/sprint12_safety_audit.py
+  produces Q3 aggregate verdict GREEN after this item lands (Item A
+  already lifted it by routing away from v5; Item B improves the handler)"
 - No regression on family benchmark (most family benchmark rows are
   structured_single, not heterogeneous, so unaffected)
 - Lint + format clean, full test suite green
 - Per-value inference latency measurable and documented (expected ~50x
   column-level, to be characterized)
 test_plan:
-- Unit tests: per-value GLiNER on 3+ fixtures with known ground-truth spans
-- Aggregation tests: mock per-value output with known coverage, assert
-  correct ClassificationFinding list
-- Integration: safety audit Q3 on all 6 fixtures — shadow output should
-  match or exceed live cascade
-- Performance: latency characterization on 50-row columns
-- Regression: full test suite + family benchmark
+- "Unit tests on per-value GLiNER inference against 3+ fixtures with known ground-truth spans"
+- "Aggregation tests on mock per-value output with known coverage, assert correct ClassificationFinding list"
+- "Integration test on safety audit Q3 across all 6 fixtures — shadow output should match or exceed live cascade"
+- "Performance measurement on latency characterization on 50-row columns"
+- "Regression check on full test suite + family benchmark"
 notes: |
   Estimated ~1 week of implementation. The biggest unknowns are (a) whether
   GLiNER per-value inference is fast enough to be practical, (b) whether

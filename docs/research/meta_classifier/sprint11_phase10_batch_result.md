@@ -8,6 +8,19 @@ changes, retrain the v3 meta-classifier artifact, run the per-class
 diagnostic, run the full production test suite, and record the
 deltas honestly.
 
+> **⚠️ Sprint 12 follow-up (2026-04-16):** this memo references a
+> potential Sprint 12 promotion of the shadow path to a directive
+> routing rule. That promotion was **not executed.** Sprint 12 Phase
+> 5b safety audit (see
+> `docs/research/meta_classifier/sprint12_safety_audit.md`) returned
+> RED on heterogeneous columns (3/6 fixture types produce high-
+> confidence wrong-class collapses). Sprint 12 ships v0.12.0 shadow-
+> only; directive flip defers indefinitely pending the Sprint 13
+> column-shape router reframe. The Phase 10 numbers in this memo
+> remain valid at the benchmark distribution level (Sprint 11's
+> family benchmark is in-distribution synthetic single-entity
+> columns); they do not generalize to heterogeneous columns.
+
 ---
 
 ## Batch summary
