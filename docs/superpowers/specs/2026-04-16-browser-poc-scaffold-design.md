@@ -194,7 +194,27 @@ Parameterized over `tester/corpus/`. JS finding set ≡ Python finding
 set within documented Stage-1 regex-semantics deltas. Scaffold ships
 loader + 3-5 seed cases. Full corpus is S2's deliverable.
 
-**Documented Stage-1 deltas** (JS `RegExp` vs Python `re2`):
+### Smoke benchmark
+
+A minimal latency probe to surface order-of-magnitude numbers
+without waiting for S2's honest measurement.
+
+- `npm run bench` — Playwright script in headless Chrome that:
+  1. Loads the built `scanner.esm.js` + spawns the worker pool.
+  2. Scans a synthetic ~1K-prompt batch from
+     `tester/corpus/bench/` (short prose + interleaved credential
+     shapes; no pathological ReDoS-inducing inputs).
+  3. Reports mean / p50 / p99 / max per-scan latency, plus
+     throughput and bundle parse time.
+- Output: printed to stdout and written to
+  `tester/corpus/bench/last_run.json` (gitignored).
+- **Labeled order-of-magnitude only.** The synthetic corpus does
+  not reflect real WildChat prompt shapes and ReDoS exposure; S2
+  remains the source of honest P50/P95/P99 + the ReDoS audit.
+- Catches 10× regressions at PR time without needing the full S2
+  apparatus.
+
+### Documented Stage-1 deltas (JS `RegExp` vs Python `re2`)
 
 - All patterns are authored against RE2 syntax, which is a syntactic
   subset of JS `RegExp` on the features used (character classes,
@@ -215,6 +235,7 @@ loader + 3-5 seed cases. Full corpus is S2's deliverable.
   - `generate` — invokes `python3 scripts/generate_browser_patterns.py`.
   - `test:unit` — Vitest.
   - `test:e2e` — Playwright.
+  - `bench` — smoke latency benchmark (see "Smoke benchmark" below).
   - `format` — Prettier (format-only; no ESLint in v1 to keep the
     toolchain minimal). ESLint adoption is a later decision.
 - Pre-test hook runs `generate` so `src/generated/` is always fresh.
@@ -248,6 +269,85 @@ Each module has one responsibility and a small interface:
 Tests target each module independently; `scanner-core.test.js`
 covers composition.
 
+## Python → JS sync
+
+The "patterns are a shared asset, no fork" commitment covers the
+JSON-encoded data assets. It does **not** cover logic drift. There
+are three kinds of sync to keep honest:
+
+### 1. Data sync (patterns, key-names, stopwords, placeholders)
+
+Generator regenerates `src/generated/*.js` from the Python JSON on
+every `npm run generate`. `src/generated/` is `.gitignore`d and the
+pre-test hook always regenerates, so data drift is impossible at
+test time. No further mechanism needed.
+
+### 2. Scoring-parameter sync (thresholds, multipliers, weights)
+
+Python thresholds live in `data_classifier/config/engine_defaults.yaml`
+(e.g. `definitive_multiplier`, `strong_min_entropy_score`,
+`relative_entropy_thresholds`, `diversity_threshold`,
+`prose_alpha_threshold`).
+
+Generator emits `src/generated/constants.js` from that YAML so the
+JS engine reads the same values. A human changing a threshold in
+Python and running `npm run generate` propagates it to JS with no
+hand-edit. Covers numeric-parameter drift automatically.
+
+### 3. Algorithm sync (entropy formula, charset detection, KV parsers, validators, tier composition)
+
+This is the drift surface — ported code that can diverge silently
+when the Python source evolves. Mechanism: **versioned differential
+fixtures**.
+
+Generator computes a SHA-256 over the concatenated contents of the
+Python logic files:
+
+- `data_classifier/engines/secret_scanner.py`
+- `data_classifier/engines/regex_engine.py`
+- `data_classifier/engines/validators.py`
+- `data_classifier/engines/parsers.py`
+- `data_classifier/engines/heuristic_engine.py`
+- `data_classifier/config/engine_defaults.yaml`
+
+…and emits it as `PYTHON_LOGIC_VERSION` in `constants.js`. In the
+same run the generator invokes the Python library against the
+`tester/corpus/` seed inputs and writes the expected findings to
+`tester/corpus/fixtures.json`, stamped with the same
+`PYTHON_LOGIC_VERSION`.
+
+The differential test (`tests/e2e/differential.spec.js`) asserts
+`fixtures.PYTHON_LOGIC_VERSION === constants.PYTHON_LOGIC_VERSION`
+before comparing findings. When a Python logic file changes,
+fixtures go stale; running `npm run generate` mints new fixtures
+but the JS findings will now diverge until the port follows. Test
+fails loudly with a message pointing at which Python file changed
+and instructing the developer to update the corresponding JS
+module.
+
+**What this buys:** a Python-side fix that tightens a tier's
+entropy floor, swaps a validator, or adjusts KV parsing can't ship
+silently — the next PR touching the scaffold (or the nightly
+differential run, when we add one) fails until the JS port is
+aligned or the change is consciously deferred.
+
+**What it doesn't buy:** a Python-side CI touch-guard that blocks
+PRs mutating those files without a coordinated browser-side update
+in the same PR. That's heavier (requires either a pre-commit hook
+or a cross-package CI job), would slow down Python-only changes
+that intentionally defer browser sync, and belongs in a follow-up
+sprint item once real drift incidents justify it. Filed as
+`backlog/` candidate after scaffold lands; not in v1.
+
+### Responsibilities summary
+
+| Change | Who does what |
+|---|---|
+| Add/edit pattern in `default_patterns.json` | `npm run generate` → commit |
+| Tighten a threshold in `engine_defaults.yaml` | `npm run generate` → commit (constants auto-regen) |
+| Change entropy formula / validator / KV parser in Python | `npm run generate` → differential tests fail → port the change to JS → re-run → commit both |
+| Add a new Credential pattern whose validator isn't ported | Generator emits warning; pattern ships with stub validator; decision to port validator or accept stubbed behavior is tracked in the PR description |
+
 ## Explicit non-goals
 
 - Not shipping an MV3 extension.
@@ -268,3 +368,7 @@ Revisit this spec when any of:
   may bump pattern count past the ~250 Stage-2 threshold).
 - First MV3 extension item is filed (triggers manifest + background
   service worker shell, likely reworks `pool.js` MV3 hooks).
+- Drift incident: a Python-side logic change ships without the JS
+  port following, and the divergence is caught by something other
+  than the differential fixture test (e.g. a production report).
+  Triggers the deferred CI touch-guard work.
