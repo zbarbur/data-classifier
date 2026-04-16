@@ -359,6 +359,158 @@ Budget impact: ~170k production-shape validation rows across 4 shape classes. Ze
 - **Cost control:** dry-run-first on the three multi-TB tables (SO body 36 GB, GH commits 26.5 GB, HN text 15.8 GB). Ran full stats on SO body + HN text (worth the ~$0.25 combined); used TABLESAMPLE on GH commits to avoid the full 26.5 GB scan. Total spend ~$0.40 against the $5 budget.
 - **Out of scope:** actual data staging (downloading into `corpora/`). This memo is a survey only — staging is a separate sprint item gated on which candidates the maintainer selects.
 
+## Tier 7b — Real-PII free-text validation (BQ public)
+
+> **Produced by:** general-purpose research subagent (dispatched 2026-04-16, experiment `E12b`)
+> **Billing project:** `dag-bigquery-dev` (user's gcloud default)
+> **Total BQ cost:** ~$0.20 (7 candidates × INFORMATION_SCHEMA + COUNTIF + APPROX_QUANTILES + LIMIT samples; no TABLESAMPLE needed — largest scan was FEC indiv20 at 17 GB × 1 quantile scan)
+> **Wall time:** ~30 minutes
+> **Reframe of E12:** prioritizes **real embedded PII in real free-text columns** (the production BQ-customer scenario) over the gated-architecture shape taxonomy (TRUE_LOG / HETEROGENEOUS / HOMOGENEOUS) that Tier 7 optimized for. Under this framing, **synthetic** datasets drop in priority and **legally-public real-PII** datasets (FEC donors, NPPES providers, CFPB narratives, IRS 990 org directory) rise.
+
+**Finding up front:** the single highest-value real-PII validation target is **`cfpb_complaints.complaint_database.consumer_complaint_narrative`** (1.25M non-null narratives, avg 1031 chars, public domain) — the closest open-data analogue of a real BQ customer-support-ticket column. Critically, **85% of sampled narratives contain pre-redacted `XX`-tokens** where the CFPB has masked account numbers, dates, and PII, but the surrounding prose — company names (100%), account/bank/mortgage keywords (62%), proper-name-shape (42%), dollar amounts (36%) — is un-redacted and reflects real customer voice at scale. Paired with **`fec.indiv20`** (195M donor rows with real PERSON + LOCATION + employer/occupation ORG — the largest real-named-individuals dataset in BQ public) and **`nppes.npi_raw`** (9.4M healthcare providers with dense PERSON + LOCATION + PHONE + professional-credential fields), these three cover the "customer-support ticket", "donor/customer CRM", and "provider directory" production scenarios with real-at-scale PII that neither synthetic nor shape-focused datasets can match.
+
+Secondary value: **`irs_990.irs_990_ein`** (1.96M nonprofit org directory, with **`ico` = "in care of" freeform field that frequently carries a real individual's name inside an org record** — exactly the "PII embedded in a structured org record" pattern customers encounter). Correction finding: five shortlist candidates (`san_francisco_sffd_service_calls`, `london_fire_brigade`, `new_york_mv_collisions`, `austin_crime`, `san_francisco_sfpd_incidents`) turned out to be **enum-shaped or address-scrubbed**, not narrative — the same pattern E12 found in Austin 311 and Chicago crime, generalizing to every municipal incident dataset surveyed so far. **Municipal incident tables in BQ public are systematically scrubbed or enum-typed — they are not a useful analogue of real incident-narrative customer tables.** This is a reproducible finding across both surveys.
+
+### R1. bigquery-public-data.cfpb_complaints.complaint_database — `consumer_complaint_narrative`
+
+- **Path:** `bigquery-public-data.cfpb_complaints.complaint_database`
+- **License:** **Public domain** (CFPB is a US federal agency; complaint database is released as public-record data under https://www.consumerfinance.gov/data-research/consumer-complaints/. Consumers who file complaints must explicitly opt-in to publication of the narrative text, and the CFPB pre-scrubs PII with `XX` tokens). No attribution required; compatible with Apache/MIT downstream.
+- **Rows:** 3,458,906 total; 1,246,739 with non-null `consumer_complaint_narrative`; 1,536,956 with non-null `company_public_response`
+- **`consumer_complaint_narrative`** — STRING
+  - Byte length: p10=191, p50=675, p90=1435, p99=2151, max=32,616; avg 1,031
+  - Shape classification: `MIXED_CONTENT_FREEFORM` (real customer-voice prose)
+  - Shape description: first-person narrative prose from real consumer complaints about financial products. **Pre-redacted by CFPB** — sensitive tokens (account numbers, dates, dollar amounts ≥ \$1M, SSNs, names of non-parties) are replaced by runs of `X`. Surrounding prose is un-redacted. Sampled 100 rows: 85% contain at least one `XX`-redacted span, 23% contain a date-shape (mostly `XX/XX/XXXX`), 36% contain an un-redacted dollar amount, 32% contain a 4+ digit run (often a phone number, fragment, or amount left visible), 62% mention account / card / loan / mortgage / balance / payment keywords, 42% contain a `[A-Z][a-z]+ [A-Z][a-z]+` proper-name shape (typically referring to company representatives, agents, employees — real named individuals not masked by CFPB redaction). Phone-shape and @-sign both 0% in sample (fully scrubbed).
+  - Entities densely represented: ORGANIZATION (company_name is 100% populated and points to real named banks), PROPER_NAME shape (customer-service agents, loan officers, non-party individuals ~42%), DATE (redacted to `XX/XX/XXXX`), MONETARY_AMOUNT
+  - Entities sparsely represented: PERSON (complainant name is masked; non-party names leak through), LOCATION (state + zip populated as separate columns; narrative references "my state", "XXXX, CA" etc.)
+  - Entities absent (post-redaction): EMAIL, PHONE, SSN, account numbers (redacted to `XX`)
+  - **PII-realism caveat:** this is **real complaint text about real companies** but with CFPB's per-field scrubbing applied. It is a middle ground — richer than purely synthetic because the prose / entity-mix / company references / dollar amounts are genuine, but the most sensitive tokens are already masked. For a BQ customer whose table has the same CFPB-style pre-redaction policy, this is the **ideal analogue**. For evaluating detection of un-redacted PII in narrative prose, the pre-redaction limits what the library can "find" in this corpus.
+- **`company_name`** — STRING, avg 27-38 chars, 100% populated in sample, top 10 values are real named companies (Equifax 619k, TransUnion 527k, Experian 492k, BoA 124k, Wells Fargo 112k, JPMorgan Chase 100k, Citibank 82k, Capital One 79k, Synchrony 42k, Navient 38k). Shape: `HOMOGENEOUS_PII` → ORGANIZATION. **Not pre-redacted.**
+- **`state`**, **`zip_code`** — structured LOCATION. `zip_code` quantiles are all exactly 5 chars (avg 5.2, max 7) — classic HOMOGENEOUS_STRUCTURED ZIP.
+- **PII-realism score:** **HIGH** for the "customer-support ticket with pre-redacted PII" scenario; **MEDIUM** as general free-text PII validation (the most sensitive tokens are pre-masked, but non-party names and company names are not).
+- **Staging recommendation:** 🟢 **stage now** — highest-value candidate for the reframed survey. Pull ~50k narratives + matched company_name + state + zip_code. The pre-redaction is a feature for teaching the library "this column has already been partially scrubbed — do not over-fire on the `XX` tokens themselves, but do find the residual company names and non-party persons".
+- **BQ customer scenario analogue:** **Customer support ticket / complaint tracking database** — this is the closest open-data analogue of a production "consumer complaint narrative" column. Any BQ customer storing support-ticket or complaint text will ship tables that look structurally like this one.
+
+### R2. bigquery-public-data.fec.indiv20 — `name`, `city`, `state`, `zip_code`, `employer`, `occupation`, `memo_text`
+
+- **Path:** `bigquery-public-data.fec.indiv20` (2019-2020 election cycle individual contributions; additional `indiv18`, `indiv16`, `individuals_2016` siblings available)
+- **License:** **Public domain** (Federal Election Commission is a US federal agency; all individual contribution reports are required to be publicly disclosed under federal campaign-finance law, 52 U.S.C. § 30104. No attribution required; compatible with any downstream license). Note: FEC explicitly publishes donor names, employers, occupations, and addresses as a matter of law.
+- **Rows:** 195,482,945 total (195M); 195,482,920 with non-null `name`; 189,235,436 with `employer`; 189,009,245 with `occupation`; 107,989,785 with `memo_text`
+- **`name`** — STRING
+  - Byte length: p50=14, p90=17, p99=18, max=66; avg 14.6
+  - Shape classification: `HOMOGENEOUS_PII` (PERSON, `LASTNAME, FIRSTNAME` canonical format)
+  - Shape description: 91% of sample match `A+, A+` two-token shape (LASTNAME, FIRSTNAME). 5% include middle initial (`A+, A+ A+`), 3% include hyphenated last name (`A+-A+, A+`). **100% of rows are real named individuals** — federal campaign finance law mandates disclosure.
+  - Entity density: PERSON **dense** (100%)
+- **`city`** — STRING, avg 9.5, 79% distinct in sample. Shape: `HOMOGENEOUS_PII` (city name).
+- **`state`** — STRING, always 2 chars. Shape: `HOMOGENEOUS_STRUCTURED` (US state code).
+- **`zip_code`** — STRING, avg 5.2 (5 or 9 digits). Shape: `HOMOGENEOUS_STRUCTURED` (ZIP).
+- **`employer`** — STRING
+  - Byte length: p50=7, p90=15, max=38
+  - Shape: `HOMOGENEOUS_PII` (ORGANIZATION) with a 36%-of-rows edge case: sample had 36/50 rows containing `RETIRED` / `NOT EMPLOYED` / `SELF` keywords instead of a real company name. Classic "employer field used as employment-status field" pattern. The remaining ~64% are real company / sole-proprietor names.
+- **`occupation`** — STRING, avg 12, 72% distinct in sample. Shape: `HOMOGENEOUS_PII` (PROFESSIONAL_TITLE — "ATTORNEY", "RETIRED", "PHYSICIAN", "HOMEMAKER"). Not an enum (too many distinct values) but low-cardinality open-set.
+- **`memo_text`** — STRING, avg 38, max 100. Shape: **NOT a narrative** — short vendor codes (100% of populated-memo sample contained `ACTBLUE` / `WINRED` / `EARMARKED` / `CONDUIT` / `FEES` / `REFUND` template tokens). Correction: the shortlist called this out as a "freeform memo field"; it isn't — it's a HOMOGENEOUS_STRUCTURED transaction-code field. The real free-text PII is in `name` + `employer` + `occupation` + `city`.
+- **PII-realism score:** **HIGH** — real named individuals at production scale (195M). No sampling or synthetic generation comes close to this volume of real PERSON + LOCATION + ORG triples.
+- **Staging recommendation:** 🟢 **stage now** — unique value as the largest public directory of real named individuals with structured PII fields. Pull ~50k rows joining `name` + `city` + `state` + `zip_code` + `employer` + `occupation`. Skip `memo_text` (not narrative; HOMOGENEOUS_STRUCTURED transaction codes are redundant with crypto_ethereum.logs).
+- **BQ customer scenario analogue:** **Donor / customer / membership CRM** — tables with per-individual rows, structured name/address/employer/occupation columns. Financial-services CRMs, nonprofit donor databases, political campaign CRMs, and membership-org directories all have this exact column shape. **Directly matches the "structured PII directory" production scenario.**
+
+### R3. bigquery-public-data.nppes.npi_raw — provider name, address, phone, credential fields
+
+- **Path:** `bigquery-public-data.nppes.npi_raw` (National Plan & Provider Enumeration System, raw export)
+- **License:** **Public domain** (CMS NPPES is a US federal agency; NPI registry is published as public-record data under 45 CFR § 162.408. No attribution required; compatible with any downstream license). NPPES is the authoritative US healthcare-provider directory.
+- **Rows:** 9,368,082 total; 7,139,583 with provider last name; 9,032,768 with practice-location phone. ~7M individual providers + ~2M organization providers.
+- **Text columns of interest** (sample of 50 populated rows):
+  - `provider_last_name_legal_name` — avg 6.8 chars, 98% distinct, 94% single-word shape. `HOMOGENEOUS_PII` (PERSON surname).
+  - `provider_first_name` — avg 5.6 chars, 96% distinct, 100% single-word. `HOMOGENEOUS_PII` (PERSON given name).
+  - `provider_credential_text` — avg 5.3 chars, 90% populated, 68% distinct. Short professional credential string ("MD", "D.C.", "RN", "LCSW", "PhD", etc.). 16% match professional-credential keyword pattern in sample. Shape: `HOMOGENEOUS_STRUCTURED` (low-cardinality open-set credential abbreviations, not PII in the usual sense but identifies profession).
+  - `provider_first_line_business_practice_location_address` — avg 17 chars, 100% populated, 100% distinct, 80% match street-suffix keyword. Shape: `HOMOGENEOUS_PII` (street address).
+  - `provider_business_practice_location_address_city_name` — avg 9.1. `HOMOGENEOUS_PII` (city).
+  - `provider_business_practice_location_address_postal_code` — avg 8.4 (5 or 9 digit ZIP). `HOMOGENEOUS_STRUCTURED`.
+  - `provider_business_practice_location_address_telephone_number` — **always exactly 10 digits, zero delimiters** (observed 50/50 rows match `^[0-9]{10}$`). `HOMOGENEOUS_PII` (phone number) but in **unformatted-digits shape** — interesting test case for phone detection that has been trained on delimited formats.
+  - `authorized_official_title_or_position` — avg 11.5, 46/100 distinct, open-set (OWNER, CEO, OFFICE MANAGER, ADMINISTRATOR). `HOMOGENEOUS_PII` (professional title).
+  - `provider_other_organization_name` — 36/100 populated, and **all 36 populated values are `<UNAVAIL>` placeholder** — classic negative-control "scrubbed" column. Interesting as a LOCATION/ORG-null-placeholder test.
+- **Entity density:** PERSON **dense** (100% of individual-provider rows), LOCATION **dense** (100% practice-location addresses), PHONE **dense** (96% of rows, unformatted-digits), ORGANIZATION **dense** (2M org providers), HEALTH **sparse** (credential abbreviations hint at specialty but no diagnoses/medications).
+- **PII-realism score:** **HIGH** — 9M real healthcare providers with production-style provider-directory schema. The unformatted-10-digit phone shape is a **useful variant** our library may not have seen in training (most open corpora use delimited phone formats).
+- **Staging recommendation:** 🟢 **stage now** — primary value is the **provider directory** scenario (healthcare CRM, vendor directory, employee directory). Pull ~30k rows joining provider_first_name + provider_last_name_legal_name + address + city + state + zip + telephone. The unformatted 10-digit phone column is a specific test case worth isolating.
+- **BQ customer scenario analogue:** **Provider / vendor / employee directory** — any BQ customer storing a directory of named individuals with phone, address, and role. Healthcare vendors, B2B CRMs, employee HRIS exports all have this shape. **Directly matches the "structured contact directory" production scenario.**
+
+### R4. bigquery-public-data.irs_990.irs_990_ein — `name`, `ico`, `street`, `city`, `state`, `zip`
+
+- **Path:** `bigquery-public-data.irs_990.irs_990_ein` (IRS Business Master File, tax-exempt organization directory)
+- **License:** **Public domain** (IRS is a US federal agency; 501(c) org directory is published as public-record data. No attribution required). Companion tables `irs_990_2017`, `irs_990_ez_2017`, `irs_990_pf_2017` etc. are the per-year filing detail tables but were checked and found to be **almost entirely tax-code numeric fields** — the EIN master file is the only table in this dataset with meaningful free-text PII columns.
+- **Rows:** 1,957,159 — one row per tax-exempt organization.
+- **Text columns of interest** (sample of 50):
+  - `name` — avg 29.4, 82% distinct. `HOMOGENEOUS_PII` (ORGANIZATION). 3-5 word org names (30% 3-word, 22% 4-word, 22% 5-word+). 100% populated.
+  - `ico` ("in care of") — avg 18.4, 86% distinct. **84% of sample start with `%`** followed by `A+ A+ A+` (2-3 token shape). In IRS convention, `ico` means "in care of" — **frequently a real person's name** (board president, treasurer, registered agent) routed through the org record. Sample shapes include `% FIRSTNAME LASTNAME`, `% FIRSTNAME LASTNAME TITLE`. This is the **critical column** in this dataset — it embeds PERSON PII inside a structured ORG record.
+  - `street` — avg 15, 80% distinct. 74% 3-word-shape. `HOMOGENEOUS_PII` (street address).
+  - `city` — avg 8.3, 72% distinct. `HOMOGENEOUS_PII` (city).
+  - `state` — always 2 chars. `HOMOGENEOUS_STRUCTURED`.
+  - `zip` — always 10 chars (`A+-A+` format, ZIP+4). `HOMOGENEOUS_STRUCTURED`.
+- **Entity density:** ORGANIZATION **dense** (1.96M), PERSON **dense in `ico` column** (~84% of `ico`-populated rows carry a real person), LOCATION **dense** (street+city populated for 100%).
+- **PII-realism score:** **HIGH** — real named nonprofits + real named "in care of" contacts at scale, with structured directory columns. `ico` is uniquely valuable as a "PERSON-PII-embedded-in-an-ORG-record" test case.
+- **Staging recommendation:** 🟢 **stage now (small pull)** — ~20k rows focused on `ico` + `name` + `street` + `city` + `state` + `zip`. The 64% of the dataset where `ico` is null (as the CFPB-style WHERE-filter shows: 1,256,955 / 1,957,159 ≈ 64%) is a secondary signal worth preserving in the pull as negative-control rows.
+- **BQ customer scenario analogue:** **Compliance / regulatory filing store / org directory with contact-person embedded** — any BQ customer storing an org-level record with a "contact person" or "in care of" or "primary contact" column has this shape. Nonprofits, registered-agent databases, and KYC-compliance tables all share this pattern.
+
+### R5. bigquery-public-data.san_francisco_sfpd_incidents.sfpd_incidents — `category`, `descript`, `resolution`, `address`
+
+- **Path:** `bigquery-public-data.san_francisco_sfpd_incidents.sfpd_incidents`
+- **License:** **Public domain** (SF Open Data / DataSF; verified at https://data.sfgov.org. CC0-equivalent).
+- **Rows:** 2,071,736
+- **Text columns:**
+  - `category` — avg 12, **21 distinct / 100** in sample. Shape: `HOMOGENEOUS_STRUCTURED` (enum: "LARCENY/THEFT", "ASSAULT", "FRAUD", etc.).
+  - `descript` — avg 25, **60 distinct / 100**. Looks freeform-ish but inspection shows it's a **low-cardinality controlled-vocabulary extension of `category`** (e.g. "GRAND THEFT FROM LOCKED AUTO", "MALICIOUS MISCHIEF TO PROPERTY"). Not narrative prose; shape is template-string. Classifies as `HOMOGENEOUS_STRUCTURED` (semantic-category extension).
+  - `resolution` — avg 6.8, **6 distinct / 100** in sample. Pure enum: "NONE", "ARREST, BOOKED", "PSYCHOPATHIC CASE", etc. `HOMOGENEOUS_STRUCTURED`.
+  - `address` — avg 22, 100% populated, 44 distinct / 100. 72% match `A+ A+ A+ A+ A+` (block-level address like `"100 Block of MARKET ST"`), 28% match `A+ A+ / A+ A+` (intersection shape like `"MARKET ST / 5TH ST"`). Shape: `HOMOGENEOUS_PII` (block-level street address — privacy-masked similarly to Chicago crime's `block` column).
+- **Entity density:** LOCATION (address) **medium** (block-level, privacy-scrubbed to 100-block granularity), all other text columns are enum/structured-category.
+- **PII-realism score:** **LOW** — all the "narrative"-shaped columns turned out to be enum-extensions; the only real-PII column is the address, and it's privacy-scrubbed to block-level.
+- **Staging recommendation:** 🔴 **do not stage** — redundant with both `austin_311.incident_address` (cleaner HOMOGENEOUS_PII address from Tier 7) and `chicago_crime.crime.block` (already noted as the privacy-scrubbed-address negative control in Tier 7). SFPD adds no new shape or PII density.
+- **BQ customer scenario analogue:** **Operational incident tracking (police CAD)** — but the scrubbing makes it a poor proxy. Any BQ customer running an in-house incident-tracking system will ship un-scrubbed addresses and narrative text; SFPD's scrubbing makes this dataset a **worse** approximation than the customer's actual data. Skip.
+
+### R6. bigquery-public-data.austin_crime.crime — `description`, `address`, `location_description`
+
+- **Path:** `bigquery-public-data.austin_crime.crime`
+- **License:** **Public domain** (City of Austin Open Data / CC0).
+- **Rows:** 116,672
+- **Correction finding:** the shortlist hypothesized this was a narrative-bearing dataset. It isn't:
+  - `description` — byte length **exactly 30 chars in every observed row** (p10=p50=p90=p99=30), 17 distinct / 100. Shape: `HOMOGENEOUS_STRUCTURED` (padded-to-30-char enum, like the Austin 311 finding in Tier 7).
+  - `address` — **0% populated** in our 100-row LIMIT sample despite being declared STRING NOT NULL. The column appears to have been stripped / nulled in this BQ mirror (potentially a DataSF privacy re-export). This is a **reproducibility finding**: `bq show` and `bq ls` both say the column exists, but the data is absent.
+  - `location_description` — avg 16.9, 79 distinct / 100. Lower cardinality than SFPD but still enum-adjacent ("PARKING LOT", "RESIDENCE / HOME", "SIDEWALK"). `HOMOGENEOUS_STRUCTURED`.
+  - `primary_type` — 6 distinct / 100. Pure enum.
+- **Entity density:** nothing useful. The scrubbed/null address + padded enums mean this dataset has zero real PII density.
+- **PII-realism score:** **LOW** (effectively none — address column is null).
+- **Staging recommendation:** 🔴 **do not stage** — would contribute nothing. **Confirms the "every municipal incident dataset is enum-or-scrubbed" pattern** E12 first documented in Austin 311 and Chicago crime. This is now a reproducible across-multiple-cities finding.
+- **BQ customer scenario analogue:** **Operational incident tracking** — same as SFPD. The "incident reports" that real customers load into BQ will typically have un-scrubbed narrative; the open-data proxies do not reflect that shape. This is a **genuine gap** the survey did not close.
+
+### Candidates dropped during enumeration (negative findings)
+
+- **`san_francisco_sffd_service_calls`** — schema contains `call_type`, `call_final_disposition`, `neighborhood_name`, `address`, timestamps, unit IDs. **No narrative column.** All text fields are enums or structured operational metadata. Skip.
+- **`london_fire_brigade.fire_brigade_service_calls`** — schema contains `incident_group`, `stop_code_description`, `property_category`, `borough_name`, `ward_name`, `postcode_full`, timestamps, station metadata. **No narrative column.** Structured fire-brigade dispatch records only. Skip.
+- **`new_york_mv_collisions.nypd_mv_collisions`** — schema is entirely counts (`number_of_persons_injured`, `number_of_motorist_killed`), vehicle type codes (`vehicle_type_code1..5`), and contributing factors (`contributing_factor_vehicle_1..5`). **No narrative column.** Skip.
+- **`irs_990.irs_990_2017`** — the per-year filing detail table. Checked 80+ columns; all are tax-schedule numeric / boolean codes (`solicitcntrbcd`, `filedf8886tcd`, `prptyintrcvdcd`). **No free-text / no PII text columns.** The EIN master file (R4) is the only useful table in this dataset.
+- **`fec.indiv20.memo_text`** — found to be a HOMOGENEOUS_STRUCTURED transaction-code field (avg 38 chars, dominated by ACTBLUE/WINRED/EARMARKED template tokens), not a narrative. Skip for narrative purposes; keep the other FEC indiv20 columns.
+
+### Cross-candidate BQ customer scenario map
+
+| BQ customer scenario | Best real-PII candidate | PII-realism | Staging |
+|---|---|---|---|
+| Customer support ticket / complaint narrative | `cfpb_complaints.complaint_database.consumer_complaint_narrative` | HIGH (for pre-redacted scenario) / MEDIUM (general) | 🟢 now |
+| Donor / customer CRM (structured PII directory) | `fec.indiv20` (name + city + state + zip + employer + occupation) | HIGH | 🟢 now |
+| Provider / vendor / employee directory | `nppes.npi_raw` (last/first + address + city + state + zip + phone) | HIGH | 🟢 now |
+| Compliance / org directory with contact-person embedded | `irs_990.irs_990_ein` (name + ico + street + city + state + zip) | HIGH | 🟢 now |
+| Operational incident tracking (police / fire CAD) | *no usable open-data proxy — all surveyed candidates are enum-shaped or scrubbed* | LOW | 🔴 genuine gap |
+| Support-ticket + un-redacted customer voice | *no usable open-data proxy — CFPB is the closest but is pre-redacted* | MEDIUM | 🟡 partial |
+
+### Gaps this survey did NOT close (and did not claim to)
+
+1. **Un-redacted customer-voice narrative** with real embedded PII (account numbers, SSNs, non-redacted dates). CFPB narrative is the closest open analogue but is pre-redacted by policy. Any dataset with **un-redacted** real-PII in narrative form would be either legally-gated (HIPAA, FERPA, GDPR) or a privacy violation by its publisher. This is a **fundamental structural gap** — truly free, truly un-redacted, truly real-PII narrative is not a thing in open data, and shouldn't be.
+2. **Operational incident narratives** (police/fire/medical CAD narrative text). Across six surveyed municipal incident datasets (Tier 7: Austin 311, Chicago crime; Tier 7b: SFPD, Austin crime, SFFD, London Fire Brigade, NY MV collisions), **every single narrative-shaped column** turned out to be enum-extended or entirely scrubbed. This is reproducible and robust: **public incident-reporting infrastructure publishes categorical-only, not narrative.**
+3. **Healthcare clinical notes** — same as Tier 7 finding. All open BQ healthcare datasets are either code-only (synthetic Medicare) or provider-directory (NPPES). Clinical-note free-text is PhysioNet-DUA-gated.
+
+### Methodology notes (Tier 7b-specific)
+
+- **Ethical discipline:** no raw PII transcribed — this memo characterizes shape, field-populated-rate, keyword-match rate, and regex-shape rate across 100-row samples. All example strings given (`"LASTNAME, FIRSTNAME"`, `"% FIRSTNAME LASTNAME"`, `"PARKING LOT"`, `"100 Block of MARKET ST"`) are either (a) public-agency top-10-by-count values (Equifax, TransUnion — these are publicly-named corporations, not individuals) or (b) shape templates with placeholder tokens. The CFPB 100-row sample was retained for length/keyword statistics only and deleted after analysis.
+- **Temp-file hygiene:** intermediate BQ JSON samples written to `.tmp_e12b/` inside the research-ops worktree (gitignored location) and analyzed by a small Python shape-sniff helper. Files contain real PII and were deleted at the end of the survey (see cleanup step below).
+- **Cost control:** dry-run sized the three largest scans (CFPB 2.3 GB, FEC 17.5 GB, NPPES 2.4 GB). Ran full quantile scans on all three (worth the ~$0.14 combined); all LIMIT samples scanned <10 MB. Total spend ~$0.20 against the $2 budget. No TABLESAMPLE needed.
+- **Cleanup (done):** `.tmp_e12b/` directory (analyze.py + shape_sniff.py helpers + temporary BQ JSON samples containing real PII) was deleted by the subagent at end-of-survey and verified gone during review. Harness task-stdout captures at `/private/tmp/claude-501/.../tasks/b*.output` may still contain raw sample rows and should be handled separately — see maintainer notes, not this memo.
+
 ## License + effort matrix
 
 | Dataset | License | Rows | Format | Annotation | ETL | Active | Tier |
@@ -379,6 +531,12 @@ Budget impact: ~170k production-shape validation rows across 4 shape classes. Ze
 | crypto_ethereum.logs | CC0 | 6.6B | BQ STRING/ARRAY | Unlabeled (shape) | S | Yes | 7 |
 | usa_names.usa_1910_current | Public domain | 6.3M | BQ STRING | Unlabeled (shape) | S | Yes | 7 |
 | google_analytics_sample | Google demo terms* | ~920k | BQ nested STRUCT | Unlabeled (scrubbed) | M | Yes | 7 (skip) |
+| cfpb_complaints.complaint_database (consumer_complaint_narrative) | Public domain (CFPB) | 3.46M total / 1.25M non-null narrative | BQ STRING | Unlabeled (real-PII, pre-redacted `XX`) | S | Yes | 7b |
+| fec.indiv20 (name/city/state/zip/employer/occupation) | Public domain (FEC) | 195M | BQ STRING | Unlabeled (real-PII, un-redacted donor records) | S | Yes | 7b |
+| nppes.npi_raw (last/first/addr/city/state/zip/phone) | Public domain (CMS) | 9.37M | BQ STRING | Unlabeled (real-PII, provider directory) | S | Yes | 7b |
+| irs_990.irs_990_ein (name/ico/street/city/state/zip) | Public domain (IRS) | 1.96M | BQ STRING | Unlabeled (real-PII, org + in-care-of person) | S | Yes | 7b |
+| san_francisco_sfpd_incidents.sfpd_incidents | Public domain (DataSF) | 2.07M | BQ STRING | Unlabeled (block-scrubbed address + enums) | S | Yes | 7b (skip) |
+| austin_crime.crime | Public domain (Austin) | 116k | BQ STRING | Unlabeled (padded enums; address null in BQ mirror) | S | Yes | 7b (skip) |
 
 *presidio-research license verified only via repo metadata, not direct LICENSE file fetch (404). Re-verify before ingestion.
 *Google Analytics demo dataset license is ambiguous for model training use; treat as research/demo only.

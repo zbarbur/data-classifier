@@ -1200,7 +1200,7 @@ Companion to the `cd3a5cc` landscape survey (2026-04-13) which catalogued **labe
 
 ### E12b — Real-PII free-text BQ survey (follow-up to E12 with reframe)
 
-**Status:** 🟢 in progress (2026-04-16)
+**Status:** ✅ complete (2026-04-16, see `dataset_landscape.md` §Tier 7b) — 6 candidates characterized + 5 dropped; 4 🟢 staging picks (CFPB narratives HIGH-redacted / FEC 195M donors HIGH / NPPES 9M providers HIGH / IRS 990 1.96M orgs HIGH); reproducible finding that every surveyed municipal incident dataset is enum-shaped or address-scrubbed (Austin 311 + Chicago crime + SFPD + Austin crime + SFFD + London Fire Brigade + NY MV collisions — 7/7); $0.20 BQ cost against $2 budget
 **Priority:** P1 — the reframed version of the question E12 answered. E12 focused on the gated-architecture shape taxonomy (TRUE_LOG / HETEROGENEOUS / HOMOGENEOUS). User reframe: what matters more is real BQ tables with **real embedded PII** in free-text columns, because that's the actual production scenario — a BQ customer loads a messy table with a `complaint_narrative` / `incident_description` / `bio` field and the library has to get it right.
 **Estimated time:** ~30-45 min subagent survey + ~15 min review
 **Contract note:** append-only to `docs/experiments/meta_classifier/dataset_landscape.md` (research-owned file) — no writes to `data_classifier/**`
