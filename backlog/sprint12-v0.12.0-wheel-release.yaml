@@ -1,5 +1,5 @@
 title: 'Sprint 12: v0.12.0 wheel release (tag + publish + client docs)'
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 12
@@ -67,8 +67,8 @@ notes: |
 
   BQ consumer coordination (external team action) is filed separately as
   sprint13-bq-consumer-bump-to-v0.12.0.
-phase: build
+phase: done
 design_reviewed: true
-code_reviewed: false
+code_reviewed: true
 comments: []
 images: []
