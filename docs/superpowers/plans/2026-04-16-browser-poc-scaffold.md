@@ -1763,7 +1763,11 @@ describe('scanText — regex pass', () => {
 
 describe('scanText — secret-scanner pass', () => {
   it('fires on a KV pair whose key is "api_key" and value has high entropy', () => {
-    const text = 'api_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"';
+    // Note: the value must NOT contain an anti-indicator substring
+    // (e.g. "example", "test") — those are short-circuited by
+    // hasAntiIndicator before the tier-scoring runs. Using AWS's docs
+    // canonical value (ending "EXAMPLEKEY") would cause this test to fail.
+    const text = 'api_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCY9aBc4dZz8qRtY2"';
     const { findings } = scanText(text, {});
     const f = findings.find((x) => x.engine === 'secret_scanner');
     expect(f).toBeDefined();
