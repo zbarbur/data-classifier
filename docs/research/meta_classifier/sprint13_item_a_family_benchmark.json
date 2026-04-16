@@ -6,7 +6,7 @@
       "family": {
         "cross_family_errors": 1606,
         "cross_family_rate": 0.1627,
-        "within_family_mislabels": 637,
+        "within_family_mislabels": 636,
         "n_shards": 9870,
         "family_macro_f1": 0.8329,
         "per_family": {
@@ -118,11 +118,20 @@
             "fp": 0,
             "fn": 75
           }
+        },
+        "cross_family_rate_emitted": 0.1338,
+        "family_macro_f1_emitted": 0.8439,
+        "n_shards_emitted": 7595,
+        "router_suppressed_count": 2275,
+        "router_suppression_rate": 0.2305,
+        "suppressed_by_shape": {
+          "opaque_tokens": 1165,
+          "free_text_heterogeneous": 1110
         }
       },
       "subtype": {
-        "accuracy": 0.7727,
-        "macro_f1": 0.7729,
+        "accuracy": 0.7728,
+        "macro_f1": 0.773,
         "per_class": {
           "ABA_ROUTING": {
             "precision": 0.9965,
@@ -275,9 +284,9 @@
             "support": 0
           },
           "SSN": {
-            "precision": 0.707,
-            "recall": 0.9745,
-            "f1": 0.8195,
+            "precision": 0.7074,
+            "recall": 0.9765,
+            "f1": 0.8204,
             "support": 510
           },
           "SWIFT_BIC": {
@@ -417,6 +426,15 @@
             "fp": 0,
             "fn": 0
           }
+        },
+        "cross_family_rate_emitted": 0.0368,
+        "family_macro_f1_emitted": 0.8782,
+        "n_shards_emitted": 4079,
+        "router_suppressed_count": 856,
+        "router_suppression_rate": 0.1735,
+        "suppressed_by_shape": {
+          "free_text_heterogeneous": 555,
+          "opaque_tokens": 301
         }
       },
       "subtype": {
@@ -604,7 +622,7 @@
       "family": {
         "cross_family_errors": 1306,
         "cross_family_rate": 0.2646,
-        "within_family_mislabels": 337,
+        "within_family_mislabels": 336,
         "n_shards": 4935,
         "family_macro_f1": 0.782,
         "per_family": {
@@ -716,11 +734,20 @@
             "fp": 0,
             "fn": 75
           }
+        },
+        "cross_family_rate_emitted": 0.2463,
+        "family_macro_f1_emitted": 0.7997,
+        "n_shards_emitted": 3516,
+        "router_suppressed_count": 1419,
+        "router_suppression_rate": 0.2875,
+        "suppressed_by_shape": {
+          "opaque_tokens": 864,
+          "free_text_heterogeneous": 555
         }
       },
       "subtype": {
-        "accuracy": 0.6671,
-        "macro_f1": 0.65,
+        "accuracy": 0.6673,
+        "macro_f1": 0.6501,
         "per_class": {
           "ABA_ROUTING": {
             "precision": 0.9677,
@@ -873,9 +900,9 @@
             "support": 0
           },
           "SSN": {
-            "precision": 0.5402,
-            "recall": 0.949,
-            "f1": 0.6885,
+            "precision": 0.5412,
+            "recall": 0.9529,
+            "f1": 0.6903,
             "support": 255
           },
           "SWIFT_BIC": {
@@ -903,8 +930,8 @@
   "shadow": {
     "overall": {
       "family": {
-        "cross_family_errors": 2278,
-        "cross_family_rate": 0.2308,
+        "cross_family_errors": 2276,
+        "cross_family_rate": 0.2306,
         "within_family_mislabels": 2,
         "n_shards": 9870,
         "family_macro_f1": 0.7652,
@@ -946,22 +973,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 1.0,
+            "precision": 0.9993,
             "recall": 0.9238,
-            "f1": 0.9604,
+            "f1": 0.9601,
             "support": 1470,
             "tp": 1358,
-            "fp": 0,
+            "fp": 1,
             "fn": 112
           },
           "GOVERNMENT_ID": {
             "precision": 1.0,
-            "recall": 0.836,
-            "f1": 0.9107,
+            "recall": 0.8378,
+            "f1": 0.9118,
             "support": 1110,
-            "tp": 928,
+            "tp": 930,
             "fp": 0,
-            "fn": 182
+            "fn": 180
           },
           "HEALTHCARE": {
             "precision": 1.0,
@@ -1017,16 +1044,25 @@
             "fp": 0,
             "fn": 0
           }
+        },
+        "cross_family_rate_emitted": 0.0001,
+        "family_macro_f1_emitted": 0.9999,
+        "n_shards_emitted": 7595,
+        "router_suppressed_count": 2275,
+        "router_suppression_rate": 0.2305,
+        "suppressed_by_shape": {
+          "opaque_tokens": 1165,
+          "free_text_heterogeneous": 1110
         }
       },
       "subtype": {
-        "accuracy": 0.769,
-        "macro_f1": 0.8054,
+        "accuracy": 0.7692,
+        "macro_f1": 0.8055,
         "per_class": {
           "ABA_ROUTING": {
-            "precision": 1.0,
+            "precision": 0.9979,
             "recall": 0.9353,
-            "f1": 0.9666,
+            "f1": 0.9656,
             "support": 510
           },
           "ADDRESS": {
@@ -1157,8 +1193,8 @@
           },
           "SSN": {
             "precision": 1.0,
-            "recall": 0.6431,
-            "f1": 0.7828,
+            "recall": 0.6471,
+            "f1": 0.7857,
             "support": 510
           },
           "SWIFT_BIC": {
@@ -1298,6 +1334,15 @@
             "fp": 0,
             "fn": 0
           }
+        },
+        "cross_family_rate_emitted": 0.0,
+        "family_macro_f1_emitted": 1.0,
+        "n_shards_emitted": 4079,
+        "router_suppressed_count": 856,
+        "router_suppression_rate": 0.1735,
+        "suppressed_by_shape": {
+          "free_text_heterogeneous": 555,
+          "opaque_tokens": 301
         }
       },
       "subtype": {
@@ -1465,11 +1510,11 @@
     },
     "blind": {
       "family": {
-        "cross_family_errors": 1422,
-        "cross_family_rate": 0.2881,
+        "cross_family_errors": 1420,
+        "cross_family_rate": 0.2877,
         "within_family_mislabels": 1,
         "n_shards": 4935,
-        "family_macro_f1": 0.739,
+        "family_macro_f1": 0.7391,
         "per_family": {
           "CONTACT": {
             "precision": 1.0,
@@ -1508,22 +1553,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 1.0,
+            "precision": 0.9984,
             "recall": 0.8476,
-            "f1": 0.9175,
+            "f1": 0.9169,
             "support": 735,
             "tp": 623,
-            "fp": 0,
+            "fp": 1,
             "fn": 112
           },
           "GOVERNMENT_ID": {
             "precision": 1.0,
-            "recall": 0.6721,
-            "f1": 0.8039,
+            "recall": 0.6757,
+            "f1": 0.8065,
             "support": 555,
-            "tp": 373,
+            "tp": 375,
             "fp": 0,
-            "fn": 182
+            "fn": 180
           },
           "HEALTHCARE": {
             "precision": 1.0,
@@ -1579,16 +1624,25 @@
             "fp": 0,
             "fn": 0
           }
+        },
+        "cross_family_rate_emitted": 0.0003,
+        "family_macro_f1_emitted": 0.9998,
+        "n_shards_emitted": 3516,
+        "router_suppressed_count": 1419,
+        "router_suppression_rate": 0.2875,
+        "suppressed_by_shape": {
+          "opaque_tokens": 864,
+          "free_text_heterogeneous": 555
         }
       },
       "subtype": {
-        "accuracy": 0.7117,
-        "macro_f1": 0.7305,
+        "accuracy": 0.7121,
+        "macro_f1": 0.7308,
         "per_class": {
           "ABA_ROUTING": {
-            "precision": 1.0,
+            "precision": 0.9955,
             "recall": 0.8706,
-            "f1": 0.9308,
+            "f1": 0.9289,
             "support": 255
           },
           "ADDRESS": {
@@ -1719,8 +1773,8 @@
           },
           "SSN": {
             "precision": 1.0,
-            "recall": 0.2863,
-            "f1": 0.4451,
+            "recall": 0.2941,
+            "f1": 0.4545,
             "support": 255
           },
           "SWIFT_BIC": {
@@ -1749,29 +1803,41 @@
     "live": {
       "overall": {
         "cross_family_rate": 0.0,
-        "family_macro_f1": 0.0
+        "family_macro_f1": 0.0,
+        "cross_family_rate_emitted": 0.1338,
+        "router_suppression_rate": 0.2305
       },
       "named": {
         "cross_family_rate": 0.0,
-        "family_macro_f1": 0.0
+        "family_macro_f1": 0.0,
+        "cross_family_rate_emitted": 0.0368,
+        "router_suppression_rate": 0.1735
       },
       "blind": {
         "cross_family_rate": 0.0,
-        "family_macro_f1": 0.0
+        "family_macro_f1": 0.0,
+        "cross_family_rate_emitted": 0.2463,
+        "router_suppression_rate": 0.2875
       }
     },
     "shadow": {
       "overall": {
-        "cross_family_rate": 0.2264,
-        "family_macro_f1": -0.2293
+        "cross_family_rate": 0.2262,
+        "family_macro_f1": -0.2293,
+        "cross_family_rate_emitted": 0.0001,
+        "router_suppression_rate": 0.2305
       },
       "named": {
         "cross_family_rate": 0.1733,
-        "family_macro_f1": -0.2113
+        "family_macro_f1": -0.2113,
+        "cross_family_rate_emitted": 0.0,
+        "router_suppression_rate": 0.1735
       },
       "blind": {
-        "cross_family_rate": 0.2796,
-        "family_macro_f1": -0.2504
+        "cross_family_rate": 0.2792,
+        "family_macro_f1": -0.2503,
+        "cross_family_rate_emitted": 0.0003,
+        "router_suppression_rate": 0.2875
       }
     }
   }

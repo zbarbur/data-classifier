@@ -75,6 +75,11 @@ try:
 except ImportError:  # pragma: no cover — older checkouts
     MetaClassifierEvent = None  # type: ignore[assignment]
 
+try:
+    from data_classifier.events.types import ColumnShapeEvent
+except ImportError:  # pragma: no cover — older checkouts
+    ColumnShapeEvent = None  # type: ignore[assignment]
+
 
 # ── Per-shard classification ────────────────────────────────────────────────
 
@@ -111,6 +116,13 @@ def _run_one_shard(shard, profile) -> dict:
                 shadow_agreement = ev.agreement
                 break
 
+    shape: str | None = None
+    if ColumnShapeEvent is not None:
+        for ev in captured:
+            if isinstance(ev, ColumnShapeEvent):
+                shape = ev.shape
+                break
+
     return {
         "column_id": shard.column_id,
         "ground_truth": shard.ground_truth,
@@ -126,6 +138,8 @@ def _run_one_shard(shard, profile) -> dict:
         "shadow_predicted": shadow_entity,
         "shadow_confidence": shadow_confidence,
         "shadow_agrees_with_live": shadow_agreement,
+        "shape": shape,
+        "shadow_suppressed_by_router": shape is not None and shape != "structured_single",
     }
 
 
@@ -133,7 +147,18 @@ def _run_one_shard(shard, profile) -> dict:
 
 
 def _compute_family_metrics(predictions: list[dict], pred_field: str) -> dict:
-    """Family-level Tier 1 metrics: cross-family rate + macro P/R/F1."""
+    """Family-level Tier 1 metrics: cross-family rate + macro P/R/F1.
+
+    Reports two views of cross_family under the Sprint 13 shape gate:
+      * ``cross_family_rate`` — legacy metric, counts router-suppressed
+        columns as errors (Sprint 12 semantics). Retained for audit-trail
+        continuity when comparing against pre-gate baselines.
+      * ``cross_family_rate_emitted`` — null-aware, excludes router-
+        suppressed columns from both numerator and denominator. This is
+        the correct measurement of v5 model quality under the gate.
+      * ``router_suppression_rate`` — fraction of columns where the
+        router deflected shadow emission. Sidecar observability.
+    """
     tp: dict[str, int] = defaultdict(int)
     fp: dict[str, int] = defaultdict(int)
     fn: dict[str, int] = defaultdict(int)
@@ -181,13 +206,76 @@ def _compute_family_metrics(predictions: list[dict], pred_field: str) -> dict:
             f1_sum += F
             f1_count += 1
 
+    # Sprint 13: null-aware metrics — partition into emitted vs suppressed
+    emitted_cross_family = 0
+    emitted_total = 0
+    suppressed_count = 0
+    suppressed_by_shape: dict[str, int] = defaultdict(int)
+
+    for p in predictions:
+        if p.get("shadow_suppressed_by_router", False):
+            suppressed_count += 1
+            shape = p.get("shape")
+            if shape:
+                suppressed_by_shape[shape] += 1
+            continue
+
+        emitted_total += 1
+        gt_sub = p["ground_truth"]
+        pr_sub = p.get(pred_field) or ""
+        gt_fam = family_for(gt_sub)
+        pr_fam = family_for(pr_sub) if pr_sub else ""
+        if gt_fam != pr_fam or not gt_fam:
+            emitted_cross_family += 1
+
+    # Compute macro F1 on emitted subset
+    tp_emit: dict[str, int] = defaultdict(int)
+    fp_emit: dict[str, int] = defaultdict(int)
+    fn_emit: dict[str, int] = defaultdict(int)
+    support_emit: dict[str, int] = defaultdict(int)
+    for p in predictions:
+        if p.get("shadow_suppressed_by_router", False):
+            continue
+        gt_sub = p["ground_truth"]
+        pr_sub = p.get(pred_field) or ""
+        gt_fam = family_for(gt_sub)
+        pr_fam = family_for(pr_sub) if pr_sub else ""
+        support_emit[gt_fam] += 1
+        if gt_fam == pr_fam and gt_fam:
+            tp_emit[gt_fam] += 1
+        else:
+            fn_emit[gt_fam] += 1
+            if pr_fam:
+                fp_emit[pr_fam] += 1
+
+    f1_sum_emit = 0.0
+    f1_count_emit = 0
+    for fam in sorted(set(support_emit) | set(fp_emit)):
+        if not fam:
+            continue
+        P = tp_emit[fam] / (tp_emit[fam] + fp_emit[fam]) if (tp_emit[fam] + fp_emit[fam]) else 0.0
+        R = tp_emit[fam] / (tp_emit[fam] + fn_emit[fam]) if (tp_emit[fam] + fn_emit[fam]) else 0.0
+        F = 2 * P * R / (P + R) if (P + R) else 0.0
+        if support_emit[fam] > 0:
+            f1_sum_emit += F
+            f1_count_emit += 1
+    family_macro_f1_emitted = round(f1_sum_emit / f1_count_emit, 4) if f1_count_emit else 0.0
+
     return {
+        # legacy fields (unchanged semantics — Sprint 12 audit-trail continuity)
         "cross_family_errors": cross_family,
         "cross_family_rate": round(cross_family / len(predictions), 4) if predictions else 0.0,
         "within_family_mislabels": within_family_mislabel,
         "n_shards": len(predictions),
         "family_macro_f1": round(f1_sum / f1_count, 4) if f1_count else 0.0,
         "per_family": per_family,
+        # Sprint 13: null-aware metrics under the shape gate
+        "cross_family_rate_emitted": round(emitted_cross_family / emitted_total, 4) if emitted_total else 0.0,
+        "family_macro_f1_emitted": family_macro_f1_emitted,
+        "n_shards_emitted": emitted_total,
+        "router_suppressed_count": suppressed_count,
+        "router_suppression_rate": round(suppressed_count / len(predictions), 4) if predictions else 0.0,
+        "suppressed_by_shape": dict(suppressed_by_shape),
     }
 
 
@@ -262,6 +350,14 @@ def _compare_to(current: dict, previous_path: Path) -> dict:
                         cur_tier1.get("family_macro_f1", 0) - prev_tier1.get("family_macro_f1", 0),
                         4,
                     ),
+                    "cross_family_rate_emitted": round(
+                        cur_tier1.get("cross_family_rate_emitted", 0) - prev_tier1.get("cross_family_rate_emitted", 0),
+                        4,
+                    ),
+                    "router_suppression_rate": round(
+                        cur_tier1.get("router_suppression_rate", 0) - prev_tier1.get("router_suppression_rate", 0),
+                        4,
+                    ),
                 }
     return deltas
 
@@ -300,6 +396,23 @@ def _print_report(summary: dict) -> None:
         f"  within_family_mislabels: {shadow_overall['within_family_mislabels']}",
         file=sys.stderr,
     )
+    print(  # noqa: T201
+        f"  cross_family_rate_emitted:  {shadow_overall['cross_family_rate_emitted']:.4f}  "
+        f"(v5 accuracy excl. router-suppressed; {shadow_overall['n_shards_emitted']} shards)",
+        file=sys.stderr,
+    )
+    print(  # noqa: T201
+        f"  family_macro_f1_emitted:    {shadow_overall['family_macro_f1_emitted']:.4f}",
+        file=sys.stderr,
+    )
+    print(  # noqa: T201
+        f"  router_suppression_rate:    {shadow_overall['router_suppression_rate']:.4f}  "
+        f"({shadow_overall['router_suppressed_count']}/{shadow_overall['n_shards']} shards)",
+        file=sys.stderr,
+    )
+    if shadow_overall.get("suppressed_by_shape"):
+        by_shape = ", ".join(f"{k}={v}" for k, v in sorted(shadow_overall["suppressed_by_shape"].items()))
+        print(f"  suppressed by shape:  {by_shape}", file=sys.stderr)  # noqa: T201
     print("", file=sys.stderr)  # noqa: T201
     print(  # noqa: T201
         "Per-family F1 (shadow, sorted ascending — lowest is the constraint):",
