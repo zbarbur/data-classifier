@@ -49,4 +49,15 @@ describe('redact', () => {
   it('throws on unknown strategy', () => {
     expect(() => redact(text, findings, 'unknown')).toThrow();
   });
+
+  it('skips overlapping findings when processed right-to-left', () => {
+    const t = 'aaaXXXbbb';
+    const fs = [
+      { entity_type: 'FIRST', match: { start: 3, end: 6 } },
+      { entity_type: 'SECOND', match: { start: 4, end: 7 } },
+    ];
+    // Sorted descending by start: SECOND (start=4) first, FIRST (start=3) second.
+    // SECOND replaces [4..7); leftBound becomes 4. FIRST ends at 6 > 4 → skip.
+    expect(redact(t, fs, 'type-label')).toBe('aaaX[REDACTED:SECOND]bb');
+  });
 });

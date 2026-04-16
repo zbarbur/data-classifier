@@ -172,7 +172,7 @@ function tieredScore(keyScore, tier, value) {
 
 function valueIsObviouslyNotSecret(value) {
   const v = value.toLowerCase().trim();
-  if (['true', 'false', 'yes', 'no', 'none', 'null'].includes(v)) return true;
+  if (SECRET_SCANNER.configValues.includes(v)) return true;
   if (/^https?:\/\//i.test(value)) return true;
   if (/^\d{4}[-/]\d{2}[-/]\d{2}/.test(value)) return true;
   if (value.includes(' ')) {

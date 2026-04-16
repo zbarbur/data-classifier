@@ -13,9 +13,12 @@ export function redact(text, findings, strategy = 'type-label') {
 
   const sorted = [...findings].sort((a, b) => b.match.start - a.match.start);
   let out = text;
+  let leftBound = Infinity;
   for (const f of sorted) {
+    if (f.match.end > leftBound) continue;
     const replacement = replacementFor(f, strategy);
     out = out.slice(0, f.match.start) + replacement + out.slice(f.match.end);
+    leftBound = f.match.start;
   }
   return out;
 }

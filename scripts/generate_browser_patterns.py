@@ -66,16 +66,20 @@ def load_secret_scanner_config() -> dict:
 
 
 def emit_constants(version: str) -> None:
+    from data_classifier.engines.secret_scanner import _CONFIG_VALUES
+
     cfg = load_secret_scanner_config()
     scoring = cfg.get("scoring", {})
     rel = scoring.get("relative_entropy_thresholds", {})
     tiers = scoring.get("tier_boundaries", {})
+    config_values_sorted = sorted(_CONFIG_VALUES)
     js = f"""// GENERATED - do not edit. Run: npm run generate
 export const PYTHON_LOGIC_VERSION = {json.dumps(version)};
 
 export const SECRET_SCANNER = {{
   minValueLength: {cfg.get("min_value_length", 8)},
   antiIndicators: {json.dumps(cfg.get("anti_indicators", []))},
+  configValues: {json.dumps(config_values_sorted)},
   definitiveMultiplier: {scoring.get("definitive_multiplier", 0.95)},
   strongMinEntropyScore: {scoring.get("strong_min_entropy_score", 0.6)},
   relativeEntropyStrong: {rel.get("strong", 0.5)},
