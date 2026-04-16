@@ -235,6 +235,155 @@ location (`docs/research/multi_label_philosophy.md` on
 
 ---
 
+## §6 — Practical scoping: where softmax shines and what multi-label approaches exist
+
+The multi-label commitment at the column scope (§1) does NOT imply
+softmax is wrong everywhere. This section is the practical companion
+to §1-§5 — without it, future sprints could over-correct away from
+legitimate softmax uses.
+
+### §6.1 — Where softmax is right (and we keep using it)
+
+Softmax is the right primitive when the scope of the decision is
+genuinely "one of K mutually exclusive things." That is not rare; it
+is the norm at narrow scopes.
+
+Five cases where softmax is the honest choice:
+
+1. **Single-class-per-column by construction.** Schema-typed columns
+   (`ssn VARCHAR(11)`, `email_address STRING`) where every non-null
+   value is unambiguously one entity type. Sprint 12's v5 at 0.9943
+   in-distribution macro F1 is exactly this case — it wins cleanly
+   when columns are genuinely single-class.
+
+2. **Per-value classification with mutually-exclusive labels.** Given
+   a single high-entropy string, *is* it API_KEY or SHA_HASH or UUID
+   or BASE64_PAYLOAD? A string is one thing. Sprint 14+ Q8's
+   specialist credential-subtype classifier operates here — exactly
+   the §3 pattern.
+
+3. **Fine-grained sub-classification inside a committed parent.**
+   Once a prompt is multi-label-tagged at the top level
+   (`data_processing`), "which task-type child — `summarize` vs
+   `translate` vs `rewrite`?" is single-label per tag. The
+   prompt-level decision is multi-label; per-tag task-type refinement
+   is single-label.
+
+4. **Well-represented classes + low calibration-sensitivity.** When
+   each class has hundreds of training examples and we care about
+   rank-1 winner rather than absolute probability magnitudes, softmax
+   is honest — its class-competition is matched by the actual
+   decision boundary.
+
+5. **Auditability beats accuracy.** LR over K features is debuggable
+   (feature importances interpret cleanly); multi-label neural nets
+   are not. For production classification flows that legal /
+   compliance teams need to explain, LR-on-narrow-scope beats any
+   fancier multi-label model.
+
+**Net:** softmax is not "wrong" — it is **the right tool at narrow
+single-label scope, and wrong at multi-label column scope**. The
+router architecture routes to it where appropriate (per §3) and
+routes away from it where inappropriate (free-text heterogeneous
+columns → per-value GLiNER, not v5).
+
+### §6.2 — Taxonomy of multi-label approaches
+
+Multi-label approaches span three layers that compose independently:
+output representation, learning approach, architectural pattern.
+
+**Layer 1 — Output representation:**
+
+| Approach | What it does | Honesty |
+|---|---|---|
+| Argmax softmax | One class wins | ❌ false at column scope |
+| Threshold softmax | All classes above T | ⚠️ dishonest — sum=1 couples threshold to K |
+| Sigmoid-per-class | K independent probabilities | ✅ honest |
+| Power set (label combinations) | Treat combinations as classes | ⚠️ combinatorial explosion |
+| List of findings | Structured list output | ✅ honest — what the cascade already does |
+
+**Layer 2 — How to learn multi-label:**
+
+| Approach | Description | Training data needed |
+|---|---|---|
+| Binary Relevance (BR) | K independent binary classifiers, one per class | Multi-label labels |
+| Classifier Chains (CC) | BR + label-order dependency | Multi-label labels |
+| Multi-label neural net | Shared encoder + sigmoid output, binary-cross-entropy loss | Multi-label labels, lots of data |
+| Per-value decomposition | Classify each value single-label, aggregate per column | **Single-label per-value** (what we have) |
+| Embedding + nearest-neighbor | Encode columns, top-K similarity against labeled exemplars | Unlabeled corpus + small gold set |
+
+**Layer 3 — Architectural patterns:**
+
+| Pattern | Description | Our status |
+|---|---|---|
+| Cascade | Ensemble of specialists, each single-label, union output | **Current** — produces `list[Finding]` |
+| Router (Sprint 13) | Heuristic gate → per-branch tool | **Next** — column-shape router |
+| Multi-label meta-classifier | Single trained model, column → multi-label | **Research bet** (Sprint 15+) |
+| Hybrid (router + per-branch multi-label) | Router picks, each branch uses appropriate primitive | **Emerges from Sprint 13** |
+
+### §6.3 — Constraints that shape our practical choices
+
+Four constraints eliminate most of the theoretical menu:
+
+1. **Training data is single-label.** Existing corpora (gitleaks,
+   secretbench, detect_secrets, Gretel-EN, Gretel-finance,
+   openpii-1m, Nemotron) label one entity type per value / row. Pure
+   BR / CC / multi-label-NN at the column level requires multi-label
+   labeling we don't have and haven't committed to building.
+
+2. **Auditability matters for BQ.** Compliance-reviewable output
+   requires interpretable primitives. Multi-label neural nets fail
+   this bar; LR per narrow scope doesn't.
+
+3. **Latency budget is tight (BQ batch workloads).** Per-value
+   decomposition is N× inference cost — known cost, acceptable.
+   Multi-label neural inference adds unknown cost at unknown
+   accuracy lift.
+
+4. **We already have list-output infrastructure.** The cascade
+   produces `list[Finding]`. We should *compose* it with better
+   per-branch tools, not *replace* it with a single monolithic model.
+
+### §6.4 — Practical roadmap
+
+- **Sprint 13 (committed):** router + per-value decomposition
+  (Layer 3 hybrid, Layer 2 per-value decomposition). Uses what we
+  have, produces multi-label output honestly, requires no new
+  training.
+- **Sprint 14 candidate:** specialist classifiers inside router
+  branches (per §3 criteria). v5 already serves `structured_single`;
+  Q8 specialist for `opaque_tokens` if §3 criteria pass on real
+  evidence.
+- **Sprint 15+ research bet:** Binary Relevance sigmoid-per-class
+  meta-classifier (Layer 2 BR) on multi-label-labeled data, **only
+  if** we invest in multi-label labeling infrastructure. Evaluated
+  against router + single-label baseline on multi-label metrics
+  (defined by a future M4 research item). Replaces the router
+  architecture only if it wins on multi-label metrics.
+- **Long-term research (no commitment):** embedding + nearest-
+  neighbor (Layer 2 embedding). Pure research bet — no blocker on
+  short-term roadmap.
+
+### §6.5 — Key design principles
+
+- **Scope the decision before picking the primitive.** Softmax is
+  right at narrow scope; wrong at column scope. The question is never
+  "softmax or multi-label?" in the abstract — it is always "what
+  scope is this decision at?"
+- **Multi-label approaches are orthogonal on three layers.** Output
+  representation, learning approach, and architectural pattern
+  compose independently. A multi-label architecture can use
+  single-label classifiers at narrow scope (what Sprint 13 does).
+- **Our constraints point to the hybrid router pattern, not a
+  monolithic multi-label model.** Sprint 13's architecture is the
+  practical answer to the Sprint 12 structural finding.
+- **Future research bets on "true" multi-label classifiers are
+  real** but gated on (a) multi-label labeling investment and
+  (b) M4 research item defining evaluation metrics. They are NOT
+  required to ship the Sprint 13 architecture.
+
+---
+
 ## Summary
 
 | Claim | Status |
@@ -246,5 +395,8 @@ location (`docs/research/multi_label_philosophy.md` on
 | Specialist classifiers AS the architecture are invalid | **Committed** (§3, §5) |
 | Prompt-analysis branch inherits the same commitment | **Committed** (§4) |
 | Risk engine cross-correlation uses multi-label dimensions | **Implied** (§4) |
+| Softmax is the right primitive at narrow scope | **Committed** (§6.1) |
+| Multi-label approaches span three composable layers | **Documented** (§6.2) |
+| Our constraints point to hybrid router, not monolithic multi-label | **Documented** (§6.3-§6.4) |
 | Retirement YAML pointer fix | **To-do for Sprint 12 close** (§5) |
 | Promotion of this memo to `docs/spec/` | **To-do for Sprint 12 close** (header) |
