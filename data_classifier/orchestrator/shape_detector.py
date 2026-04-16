@@ -1,8 +1,7 @@
 """Column-shape router — routes each column to one of three handlers.
 
-The router inspects the engine-cascade output and column-level
-statistics to decide which downstream handler a column should route
-to:
+The router inspects the post-merge findings and column-level statistics to
+decide which downstream handler a column should route to:
 
   structured_single       — one entity per column (emails, SSNs, phone numbers).
                             Current v5 shadow + 7-pass merge apply.
@@ -11,12 +10,20 @@ to:
   opaque_tokens           — base64 payloads, JWTs, hashes. No dictionary
                             words. Item C handles.
 
+IMPORTANT: ``detect_column_shape`` accepts the **post-merge** findings list
+produced by the orchestrator's authority resolution + suppression passes.
+Passing the raw pre-merge output inflates ``n_cascade_entities`` by engine
+collisions on homogeneous columns (e.g., ABA_ROUTING columns trigger both
+column_name → ABA_ROUTING and regex → SSN+ABA_ROUTING pre-merge; authority
+resolution drops SSN, leaving 1 entity type post-merge). The
+``structured_single`` route's ``n_cascade <= 1`` guard requires the
+post-merge count.
+
 Routing is deterministic and auditable: two content signals
 (``avg_len_normalized``, ``dictionary_word_ratio``) plus the cascade's
 entity-type count, with a narrow column-name tiebreaker band for ambiguous
-middle-ground cases (the tiebreaker lands in Sprint 13 Item A Task 4 — this
-module starts content-signal-only). ``cardinality_ratio`` is carried for
-event emission only and is not consulted in the routing decision.
+middle-ground cases. ``cardinality_ratio`` is carried for event emission
+only and is not consulted in the routing decision.
 Thresholds come from the Sprint 12 safety audit §6 evidence
 (see ``docs/research/meta_classifier/sprint12_safety_audit.md``).
 """
@@ -71,18 +78,37 @@ class ShapeDetection:
 
 def detect_column_shape(
     column: ColumnInput,
-    engine_findings: dict[str, list[ClassificationFinding]],
+    findings: list[ClassificationFinding],
 ) -> ShapeDetection:
-    """Pure column-shape detector. Returns the routing decision and signals."""
+    """Pure column-shape detector. Returns the routing decision and signals.
+
+    ``findings`` MUST be the post-merge, deduped list of findings produced
+    by the orchestrator's authority resolution + suppression passes. Passing
+    the raw pre-merge output would inflate ``n_cascade_entities`` by engine
+    collisions on homogeneous columns (e.g., ABA_ROUTING columns trigger
+    both column_name → ABA_ROUTING and regex → SSN before merge — 2 entity
+    types pre-merge, 1 post-merge). The structured_single route's
+    ``n_cascade <= 1`` guard requires the post-merge count.
+
+    Routing rules (Sprint 12 safety audit §6):
+
+      if avg_len_norm < 0.3 AND n_cascade_entities <= 1:
+          structured_single
+      elif dict_word_ratio >= 0.1:
+          free_text_heterogeneous
+      else:
+          opaque_tokens
+
+    With the column-name tiebreaker (Sprint 13 scoping Q1): when content
+    signals land in the ambiguous middle band, consult column_name for
+    a low-weight hint. Content remains authoritative outside the band.
+    """
     values = column.sample_values
     avg_len = compute_avg_length_normalized(values)
     dict_ratio = compute_dictionary_word_ratio(values)
     cardinality = compute_cardinality_ratio(values)
 
-    distinct_entities: set[str] = set()
-    for findings in engine_findings.values():
-        for f in findings:
-            distinct_entities.add(f.entity_type)
+    distinct_entities = {f.entity_type for f in findings}
     n_cascade = len(distinct_entities)
 
     # Content-signal routing (authoritative).

@@ -744,7 +744,7 @@ def _audit_single_fixture(
     # happen on columns where v5 is never consulted.
     from data_classifier.orchestrator.shape_detector import detect_column_shape
 
-    shape_detection = detect_column_shape(column, engine_findings)
+    shape_detection = detect_column_shape(column, list(live_findings))
     if shape_detection.shape != "structured_single":
         return {
             "fixture": name,

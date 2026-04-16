@@ -27,8 +27,7 @@ def test_structured_single_short_values_one_entity():
         column_name="email",
         sample_values=["alice@ex.com", "bob@ex.org", "carol@site.co"] * 4,
     )
-    engine_findings = {"regex": [_finding("EMAIL")]}
-    result = detect_column_shape(column, engine_findings)
+    result = detect_column_shape(column, [_finding("EMAIL")])
     assert result.shape == "structured_single"
     assert result.avg_len_normalized < 0.3
     assert result.n_cascade_entities == 1
@@ -44,10 +43,7 @@ def test_free_text_heterogeneous_long_values_many_entities():
         column_name="log_line",
         sample_values=[log_line] * 10,
     )
-    engine_findings = {
-        "regex": [_finding("EMAIL"), _finding("IP_ADDRESS"), _finding("DATE_TIME")],
-    }
-    result = detect_column_shape(column, engine_findings)
+    result = detect_column_shape(column, [_finding("EMAIL"), _finding("IP_ADDRESS"), _finding("DATE_TIME")])
     assert result.shape == "free_text_heterogeneous"
     assert result.avg_len_normalized >= 0.3
     assert result.dict_word_ratio >= 0.1
@@ -65,8 +61,7 @@ def test_opaque_tokens_no_dictionary_words():
         ]
         * 5,
     )
-    engine_findings = {"regex": []}
-    result = detect_column_shape(column, engine_findings)
+    result = detect_column_shape(column, [])
     assert result.shape == "opaque_tokens"
     assert result.dict_word_ratio < 0.1
 
@@ -75,7 +70,7 @@ def test_empty_sample_values_defaults_to_structured_single():
     from data_classifier.orchestrator.shape_detector import detect_column_shape
 
     column = ColumnInput(column_id="col_1", column_name="unknown", sample_values=[])
-    result = detect_column_shape(column, {})
+    result = detect_column_shape(column, [])
     assert result.shape == "structured_single"
     assert result.avg_len_normalized == 0.0
 
@@ -92,10 +87,7 @@ def test_short_values_multiple_entities_routes_to_opaque():
         column_name="token",
         sample_values=["a1b2c3d4", "e5f6g7h8", "i9j0k1l2"] * 4,
     )
-    engine_findings = {
-        "regex": [_finding("EMAIL"), _finding("PHONE")],
-    }
-    result = detect_column_shape(column, engine_findings)
+    result = detect_column_shape(column, [_finding("EMAIL"), _finding("PHONE")])
     assert result.avg_len_normalized < 0.3
     assert result.n_cascade_entities == 2
     assert result.dict_word_ratio < 0.1
@@ -114,7 +106,7 @@ def test_long_values_zero_entities_opaque_tokens():
         column_name="hash",
         sample_values=["a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0" * 2] * 10,
     )
-    result = detect_column_shape(column, {})
+    result = detect_column_shape(column, [])
     assert result.avg_len_normalized >= 0.3
     assert result.n_cascade_entities == 0
     assert result.dict_word_ratio < 0.1
@@ -138,7 +130,7 @@ def test_ambiguous_middle_band_column_name_points_to_hetero():
         column_name="log_line",  # known heterogeneous hint
         sample_values=_TIEBREAKER_WITH_DICT_WORD,
     )
-    result = detect_column_shape(column, {"regex": []})
+    result = detect_column_shape(column, [])
     assert 0.3 <= result.avg_len_normalized <= 0.45
     assert 0.05 <= result.dict_word_ratio <= 0.15
     assert result.shape == "free_text_heterogeneous"
@@ -154,7 +146,7 @@ def test_ambiguous_middle_band_column_name_points_to_structured():
         column_name="email",  # known structured hint
         sample_values=_TIEBREAKER_WITH_DICT_WORD,
     )
-    result = detect_column_shape(column, {"regex": []})
+    result = detect_column_shape(column, [])
     assert 0.3 <= result.avg_len_normalized <= 0.45
     assert 0.05 <= result.dict_word_ratio <= 0.15
     assert result.shape == "structured_single"
@@ -170,8 +162,7 @@ def test_unambiguous_signal_ignores_column_name_hint():
         column_name="log_line",  # misleading column name
         sample_values=["alice@ex.com", "bob@ex.org"] * 5,  # strong structured signal
     )
-    engine_findings = {"regex": [_finding("EMAIL")]}
-    result = detect_column_shape(column, engine_findings)
+    result = detect_column_shape(column, [_finding("EMAIL")])
     assert result.shape == "structured_single"
     assert result.column_name_hint_applied is False  # content decisive — hint didn't fire
 
@@ -193,7 +184,7 @@ def test_tiebreaker_does_not_override_content_authoritative_heterogeneous():
         column_name="email",  # structured hint — must NOT override
         sample_values=values,
     )
-    result = detect_column_shape(column, {})
+    result = detect_column_shape(column, [])
     assert result.dict_word_ratio >= 0.1  # content-authoritative zone
     assert result.shape == "free_text_heterogeneous"
     assert result.column_name_hint_applied is False
@@ -217,8 +208,7 @@ def test_structured_tiebreaker_requires_n_cascade_le_1():
         sample_values=values,
     )
     # Two cascade entities — structured_single shouldn't apply
-    engine_findings = {"regex": [_finding("EMAIL"), _finding("PHONE")]}
-    result = detect_column_shape(column, engine_findings)
+    result = detect_column_shape(column, [_finding("EMAIL"), _finding("PHONE")])
     assert result.n_cascade_entities == 2
     # Tiebreaker's structured branch refused to fire → shape is whatever content decided
     # (opaque_tokens per the else branch), NOT structured_single
@@ -253,13 +243,13 @@ def test_q3_heterogeneous_fixtures_route_away_from_structured(fixture_name: str,
         column_name=fixture_name,
         sample_values=samples,
     )
-    # For this integration-lite test we pass an empty engine_findings
-    # dict — the content signals (avg_len + dict_word_ratio) alone must
+    # For this integration-lite test we pass an empty findings list —
+    # the content signals (avg_len + dict_word_ratio) alone must
     # correctly classify heterogeneous shapes away from structured_single.
-    # When the full orchestrator path runs, engine_findings will be
-    # populated; the test here verifies the detector's robustness under
+    # When the full orchestrator path runs, post-merge findings will be
+    # passed; the test here verifies the detector's robustness under
     # the worst case (no cascade signal).
-    result = detect_column_shape(column, {})
+    result = detect_column_shape(column, [])
     assert result.shape == expected_shape, (
         f"{fixture_name}: expected {expected_shape}, got {result.shape} "
         f"(avg_len={result.avg_len_normalized:.3f}, "
@@ -277,7 +267,7 @@ def test_q3_base64_fixture_routes_to_opaque_tokens() -> None:
         column_name="jwt_payload",
         sample_values=samples,
     )
-    result = detect_column_shape(column, {})
+    result = detect_column_shape(column, [])
     assert result.shape == "opaque_tokens"
 
 
@@ -327,7 +317,7 @@ def test_homogeneous_and_opaque_fixtures(fixture_values: list[str], column_name:
         column_name=column_name,
         sample_values=fixture_values,
     )
-    result = detect_column_shape(column, {})
+    result = detect_column_shape(column, [])
     assert result.shape == expected_shape, (
         f"{column_name}: expected {expected_shape}, got {result.shape} "
         f"(avg_len={result.avg_len_normalized:.3f}, "

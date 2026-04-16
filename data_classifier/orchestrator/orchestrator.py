@@ -309,19 +309,6 @@ class Orchestrator:
 
         total_ms = (time.monotonic() - t_start) * 1000
 
-        # ── Sprint 13 Item A: column-shape detection ──────────────────────
-        # Deterministic routing on structural shape. Detects AFTER the
-        # cascade populates engine_findings (needs the entity-type count)
-        # but BEFORE post-processing merges so the shape decision can gate
-        # downstream behavior (specifically: whether to emit the v5 shadow
-        # prediction, which is documented to collapse on non-structured
-        # shapes per the Sprint 12 safety audit §3).
-        try:
-            shape_detection = detect_column_shape(column, engine_findings)
-        except Exception:
-            logger.debug("Shape detection failed; defaulting to structured_single behavior", exc_info=True)
-            shape_detection = None
-
         # Post-processing merges run on ALL shapes — deterministic dedup +
         # FP suppression is valuable regardless of shape. Only the v5
         # shadow emission below is gated by the detected shape.
@@ -341,6 +328,20 @@ class Orchestrator:
 
         # Emit classification event
         result = list(all_findings.values())
+
+        # ── Sprint 13 Item A: column-shape detection ──────────────────────
+        # Runs AFTER the merge passes so n_cascade_entities reflects the
+        # deduped/resolved entity types, not the noisy pre-merge count that
+        # is inflated by engine collisions on homogeneous columns (e.g., an
+        # ABA_ROUTING column triggers both column_name_engine → ABA_ROUTING
+        # and regex_engine → SSN pre-merge — authority resolution drops SSN,
+        # leaving 1 entity type post-merge). The structured_single route's
+        # n_cascade <= 1 guard requires the post-merge count.
+        try:
+            shape_detection = detect_column_shape(column, result)
+        except Exception:
+            logger.debug("Shape detection failed; defaulting to structured_single behavior", exc_info=True)
+            shape_detection = None
         self.emitter.emit(
             ClassificationEvent(
                 column_id=column.column_id,
