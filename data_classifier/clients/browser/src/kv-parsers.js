@@ -74,11 +74,21 @@ function pushJsonPair(out, key, value, text, state) {
 }
 
 function findValueOffset(text, value, from) {
-  const quoted = `"${value}"`;
-  const qIdx = text.indexOf(quoted, from);
+  // JSON-encode the value to get the on-wire representation that matches
+  // the raw text, handling escape sequences (\\, \", \n, \uXXXX, etc.).
+  // This is correct for all string values in JSON (always quoted).
+  const encoded = JSON.stringify(value);
+  const qIdx = text.indexOf(encoded, from);
   if (qIdx >= 0) {
-    return { valueStart: qIdx + 1, valueEnd: qIdx + 1 + value.length };
+    // encoded starts with '"' and ends with '"'. The value span is between.
+    // valueEnd points at the closing quote (exclusive) so that
+    // text.slice(valueStart, valueEnd) yields the on-wire body; the
+    // downstream consumer is responsible for interpreting escapes (or for
+    // redaction, replacing the quoted span is sufficient).
+    return { valueStart: qIdx + 1, valueEnd: qIdx + encoded.length - 1 };
   }
+  // Fallback: bare search for non-string JSON primitives (numbers, booleans).
+  // The generator coerces these via String(value); their on-wire form matches.
   const bare = text.indexOf(value, from);
   if (bare >= 0) {
     return { valueStart: bare, valueEnd: bare + value.length };
@@ -120,7 +130,9 @@ function parseCodeLiterals(text) {
     const value = m[2] !== undefined ? m[2] : m[3] !== undefined ? m[3] : '';
     if (!value) continue;
     const quoteChar = m[2] !== undefined ? '"' : "'";
-    const quoteOpen = m.index + m[0].lastIndexOf(quoteChar, m[0].length - value.length - 1);
+    // First quoteChar in m[0] is the opening quote: keys are identifiers
+    // (no quotes) and operators (:=, :, =) contain no quotes.
+    const quoteOpen = m.index + m[0].indexOf(quoteChar);
     const valueStart = quoteOpen + 1;
     const valueEnd = valueStart + value.length;
     out.push({ key, value, valueStart, valueEnd });

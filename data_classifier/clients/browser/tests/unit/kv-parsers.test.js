@@ -15,7 +15,8 @@ describe('parseKeyValues — JSON', () => {
       ['api_key', 'ghp_abc123'],
       ['port', '8080'],
     ]);
-    assertOffsets(text, out.filter((p) => p.key === 'api_key'));
+    // Covers both the quoted-string path ('api_key') and the number path ('port')
+    assertOffsets(text, out);
   });
 
   it('flattens nested dicts with dotted keys', () => {
@@ -28,6 +29,28 @@ describe('parseKeyValues — JSON', () => {
   it('returns empty on non-object JSON', () => {
     expect(parseKeyValues('[1,2,3]')).toEqual([]);
     expect(parseKeyValues('"hello"')).toEqual([]);
+  });
+
+  it('handles JSON values with escaped quotes (offsets point to the raw escaped span)', () => {
+    const text = '{"token": "abc\\"def"}';
+    const out = parseKeyValues(text);
+    expect(out.length).toBe(1);
+    expect(out[0].key).toBe('token');
+    expect(out[0].value).toBe('abc"def');
+    // Offsets bracket the raw escaped form (abc\"def) so redaction replaces
+    // the whole on-wire span, not the decoded one.
+    const raw = text.slice(out[0].valueStart, out[0].valueEnd);
+    expect(raw).toBe('abc\\"def');
+  });
+
+  it('handles JSON values with backslashes (Windows paths, etc.)', () => {
+    const text = '{"path": "C:\\\\Users\\\\secret"}';
+    const out = parseKeyValues(text);
+    expect(out.length).toBe(1);
+    expect(out[0].key).toBe('path');
+    expect(out[0].value).toBe('C:\\Users\\secret');
+    const raw = text.slice(out[0].valueStart, out[0].valueEnd);
+    expect(raw).toBe('C:\\\\Users\\\\secret');
   });
 });
 
