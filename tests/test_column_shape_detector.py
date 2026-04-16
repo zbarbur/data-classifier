@@ -1,4 +1,9 @@
+import pytest
+
 from data_classifier.core.types import ClassificationFinding, ColumnInput
+from tests.benchmarks.meta_classifier.sprint12_safety_audit import (
+    _build_heterogeneous_fixtures,
+)
 
 
 def _finding(entity_type: str) -> ClassificationFinding:
@@ -219,3 +224,112 @@ def test_structured_tiebreaker_requires_n_cascade_le_1():
     # (opaque_tokens per the else branch), NOT structured_single
     assert result.shape != "structured_single"
     assert result.column_name_hint_applied is False
+
+
+# ── Sprint 13 Item A acceptance-criteria fixtures ──────────────────────────
+# Test suite covering all 3 shapes: 6 heterogeneous from the Sprint 12
+# safety audit (the exact fixtures that made Q3 verdict RED), plus
+# 4 homogeneous structured, plus 2 opaque-token shapes.
+
+
+@pytest.mark.parametrize(
+    "fixture_name,expected_shape",
+    [
+        # Heterogeneous fixtures from Sprint 12 safety audit §3:
+        ("original_q3_log", "free_text_heterogeneous"),
+        ("apache_access_log", "free_text_heterogeneous"),
+        ("json_event_log", "free_text_heterogeneous"),
+        ("support_chat_messages", "free_text_heterogeneous"),
+        ("kafka_event_stream", "free_text_heterogeneous"),
+    ],
+)
+def test_q3_heterogeneous_fixtures_route_away_from_structured(fixture_name: str, expected_shape: str) -> None:
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    fixtures = _build_heterogeneous_fixtures()
+    samples = fixtures[fixture_name]
+    column = ColumnInput(
+        column_id=fixture_name,
+        column_name=fixture_name,
+        sample_values=samples,
+    )
+    # For this integration-lite test we pass an empty engine_findings
+    # dict — the content signals (avg_len + dict_word_ratio) alone must
+    # correctly classify heterogeneous shapes away from structured_single.
+    # When the full orchestrator path runs, engine_findings will be
+    # populated; the test here verifies the detector's robustness under
+    # the worst case (no cascade signal).
+    result = detect_column_shape(column, {})
+    assert result.shape == expected_shape, (
+        f"{fixture_name}: expected {expected_shape}, got {result.shape} "
+        f"(avg_len={result.avg_len_normalized:.3f}, "
+        f"dict_word={result.dict_word_ratio:.3f})"
+    )
+
+
+def test_q3_base64_fixture_routes_to_opaque_tokens() -> None:
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    fixtures = _build_heterogeneous_fixtures()
+    samples = fixtures["base64_encoded_payloads"]
+    column = ColumnInput(
+        column_id="base64_encoded_payloads",
+        column_name="jwt_payload",
+        sample_values=samples,
+    )
+    result = detect_column_shape(column, {})
+    assert result.shape == "opaque_tokens"
+
+
+@pytest.mark.parametrize(
+    "fixture_values,column_name,expected_shape",
+    [
+        # Homogeneous structured fixtures:
+        (
+            ["alice@example.com", "bob@example.org", "carol@test.io"] * 4,
+            "email",
+            "structured_single",
+        ),
+        (
+            ["123-45-6789", "987-65-4321", "555-44-3322"] * 4,
+            "ssn",
+            "structured_single",
+        ),
+        (
+            ["4111111111111111", "5555555555554444", "3782822463100051"] * 4,
+            "credit_card",
+            "structured_single",
+        ),
+        (
+            ["+1-555-123-4567", "+44 20 7946 0958", "+1 (415) 555-0199"] * 4,
+            "phone",
+            "structured_single",
+        ),
+        # Additional opaque-token fixture: SHA-256 hex hashes (no dictionary
+        # words, high entropy, not base64).
+        (
+            [
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+                "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9",
+            ]
+            * 4,
+            "digest",
+            "opaque_tokens",
+        ),
+    ],
+)
+def test_homogeneous_and_opaque_fixtures(fixture_values: list[str], column_name: str, expected_shape: str) -> None:
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    column = ColumnInput(
+        column_id=column_name,
+        column_name=column_name,
+        sample_values=fixture_values,
+    )
+    result = detect_column_shape(column, {})
+    assert result.shape == expected_shape, (
+        f"{column_name}: expected {expected_shape}, got {result.shape} "
+        f"(avg_len={result.avg_len_normalized:.3f}, "
+        f"dict_word={result.dict_word_ratio:.3f})"
+    )
