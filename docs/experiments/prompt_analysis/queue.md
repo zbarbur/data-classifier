@@ -176,11 +176,196 @@ gold set from Stage 3 stays as eval.
 
 ---
 
+## Secret detection track
+
+The first prompt-analysis client (a Chrome extension over ChatGPT,
+scoped 2026-04-16) needs single-purpose secret detection on submitted
+prompts, running entirely client-side. This track scopes the research
+and feasibility work for that delivery.
+
+The track is parallel to (and shorter than) the Intent readiness track.
+It reuses `secret_scanner` + `regex_engine` already on `main`, and
+focuses on browser-port feasibility, prompt-corpus evaluation, and
+pattern-set expansion. No taxonomy decisions; no labeled-data
+infrastructure.
+
+### Architectural commitments
+
+- **PoC location**: `data_classifier/clients/browser/` on `main`. The
+  Python wheel excludes that path; the JS package does not depend on
+  Python at runtime.
+- **Patterns are a shared asset on `main`** — single source of truth
+  for Python and JS consumers. JS pattern dict is generated from the
+  Python JSON via a build script. No fork.
+- **`secret_scanner` is built for structured content** (`key: value`
+  pairs in JSON / YAML / env / code). For free-form prose without
+  structure, only `regex_engine` patterns fire. This shapes prompt-side
+  expectations.
+- **CREDENTIAL family is API_KEY (35), PRIVATE_KEY (1), PASSWORD_HASH
+  (4), OPAQUE_SECRET (1) — no plaintext PASSWORD subtype.** Documented
+  for clarity; gap addressed by the out-of-scope note below.
+- **ReDoS defense via Web Worker terminate, not pattern audit-as-gate.**
+  Static `recheck` audit runs and informs optimization priority but
+  does not block patterns from shipping. Justification: in a browser
+  extension over user-owned input, ReDoS is a UX problem, not a
+  security one — the worker terminate is the real defense.
+- **Regex engine: JS-native for Stage 1, re2-wasm for Stage 2.** Both
+  committed; only the migration trigger is open. JS regex ships first
+  because the toolchain is lighter and the PoC unblocks the client
+  conversation faster. re2-wasm is the planned destination because
+  pattern-audit cost is linear in pattern count while re2-wasm bundle
+  cost is fixed (~80KB), and re2-wasm gives byte-identical semantics
+  with the Python library forever (the differential test passes on
+  regex semantics by construction). See Stage S4 for migration triggers.
+- **Worker pool architecture** (size 2, lazy init, eager respawn,
+  MV3-lifecycle-aware). Chosen over spawn-per-scan because forward
+  compatibility with future ML-backed engines (intent / zone / risk)
+  requires "load model once per worker, reuse forever" — spawn-per-scan
+  defeats that.
+- **Fail-open default on scan timeout, configurable to fail-closed.**
+  Configurable kill budget; default 100ms pending S2 measurement.
+- **Pattern source policy**: trufflehog (AGPL-3.0) is **excluded** from
+  any mining. Bridge gaps via secretlint (MIT, JS-native), detect-
+  secrets (Apache 2.0), provider documentation, and RFCs/specs.
+  Provenance is per-pattern (source, license_clearance, pulled date,
+  validator) in `docs/process/CREDENTIAL_PATTERN_SOURCES.md`,
+  CI-enforced.
+
+### Stage S0 — Prevalence scan on WildChat-1M
+
+- **Status:** 🟡 unblocked — can start immediately, zero dependencies
+- **Blocks:** S1; informs the client product conversation
+- **Effort:** ~½ day
+
+Run the existing Python `secret_scanner` + `regex_engine` over the
+WildChat-1M user-message column. Output:
+
+- Prevalence rate by entity type (hit count / total prompts)
+- Hit distribution histograms
+- Hand-audit ~50 random hits for FP estimate
+- Top-K most-fired patterns
+- Captured examples (XOR-encoded per the fixture rule)
+
+This is the first real-world data on prompt-secret leakage rate. The
+number reframes the product conversation — "1 in 100K" is a different
+product than "1 in 100". Doubles as the seed for the differential-test
+corpus committed under `clients/browser/tester/corpus/`.
+
+Output location: `docs/experiments/prompt_analysis/s0_wildchat_prevalence.md`.
+
+### Stage S1 — Pattern gap audit
+
+- **Status:** ⏸ blocked on S0
+- **Blocks:** S3 (informs prioritization)
+- **Effort:** ~1 day
+
+Compare S0's hit distribution against the gap inventory:
+
+| Gap area | Examples |
+|---|---|
+| Modern LLM provider keys | Anthropic, Gemini, Mistral, Perplexity, Cohere, Together, Replicate, Groq |
+| Crypto beyond BTC/ETH | Solana, Polkadot, Cosmos, TRON, Litecoin |
+| Cloud DB connection strings | Supabase, Neon, PlanetScale, MongoDB Atlas SRV, Upstash |
+| Modern webhook tokens | Discord, Teams, Zapier, n8n |
+| Mobile / CI tokens | Firebase service-account JSON, App Store Connect, CircleCI personal, Bitrise |
+| Auth token formats | PASETO v3/v4, Branca, biscuit |
+
+Output: a backlog item filed on `main` for Sprint 14 with prioritized
+targets, estimated source per target (provider-doc / secretlint /
+detect-secrets / spec), and rough effort estimate.
+
+### Stage S2 — Browser-port feasibility spike
+
+- **Status:** 🟡 unblocked — can start in parallel with S0
+- **Blocks:** the PoC build itself (separate sprint item, post-spike)
+- **Effort:** ~1 day
+
+Three measurements in headless Chrome via Playwright:
+
+1. **JS regex perf benchmark** — all 178 current patterns over a
+   WildChat sample. Report P50/P95/P99/max scan latency, throughput,
+   bundle parse time, memory delta.
+2. **ReDoS audit** — all 178 patterns through `recheck`. Categorize
+   by severity (exponential / polynomial / safe). No gate, just data.
+3. **Bundle size estimate** — pattern dict + entropy + validators,
+   minified + gzipped. Target <200KB.
+
+Output: go/no-go on Path 1 (audited JS regex) vs Path 2 (re2-wasm)
+for the PoC. If worst-case scan stays under the worker kill budget,
+Path 1 ships; otherwise Path 2.
+
+Output location: `docs/experiments/prompt_analysis/s2_browser_port_spike.md`.
+
+### Stage S3 — Pattern expansion mine (filed on `main`, Sprint 14 candidate)
+
+- **Status:** ⏸ blocked on S1
+- **Effort:** 5-7 days; sibling of the Sprint 10 Kingfisher mine
+
+Mine secretlint (MIT, JS-native) + detect-secrets (Apache 2.0) +
+provider documentation + RFCs/specs for the gap set from S1. Refresh
+existing mines (gitleaks / Kingfisher / Nosey Parker) since Sprint 10.
+
+Update `CREDENTIAL_PATTERN_SOURCES.md` schema to require per-pattern
+provenance fields (source URL, source_type, license_clearance, pulled
+date, validator). CI enforces presence of all five fields per new
+pattern.
+
+Lives on `main` because patterns are a shared asset across both
+research branches and both consumers (BQ-connector + browser
+extension).
+
+### Stage S4 — Migrate JS regex engine to re2-wasm (planned, trigger-driven)
+
+- **Status:** ⏸ planned — pre-committed direction, deferred execution
+- **Effort:** 1-2 weeks when triggered
+
+The PoC ships on JS regex (Stage 1 engine). Migration to re2-wasm is
+the planned long-term destination, not a fallback. Triggers (any one
+fires the migration sprint item):
+
+- **Pattern count crosses ~250-300** — audit cost outgrows audit value
+  at this scale (current 178 + S3 expansion 40-70 = ~220-250 lands us
+  near the threshold).
+- **First confirmed ReDoS escape in production** — telemetry catches a
+  scan that exceeded the worker kill budget, root-caused to a
+  pattern-audit miss.
+- **Forward-need from another engine** — any new engine (intent /
+  zone / risk) needs multi-pattern scanning at scale, where re2's
+  set-matching beats JS regex.
+- **Differential test divergence** — JS regex semantics drift from
+  Python on a corner case that's expensive to patch in pattern code.
+
+Migration scope:
+
+- Replace JS `RegExp.exec` calls with re2-wasm bindings; pattern dict
+  format unchanged (already JSON, RE2-syntax compatible since Python
+  uses RE2).
+- Recompile pattern set at extension init (~10ms one-time cost,
+  amortized across the session).
+- Re-run differential test; expect zero behavior change on regex
+  semantics (the validators + entropy paths are unchanged).
+- Bundle size: +~80KB fixed (re2-wasm binary).
+
+Lives on this branch as a planned milestone; gets a `main` sprint
+item when the trigger fires.
+
+### Out of scope
+
+- **Plaintext-prose password detection** ("my password is hunter2") —
+  deferred per 2026-04-16 client conversation. Future layer
+  (NL-context classifier, separate from regex/entropy) if/when added.
+  Consciously not addressed by this track.
+- **All non-secret detection** (intent classification, zone
+  segmentation, risk scoring) — owned by the Intent readiness track
+  and future tracks. Not in scope for the first client.
+
+---
+
 ## Other tracks
 
-Empty for now. Zone segmentation research, risk engine research, and
-behavioral signal integration research will be added as separate tracks
-if/when they become active.
+Zone segmentation research, risk engine research, and behavioral
+signal integration research will be added as separate tracks if/when
+they become active.
 
 ---
 
