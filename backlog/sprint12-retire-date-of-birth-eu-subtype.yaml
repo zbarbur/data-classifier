@@ -1,10 +1,10 @@
 title: 'Sprint 12: Retire DATE_OF_BIRTH_EU subtype (taxonomy cleanup)'
-status: doing
+status: done
 priority: P2
 category: chore
 sprint_target: 12
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-16
 depends_on: []
 tags:
 - sprint12
@@ -66,9 +66,26 @@ notes: 'This is a taxonomy simplification, not a feature-engineering item.
 
   taxonomy cleanups.
 
+
+  Landed in Sprint 12 with Option B: emission path fully retired but a
+
+  narrow DATE_OF_BIRTH_EU -> DATE alias is kept in ENTITY_TYPE_TO_FAMILY
+
+  to preserve family-metric coherence on residual meta-classifier v3
+
+  shadow predictions. The "retrain meta-classifier" line in technical_specs
+
+  above was based on an incorrect assumption that class-count reduction is
+
+  schema-stable — PRIMARY_ENTITY_TYPES is the input schema, and changing
+
+  it invalidates the v3 artifact. The proper v4 retrain is filed as
+
+  sprint13-meta-classifier-v4-retrain-drop-dob-eu.
+
   '
-phase: plan
-design_reviewed: false
-code_reviewed: false
+phase: done
+design_reviewed: true
+code_reviewed: true
 comments: []
 images: []

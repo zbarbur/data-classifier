@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import typing
 from dataclasses import dataclass
+from pathlib import Path
 
 import re2
 
@@ -30,6 +31,7 @@ from data_classifier.core.types import (
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.engines.validators import VALIDATORS
 from data_classifier.patterns import ContentPattern, load_default_patterns
+from data_classifier.patterns._decoder import decode_encoded_strings
 
 logger = logging.getLogger(__name__)
 
@@ -93,16 +95,26 @@ def _compute_sample_confidence(base_confidence: float, matches: int, validated: 
 # ── Stopword / Allowlist / Context ──────────────────────────────────────────
 
 
-def _load_global_stopwords() -> set[str]:
-    """Load global stopwords from stopwords.json (known placeholder values)."""
-    import json
-    from pathlib import Path
+_GLOBAL_STOPWORDS_FILE: Path = Path(__file__).parent.parent / "patterns" / "stopwords.json"
 
-    stopwords_file = Path(__file__).parent.parent / "patterns" / "stopwords.json"
-    if stopwords_file.exists():
-        with open(stopwords_file) as f:
+
+def _load_global_stopwords() -> set[str]:
+    """Load global stopwords from stopwords.json (known placeholder values).
+
+    Entries may use the optional ``xor:`` / ``b64:`` encoding prefixes
+    handled by :func:`data_classifier.patterns._decoder.decode_encoded_strings`
+    so credential-shaped placeholder values (Stripe docs test keys,
+    PAT placeholders) can live in the file without tripping GitHub
+    push-protection on commit. Decoding happens before the
+    case-fold so the base64 body is never lowercased.
+    """
+    import json
+
+    if _GLOBAL_STOPWORDS_FILE.exists():
+        with open(_GLOBAL_STOPWORDS_FILE) as f:
             data = json.load(f)
-        return {s.lower() for s in data.get("stopwords", [])}
+        decoded = decode_encoded_strings(data.get("stopwords", []))
+        return {s.lower() for s in decoded}
     return set()
 
 

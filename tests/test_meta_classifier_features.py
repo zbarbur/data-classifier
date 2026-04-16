@@ -20,9 +20,11 @@ from data_classifier.orchestrator.meta_classifier import (
 
 # Sprint 11 Phase 2: schema widened from 15 → 46 (15 base + 31 primary_entity_type one-hot).
 # Sprint 11 Phase 7: added heuristic_dictionary_word_ratio at index 46 (total 47, schema v3).
+# Sprint 12 Item #1: added validator_rejected_credential_ratio at index 47 (total 48, schema v4).
+# Sprint 12 Item #2: added has_dictionary_name_match_ratio at index 48 (total 49, schema v5).
 _BASE_DIM = 15
 _ONE_HOT_DIM = len(PRIMARY_ENTITY_TYPES)
-_EXTRA_DIM = 1  # heuristic_dictionary_word_ratio
+_EXTRA_DIM = 3  # dict_word_ratio, validator_rejected_credential_ratio, has_dictionary_name_match_ratio
 _EXPECTED_DIM = _BASE_DIM + _ONE_HOT_DIM + _EXTRA_DIM
 
 
@@ -75,8 +77,8 @@ def test_feature_dim_matches_names():
     assert FEATURE_DIM == len(FEATURE_NAMES) == _EXPECTED_DIM
 
 
-def test_feature_schema_version_is_v3():
-    assert FEATURE_SCHEMA_VERSION == 3
+def test_feature_schema_version_is_v5():
+    assert FEATURE_SCHEMA_VERSION == 5
 
 
 def test_base_feature_names_order_stable():
@@ -167,13 +169,15 @@ def test_single_regex_finding_fills_correct_slots():
     assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
 
 
-def test_heuristic_dictionary_word_ratio_is_appended_at_schema_tail():
+def test_heuristic_dictionary_word_ratio_is_appended_in_extras():
     # Sprint 11 Phase 7: the dict-word-ratio feature sits at index 46,
-    # after the base (0-14) and one-hot (15-45) sections.
+    # the first extra after the base (0-14) and one-hot (15-45) sections.
+    # Sprint 12 Item #1 appended validator_rejected_credential_ratio at
+    # index 47, so dict-word-ratio is now the second-to-last slot.
     dict_ratio = 0.42
     features = extract_features([], heuristic_dictionary_word_ratio=dict_ratio)
-    # The last slot is the extra.
-    assert features[-1] == dict_ratio
+    # First extra slot (index 46) holds the dict-word-ratio.
+    assert features[_BASE_DIM + _ONE_HOT_DIM] == dict_ratio
     # Base + one-hot are unchanged (base is zero, one-hot is UNKNOWN).
     assert all(v == 0.0 for v in features[:_BASE_DIM])
     assert features[_one_hot_index("UNKNOWN")] == 1.0
@@ -182,7 +186,68 @@ def test_heuristic_dictionary_word_ratio_is_appended_at_schema_tail():
 
 def test_heuristic_dictionary_word_ratio_defaults_to_zero():
     features = extract_features([])
+    assert features[_BASE_DIM + _ONE_HOT_DIM] == 0.0
+
+
+def test_validator_rejected_credential_ratio_is_appended_in_extras():
+    # Sprint 12 Item #1: validator-rejection ratio sits at index 47, the
+    # second extra after dict-word-ratio at 46. Sprint 12 Item #2 then
+    # appended has_dictionary_name_match_ratio at index 48, so the
+    # validator slot is now the middle extra, not the tail.
+    rejection_ratio = 0.73
+    features = extract_features([], validator_rejected_credential_ratio=rejection_ratio)
+    # Second extra slot (index 47) holds the validator rejection ratio.
+    assert features[_BASE_DIM + _ONE_HOT_DIM + 1] == rejection_ratio
+    # Base + one-hot are unchanged (base is zero, one-hot is UNKNOWN).
+    assert all(v == 0.0 for v in features[:_BASE_DIM])
+    assert features[_one_hot_index("UNKNOWN")] == 1.0
+    assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
+    # Dict-word-ratio slot (46) and name-match slot (48) are still their
+    # default zero.
+    assert features[_BASE_DIM + _ONE_HOT_DIM] == 0.0
     assert features[-1] == 0.0
+
+
+def test_validator_rejected_credential_ratio_defaults_to_zero():
+    features = extract_features([])
+    assert features[_BASE_DIM + _ONE_HOT_DIM + 1] == 0.0
+
+
+def test_has_dictionary_name_match_ratio_is_appended_at_schema_tail():
+    # Sprint 12 Item #2: the name-match ratio is the NEW tail slot at
+    # index 48 (after dict-word-ratio at 46 and validator-rejection at 47).
+    name_ratio = 0.65
+    features = extract_features([], has_dictionary_name_match_ratio=name_ratio)
+    # The last slot is the new extra.
+    assert features[-1] == name_ratio
+    # Base + one-hot are unchanged (base is zero, one-hot is UNKNOWN).
+    assert all(v == 0.0 for v in features[:_BASE_DIM])
+    assert features[_one_hot_index("UNKNOWN")] == 1.0
+    assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
+    # The two previous extras (46 and 47) are still their default zero.
+    assert features[_BASE_DIM + _ONE_HOT_DIM] == 0.0
+    assert features[_BASE_DIM + _ONE_HOT_DIM + 1] == 0.0
+
+
+def test_has_dictionary_name_match_ratio_defaults_to_zero():
+    features = extract_features([])
+    assert features[-1] == 0.0
+
+
+def test_all_three_extras_coexist_independently():
+    # All three extras must be addressable independently — setting one
+    # must not leak into either of the other slots. Catches the
+    # symmetric-bug risk where a future extra is appended at the wrong
+    # index.
+    features = extract_features(
+        [],
+        heuristic_dictionary_word_ratio=0.3,
+        validator_rejected_credential_ratio=0.8,
+        has_dictionary_name_match_ratio=0.6,
+    )
+    assert features[_BASE_DIM + _ONE_HOT_DIM] == 0.3  # index 46
+    assert features[_BASE_DIM + _ONE_HOT_DIM + 1] == 0.8  # index 47
+    assert features[-1] == 0.6  # index 48
 
 
 def test_unknown_entity_type_falls_back_to_unknown_slot():

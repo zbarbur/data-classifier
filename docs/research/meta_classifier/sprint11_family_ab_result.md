@@ -8,6 +8,21 @@ as a public API field on ``ClassificationFinding``. Re-characterize
 the Sprint 11 batch impact in family terms (the honest measure of
 product quality).
 
+> **⚠️ Sprint 12 follow-up (2026-04-16):** this memo recommends a
+> Sprint 12 shadow→directive promotion on the strength of the
+> family-level A/B evidence. That recommendation was **not executed.**
+> The Sprint 12 Phase 5b safety audit (see
+> `docs/research/meta_classifier/sprint12_safety_audit.md`) returned a
+> RED verdict on heterogeneous columns — v5 collapses to confidently-
+> wrong single-class predictions on log/chat/event-stream columns
+> because softmax is the wrong primitive for multi-label input. Sprint
+> 12 ships v0.12.0 shadow-only. The directive flip defers indefinitely
+> pending structural reformulation (Sprint 13 column-shape router
+> brief). The family-level A/B numbers in this memo remain valid for
+> the subset of columns where mutual exclusivity holds (structured
+> single-entity); they do not generalize to heterogeneous columns,
+> which the Sprint 11 benchmark did not measure.
+
 ---
 
 ## Why family-level scoring

@@ -316,6 +316,174 @@ def compute_dictionary_word_ratio(values: list[str]) -> float:
     return hits / len(values)
 
 
+# ── Placeholder-credential rejection ratio (Sprint 12 Item #1) ──────────────
+#
+# Column-level feature measuring the fraction of sample values that the
+# live-path ``not_placeholder_credential`` validator would reject. Used by
+# the meta-classifier as a NEGATIVE discriminator on columns full of
+# placeholder credential strings (e.g., documentation fixtures, example
+# configs, test keys).
+#
+# Design note (Sprint 12 Phase 2, see
+# docs/research/meta_classifier/sprint12_item4_directive_promotion_investigation.md
+# §8): the Sprint 11 Phase 10 proposal wanted this feature to observe
+# validator decisions during regex-engine invocation — but that signal
+# cannot be reproduced at shadow inference time because rejected values
+# never produce findings. Recomputing the rejection ratio directly from
+# ``sample_values`` here gives the meta-classifier an identical signal in
+# training and inference, avoiding the train/serve skew pattern that
+# caused the Sprint 11 Phase 7 dictionary-word-ratio bug.
+#
+# The helper lives in ``heuristic_engine`` rather than ``validators``
+# because it mirrors ``compute_dictionary_word_ratio`` — both are pure
+# column-level statistics over ``sample_values`` consumed by
+# ``extract_features``. It imports ``not_placeholder_credential`` from
+# the validators module at call time to avoid an import cycle.
+
+
+# ── Dictionary-name-match feature (Sprint 12 Item #2) ──────────────────────
+#
+# Motivation: PERSON_NAME is the catch-all drain of the v3 meta-classifier.
+# Sprint 11 Phase 10 family A/B analysis showed CONTACT family precision at
+# 0.882 on candidate shadow, with 354 non-name columns landing in
+# PERSON_NAME because no other class had a confident signal (145 ADDRESS,
+# 75 VIN, 75 NEGATIVE, 59 BANK_ACCOUNT). Adding a positive
+# "does this column contain dictionary name tokens?" feature gives the
+# model a reason to emit PERSON_NAME *only* when sample values actually
+# contain name-like strings, and to defer to NEGATIVE or the correct
+# class otherwise.
+#
+# Definition: a value "contains a dictionary name" if, after tokenizing on
+# [a-z]+ boundaries, any token of at least `min_token_length` characters
+# appears in ``data_classifier/patterns/name_lists.json`` (either in the
+# ``first_names`` list or the ``surnames`` list). The column's ratio is
+# the fraction of values that contain at least one such name.
+#
+# Word lists: US SSA baby names (first names) + Census 2010 surnames
+# (surnames). Top-5000 of each by frequency, public domain under
+# 17 U.S.C. § 105. See scripts/ingest_name_lists.py for the ingestion
+# pipeline and data_classifier/patterns/name_lists.json for the
+# generated file.
+#
+# Min token length: 4 characters. Below 4, too many English words
+# collide with short names (e.g., "al", "jo", "ed") and the feature
+# becomes noise. Content-word ratio uses 5 because content words are
+# longer on average; names need the one-character concession to catch
+# "John", "Mary", "Jane" etc.
+
+
+_NAME_TOKENS: frozenset[str] | None = None
+_NAME_TOKENS_MIN_LEN: int = 4
+_NAME_TOKENS_TOKEN_RE = re.compile(r"[a-z]+")
+
+
+def _load_name_tokens_once() -> frozenset[str]:
+    """Load name_lists.json and return a frozenset of lowercase name tokens.
+
+    The returned frozenset is the union of ``first_names`` and ``surnames``
+    from the JSON file — we do not care whether a match came from the
+    first-name list or the surname list, only whether the token appears
+    in either. Subsequent calls return the cached set. If the file is
+    missing or malformed, returns an empty set so the caller
+    (compute_dictionary_name_match_ratio) gracefully degrades to a 0.0
+    ratio instead of raising.
+    """
+    global _NAME_TOKENS, _NAME_TOKENS_MIN_LEN
+    if _NAME_TOKENS is not None:
+        return _NAME_TOKENS
+
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).parent.parent / "patterns" / "name_lists.json"
+    try:
+        with path.open() as f:
+            raw = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        _NAME_TOKENS = frozenset()
+        return _NAME_TOKENS
+
+    min_len = int(raw.get("min_token_length", 4))
+    first_names = raw.get("first_names", [])
+    surnames = raw.get("surnames", [])
+    combined: set[str] = set()
+    for source in (first_names, surnames):
+        for name in source:
+            if isinstance(name, str) and len(name) >= min_len:
+                combined.add(name.lower())
+    _NAME_TOKENS_MIN_LEN = min_len
+    _NAME_TOKENS = frozenset(combined)
+    return _NAME_TOKENS
+
+
+def _value_contains_dictionary_name(value: str) -> bool:
+    """True iff the value contains at least one dictionary name token
+    (lowercased, ``_NAME_TOKENS_MIN_LEN`` chars or longer) after
+    ``[a-z]+`` tokenization.
+
+    Examples:
+      >>> _value_contains_dictionary_name("James Smith")  # True
+      >>> _value_contains_dictionary_name("john.doe@example.com")  # True
+      >>> _value_contains_dictionary_name("xk9fpq2vLcHmsdFt")  # False
+      >>> _value_contains_dictionary_name("12345")  # False
+    """
+    names = _load_name_tokens_once()
+    if not names:
+        return False
+    tokens = _NAME_TOKENS_TOKEN_RE.findall(value.lower())
+    for t in tokens:
+        if len(t) >= _NAME_TOKENS_MIN_LEN and t in names:
+            return True
+    return False
+
+
+def compute_dictionary_name_match_ratio(values: list[str]) -> float:
+    """Fraction of sample values that contain at least one first name or surname.
+
+    Args:
+        values: Sample values from the column. Empty / None values are
+            counted toward the denominator but never produce a hit.
+
+    Returns:
+        Float between 0.0 and 1.0. 0.0 means no value contains a
+        dictionary name token (random identifiers, numbers, free text
+        without name-like substrings); 1.0 means every value contains at
+        least one first name or surname from the curated list.
+    """
+    if not values:
+        return 0.0
+    hits = sum(1 for v in values if v and _value_contains_dictionary_name(v))
+    return hits / len(values)
+
+
+def compute_placeholder_credential_rejection_ratio(values: list[str]) -> float:
+    """Fraction of sample values that ``not_placeholder_credential`` would reject.
+
+    Args:
+        values: Sample values from the column. Empty / None values are
+            counted toward the denominator but not the rejected numerator
+            — they are simply "not a placeholder," same as any real string.
+
+    Returns:
+        Float between 0.0 and 1.0. 0.0 means no value is a known
+        placeholder (the column is full of real credential-shaped tokens
+        OR full of free text / numbers / anything else); 1.0 means every
+        value matches an entry in
+        ``data_classifier/patterns/known_placeholder_values.json`` after
+        lowercasing and whitespace stripping (the column is entirely
+        documentation placeholders).
+    """
+    if not values:
+        return 0.0
+    # Local import mirrors the pattern in _load_content_words_once and
+    # avoids a circular dependency between engines.heuristic_engine and
+    # engines.validators.
+    from data_classifier.engines.validators import not_placeholder_credential
+
+    rejected = sum(1 for v in values if v and not not_placeholder_credential(v))
+    return rejected / len(values)
+
+
 # ── OPAQUE_SECRET detection (Sprint 8 Item 4) ───────────────────────────────
 #
 # Multi-signal guard for high-entropy credential-shaped values that do NOT

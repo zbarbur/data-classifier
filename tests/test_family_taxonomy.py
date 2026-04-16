@@ -34,6 +34,10 @@ class TestFamilyForDispatch:
         assert family_for("IBAN") == "FINANCIAL"
         assert family_for("API_KEY") == "CREDENTIAL"
         assert family_for("SSN") == "GOVERNMENT_ID"
+        assert family_for("DATE_OF_BIRTH") == "DATE"
+        # Compatibility alias for meta-classifier v3 shadow predictions
+        # (see data_classifier/core/taxonomy.py). Removed in Sprint 13
+        # v4 retrain.
         assert family_for("DATE_OF_BIRTH_EU") == "DATE"
 
     def test_empty_and_none_map_to_empty(self):
