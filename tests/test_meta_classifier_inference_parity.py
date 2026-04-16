@@ -77,6 +77,7 @@ def _spy_extract_features(monkeypatch) -> dict[str, Any]:
     def spy(findings, **kwargs):
         captured.update(kwargs)
         captured["_called"] = True
+        captured["_findings"] = list(findings)
         return real(findings, **kwargs)
 
     monkeypatch.setattr(meta_classifier_module, "extract_features", spy)
@@ -307,3 +308,82 @@ class TestPredictShadowThreadsNameMatchRatio:
             "to extract_features — see the Sprint 12 Item #2 wiring contract."
         )
         assert name_ratio == 0.0, f"has_dictionary_name_match_ratio={name_ratio} for random tokens; expected 0.0."
+
+
+class TestPredictShadowAcceptsRawEngineFindings:
+    """Sprint 12 Item #4 bug: the orchestrator's 7-pass merge pipeline
+    collapses duplicate-entity-type findings by authority (column_name=10
+    beats regex=5), so the ``findings`` list the live path hands to
+    ``predict_shadow`` is *merged*, not raw. The training path
+    (``extract_training_row`` → ``_run_all_engines``) instead feeds
+    ``extract_features`` a **flat list of every engine's raw findings**,
+    including duplicates by entity_type.
+
+    Consequence: when a column has both a regex SSN @ 0.9975 and a
+    column_name SSN @ 0.8075, training sees both but inference sees
+    only the column_name one. The feature vector the model was trained
+    on is not the vector it sees at prediction time. This is the root
+    cause of the Phase 5a SSN→CREDIT_CARD regression.
+
+    Fix: ``predict_shadow`` takes an optional ``engine_findings`` kwarg
+    (dict[engine_name, list[Finding]]), flattens it, and feeds the flat
+    list to ``extract_features`` instead of the merged one. Callers that
+    do not pass ``engine_findings`` keep the legacy (merged) behavior
+    for back-compat — this preserves the existing parity tests above
+    that construct synthetic finding lists directly.
+    """
+
+    def test_predict_shadow_flattens_engine_findings_when_provided(self, monkeypatch):
+        captured = _spy_extract_features(monkeypatch)
+
+        # Duplicate entity_type across engines — the 7-pass merge would
+        # collapse these to just the column_name one. The fix must keep
+        # BOTH in the feature vector the model sees.
+        regex_ssn = _finding("US_SSN", 0.9975, "regex", category="PII")
+        colname_ssn = _finding("US_SSN", 0.8075, "column_name", category="PII")
+        merged = [colname_ssn]
+        engine_findings = {
+            "regex": [regex_ssn],
+            "column_name": [colname_ssn],
+            "heuristic_stats": [],
+            "secret_scanner": [],
+        }
+
+        mc = MetaClassifier()
+        mc.predict_shadow(
+            merged,
+            ["123-45-6789", "987-65-4321", "555-12-3456"],
+            engine_findings=engine_findings,
+        )
+
+        assert captured.get("_called"), "extract_features was never called"
+        fed = captured.get("_findings")
+        assert fed is not None, "spy did not capture the positional findings arg"
+        # The flattened list must contain BOTH engines' findings —
+        # not just the merged-dict one. Order within a stable flatten
+        # is not asserted; identity (via id()) is.
+        fed_ids = {id(f) for f in fed}
+        assert id(regex_ssn) in fed_ids, (
+            "predict_shadow fed the merged list to extract_features; the "
+            "regex US_SSN finding was dropped. This is the Sprint 12 "
+            "Item #4 train/serve skew."
+        )
+        assert id(colname_ssn) in fed_ids, "column_name US_SSN missing from fed list"
+        assert len(fed) == 2, f"expected 2 findings in fed list, got {len(fed)}: {[f.engine for f in fed]}"
+
+    def test_predict_shadow_falls_back_to_findings_when_engine_findings_absent(self, monkeypatch):
+        """Back-compat: existing callers that don't pass ``engine_findings``
+        must keep their current behavior (extract_features sees the
+        positional ``findings`` list). This is what the other parity
+        tests in this file rely on — don't break them.
+        """
+        captured = _spy_extract_features(monkeypatch)
+
+        findings = [_finding("EMAIL", 0.95, "regex")]
+        mc = MetaClassifier()
+        mc.predict_shadow(findings, ["alice@example.com"])
+
+        assert captured.get("_called"), "extract_features was never called"
+        fed = captured.get("_findings")
+        assert fed is not None
+        assert len(fed) == 1 and fed[0].entity_type == "EMAIL"

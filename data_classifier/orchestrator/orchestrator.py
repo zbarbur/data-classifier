@@ -342,7 +342,11 @@ class Orchestrator:
         # the shadow path can ever break the live classification API.
         if self._meta_classifier is not None:
             try:
-                shadow = self._meta_classifier.predict_shadow(result, column.sample_values)
+                shadow = self._meta_classifier.predict_shadow(
+                    result,
+                    column.sample_values,
+                    engine_findings=engine_findings,
+                )
                 if shadow is not None:
                     self.emitter.emit(
                         MetaClassifierEvent(

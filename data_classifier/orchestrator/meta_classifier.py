@@ -302,6 +302,8 @@ class MetaClassifier:
         self,
         findings: "list[ClassificationFinding]",
         sample_values: "list[str] | None" = None,
+        *,
+        engine_findings: "dict[str, list[ClassificationFinding]] | None" = None,
     ) -> MetaClassifierPrediction | None:
         """Shadow inference. Returns ``None`` on any error or degradation.
 
@@ -310,9 +312,30 @@ class MetaClassifier:
         to modify ``classify_columns`` return values. Every exception
         path returns ``None`` so that shadow inference cannot crash the
         live path.
+
+        ``engine_findings`` (Sprint 12 Item #4 fix): when provided, the
+        flattened per-engine findings are fed to ``extract_features``
+        instead of ``findings``. The training path
+        (``extract_training_row`` → ``_run_all_engines``) builds its
+        feature vector from every engine's raw findings, including
+        duplicates by ``entity_type``. The live orchestrator collapses
+        these via its 7-pass authority-weighted merge before handing
+        the result to this function, which left the shadow path seeing
+        a strictly smaller feature vector than training — a silent
+        train/serve skew that caused 219 SSN columns to be predicted
+        as CREDIT_CARD in Phase 5a. Callers that don't pass this kwarg
+        keep the legacy behavior (unit tests that construct synthetic
+        finding lists directly rely on it).
         """
         if not self._ensure_loaded():
             return None
+
+        if engine_findings is not None:
+            findings_for_features: list[ClassificationFinding] = [
+                f for engine_fs in engine_findings.values() for f in engine_fs
+            ]
+        else:
+            findings_for_features = findings
 
         values = sample_values or []
         distinct = _distinct_ratio(values)
@@ -338,7 +361,7 @@ class MetaClassifier:
 
         try:
             full_vec = extract_features(
-                findings,
+                findings_for_features,
                 heuristic_distinct_ratio=distinct,
                 heuristic_avg_length=avg_len,
                 heuristic_dictionary_word_ratio=dict_ratio,
