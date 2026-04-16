@@ -27,4 +27,19 @@ describe('decodeEncodedStrings', () => {
   it('returns an empty array for an empty input', () => {
     expect(decodeEncodedStrings([])).toEqual([]);
   });
+
+  it('throws on malformed base64 in xor: payload (inherited from atob)', () => {
+    expect(() => decodeEncodedStrings(['xor:!!!'])).toThrow();
+  });
+
+  it('throws on malformed base64 in b64: payload (inherited from atob)', () => {
+    expect(() => decodeEncodedStrings(['b64:!!!'])).toThrow();
+  });
+
+  it('round-trips an ASCII-only xor: value exactly (pinning the ASCII contract)', () => {
+    // Pins that valid-ASCII XOR payloads decode without any U+FFFD substitution.
+    const out = decodeEncodedStrings(['xor:GxETGw==']);
+    expect(out[0]).toBe('AKIA');
+    expect(out[0]).not.toContain('\uFFFD');
+  });
 });

@@ -11,6 +11,11 @@ function base64ToBytes(b64) {
   return out;
 }
 
+// Uses TextDecoder default error mode ('replace'), which substitutes U+FFFD
+// on malformed UTF-8. Python's .decode('utf-8') is strict by default.
+// All encoded values in default_patterns.json are ASCII credentials, so the
+// difference is dormant — but the caller must not pass non-ASCII bytes here
+// if Python-parity error semantics matter.
 function bytesToUtf8(bytes) {
   return new TextDecoder('utf-8').decode(bytes);
 }
