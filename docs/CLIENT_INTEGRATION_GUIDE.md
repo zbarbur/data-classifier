@@ -1,9 +1,9 @@
 # data_classifier — Client Integration Guide
 
 > **Audience:** Connector teams (BigQuery, Snowflake, Postgres, etc.)
-> **Version:** 0.8.0 (Sprint 8 — wheel versioning, AR release pipeline, model distribution)
-> **Date:** 2026-04-13
-> **Status:** READY — forward-only versioning begins at `v0.8.0`; see `CHANGELOG.md` for the history of the earlier `0.1.0` vendored-wheel era
+> **Version:** 0.12.0 (Sprints 9 / 10 / 11 / 12 bundled — shadow meta-classifier, family taxonomy, expanded patterns, v0.8.0-compatible live path)
+> **Date:** 2026-04-16
+> **Status:** READY — forward-only versioning continues from `v0.8.0`; see `CHANGELOG.md` for the full per-sprint change log
 
 ---
 
@@ -35,18 +35,63 @@ Choose the tier that fits your deployment:
 > imports, and no consumer used it. Standard tier with a locally-bundled
 > ONNX model is the correct production path. See `CHANGELOG.md`.
 
+> **What's new in v0.12.0 (Sprints 9 / 10 / 11 / 12):**
+>
+> **No behavior change on the live path.** `classify_columns()` returns
+> the same `list[ClassificationFinding]` shape as `v0.8.0` on
+> structured single-entity columns (Sprint 8's test distribution).
+> The 7-pass merge remains the source of truth for the orchestrator's
+> return values. You do not need to change any existing consumer code
+> to adopt `v0.12.0`.
+>
+> **What's additive:**
+>
+> - **`ClassificationFinding.family`** — new non-breaking field on every
+>   finding. 13-family taxonomy around downstream DLP handling
+>   (CONTACT, CREDENTIAL, FINANCIAL, GOVERNMENT_ID, HEALTHCARE, ...).
+>   Auto-populated; consumers that ignore it continue to work. See §3
+>   "Output Models" for the full list.
+> - **Shadow meta-classifier v5** — accessible via
+>   `ClassificationEvent.meta_classification` on every event when the
+>   `[meta]` extra is installed. Observability-only; does not modify
+>   `classify_columns()` return values. Useful for DLP policy telemetry
+>   and pre-promotion evaluation.
+> - **Expanded pattern coverage** — secret-key-name dictionary
+>   88 → 178 entries, new structural validators
+>   (Bitcoin base58check / bech32, Ethereum EIP-55 checksum,
+>   placeholder-credential rejection), tighter secret-scanner
+>   `id_token` / `token_secret` matching.
+> - **GLiNER2 data_type pre-filter** — the ML engine now skips columns
+>   whose `ColumnInput.data_type` is non-textual (INTEGER, DATE, etc.),
+>   eliminating numeric-column false positives.
+>
+> **What's deprecated:**
+>
+> - `DATE_OF_BIRTH_EU` subtype emission. Columns that would have
+>   emitted `DATE_OF_BIRTH_EU` now emit `DATE_OF_BIRTH` — both are in
+>   the `DATE` family, so family-level routing is unchanged. See
+>   `CHANGELOG.md` for the rationale.
+>
+> **What did NOT ship (and why):**
+>
+> - The meta-classifier's directive promotion was evaluated in Sprint
+>   12 and **deferred to Sprint 13** after the Phase 5b safety audit
+>   returned RED on heterogeneous columns. See
+>   `docs/research/meta_classifier/sprint12_safety_audit.md`. The
+>   shadow meta-classifier is observability-only on this release.
+
 **What Light tier misses:** `PERSON_NAME`, `ADDRESS`, and `ORGANIZATION` detection from sample values. These entity types require NER (ML). If your columns have meaningful names (e.g., `full_name`, `street_address`), the column name engine still detects them without ML. ML is only needed when column names are generic or missing.
 
 ### 1b. Install recipes
 
-> **Quick reference — pick the recipe that matches your deployment shape.** All recipes pin to `v0.8.0`.
+> **Quick reference — pick the recipe that matches your deployment shape.** All recipes pin to `v0.12.0`.
 
 **(A) Google Artifact Registry — recommended for GCP consumers** (including the BigQuery connector):
 
 ```bash
 pip install \
   --extra-index-url https://us-central1-python.pkg.dev/dag-bigquery-dev/data-classifier/simple/ \
-  "data_classifier[ml]==0.8.0"
+  "data_classifier[ml]==0.12.0"
 ```
 
 The `data-classifier` Python repository lives in the `dag-bigquery-dev` GCP project under `us-central1`. Auth is handled transparently by the `keyrings.google-artifactregistry-auth` plugin — install it alongside pip:
@@ -62,16 +107,16 @@ pip install keyring keyrings.google-artifactregistry-auth
 ```bash
 # Once (on a machine with write access to a shared location or repo):
 python -m build --wheel
-cp dist/data_classifier-0.8.0-py3-none-any.whl <vendor-location>/
+cp dist/data_classifier-0.12.0-py3-none-any.whl <vendor-location>/
 
 # In the consumer's pyproject.toml:
-"data_classifier[ml] @ file:vendor/data_classifier-0.8.0-py3-none-any.whl"
+"data_classifier[ml] @ file:vendor/data_classifier-0.12.0-py3-none-any.whl"
 ```
 
 **(C) Git SSH — for CI systems with a deploy key**
 
 ```bash
-pip install "data_classifier[ml] @ git+ssh://git@github.com/zbarbur/data-classifier.git@v0.8.0"
+pip install "data_classifier[ml] @ git+ssh://git@github.com/zbarbur/data-classifier.git@v0.12.0"
 ```
 
 **(D) Local editable — for development on a workspace with both repos checked out**
@@ -80,7 +125,7 @@ pip install "data_classifier[ml] @ git+ssh://git@github.com/zbarbur/data-classif
 pip install -e "../data_classifier[ml]"
 ```
 
-**Version pinning:** Always pin to a released tag (`==0.8.0` or `@v0.8.0`), never track a branch in production. The release tag is authoritative; `sprint8/main` and `main` are moving targets.
+**Version pinning:** Always pin to a released tag (`==0.12.0` or `@v0.12.0`), never track a branch in production. The release tag is authoritative; sprint branches and `main` are moving targets.
 
 ### 1c. The GLiNER2 ONNX model (Standard tier only)
 

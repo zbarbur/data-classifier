@@ -1,10 +1,20 @@
 title: 'Sprint 12: v0.12.0 release and BQ consumer bump'
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 12
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-16
+retired_reason: |
+  Retired 2026-04-16 as mis-scoped. The item was written assuming Sprint
+  12's directive flip would land; Phase 5b RED verdict caused the
+  directive flip to be deferred. The composite "wheel + BQ bump" framing
+  also proved unhelpful because the two halves block on different
+  parties (internal writing vs external team). Split into two focused
+  replacement items:
+    - sprint12-v0.12.0-wheel-release.yaml (tag + publish + client doc,
+      shadow-only messaging, ~2h of writing)
+    - sprint13-bq-consumer-bump-to-v0.12.0.yaml (external coordination)
 depends_on:
 - sprint12-shadow-directive-promotion-gate
 tags:
@@ -101,8 +111,8 @@ notes: "Filed 2026-04-15 at /sprint-start 12 per the Sprint 12 reframe memo\n(pr
   \ Sprint\n8 (per BQ track priority memory). They are aware that v0.12.0 is the\n\
   next bump they receive \u2014 no incremental versions. Surface the v3\ndirective\
   \ change explicitly in the bump request so they can plan their\nstaging soak appropriately.\n"
-phase: plan
-design_reviewed: false
-code_reviewed: false
+phase: done
+design_reviewed: true
+code_reviewed: true
 comments: []
 images: []

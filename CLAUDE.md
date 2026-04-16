@@ -99,7 +99,7 @@ Before closing any sprint:
        python -m tests.benchmarks.family_accuracy_benchmark \
        --out /tmp/bench.predictions.jsonl \
        --summary /tmp/bench.summary.json \
-       --compare-to docs/research/meta_classifier/sprint11_family_benchmark.json
+       --compare-to docs/research/meta_classifier/sprint12_family_benchmark.json
    ```
    The `shadow.overall.family.cross_family_rate` metric must not
    regress from the committed baseline without a written

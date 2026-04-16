@@ -80,6 +80,14 @@ data_classifier/models/*
 # heuristic_dictionary_word_ratio at index 46, feature_schema_version=3).
 !data_classifier/models/meta_classifier_v3.pkl
 !data_classifier/models/meta_classifier_v3.metadata.json
+# Sprint 12 Item #1 + Item #2: v5 meta-classifier artifact (49-feature
+# schema, 47 kept features after ALWAYS_DROP_REDUNDANT; adds
+# validator_rejected_credential_ratio at index 47 and
+# has_dictionary_name_match_ratio at index 48, feature_schema_version=5).
+# Schema v4 was transient and never deployed — Phase 2 added index 47
+# but the artifact was never trained before Phase 3 appended index 48.
+!data_classifier/models/meta_classifier_v5.pkl
+!data_classifier/models/meta_classifier_v5.metadata.json
 # Keep the gliner_onnx/ placeholder directory (populated by download_models CLI
 # at container build time) so package_data globs have a target, but ignore the
 # actual model weights.

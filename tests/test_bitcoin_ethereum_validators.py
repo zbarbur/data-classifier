@@ -17,6 +17,8 @@ The validators verify:
 
 from __future__ import annotations
 
+import typing
+
 import pytest
 
 from data_classifier.engines.validators import (
@@ -300,3 +302,120 @@ class TestExpandedStopwords:
         assert _is_stopword("DEADBEEF-DEAD-BEEF-DEAD-DEADBEEFDEAD", pattern) is True
         # Non-entry with same length is accepted.
         assert _is_stopword("4242424242424243", pattern) is False
+
+
+class TestStopwordsEncodedEntries:
+    """Sprint 12 follow-up: ``stopwords.json`` supports ``xor:`` /
+    ``b64:`` prefixed entries via the shared
+    :mod:`data_classifier.patterns._decoder` helper. This lets us store
+    published-but-credential-shaped placeholder strings (Stripe docs
+    test keys, PAT placeholders) without tripping GitHub's
+    push-protection secret scanner on the file.
+    """
+
+    def test_load_global_stopwords_decodes_xor_prefixed_entries(self, tmp_path, monkeypatch) -> None:
+        """Construct a stopwords.json containing an ``xor:``-encoded
+        entry and assert ``_load_global_stopwords`` returns the
+        decoded plaintext. Test does not depend on any specific entry
+        being in the bundled file; it isolates the loader's decode
+        path.
+        """
+        import json
+
+        from data_classifier.engines import regex_engine
+        from data_classifier.patterns._decoder import encode_xor
+
+        plaintext = "sk_test_stopword_loader_selftest_0123456789"
+        encoded = encode_xor(plaintext)
+        assert encoded.startswith("xor:")
+        assert plaintext not in encoded  # sanity: the plaintext is not in the file
+
+        stopwords_file = tmp_path / "stopwords.json"
+        stopwords_file.write_text(
+            json.dumps(
+                {
+                    "description": "test fixture",
+                    "stopwords": [
+                        "plain_entry_value",
+                        encoded,
+                    ],
+                }
+            )
+        )
+        # Point the loader at the fixture and reset the module-level cache.
+        monkeypatch.setattr(regex_engine, "_GLOBAL_STOPWORDS_FILE", stopwords_file, raising=False)
+        monkeypatch.setattr(regex_engine, "_GLOBAL_STOPWORDS", None, raising=False)
+
+        sw = regex_engine._load_global_stopwords()
+        assert plaintext.lower() in sw, "xor: entry was not decoded by the stopwords loader"
+        assert "plain_entry_value" in sw, "plain entries still pass through unchanged"
+
+    def test_load_global_stopwords_decodes_b64_prefixed_entries(self, tmp_path, monkeypatch) -> None:
+        """Same assertion for the ``b64:`` prefix, which decodes via
+        plain base64 without XOR.
+        """
+        import base64
+        import json
+
+        from data_classifier.engines import regex_engine
+
+        plaintext = "b64_only_stopword_loader_selftest"
+        encoded = "b64:" + base64.b64encode(plaintext.encode()).decode()
+        stopwords_file = tmp_path / "stopwords.json"
+        stopwords_file.write_text(json.dumps({"description": "test fixture", "stopwords": [encoded]}))
+        monkeypatch.setattr(regex_engine, "_GLOBAL_STOPWORDS_FILE", stopwords_file, raising=False)
+        monkeypatch.setattr(regex_engine, "_GLOBAL_STOPWORDS", None, raising=False)
+
+        sw = regex_engine._load_global_stopwords()
+        assert plaintext.lower() in sw
+
+    # Encoded forms of the two Stripe documentation test keys published
+    # on stripe.com/docs. Decoded at runtime so the cleartext never
+    # appears in the repo (GitHub push-protection would otherwise flag
+    # the test file). Keys have been in Stripe's public documentation
+    # since ~2015; they are by definition not real credentials.
+    _STRIPE_DOCS_TEST_KEYS_ENCODED: typing.ClassVar[list[str]] = [
+        "xor:KTEFLj8pLgVuPxlpYxIrFiMwDR47KDAuDmsgPiptPjk=",
+        "xor:KjEFLj8pLgUOAzU1Fws7Lyw+Hx4rb24UMw4qMhNtMCI=",
+    ]
+
+    def _decoded_stripe_keys(self) -> list[str]:
+        from data_classifier.patterns._decoder import decode_encoded_strings
+
+        return decode_encoded_strings(self._STRIPE_DOCS_TEST_KEYS_ENCODED)
+
+    def test_stripe_docs_test_keys_in_runtime_stopwords(self) -> None:
+        """The two Stripe docs test keys flagged in Sprint 11 Phase 6
+        are re-added in encoded form and must appear in the runtime
+        stopwords set. Entries are stored xor-encoded in
+        ``stopwords.json``; the loader decodes them on load.
+        """
+        from data_classifier.engines.regex_engine import _load_global_stopwords
+
+        sw = _load_global_stopwords()
+        for key in self._decoded_stripe_keys():
+            assert key.lower() in sw, (
+                f"Stripe docs test key (decoded length={len(key)}) not found in "
+                "decoded stopwords. Check that stopwords.json has the xor:-encoded "
+                "entry and that _load_global_stopwords runs decode_encoded_strings()."
+            )
+
+    def test_stripe_docs_keys_rejected_via_is_stopword(self) -> None:
+        """End-to-end: a credential pattern whose matched value equals
+        a Stripe docs test key must be rejected by ``_is_stopword``.
+        """
+        from data_classifier.engines.regex_engine import _is_stopword
+        from data_classifier.patterns import ContentPattern
+
+        pattern = ContentPattern(
+            name="stripe_secret_key",
+            regex="",
+            entity_type="CREDENTIAL",
+            category="Credential",
+            sensitivity="HIGH",
+            confidence=0.9,
+        )
+        for key in self._decoded_stripe_keys():
+            assert _is_stopword(key, pattern) is True
+        # Structurally similar but non-placeholder value is not suppressed.
+        assert _is_stopword("sk_test_notInTheStopwordsList99999999", pattern) is False

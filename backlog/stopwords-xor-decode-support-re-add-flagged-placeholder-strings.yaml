@@ -1,10 +1,10 @@
 title: "Stopwords XOR decode support \u2014 re-add Phase 6 flagged placeholder strings"
-status: doing
+status: done
 priority: P3
 category: chore
 sprint_target: 12
 created: 2026-04-14
-updated: 2026-04-15
+updated: 2026-04-16
 depends_on: []
 tags:
 - sprint11-followup
@@ -65,8 +65,8 @@ test_plan:
 - 'Manual smoke: push test branch to a personal fork and verify GitHub push protection
   accepts the encoded entries'
 notes: ''
-phase: plan
-design_reviewed: false
-code_reviewed: false
+phase: done
+design_reviewed: true
+code_reviewed: true
 comments: []
 images: []

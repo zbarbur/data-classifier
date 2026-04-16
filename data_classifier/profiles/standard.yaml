@@ -101,15 +101,12 @@ profiles:
         regulatory: [PII, HIPAA, GDPR, COPPA]
         confidence: 0.90
         patterns:
-          - "(^|_)(dob|date_of_birth|dateofbirth|birth_date|birthdate|birthday|birth_year)(_|$)"
-
-      - entity_type: DATE_OF_BIRTH_EU
-        category: PII
-        sensitivity: HIGH
-        regulatory: [PII, HIPAA, GDPR, COPPA]
-        confidence: 0.90
-        patterns:
-          - "(^|_)(dob_eu|date_of_birth_eu|birth_date_eu|geburtsdatum|date_naissance|fecha_nacimiento|data_nascita)(_|$)"
+          # Sprint 12 retired DATE_OF_BIRTH_EU — the EU-format column-name
+          # hints (geburtsdatum, date_naissance, fecha_nacimiento,
+          # data_nascita) are folded into DATE_OF_BIRTH alongside the
+          # English hints. Format does not indicate jurisdiction; the
+          # sensitivity tier and regulatory scope are identical.
+          - "(^|_)(dob|date_of_birth|dateofbirth|birth_date|birthdate|birthday|birth_year|dob_eu|date_of_birth_eu|birth_date_eu|geburtsdatum|date_naissance|fecha_nacimiento|data_nascita)(_|$)"
 
       - entity_type: FINANCIAL
         category: Financial

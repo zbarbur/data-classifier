@@ -1,15 +1,31 @@
 title: "Sprint 12: Promote meta-classifier v3 to directive \u2014 orchestrator wiring\
   \ + shadow path deletion"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 12
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-16
+retired_reason: |
+  Retired 2026-04-16 after the Phase 5b safety audit returned a RED verdict.
+  See docs/research/meta_classifier/sprint12_safety_audit.md for the full
+  evidence chain. Short version: the softmax meta-classifier is the wrong
+  primitive for columns containing multiple entity types (3/6 heterogeneous
+  fixtures produced high-confidence wrong-class predictions — base64 -> VIN
+  @ 0.934, chat -> CREDENTIAL @ 1.000, Kafka -> CREDENTIAL @ 0.999). No
+  confidence threshold separates these cases from v5's correct
+  in-distribution predictions. Directive promotion would regress BQ on log /
+  event-stream / chat columns. Sprint 12 ships v0.12.0 shadow-only; directive
+  defers indefinitely pending structural reformulation (Sprint 13 column-
+  shape router brief in the safety audit memo §6).
 depends_on:
 - sprint12-validator-rejected-credential-feature
 - sprint12-has-dictionary-name-match-feature
-- review-ai4privacy-dataset-family-and-ingest-best-cc-by-4-0-variant-re-open-sprint-9-removal-decision
+# review-ai4privacy-...-re-open-sprint-9-removal-decision deferred 2026-04-16 to Sprint 13.
+# Left out of the active depends_on list because Sprint 12 is proceeding without it.
+# Reopen and re-add if Phase 5b safety audit returns RED on the current corpus and
+# multilingual training signal is needed to close the LOCO gap. See
+# docs/research/meta_classifier/sprint12_item4_directive_promotion_investigation.md §7.
 - sprint12-shadow-directive-promotion-gate-safety-analysis-memo
 tags:
 - sprint12
