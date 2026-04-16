@@ -1,0 +1,30 @@
+{
+  "name": "@data-classifier/browser",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Client-side secret detection engine ported from data_classifier (Python). Scaffold — not yet published.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "generate": "cd ../../.. && python3 scripts/generate_browser_patterns.py",
+    "pretest": "npm run generate",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "pretest:e2e": "npm run build",
+    "test:e2e": "playwright test",
+    "bench": "playwright test tests/e2e/bench.spec.js",
+    "format": "prettier --write 'src/**/*.js' 'tests/**/*.js' 'tester/**/*.js' 'tester/**/*.html'",
+    "format:check": "prettier --check 'src/**/*.js' 'tests/**/*.js' 'tester/**/*.js' 'tester/**/*.html'"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "@vitest/web-worker": "^2.0.0",
+    "esbuild": "^0.23.0",
+    "prettier": "^3.3.0",
+    "vitest": "^2.0.0"
+  }
+}
