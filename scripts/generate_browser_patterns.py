@@ -44,6 +44,8 @@ LOGIC_FILES = [
     REPO_ROOT / "data_classifier" / "config" / "engine_defaults.yaml",
 ]
 
+# Keep in sync with src/validators.js (PORTED dict keys). Names not listed here
+# emit a warning and load as always-true stubs in JS.
 PORTED_VALIDATORS = {"aws_secret_not_hex", "random_password", "not_placeholder_credential", ""}
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -151,10 +153,7 @@ def emit_stopwords() -> None:
     raw = json.loads(src.read_text()).get("stopwords", [])
     decoded = decode_encoded_strings(raw)
     lower = sorted({s.lower() for s in decoded})
-    js = (
-        "// GENERATED - do not edit. Run: npm run generate\n"
-        f"export const STOPWORDS = new Set({json.dumps(lower)});\n"
-    )
+    js = f"// GENERATED - do not edit. Run: npm run generate\nexport const STOPWORDS = new Set({json.dumps(lower)});\n"
     (GENERATED_DIR / "stopwords.js").write_text(js)
     log.info("wrote stopwords.js (%d entries)", len(lower))
 
@@ -187,8 +186,8 @@ def emit_fixtures(version: str) -> None:
     if not SEED_PATH.exists():
         log.warning("seed corpus missing: %s", SEED_PATH)
     else:
-        for line in SEED_PATH.read_text().splitlines():
-            line = line.strip()
+        for raw_line in SEED_PATH.read_text().splitlines():
+            line = raw_line.strip()
             if not line:
                 continue
             case = json.loads(line)
@@ -196,13 +195,10 @@ def emit_fixtures(version: str) -> None:
             findings = []
             for f in regex_engine.classify_column(col, profile=profile, min_confidence=0.3):
                 if f.category == "Credential":
-                    findings.append(
-                        {"entity_type": f.entity_type, "category": f.category, "engine": "regex"}
-                    )
+                    findings.append({"entity_type": f.entity_type, "category": f.category, "engine": "regex"})
             for f in scanner_engine.classify_column(col, profile=profile, min_confidence=0.3):
-                findings.append(
-                    {"entity_type": f.entity_type, "category": f.category, "engine": "secret_scanner"}
-                )
+                findings.append({"entity_type": f.entity_type, "category": f.category, "engine": "secret_scanner"})
+            findings.sort(key=lambda f: (f["engine"], f["entity_type"]))
             fixtures["cases"].append({"id": case["id"], "text": case["text"], "findings": findings})
 
     (GENERATED_DIR / "fixtures.json").write_text(json.dumps(fixtures, indent=2))
