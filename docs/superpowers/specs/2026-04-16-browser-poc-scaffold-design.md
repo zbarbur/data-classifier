@@ -325,6 +325,47 @@ without waiting for S2's honest measurement.
 - Top-level CI (GitHub Actions) stays Python-only for now; a
   JS-CI job follows in a separate item once the scaffold lands.
 
+## Performance
+
+Stance: take the free wins in v1, defer speculative optimizations
+behind measured triggers. Bundle size and scan latency are S2's
+honest measurements; this scaffold should not pre-optimize against
+imagined bottlenecks.
+
+### Free wins shipped with v1
+
+| Optimization | What it buys | Cost |
+|---|---|---|
+| esbuild `minify: true` + tree-shake on production bundles | ~2-3× size reduction; dead-code elimination across modules | Zero — default config |
+| Pattern dict emitted as a JSON *string* constant (not an object literal), parsed once at worker init via `JSON.parse` | V8 parses JSON strings roughly 2× faster than equivalent object literals at init; the lexer stays off the scan-critical path | One generator branch |
+| Strip `examples_match` / `examples_no_match` from `patterns.js`; keep them in a separate `patterns.examples.json` loaded only by tester + differential test | ~50-80KB saved on the production bundle with zero runtime impact | One filter line in the generator |
+| Compile all `RegExp` objects once at worker module init; cache indexed by pattern name | Compilation is per-worker, amortized across every scan; no per-scan `RegExp` allocation | One init block in `regex-backend.js` |
+| Generated `patterns.js`, `secret-key-names.js`, `stopwords.js`, `placeholder-values.js` are `.gitignore`d, regen'd by the pre-test hook | Keeps the source-of-truth commitment intact; no hand-maintained JS mirrors | Already in the design |
+| Regex backend stays behind the `createBackend()` interface | Pattern-iteration-order, compilation strategy, and the committed re2-wasm swap are all backend-internal; no public-API churn when optimizations change | Already in the design |
+
+The `createBackend()` boundary is the single non-speculative
+structural decision for performance. Every deferred optimization
+below is either a backend implementation detail or a triggered
+follow-up — not a scaffold concern.
+
+### Deferred optimizations (trigger-driven)
+
+| Optimization | Trigger |
+|---|---|
+| Reorder pattern iteration by empirical hit frequency (hot patterns first) | S2 shows a heavy-tailed hit distribution **and** P99 exceeds the worker kill budget |
+| Per-pattern short-circuit cache (LRU of recent scans) | Repeat-scan telemetry shows high redundancy on the same input (extension context) |
+| Transferable `ArrayBuffer` for `postMessage` prompt payload | Median payload > ~100KB (not a chat-prompt reality today) |
+| Per-character lookup tables for entropy / diversity | Profiling attributes > 20% of scan time to the entropy path |
+| WASM for engine-internal work beyond Stage-2 re2-wasm | Never — the Stage-2 re2-wasm swap is the one committed WASM investment |
+| Pre-warmed worker pool on page load | MV3 extension lands and the background-service-worker lifecycle forces eager init |
+
+None of these optimizations get pre-built. If S2 measurements show
+P99 under the worker kill budget on realistic WildChat prompts, none
+of them fire. The design's job is to make sure the *structure*
+doesn't pin any of them out — which is why the backend interface,
+the worker pool, and the finding shape are all agnostic to iteration
+order, compilation strategy, and payload encoding.
+
 ## Module boundaries (isolation contract)
 
 Each module has one responsibility and a small interface:
