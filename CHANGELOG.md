@@ -19,7 +19,185 @@ cherry-picks as `0.{sprint}.{patch}`.
 
 ## [Unreleased]
 
-No unreleased changes. Sprint 9 work will land here.
+No unreleased changes. Sprint 13 work will land here.
+
+## [0.12.0] — Sprints 9 / 10 / 11 / 12 (2026-04-13 → 2026-04-16)
+
+First BQ-facing release since `v0.8.0`. Bundles four sprints of changes.
+**This is a shadow-only release from the consumer perspective** — the
+live classification path (`classify_columns` return values on
+structured single-entity columns) is functionally identical to
+`v0.8.0`. What's new is additive: a `family` field on every
+`ClassificationFinding`, expanded pattern coverage, a shadow
+meta-classifier for observability, and new validators. There is
+**no behavior change** that requires connector-side adaptation; the
+meta-classifier's directive promotion was evaluated in Sprint 12 and
+**deferred to Sprint 13** after the Phase 5b safety audit returned
+RED on heterogeneous columns (see
+`docs/research/meta_classifier/sprint12_safety_audit.md`).
+
+### Added
+
+- **New public API field `ClassificationFinding.family`** (Sprint 11).
+  Every finding is auto-populated with its family label via a
+  `__post_init__` hook. 13 families covering downstream DLP handling
+  concerns: `CONTACT`, `CREDENTIAL`, `CRYPTO`, `DATE`, `DEMOGRAPHIC`,
+  `FINANCIAL`, `GOVERNMENT_ID`, `HEALTHCARE`, `NEGATIVE`, `NETWORK`,
+  `PAYMENT_CARD`, `URL`, `VEHICLE`. Non-breaking additive change —
+  existing consumers ignoring this field work unchanged.
+- **New public API exports** (Sprint 11):
+  `data_classifier.FAMILIES`, `data_classifier.family_for`,
+  `data_classifier.ENTITY_TYPE_TO_FAMILY`. Downstream DLP policy
+  engines can read `finding.family` or call `family_for(entity_type)`
+  without needing to know the subtype→family mapping.
+- **Meta-classifier shadow path** (v3 landed Sprint 11, v5 landed
+  Sprint 12 as the current default). Accessible via
+  `ClassificationEvent.meta_classification` on every event emitted by
+  the orchestrator when the `[meta]` extra is installed. Shadow-only:
+  the orchestrator's 7-pass merge remains the source of truth for
+  `classify_columns()` return values. v5 adds two column-level
+  statistics (`validator_rejected_credential_ratio`,
+  `has_dictionary_name_match_ratio`) on top of v3's feature schema.
+- **Family-level accuracy benchmark** as the canonical ship gate
+  (Sprint 11). Run via
+  `tests.benchmarks.family_accuracy_benchmark`; reports
+  `cross_family_rate` (Tier 1 errors, product-impact) and
+  `family_macro_f1` (aggregate quality). Current Sprint 12 shipped
+  baseline: shadow `cross_family_rate=0.0044` /
+  `family_macro_f1=0.9945` on 9,870 shards (committed at
+  `docs/research/meta_classifier/sprint12_family_benchmark.json`).
+- **Structural validators** (Sprint 11):
+  * `bitcoin_base58check` and `bitcoin_bech32` / `bech32m` — replaces
+    the prior length-only check.
+  * `ethereum_checksum` — EIP-55 case-encoded address validation.
+  * `not_placeholder_credential` — reject `password123`, `admin`,
+    `your_api_key_here`, etc. Backed by
+    `data_classifier/patterns/known_placeholder_values.json`
+    (34-entry curated list).
+- **Secret-key-name dictionary: 88 → 178 entries** (Sprint 10) via
+  `scripts/ingest_credential_patterns.py`. Sourced from Kingfisher
+  (Apache 2.0), gitleaks (MIT), and Nosey Parker (Apache 2.0) with
+  pinned SHAs and full per-entry attribution in
+  `docs/process/CREDENTIAL_PATTERN_SOURCES.md`.
+- **GLiNER2 data_type pre-filter** (Sprint 10). The ML engine now
+  skips columns whose `ColumnInput.data_type` is non-textual
+  (INTEGER, FLOAT, NUMERIC, DATE, TIME, BOOLEAN, BYTES, ...). Fixes a
+  whole class of numeric-column false positives without changing the
+  regex cascade.
+- **GLiNER2 natural-language prompt wrapping** (Sprint 10, "S1"):
+  `_build_ner_prompt(column, chunk)` replaces the raw
+  `_SAMPLE_SEPARATOR.join` approach.
+- **`Orchestrator.get_active_engines()` and `health_check()`**
+  (Sprint 9) for consumer-side observability. Returns the list of
+  actually-registered engines and confirms each is alive.
+- **New corpus: `gretelai/gretel-pii-masking-en-v1`** as a 7th
+  training corpus (Sprint 9, Apache 2.0, 60k rows across 47
+  domains). Training-only; no runtime consumer impact.
+- **New corpus loader: `gretelai/synthetic_pii_finance_multilingual`**
+  (Sprint 10, Apache 2.0, 56k rows, 7 languages). Loader landed
+  Sprint 10; CLI wiring landed Sprint 11.
+- **New CLIENT_INTEGRATION_GUIDE.md §5A Engines Reference** (Sprint
+  11, 329 lines). Canonical per-engine documentation + 7-pass
+  orchestrator pipeline walkthrough. All symbol-only citations for
+  drift resistance.
+- **Tier-1 credential pattern-hit gate**
+  (`data_classifier/orchestrator/credential_gate.py`, Sprint 11).
+  Observability-only. Emits `GateRoutingEvent` on every column with
+  credential signal; never modifies `classify_columns()` return
+  values. Promotion to a directive routing rule is filed as a
+  future-sprint item pending production telemetry calibration.
+- **Per-value parity tests for the shadow path** (Sprint 12,
+  `tests/test_meta_classifier_inference_parity.py`). End-to-end tests
+  that run the full orchestrator and assert the feature vector at
+  inference equals the feature vector at training, preventing the
+  class of train/serve-skew bug that shipped in Sprint 11 Phase 7
+  and Sprint 12 Phase 5a.
+
+### Changed
+
+- **Meta-classifier feature schema v3** (Sprint 11) adds two
+  heuristic column-level features: Chao-1 bias-corrected
+  `heuristic_distinct_ratio` and `heuristic_dictionary_word_ratio`.
+  Training-side change; the shadow model weights picked them up as
+  the #1 and #3 coefficients by magnitude.
+- **Meta-classifier feature schema v5** (Sprint 12) adds
+  `validator_rejected_credential_ratio` and
+  `has_dictionary_name_match_ratio`. Combined with the Sprint 12 Phase
+  5a "Option A" train/serve-skew fix in `predict_shadow`, the shadow
+  cross-family error rate dropped from 5.85% (Sprint 11 baseline) to
+  **0.44%** on the canonical family benchmark (9,870 shards) — a
+  13.3× reduction.
+- **`predict_shadow` signature** (Sprint 12, Phase 5a) accepts a new
+  optional `engine_findings` kwarg
+  (`dict[engine_name, list[Finding]]`). When provided, the shadow
+  model's feature vector is computed from the raw per-engine finding
+  dict instead of the orchestrator's merge-collapsed list. This fix
+  closes the train/serve skew that caused Sprint 12 Phase 5a's
+  `SSN→CREDIT_CARD` shadow collapse on 219 SSN columns. Callers that
+  do not pass `engine_findings` keep the legacy behavior for
+  back-compat.
+- **GLiNER2 consumer mode** (Sprint 10): column-level inference now
+  chunks sample values into the NL prompt template rather than
+  concatenating them with a literal separator. No consumer-side
+  API change.
+
+### Deprecated
+
+- `DATE_OF_BIRTH_EU` subtype label (Sprint 12). The emission path is
+  removed — columns that were formerly classified as
+  `DATE_OF_BIRTH_EU` now emit `DATE_OF_BIRTH` (both belong to the
+  `DATE` family, so family-level behavior is unchanged). A narrow
+  alias is retained in `data_classifier.core.taxonomy.ENTITY_TYPE_TO_FAMILY`
+  so any residual shadow predictions emitting the old label still
+  map to the `DATE` family. Consumer-side impact: if you were
+  reading `finding.entity_type == "DATE_OF_BIRTH_EU"` to branch on
+  format, that branch never fires on new data from v0.12.0 onwards.
+  Use `finding.family == "DATE"` for family-level routing, or
+  consume the date-format metadata from
+  `ClassificationEvent.meta_classification` if you need jurisdictional
+  granularity.
+
+### Removed
+
+- **Ai4Privacy corpus** (Sprint 9). Removed from all training data
+  after a license audit flagged the dataset as non-OSI-compatible.
+  Replaced in training by the Gretel-EN corpus. Training-only
+  change; no consumer API impact. See
+  `docs/process/LICENSE_AUDIT.md` for the verification discipline
+  that now gates every corpus addition.
+
+### Fixed
+
+- **Shadow path train/serve skew** (Sprint 12 Phase 5a). Historical
+  root cause: `extract_features` was called with the orchestrator's
+  post-merge `list[ClassificationFinding]` at inference but with
+  `_run_all_engines`'s raw per-engine output at training. Same
+  function, different input shape, silently different feature
+  vectors. Fix: new `engine_findings` kwarg on `predict_shadow`
+  (see "Changed" above). Test coverage: the parity test class
+  `TestPredictShadowAcceptsRawEngineFindings` (9 tests) locks the
+  contract.
+- **SSN validator hardening** (Sprint 6) — area-code 000, 666, 900-999
+  now correctly reject (previously slipped through). Not a
+  consumer-visible fix on normal data.
+- **Secret scanner `id_token` and `token_secret` patterns**
+  (Sprint 11) — tightened from `substring` match to `word_boundary`
+  to fix false-positive fires on `id_token_audience` and similar
+  English words embedding the pattern as a substring.
+- **M1 CV methodology** (Sprint 9) — the meta-classifier's
+  cross-validation fold construction now uses
+  `StratifiedGroupKFold(groups=corpora)` instead of
+  `StratifiedKFold`, eliminating corpus-fingerprint leakage that had
+  inflated the Sprint 6 CV estimate from `0.916` (leaky) to `0.194`
+  honest. Training-only change; no consumer API impact. See
+  `docs/learning/sprint9-cv-shortcut-and-gated-architecture.md`.
+
+### Security
+
+- No security-relevant fixes in this release. The
+  `not_placeholder_credential` validator (Sprint 11) reduces false
+  positives on documentation-placeholder credentials but does not
+  address any exploit or information disclosure.
 
 ## [0.8.0] — Sprint 8, "Ship it: stabilize, release, prep credentials" (2026-04-13)
 

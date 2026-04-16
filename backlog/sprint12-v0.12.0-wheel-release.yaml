@@ -1,0 +1,74 @@
+title: 'Sprint 12: v0.12.0 wheel release (tag + publish + client docs)'
+status: doing
+priority: P1
+category: chore
+sprint_target: 12
+created: 2026-04-16
+updated: 2026-04-16
+depends_on: []
+tags:
+- sprint12
+- release-ops
+- critical-path
+goal: >
+  Cut v0.12.0, publish to the AR Python repo. v0.12.0 is the first BQ-facing
+  release since v0.8.0 and bundles Sprints 9/10/11/12. This item replaces the
+  wheel-publish portion of the retired
+  sprint-12-v0-12-0-release-and-bq-consumer-bump composite item.
+complexity: S
+technical_specs:
+- 'File: pyproject.toml — bump version 0.8.0 → 0.12.0 (skipping 0.9/0.10/0.11
+  per Sprint 12 reframe: single coordinated BQ bump, not four).'
+- 'File: CHANGELOG.md — write the v0.12.0 entry covering user-visible changes
+  from Sprints 9/10/11/12 with SHADOW-ONLY framing. This is NOT a directive
+  promotion release — the v5 meta-classifier ships shadow-only for
+  observability; the live cascade path is functionally identical to v0.8.0
+  from a consumer perspective (same list[ClassificationFinding] return shape,
+  same engine cascade, same subtype taxonomy modulo the family taxonomy
+  additive extension).'
+- 'File: docs/CLIENT_INTEGRATION_GUIDE.md — add v0.12.0 migration section.
+  Key messaging: (a) NO behavior change on live path (classify_columns return
+  values match v0.8.0 structurally and semantically on the in-distribution
+  structured-single-entity column population used by Sprint 8); (b) NEW
+  public API field ClassificationFinding.family (13-family taxonomy,
+  auto-populated, non-breaking); (c) meta-classifier observability via
+  ClassificationEvent.meta_classification (shadow-only, no consumer-side
+  action required).'
+- 'Build: push the tag, verify Cloud Build data-classifier-release fires,
+  verify wheel lands in AR Python repo.'
+- 'Verification: clean-room install of v0.12.0 wheel in a fresh venv, run
+  the documented smoke test (import + construct + classify a test column)
+  with DATA_CLASSIFIER_DISABLE_ML=0 and =1.'
+acceptance_criteria:
+- pyproject.toml version is 0.12.0
+- CHANGELOG.md v0.12.0 entry covers Sprints 9/10/11/12 changes
+- docs/CLIENT_INTEGRATION_GUIDE.md has v0.12.0 migration section with
+  shadow-only messaging (NOT directive)
+- git tag v0.12.0 created on a commit on main that contains the version bump
+- Tag pushed to origin
+- Cloud Build data-classifier-release trigger fires on the tag push
+- v0.12.0 wheel published to AR Python repo (verify via console or CLI)
+- Lint + format clean
+- Full test suite green
+test_plan:
+- 'Manual: verify pyproject.toml version bump'
+- 'Manual: CHANGELOG entry readable as keep-a-changelog format'
+- 'Manual: CLIENT_INTEGRATION_GUIDE v0.12.0 section — verify shadow-only
+  framing (no "behavior change" language)'
+- 'Integration: tag push triggers Cloud Build — check build logs succeed'
+- 'Integration: fresh venv install from AR Python repo, import + smoke test'
+notes: |
+  Filed 2026-04-16 to replace the misscoped
+  sprint-12-v0-12-0-release-and-bq-consumer-bump composite item. The
+  original item assumed the directive flip would happen in Sprint 12 and
+  baked that assumption into its acceptance criteria; Sprint 12 Phase 5b
+  RED verdict invalidated those criteria, so this item isolates the
+  still-valid wheel-release portion.
+
+  BQ consumer coordination (external team action) is filed separately as
+  sprint13-bq-consumer-bump-to-v0.12.0.
+phase: build
+design_reviewed: true
+code_reviewed: false
+comments: []
+images: []
