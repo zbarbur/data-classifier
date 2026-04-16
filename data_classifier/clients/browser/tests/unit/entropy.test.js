@@ -34,8 +34,17 @@ describe('detectCharset', () => {
     expect(detectCharset('SGVsbG8gV29ybGQ=')).toBe('base64');
   });
 
-  it('detects alphanumeric (mixed-case, no symbols)', () => {
-    expect(detectCharset('AbcDef123')).toBe('alphanumeric');
+  it('classifies mixed-case hex digits as hex (case-insensitive hex, matches Python)', () => {
+    // 'AbcDef123' — every char is in [0-9a-fA-F], so Python returns 'hex'.
+    expect(detectCharset('AbcDef123')).toBe('hex');
+  });
+
+  it('classifies pure alphanumerics past the hex range as base64', () => {
+    // 'XYZpqr789' — has chars outside hex (XYZ, p, q, r), so hex fails;
+    // every char is in [A-Za-z0-9+/=], so base64 matches.
+    // Python's alphanumeric branch is effectively unreachable — [A-Za-z0-9]
+    // is a subset of [A-Za-z0-9+/=]. The JS port preserves this behavior.
+    expect(detectCharset('XYZpqr789')).toBe('base64');
   });
 
   it('falls back to full for strings with symbols or spaces', () => {

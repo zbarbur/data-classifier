@@ -16,7 +16,7 @@ const CHARSET_MAX_ENTROPY = {
   full: log2(95),
 };
 
-const HEX_RE = /^[0-9a-f]+$/;
+const HEX_RE = /^[0-9a-fA-F]+$/;
 const BASE64_RE = /^[A-Za-z0-9+/=]+$/;
 const ALNUM_RE = /^[A-Za-z0-9]+$/;
 
@@ -33,10 +33,15 @@ export function shannonEntropy(value) {
   return h;
 }
 
+// NOTE: Mirrors Python's _detect_charset exactly, including the fact that
+// the 'alphanumeric' branch is effectively unreachable — pure alphanumeric
+// strings hit the base64 branch first because [A-Za-z0-9] is a subset of
+// [A-Za-z0-9+/=]. The 'alphanumeric' charset remains in CHARSET_MAX_ENTROPY
+// for symmetry with the Python module.
 export function detectCharset(value) {
   if (HEX_RE.test(value)) return 'hex';
-  if (ALNUM_RE.test(value)) return 'alphanumeric';
   if (BASE64_RE.test(value)) return 'base64';
+  if (ALNUM_RE.test(value)) return 'alphanumeric';
   return 'full';
 }
 
