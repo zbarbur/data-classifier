@@ -120,7 +120,7 @@ notes: "Estimated ~1 week of implementation. Depends on a clean baseline (Sprint
   \ corpus + measure misclassification.\n  2. What fraction of real BQ columns fall\
   \ in each shape bucket? Requires\n     BQ integration team to share anonymized column-shape\
   \ statistics.\n"
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
