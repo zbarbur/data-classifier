@@ -1,14 +1,14 @@
 // Stage-1 regex backend: JS RegExp iteration over all patterns.
 // Stage 2 (re2-wasm) reimplements this module against the same interface.
 
-import { resolveValidator } from './validators.js';
+import { resolveValidator, makeNotPlaceholderCredential } from './validators.js';
 
 export function createBackend(patterns, stopwordsSet, placeholderSet) {
   const compiled = patterns.map((p) => ({
     pattern: p,
-    re: safeCompile(p.regex),
+    re: safeCompile(p.regex, p.name),
     validator: resolveValidator(p.validator, {
-      notPlaceholderCredential: makeNotPlaceholder(placeholderSet),
+      notPlaceholderCredential: makeNotPlaceholderCredential(placeholderSet),
     }),
   }));
 
@@ -35,10 +35,11 @@ export function createBackend(patterns, stopwordsSet, placeholderSet) {
   return { iterate };
 }
 
-function safeCompile(regex) {
+function safeCompile(regex, patternName) {
   try {
     return new RegExp(regex, 'g');
-  } catch {
+  } catch (err) {
+    console.warn(`[regex-backend] pattern '${patternName}' failed to compile; skipping. error: ${err.message}`);
     return null;
   }
 }
@@ -55,15 +56,11 @@ function matchesAllowlist(value, pattern) {
   for (const allow of pattern.allowlist_patterns || []) {
     try {
       if (new RegExp(allow).test(value)) return true;
-    } catch {
-      // invalid allowlist regex — ignore
+    } catch (err) {
+      console.warn(
+        `[regex-backend] pattern '${pattern.name}' has invalid allowlist regex ${JSON.stringify(allow)}; skipping. error: ${err.message}`
+      );
     }
   }
   return false;
-}
-
-function makeNotPlaceholder(placeholderSet) {
-  return function notPlaceholderCredential(value) {
-    return !placeholderSet.has(value.trim().toLowerCase());
-  };
 }
