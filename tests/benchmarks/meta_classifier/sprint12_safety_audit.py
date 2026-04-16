@@ -736,6 +736,27 @@ def _audit_single_fixture(
         engine_findings[en_name] = list(engine_result)
         flat_findings.extend(engine_result)
 
+    # Sprint 13 Item A router gate: mirror production behavior.
+    # The orchestrator suppresses v5 shadow on non-structured shapes;
+    # the audit bypasses the orchestrator, so we replicate the gate
+    # here. A "router_deflected" outcome is the new GREEN-bucket
+    # verdict — the pathology of "collapse to wrong class" cannot
+    # happen on columns where v5 is never consulted.
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    shape_detection = detect_column_shape(column, engine_findings)
+    if shape_detection.shape != "structured_single":
+        return {
+            "fixture": name,
+            "fixture_size": len(sample_values),
+            "live_findings": live_findings_summary,
+            "num_live_findings": len(live_findings_summary),
+            "live_distinct_entities": sorted(live_distinct),
+            "shadow_prediction": None,
+            "collapse_verdict": "router_deflected",
+            "router_shape": shape_detection.shape,
+        }
+
     try:
         shadow = mc.predict_shadow(flat_findings, sample_values, engine_findings=engine_findings)
     except Exception as exc:
@@ -847,6 +868,7 @@ def q3_heterogeneous_audit() -> dict[str, Any]:
         "collapsed_high_confidence_one_of_live",
         "collapsed_medium_confidence_one_of_live",
         "graceful_degradation",
+        "router_deflected",  # Sprint 13 Item A: shape router deflected away from v5
     ]
     all_verdicts = [r["collapse_verdict"] for r in per_fixture]
     aggregate_verdict = next((s for s in severity_order if s in all_verdicts), "graceful_degradation")
@@ -938,8 +960,14 @@ def compute_verdict(q1: dict[str, Any], q2: dict[str, Any], q3: dict[str, Any]) 
     # not present in the live findings blocks GREEN — a medium-confidence
     # wrong-class collapse is still the flat-classifier pathology, just
     # less loud than the high-confidence version.
-    q3_clean = q3_verdict in {
-        "graceful_degradation",
+    # The GREEN bucket accepts: graceful_degradation OR router_deflected.
+    # Both indicate the flat classifier did not produce a collapse-wrong
+    # prediction on a heterogeneous column. router_deflected means the
+    # Sprint 13 router stopped the shadow call; graceful_degradation
+    # means the shadow ran but produced a low-confidence output.
+    q3_green_bucket = {"graceful_degradation", "router_deflected"}
+    q3_green = q3_verdict in q3_green_bucket
+    q3_clean = q3_green or q3_verdict in {
         "collapsed_medium_confidence_one_of_live",
         "collapsed_high_confidence_one_of_live",
     }
@@ -956,7 +984,9 @@ def compute_verdict(q1: dict[str, Any], q2: dict[str, Any], q3: dict[str, Any]) 
             f"Q1 LOCO unweighted = {q1_loco:.4f} >= {LOCO_GREEN_MIN:.2f} (weighted = {winner_loco_weighted:.4f})"
         )
         reasons.append(f"Q2 hard-gated delta = {q2_delta:+.4f} < {ARCH_GREEN_MAX_DELTA:.2f}")
-        reasons.append(f"Q3 column output = {q3_verdict} (no collapse)")
+        reasons.append(
+            f"Q3 column output = {q3_verdict} (no collapse — {'router deflected v5' if q3_verdict == 'router_deflected' else 'graceful degradation'})"
+        )
         return Verdict(level="GREEN", reasons=reasons, mitigations=[])
 
     # YELLOW — at least one threshold is in the grey zone but none are red
@@ -992,7 +1022,7 @@ def compute_verdict(q1: dict[str, Any], q2: dict[str, Any], q3: dict[str, Any]) 
             "fall back to live cascade output for this column. Preserves current live "
             "quality on log-shaped columns without inheriting flat-classifier collapse."
         )
-    elif q3_verdict == "graceful_degradation":
+    elif q3_verdict in {"graceful_degradation", "router_deflected"}:
         reasons.append(
             "Q3 column output degraded to a single low-confidence finding — flat classifier "
             "does not fail loudly on mixed content, but also does not represent it correctly"
