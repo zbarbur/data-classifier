@@ -136,7 +136,7 @@ steps:
         #      inside would still dump the token otherwise).
         #
         #   2. Pass the Authorization header to curl via process substitution
-        #      rather than `-H "Authorization: Bearer $TOKEN"` so the token
+        #      rather than `-H "Authorization: Bearer $$TOKEN"` so the token
         #      never lands on the curl command line — keeps it out of `ps`
         #      / `/proc/*/cmdline` / any command-echo log. Requires bash
         #      (entrypoint: bash above); `<(...)` is not POSIX.
