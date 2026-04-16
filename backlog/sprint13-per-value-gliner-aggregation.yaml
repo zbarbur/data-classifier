@@ -1,6 +1,6 @@
-title: 'Sprint 13 Item B: per-value GLiNER span extraction + column-level
-  multi-label aggregation for the free_text_heterogeneous branch'
-status: backlog
+title: 'Sprint 13 Item B: per-value GLiNER span extraction + column-level multi-label
+  aggregation for the free_text_heterogeneous branch'
+status: doing
 priority: P1
 category: feature
 sprint_target: 13
@@ -14,115 +14,113 @@ tags:
 - multi-label
 - heterogeneous-columns
 - sprint12-deferred-followup
-goal: >
-  Refactor GLiNERInferenceEngine to support per-value span extraction in
-  addition to the current column-level single-label mode, and implement
-  column-level aggregation: for each entity type seen in any sample value,
-  emit a ClassificationFinding at confidence proportional to per-value
-  coverage. This is the handler for the free_text_heterogeneous branch from
-  Item A (column-shape router) and is what actually delivers multi-label
+goal: 'Refactor GLiNERInferenceEngine to support per-value span extraction in addition
+  to the current column-level single-label mode, and implement column-level aggregation:
+  for each entity type seen in any sample value, emit a ClassificationFinding at confidence
+  proportional to per-value coverage. This is the handler for the free_text_heterogeneous
+  branch from Item A (column-shape router) and is what actually delivers multi-label
   output on log-shaped columns.
+
+  '
 complexity: M
 technical_specs:
-- 'GLiNER per-value mode: refactor data_classifier/engines/gliner_engine.py
-  (or wherever the inference wrapper lives) to accept a "per_value" argument
-  that runs the ONNX span-extraction model on EACH sample value individually
-  and returns a list[list[SpanDetection]] where the outer list is per-sample
-  and the inner list is per-span. Current mode concatenates sample values and
-  runs once; per-value mode runs N times for N sample values.'
-- 'Column-level aggregation: new helper ``aggregate_per_value_spans(
-  per_value_spans: list[list[SpanDetection]], n_samples: int) ->
-  list[ClassificationFinding]`` that (a) computes per-entity-type coverage
-  (fraction of sample values with at least one span of this type), (b) emits
-  one ClassificationFinding per entity type observed with confidence =
-  coverage * max_span_confidence. Threshold: drop entity types with coverage
-  < 0.1 (arbitrary noise floor, tune in implementation).'
-- 'Orchestrator integration: Item A''s free_text_heterogeneous branch calls
-  the per-value GLiNER handler and emits its aggregated findings as the
-  column''s classification output, bypassing the 7-pass merge. The cascade''s
-  own findings are discarded for this branch — GLiNER becomes the source of
-  truth for heterogeneous content.'
-- 'Performance budget: per-value inference is N times slower than column-level.
-  For N=50 sample values, this is roughly 50x the GLiNER cost. Mitigation
-  options: (a) batch inference across sample values, (b) cap per-value
-  inference at N=20 sample values (subsample deterministically by hash), (c)
-  only run per-value on free_text_heterogeneous columns (which should be a
-  subset of BQ columns — a rough guess is 10-30%). The routing from Item A
-  already gates this so only heterogeneous columns pay the cost.'
-- 'Testing: benchmark against the 6 Q3 fixtures from sprint12_safety_audit.py.
-  Directive win condition: per-value GLiNER finds >= as many entity types as
-  the cascade on each fixture, at comparable confidence, AND does not emit
-  entity types not present in the column (no wrong-class collapses).'
-- 'Fallback: if GLiNER inference fails on a value (OOM, model load error,
-  etc.), fall back to that row''s cascade regex output. Never block a column
-  on a per-value GLiNER failure.'
-description: |
-  Reframed Sprint 13 brief Item B. The original "train 3 specialized stage-2
-  classifiers" framing assumed we needed a multi-label classifier trained on
-  multi-label data (which we don't have). The reframe uses GLiNER, which is
-  a span extraction model that already exists in our engine cascade and is
-  naturally multi-label at the column level when run per-value + aggregated.
-  No new training data required; the tool's capability just needs to be
-  unlocked.
-
-  Currently GLiNER is used as a column-level single-label classifier
-  (concatenate sample values, run once, take top label). This throws away
-  the per-value multi-span capability that is exactly what log-shaped
-  columns need.
-
-  Evidence (from sprint12_safety_audit.md §3): the 6 heterogeneous fixtures
-  have an average of 2–4 distinct entity types per column that the live
-  regex cascade finds. GLiNER per-value should find at least that many,
-  potentially more (it catches non-regex-matchable entities like
-  organization names, dates in free form, etc.).
-
-  Depends on Item A (column-shape router) because the entry point is the
-  free_text_heterogeneous branch. Without Item A, we have no gate to decide
-  when to run per-value GLiNER, and running it unconditionally would 50x
-  the inference cost on homogeneous columns for no benefit.
+- 'GLiNER per-value mode: refactor data_classifier/engines/gliner_engine.py (or wherever
+  the inference wrapper lives) to accept a "per_value" argument that runs the ONNX
+  span-extraction model on EACH sample value individually and returns a list[list[SpanDetection]]
+  where the outer list is per-sample and the inner list is per-span. Current mode
+  concatenates sample values and runs once; per-value mode runs N times for N sample
+  values.'
+- 'Column-level aggregation: new helper ``aggregate_per_value_spans( per_value_spans:
+  list[list[SpanDetection]], n_samples: int) -> list[ClassificationFinding]`` that
+  (a) computes per-entity-type coverage (fraction of sample values with at least one
+  span of this type), (b) emits one ClassificationFinding per entity type observed
+  with confidence = coverage * max_span_confidence. Threshold: drop entity types with
+  coverage < 0.1 (arbitrary noise floor, tune in implementation).'
+- "Orchestrator integration: Item A's free_text_heterogeneous branch calls the per-value\
+  \ GLiNER handler and emits its aggregated findings as the column's classification\
+  \ output, bypassing the 7-pass merge. The cascade's own findings are discarded for\
+  \ this branch \u2014 GLiNER becomes the source of truth for heterogeneous content."
+- "Performance budget (Sprint 13 scoping Q2 decision, 2026-04-16): cap per-value inference\
+  \ at N=60 sample values, selected deterministically by stable hash (reproducible\
+  \ across runs, independent of insertion order). The cap is exposed as ``per_value_gliner_sample_size``\
+  \ in engine_defaults.yaml so it can be retuned without a code change after Item\
+  \ A telemetry characterizes real-world branch distribution and tail latency. Chao-1\
+  \ cardinality estimates are noisy below ~30 samples, so N=60 leaves headroom for\
+  \ downstream diversity estimation. No per-column timeout gate: the design is \"\
+  measure, do not gate\" \u2014 the goal is to understand the latency characteristic\
+  \ before imposing a fallback threshold. Latency is emitted per call via ColumnShapeEvent\
+  \ (per_value_inference_ms + sampled_row_count fields, see Item A). Item A's routing\
+  \ gate already ensures only free_text_heterogeneous columns pay this cost."
+- 'Testing: benchmark against the 6 Q3 fixtures from sprint12_safety_audit.py. Directive
+  win condition: per-value GLiNER finds >= as many entity types as the cascade on
+  each fixture, at comparable confidence, AND does not emit entity types not present
+  in the column (no wrong-class collapses).'
+- 'Fallback: if GLiNER inference fails on a value (OOM, model load error, etc.), fall
+  back to that row''s cascade regex output. Never block a column on a per-value GLiNER
+  failure.'
+description: "Reframed Sprint 13 brief Item B. The original \"train 3 specialized\
+  \ stage-2\nclassifiers\" framing assumed we needed a multi-label classifier trained\
+  \ on\nmulti-label data (which we don't have). The reframe uses GLiNER, which is\n\
+  a span extraction model that already exists in our engine cascade and is\nnaturally\
+  \ multi-label at the column level when run per-value + aggregated.\nNo new training\
+  \ data required; the tool's capability just needs to be\nunlocked.\n\nCurrently\
+  \ GLiNER is used as a column-level single-label classifier\n(concatenate sample\
+  \ values, run once, take top label). This throws away\nthe per-value multi-span\
+  \ capability that is exactly what log-shaped\ncolumns need.\n\nEvidence (from sprint12_safety_audit.md\
+  \ \xA73): the 6 heterogeneous fixtures\nhave an average of 2\u20134 distinct entity\
+  \ types per column that the live\nregex cascade finds. GLiNER per-value should find\
+  \ at least that many,\npotentially more (it catches non-regex-matchable entities\
+  \ like\norganization names, dates in free form, etc.).\n\nDepends on Item A (column-shape\
+  \ router) because the entry point is the\nfree_text_heterogeneous branch. Without\
+  \ Item A, we have no gate to decide\nwhen to run per-value GLiNER, and running it\
+  \ unconditionally would 50x\nthe inference cost on homogeneous columns for no benefit.\n"
 acceptance_criteria:
 - GLiNERInferenceEngine supports a per_value mode
-- aggregate_per_value_spans helper exists and converts per-value spans to
-  column-level list[ClassificationFinding]
+- aggregate_per_value_spans helper exists and converts per-value spans to column-level
+  list[ClassificationFinding]
 - Orchestrator free_text_heterogeneous branch routes to the per-value handler
-- "On all 6 Q3 fixtures from sprint12_safety_audit.py, per-value GLiNER
-  output entity types >= cascade entity types (coverage), AND no entity
-  type is emitted that is not in the cascade set (precision)"
-- "Integration test on tests/benchmarks/meta_classifier/sprint12_safety_audit.py
-  produces Q3 aggregate verdict GREEN after this item lands (Item A
-  already lifted it by routing away from v5; Item B improves the handler)"
-- No regression on family benchmark (most family benchmark rows are
-  structured_single, not heterogeneous, so unaffected)
+- On all 6 Q3 fixtures from sprint12_safety_audit.py, per-value GLiNER output entity
+  types >= cascade entity types (coverage), AND no entity type is emitted that is
+  not in the cascade set (precision)
+- Integration test on tests/benchmarks/meta_classifier/sprint12_safety_audit.py produces
+  Q3 aggregate verdict GREEN after this item lands (Item A already lifted it by routing
+  away from v5; Item B improves the handler)
+- No regression on family benchmark (most family benchmark rows are structured_single,
+  not heterogeneous, so unaffected)
 - Lint + format clean, full test suite green
-- Per-value inference latency measurable and documented (expected ~50x
-  column-level, to be characterized)
+- "Per-value inference latency measured per call via Item A's ColumnShapeEvent (per_value_inference_ms\
+  \ + sampled_row_count fields populated for the free_text_heterogeneous branch);\
+  \ latency distribution across the 6 Q3 fixtures + at least 10 synthetic heterogeneous\
+  \ columns characterized in the Sprint 13 handover. No timeout gate in Sprint 13\
+  \ \u2014 the decision (Q2, 2026-04-16) is \"measure, do not gate\" before imposing\
+  \ a fallback threshold."
+- '``per_value_gliner_sample_size`` exposed as a configurable key in engine_defaults.yaml
+  (default N=60), so the cap can be retuned without a code change as telemetry from
+  Item A accumulates.'
 test_plan:
-- "Unit tests on per-value GLiNER inference against 3+ fixtures with known ground-truth spans"
-- "Aggregation tests on mock per-value output with known coverage, assert correct ClassificationFinding list"
-- "Integration test on safety audit Q3 across all 6 fixtures — shadow output should match or exceed live cascade"
-- "Performance measurement on latency characterization on 50-row columns"
-- "Regression check on full test suite + family benchmark"
-notes: |
-  Estimated ~1 week of implementation. The biggest unknowns are (a) whether
-  GLiNER per-value inference is fast enough to be practical, (b) whether
-  aggregation thresholds need per-entity-type tuning. Both are empirical
-  questions answered by running the code on the 6 Q3 fixtures.
-
-  Follow-up research (for the research branch):
-    1. Does GLiNER generalize to non-English heterogeneous content? Current
-       model is English-only; Kafka streams and audit logs in international
-       deployments have non-English content. May need a multilingual GLiNER
-       variant for Sprint 14+.
-    2. Can we use the per-value output to also improve the structured_single
-       branch? If GLiNER per-value is reliable, it could be a fallback for
-       structured columns where the regex cascade misses. Likely Sprint 14+.
-    3. What does the aggregation's confidence calibration look like on real
-       BQ heterogeneous columns? The coverage * max_confidence formula is a
-       reasonable first pass but may need tuning.
-
-  ONNX runtime note: current GLiNER ONNX export is wired through
-  data_classifier.download_models. The per-value mode should work with the
-  existing ONNX session without model changes — just a new inference pattern.
+- Unit tests on per-value GLiNER inference against 3+ fixtures with known ground-truth
+  spans
+- Aggregation tests on mock per-value output with known coverage, assert correct ClassificationFinding
+  list
+- "Integration test on safety audit Q3 across all 6 fixtures \u2014 shadow output\
+  \ should match or exceed live cascade"
+- Performance measurement on latency characterization on 50-row columns
+- Regression check on full test suite + family benchmark
+notes: "Estimated ~1 week of implementation. The biggest unknowns are (a) whether\n\
+  GLiNER per-value inference is fast enough to be practical, (b) whether\naggregation\
+  \ thresholds need per-entity-type tuning. Both are empirical\nquestions answered\
+  \ by running the code on the 6 Q3 fixtures.\n\nFollow-up research (for the research\
+  \ branch):\n  1. Does GLiNER generalize to non-English heterogeneous content? Current\n\
+  \     model is English-only; Kafka streams and audit logs in international\n   \
+  \  deployments have non-English content. May need a multilingual GLiNER\n     variant\
+  \ for Sprint 14+.\n  2. Can we use the per-value output to also improve the structured_single\n\
+  \     branch? If GLiNER per-value is reliable, it could be a fallback for\n    \
+  \ structured columns where the regex cascade misses. Likely Sprint 14+.\n  3. What\
+  \ does the aggregation's confidence calibration look like on real\n     BQ heterogeneous\
+  \ columns? The coverage * max_confidence formula is a\n     reasonable first pass\
+  \ but may need tuning.\n\nONNX runtime note: current GLiNER ONNX export is wired\
+  \ through\ndata_classifier.download_models. The per-value mode should work with\
+  \ the\nexisting ONNX session without model changes \u2014 just a new inference pattern.\n"
 phase: plan
 design_reviewed: false
 code_reviewed: false
