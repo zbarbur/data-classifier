@@ -1144,7 +1144,7 @@ Tier 2 (shape-based OPAQUE_SECRET residual catcher) is **deferred** to a follow-
 
 ### E12 — Production-shape validation corpora survey (BQ public datasets)
 
-**Status:** 🟢 in progress (2026-04-16)
+**Status:** ✅ complete (2026-04-16, see `dataset_landscape.md` §Tier 7) — 10 candidates characterized across 4 shape classes; 3 🟢 staging picks (SO users / austin_311 / crypto_ethereum.logs); surprise finding: queue-shortlist was wrong about Austin/NYC/Chicago "description" fields being freeform (they're category enums); GH commits is only BQ source with TRUE_LOG density; $0.40 BQ cost against $5 budget
 **Priority:** P1 — validates the heterogeneous-column path in the gated architecture design and fills a corpus gap that synthetic/crowdsourced datasets cannot close
 **Estimated time:** ~30-45 min subagent survey + ~15 min review
 **Contract note:** append-only to `docs/experiments/meta_classifier/dataset_landscape.md` (research-owned file) — no writes to `data_classifier/**` or main-owned files
