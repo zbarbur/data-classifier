@@ -1,0 +1,101 @@
+title: Wheel versioning + Google Artifact Registry release pipeline for BQ + clients
+status: done
+priority: P1
+category: chore
+sprint_target: 8
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: 'Replace BQ-connector''s manual vendored-wheel workflow with an automated release
+  pipeline using Google Artifact Registry. Bumps pyproject.toml version per sprint,
+  tags releases on main, builds wheels in CI, publishes to a private Python repo in
+  Artifact Registry, and updates CLIENT_INTEGRATION_GUIDE + BQ pyproject to consume
+  pinned versions. Removes the ''someone manually builds and copies the wheel'' friction
+  that Sprint 7 discovered was blocking BQ from consuming pattern-library updates.
+  Delivery mechanism confirmed by user 2026-04-13: GCP Artifact Registry (matches
+  existing BQ GCP infrastructure).'
+complexity: M
+technical_specs:
+- "File: pyproject.toml \u2014 bump version; define versioning scheme (semver keyed\
+  \ to sprint number: 0.{sprint}.0)"
+- "File: pyproject.toml \u2014 consolidate ML extras. Today there are three overlapping\
+  \ extras: [ml] (gliner+onnxruntime), [ml-full] (adds torch+transformers+onnx), and\
+  \ [ml-api] (gliner2 package, different from gliner). Keep [ml] as the lean production\
+  \ runtime extra (onnxruntime-only; model is baked via Item 8's download_models CLI,\
+  \ not from_pretrained). Keep [ml-full] as the developer/export extra with torch+transformers+onnx\
+  \ (needed by export_onnx.py). Delete [ml-api] (unused package name mismatch). Update\
+  \ gliner_engine.py imports to match the consolidated extras."
+- "File: CHANGELOG.md (new) \u2014 initial entries for Sprints 5, 6, 7 based on handover\
+  \ docs"
+- "File: .github/workflows/release.yml (new) \u2014 release pipeline; use google-github-actions/auth@v2\
+  \ with Workload Identity Federation, twine upload, version-from-tag. This workflow\
+  \ is shared with Item 8 (adds a step to export+publish the ONNX model tarball to\
+  \ AR Generic repo)."
+- "File: docs/CLIENT_INTEGRATION_GUIDE.md \u2014 rewrite install section for AR-based\
+  \ pip install; document the three extras (what [ml] vs [ml-full] vs [dev] each give\
+  \ you)"
+- "BigQuery-connector coordination: pyproject.toml update + .pip.conf for AR index\
+  \ (coordinate via the BQ session \u2014 do NOT modify BQ files directly per CLAUDE.md\
+  \ rule)"
+- 'Optional stretch: release.yml step that opens a PR against BigQuery-connector/pyproject.toml
+  bumping the pin (GitHub App or PAT-based)'
+description: ''
+acceptance_criteria:
+- 'pyproject.toml::version is bumped to 0.8.0 (forward-only scheme locked 2026-04-13:
+  0.{sprint}.0 for sprint releases, 0.{sprint}.{patch} for hotfix cherry-picks; no
+  retroactive tags for Sprints 2-7)'
+- CHANGELOG.md file created with per-sprint entries backfilled from SPRINT{N}_HANDOVER.md
+  content for Sprints 5-7, plus a header note that versions 0.2.0-0.7.0 were never
+  published and history is reconstructed from handover docs
+- 'One-time GCP setup (Claude session authorized 2026-04-13 to run directly): gcloud
+  artifacts repositories create data-classifier --repository-format=python --location=us-central1
+  in the BQ GCP project; grant CI service account artifactregistry.writer; grant BQ
+  consumer service account artifactregistry.reader. User provides project ID at execution
+  time.'
+- Workload Identity Federation pool + provider created for the data-classifier repo's
+  GitHub Actions, bound to the CI service account via the artifactregistry.writer
+  role
+- '.github/workflows/release.yml triggers on v* tag push: builds wheel via python
+  -m build, auths via google-github-actions/auth@v2 using Workload Identity Federation,
+  uploads via twine to the AR Python repo'
+- docs/CLIENT_INTEGRATION_GUIDE.md replaces git+ssh:// and vendored-wheel recipes
+  with pip install --extra-index-url https://us-central1-python.pkg.dev/<project>/data-classifier/simple/
+  "data_classifier[ml]==0.8.0"
+- BigQuery-connector/pyproject.toml changes from "data_classifier[ml] @ file:vendor/..."
+  to "data_classifier[ml]==0.8.0" + adds .pip.conf (or equivalent) referencing the
+  AR index (coordinated via BQ session, not edited directly per CLAUDE.md rule)
+- 'End-to-end verification: v0.8.0 tag pushed, CI publishes to AR, a fresh venv on
+  a machine with only artifactregistry.reader can ''pip install data_classifier[ml]==0.8.0''
+  successfully'
+- "The BigQuery-connector/vendor/ directory is removed (or deprecated with a README\
+  \ explaining the migration) \u2014 coordinated via BQ session"
+- 'pyproject.toml ML extras consolidated: [ml-api] removed (package-name mismatch
+  with engine code), [ml] remains the lean runtime extra (onnxruntime-only), [ml-full]
+  remains the developer/export extra (torch+transformers+onnx for running export_onnx.py).
+  gliner_engine.py imports updated to match. Docs in CLIENT_INTEGRATION_GUIDE.md explain
+  which extra a consumer needs (runtime vs export vs dev).'
+- An AR Generic repository 'data-classifier-models' is created alongside the Python
+  repo as part of the same one-time GCP setup step, so Item 8 can publish the ONNX
+  tarball using the same WIF auth.
+test_plan:
+- 'One-time: create AR repo in a dev project, test a test-wheel upload via twine with
+  a local service account'
+- 'CI: add a dry-run release workflow triggered on tag push to a non-main branch;
+  verify wheel builds and auth works without actually publishing'
+- 'End-to-end install test: spin a fresh venv on a machine that has only the artifactregistry.reader
+  role, run pip install, verify import works'
+- 'Rollback test: pin to a previous version (e.g. 0.7.0) and confirm AR still serves
+  it'
+notes: "Discovered during Sprint 7 close: BigQuery-connector/vendor/data_classifier-0.1.0-py3-none-any.whl\
+  \ (built manually 2026-04-13 01:08) is the current deployment path. Version is permanently\
+  \ 0.1.0 because pyproject.toml hasn't been bumped since Sprint 1. Google Artifact\
+  \ Registry chosen because BQ is on GCP (BigQuery-connector/cloudbuild*.yaml files\
+  \ confirm it) and AR free tier (0.5 GB storage + 1 GB network/month) is well above\
+  \ this library's footprint. Deprecates the P3 'pypi-publishing-pipeline' backlog\
+  \ item \u2014 this item is the concrete scope."
+phase: build
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

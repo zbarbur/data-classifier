@@ -1,15 +1,30 @@
-"""Tests for DATE_OF_BIRTH_EU entity type (Sprint 6).
+"""Tests for EU-format date-of-birth classification (Sprint 12 retirement).
 
-The EU variant separates DD/MM/YYYY format from the US-default MM/DD/YYYY.
-The ``dob_european`` pattern in ``default_patterns.json`` now emits
-``DATE_OF_BIRTH_EU`` instead of ``DATE_OF_BIRTH``. Ambiguous cases like
-``04/03/1990`` (day=04 and month=03 — both valid under either interpretation)
-match BOTH ``date_of_birth_format`` (US MM/DD) AND ``dob_european`` (EU DD/MM),
-producing both entity types for downstream region-based disambiguation.
+The Sprint 6 ``DATE_OF_BIRTH_EU`` subtype was retired in Sprint 12 after the
+Sprint 11 Phase 10 family A/B analysis showed the split was a classification
+mistake: format does not indicate jurisdiction, the distinction is
+unresolvable for ambiguous day<=12 cases, and GDPR / CCPA / HIPAA treat
+dates of birth as PII regardless of format. See
+``docs/research/meta_classifier/sprint11_family_ab_result.md`` for the full
+reasoning and ``backlog/sprint12-retire-date-of-birth-eu-subtype.yaml`` for
+the taxonomy-cleanup spec.
 
-Non-ambiguous EU formats like ``15/03/1985`` (day=15 cannot be a month) match
-only the EU pattern. Non-ambiguous US formats like ``03/15/1985`` match only
-the US pattern.
+These tests pin the post-retirement behaviour:
+
+* Unambiguous EU-format strings (e.g. ``15/03/1985``) must still classify
+  as ``DATE_OF_BIRTH`` via the ``dob_european`` regex. The pattern
+  survives; only the emitted ``entity_type`` label changes.
+* Unambiguous US-format strings still classify as ``DATE_OF_BIRTH`` via
+  the legacy ``date_of_birth_format`` regex.
+* Ambiguous values (day<=12, month<=12) classify as ``DATE_OF_BIRTH``
+  without producing any ``DATE_OF_BIRTH_EU`` finding — the whole point
+  of the retirement is that we no longer try to report both subtypes.
+* Invalid dates still reject cleanly.
+* ``DATE_OF_BIRTH_EU`` is absent from the ``standard.yaml`` profile and
+  from every pattern's emitted ``entity_type`` — the production cascade
+  can no longer produce DOB_EU findings. A narrow compatibility alias
+  in ``ENTITY_TYPE_TO_FAMILY`` keeps DOB_EU → DATE for meta-classifier
+  v3's shadow predictions (removed in Sprint 13 after v4 retrain).
 """
 
 from __future__ import annotations
@@ -17,6 +32,7 @@ from __future__ import annotations
 import pytest
 
 from data_classifier import ColumnInput, classify_columns, load_profile
+from data_classifier.core.taxonomy import ENTITY_TYPE_TO_FAMILY
 
 
 @pytest.fixture
@@ -28,8 +44,8 @@ def _entity_types(findings) -> set[str]:
     return {f.entity_type for f in findings}
 
 
-class TestDateOfBirthEuUnambiguous:
-    """Values where day > 12 — only valid as DD/MM, not MM/DD."""
+class TestDateOfBirthEuFormatClassifiesAsDateOfBirth:
+    """EU-format DOBs (DD/MM/YYYY, DD.MM.YYYY) collapse to DATE_OF_BIRTH."""
 
     @pytest.mark.parametrize(
         "dob",
@@ -37,10 +53,10 @@ class TestDateOfBirthEuUnambiguous:
             "15/03/1985",
             "31/12/1990",
             "25.06.1978",
-            "13/01/2000",  # day=13, month=01 — unambiguously EU
+            "13/01/2000",  # day=13, unambiguously EU-format
         ],
     )
-    def test_eu_only_format_detected(self, dob: str, profile) -> None:
+    def test_eu_only_format_classifies_as_date_of_birth(self, dob: str, profile) -> None:
         col = ColumnInput(
             column_id="c1",
             column_name="geburtsdatum",
@@ -48,12 +64,13 @@ class TestDateOfBirthEuUnambiguous:
         )
         findings = classify_columns([col], profile)
         types = _entity_types(findings)
-        assert "DATE_OF_BIRTH_EU" in types
+        assert "DATE_OF_BIRTH" in types
+        # Regression guard: the retired subtype must not come back.
+        assert "DATE_OF_BIRTH_EU" not in types
 
 
 class TestDateOfBirthUsUnambiguous:
-    """Values where the regex can only parse as US MM/DD (month > 12 is invalid;
-    day > 12 in the middle position is invalid for EU)."""
+    """US-format DOBs (MM/DD/YYYY) classify as DATE_OF_BIRTH — unchanged by retirement."""
 
     @pytest.mark.parametrize(
         "dob",
@@ -72,17 +89,18 @@ class TestDateOfBirthUsUnambiguous:
         findings = classify_columns([col], profile)
         types = _entity_types(findings)
         assert "DATE_OF_BIRTH" in types
+        assert "DATE_OF_BIRTH_EU" not in types
 
 
 class TestDateOfBirthAmbiguous:
-    """Values where day <= 12 AND month <= 12 — valid under both interpretations.
+    """Ambiguous day<=12 + month<=12 values resolve to a single DATE_OF_BIRTH finding.
 
-    Both entity types should be reported so downstream region context can filter.
-    Uses a NEUTRAL column name to exercise content-based regex matching in
-    isolation. A DOB-hinting column name (``birth_date``, ``geburtsdatum``)
-    would legitimately trigger Sprint 5 engine weighting and suppress the
-    regex-side "other" entity type — which is correct behavior, just not
-    what this test is measuring.
+    Before Sprint 12 these would emit both ``DATE_OF_BIRTH`` and
+    ``DATE_OF_BIRTH_EU`` for downstream jurisdiction-aware disambiguation.
+    After the retirement there is no second subtype to emit — the pipeline
+    reports ``DATE_OF_BIRTH`` once, which is correct because format does
+    not identify jurisdiction and the sensitivity / regulatory scope is
+    identical regardless.
     """
 
     @pytest.mark.parametrize(
@@ -94,7 +112,7 @@ class TestDateOfBirthAmbiguous:
             "05/06/1975",
         ],
     )
-    def test_ambiguous_dates_match_both_entity_types(self, dob: str, profile) -> None:
+    def test_ambiguous_dates_land_in_date_of_birth(self, dob: str, profile) -> None:
         col = ColumnInput(
             column_id="c1",
             column_name="col_data",  # neutral — no column-name-engine bias
@@ -102,23 +120,8 @@ class TestDateOfBirthAmbiguous:
         )
         findings = classify_columns([col], profile)
         types = _entity_types(findings)
-        assert "DATE_OF_BIRTH" in types, f"ambiguous {dob} did not produce US finding: {types}"
-        assert "DATE_OF_BIRTH_EU" in types, f"ambiguous {dob} did not produce EU finding: {types}"
-
-    def test_column_name_bias_is_preserved(self, profile) -> None:
-        """When the column name biases toward one interpretation, Sprint 5
-        engine weighting correctly lets that win — suppressing the other
-        regex-side finding. This is the same authority-gap logic that fixed
-        Sprint 5 precision bugs, not a regression."""
-        col = ColumnInput(
-            column_id="c1",
-            column_name="birth_date",  # biases toward DATE_OF_BIRTH via column_name engine
-            sample_values=["04/03/1990", "05/06/1975"],
-        )
-        findings = classify_columns([col], profile)
-        types = _entity_types(findings)
-        assert "DATE_OF_BIRTH" in types
-        assert "DATE_OF_BIRTH_EU" not in types  # suppressed by authority gap — working as designed
+        assert "DATE_OF_BIRTH" in types, f"ambiguous {dob} did not produce DATE_OF_BIRTH: {types}"
+        assert "DATE_OF_BIRTH_EU" not in types, f"retired subtype leaked for {dob}: {types}"
 
 
 class TestDateOfBirthInvalid:
@@ -142,3 +145,36 @@ class TestDateOfBirthInvalid:
         types = _entity_types(findings)
         assert "DATE_OF_BIRTH" not in types
         assert "DATE_OF_BIRTH_EU" not in types
+
+
+class TestDateOfBirthEuRetiredFromTaxonomy:
+    """Pin that the Sprint 12 retirement actually landed in the taxonomy
+    sources — with the narrow exception of the ``DATE_OF_BIRTH_EU``
+    compatibility alias in ``ENTITY_TYPE_TO_FAMILY``, which is retained
+    to keep meta-classifier v3's shadow predictions coherent with the
+    family benchmark (see the long-form comment in
+    ``data_classifier/core/taxonomy.py``). The alias is scheduled for
+    removal in the Sprint 13 v4 retrain.
+    """
+
+    def test_family_map_keeps_date_of_birth_eu_as_date_alias(self) -> None:
+        """Compatibility alias: DOB_EU → DATE family.
+
+        Not a regression guard against re-emission — the alias lives
+        only for ``family_for()`` coherence on v3 shadow predictions.
+        A future v4 retrain that drops DOB_EU from ``class_labels``
+        should remove the alias here and flip this assertion.
+        """
+        assert ENTITY_TYPE_TO_FAMILY.get("DATE_OF_BIRTH_EU") == "DATE"
+
+    def test_date_of_birth_still_in_date_family(self) -> None:
+        assert ENTITY_TYPE_TO_FAMILY["DATE_OF_BIRTH"] == "DATE"
+
+    def test_standard_profile_has_no_date_of_birth_eu_rule(self) -> None:
+        """The emission path is fully retired — ``standard.yaml`` has
+        no rule that produces ``DATE_OF_BIRTH_EU`` findings.
+        """
+        profile = load_profile("standard")
+        entity_types = {rule.entity_type for rule in profile.rules}
+        assert "DATE_OF_BIRTH_EU" not in entity_types
+        assert "DATE_OF_BIRTH" in entity_types

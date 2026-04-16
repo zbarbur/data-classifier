@@ -86,7 +86,6 @@ _ENTITY_METADATA: dict[str, dict[str, Any]] = {
     "ADDRESS": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA"]},
     "ORGANIZATION": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": []},
     "DATE_OF_BIRTH": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA", "HIPAA"]},
-    "DATE_OF_BIRTH_EU": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "HIPAA"]},
     "PHONE": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR", "CCPA"]},
     "SSN": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA", "HIPAA"]},
     "EMAIL": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR", "CCPA"]},
@@ -99,8 +98,139 @@ _DEFAULT_GLINER_THRESHOLD = 0.5
 # Separator used when concatenating sample values
 _SAMPLE_SEPARATOR = " ; "
 
+# Separator used inside the "Sample values: ..." clause of the NL-wrapped prompt.
+# Sprint 10 S1 wrapping joins values with a comma + space, which is how GLiNER
+# sees lists in its training distribution.
+_NL_SAMPLE_SEPARATOR = ", "
+
 # Max samples per NER chunk — keeps text within model's context window
 _SAMPLE_CHUNK_SIZE = 50
+
+# GLiNER urchade v1 encoder max_len (transformer max sequence length in tokens).
+# The NL-wrapped prompt should stay comfortably inside this bound after
+# tokenization.  We enforce a character budget that is empirically safe:
+# at ~4 chars/token the 384-token transformer window fits ~1500 chars of input,
+# plus we want headroom for the NL prefix.  The Sprint 10 research memo
+# measured the baseline text at ~1500 chars at chunk_size=50 with 30-char
+# mean values; the NL prefix adds ~150-300 chars, putting the worst case
+# around 1800 chars.  We cap the assembled prompt at 2000 chars and
+# truncate the description field first if we exceed it.
+_MAX_PROMPT_CHARS = 2000
+
+# When the description field alone pushes the prompt past the budget,
+# truncate it down to this many characters with an ellipsis.  This
+# preserves the column/table metadata (highest-signal context fields)
+# and only sheds long catalog comments.
+_DESCRIPTION_TRUNCATE_CHARS = 200
+
+# Sprint 10: data_type pre-filter — skip GLiNER inference entirely when
+# ``ColumnInput.data_type`` is a non-text SQL type on which NER cannot
+# produce meaningful results.  Values are upper-cased before comparison;
+# an empty ``data_type`` (legacy connectors / fall-through safety) always
+# falls through to the model.  BQ connector populates this field in
+# BigQuery UPPERCASE convention as of Sprint 10 (see
+# docs/process/BQ_INTEGRATION_STATUS.md).
+_NON_TEXT_DATA_TYPES: frozenset[str] = frozenset(
+    {
+        "INTEGER",
+        "INT64",
+        "FLOAT",
+        "FLOAT64",
+        "NUMERIC",
+        "BIGNUMERIC",
+        "BOOLEAN",
+        "BOOL",
+        "TIMESTAMP",
+        "DATE",
+        "DATETIME",
+        "TIME",
+        "BYTES",
+    }
+)
+
+
+def _build_ner_prompt(column: ColumnInput, chunk: list[str]) -> str:
+    """Build a natural-language NER prompt for GLiNER from column metadata + sample values.
+
+    This is the Sprint 10 "S1" prompt-wrapping strategy from research/gliner-context
+    Pass 1.  GLiNER is a context-attention NER model trained on natural-language
+    sentences — feeding it raw "value ; value ; value" strings is out-of-distribution
+    and causes ORGANIZATION/PERSON_NAME/PHONE false-fires on numeric-looking values.
+    Wrapping the values in a sentence that mentions column/table/description metadata
+    puts the input back in the model's training distribution and recovers +0.0887
+    macro F1 on Ai4Privacy (BCa 95% CI [+0.050, +0.131], n=315).
+
+    The helper is pure: no side effects, no logging, no model calls — safe to
+    exercise in isolation under unit test.
+
+    Shape rules:
+
+    * If ``column.column_name`` is set: prepend ``Column '<column_name>'``.
+    * If ``column.table_name`` is set: continue ``... from table '<table_name>'``
+      (or start with it if column_name is empty).
+    * If ``column.description`` is set: append ``. Description: <description>``
+      (truncated to ``_DESCRIPTION_TRUNCATE_CHARS`` if the assembled prompt
+      would exceed ``_MAX_PROMPT_CHARS``).
+    * Always append ``. Sample values: <comma-joined chunk>`` or — when the
+      column carries no metadata at all — fall back to the legacy
+      ``_SAMPLE_SEPARATOR.join(chunk)`` shape so that metadata-free inputs
+      get the exact same prompt the engine shipped before S1 wrapping
+      (strictly additive change).
+
+    Args:
+        column: The ColumnInput whose metadata we're wrapping around the samples.
+        chunk: A slice of ``column.sample_values`` to put in this prompt.
+
+    Returns:
+        The fully-assembled prompt string ready to hand to GLiNER.
+    """
+    column_name = (column.column_name or "").strip()
+    table_name = (column.table_name or "").strip()
+    description = (column.description or "").strip()
+
+    # Metadata-free fallback: preserve pre-S1 production behavior so that
+    # connectors which don't populate context fields see no behavior change.
+    if not column_name and not table_name and not description:
+        return _SAMPLE_SEPARATOR.join(chunk)
+
+    # Build the NL prefix piece by piece, skipping empty parts.
+    parts: list[str] = []
+    if column_name and table_name:
+        parts.append(f"Column '{column_name}' from table '{table_name}'")
+    elif column_name:
+        parts.append(f"Column '{column_name}'")
+    elif table_name:
+        parts.append(f"Table '{table_name}'")
+
+    if description:
+        parts.append(f"Description: {description}")
+
+    sample_clause = f"Sample values: {_NL_SAMPLE_SEPARATOR.join(chunk)}"
+    parts.append(sample_clause)
+
+    prompt = ". ".join(parts)
+
+    # Guard against overflow: if the description pushes the total past the
+    # per-prompt character budget, truncate the description rather than
+    # silently dropping sample values (samples are the actual signal GLiNER
+    # needs; the description is secondary context).
+    if len(prompt) > _MAX_PROMPT_CHARS and description:
+        truncated_description = description[:_DESCRIPTION_TRUNCATE_CHARS].rstrip()
+        if len(truncated_description) < len(description):
+            truncated_description = f"{truncated_description}..."
+        # Rebuild the prompt with the truncated description.
+        parts = []
+        if column_name and table_name:
+            parts.append(f"Column '{column_name}' from table '{table_name}'")
+        elif column_name:
+            parts.append(f"Column '{column_name}'")
+        elif table_name:
+            parts.append(f"Table '{table_name}'")
+        parts.append(f"Description: {truncated_description}")
+        parts.append(sample_clause)
+        prompt = ". ".join(parts)
+
+    return prompt
 
 
 def _find_bundled_onnx_model() -> str | None:
@@ -155,6 +285,7 @@ class GLiNER2Engine(ClassificationEngine):
         model_id: str = _MODEL_ID,
         onnx_path: str | None = None,
         api_key: str | None = None,
+        descriptions_enabled: bool | None = None,
     ) -> None:
         """Initialize the GLiNER2 engine.
 
@@ -178,16 +309,47 @@ class GLiNER2Engine(ClassificationEngine):
                 Export with: ``model.export_to_onnx(path, quantize=True)``
             api_key: GLiNER API key for hosted inference fallback.  If set
                 and local model loading fails, falls back to API mode.
+            descriptions_enabled: Controls whether entity descriptions are
+                passed to the underlying model's v2 ``extract_entities``
+                schema.  ``None`` (the default) auto-selects: ``False``
+                for ``fastino/*`` (v2) models, ``True`` for all other
+                models.  The Sprint 9 GLiNER eval memo showed fastino
+                regresses by -0.062 to -0.093 macro F1 when descriptions
+                are enabled, so the infrastructure supports running
+                fastino without them.  v1 (``gliner``) models ignore this
+                flag because they only accept a label list.  Infrastructure
+                shipped Sprint 9 ahead of the fastino model swap (blocked
+                on blind-corpus regression pending the research/gliner-context
+                work).
         """
         self._registry = registry or ModelRegistry()
         self._gliner_threshold = gliner_threshold
         self._model_id = model_id
-        # Auto-discover ONNX model if not explicitly configured
-        self._onnx_path = onnx_path or _find_bundled_onnx_model()
         self._api_key = api_key
         self._is_v2 = model_id.startswith("fastino/")
+        # Auto-discover ONNX model if not explicitly configured.
+        # Sprint 9: skip auto-discovery for v2 (fastino) models — the
+        # bundled/cached ONNX bundles in the standard search paths are
+        # v1 exports (``urchade/gliner_multi_pii-v1``) and would be
+        # loaded by the v1 ``gliner`` package, silently serving the
+        # wrong model.  An explicitly-provided ``onnx_path`` still wins
+        # (escape hatch for a hand-exported fastino bundle).
+        if onnx_path:
+            self._onnx_path: str | None = onnx_path
+        elif self._is_v2:
+            self._onnx_path = None
+        else:
+            self._onnx_path = _find_bundled_onnx_model()
         self._inference_mode: str | None = None  # set during startup
         self._registered = False
+
+        # Sprint 9: descriptions-off default for fastino per the eval memo.
+        # v1 models ignore this flag at inference time (they only accept a
+        # label list via ``predict_entities``), but it's still set for
+        # consistency and testability.
+        if descriptions_enabled is None:
+            descriptions_enabled = not self._is_v2
+        self._descriptions_enabled = descriptions_enabled
 
         # Filter to requested entity types (must be in our mapping)
         if entity_types is not None:
@@ -195,12 +357,19 @@ class GLiNER2Engine(ClassificationEngine):
         else:
             self._entity_types = list(ENTITY_LABEL_DESCRIPTIONS.keys())
 
-        # Build labels — v1 uses plain list, v2 uses dict with descriptions
+        # Build labels.
+        #
+        # v1 (gliner) uses a plain label list via ``predict_entities``.
+        #
+        # v2 (gliner2) ``extract_entities`` accepts either a list[str]
+        # (no descriptions) or dict[str, str] (label -> description).
+        # Prepare BOTH forms and pick at inference time based on
+        # ``self._descriptions_enabled``.
+        self._gliner_labels: list[str] = [ENTITY_LABEL_DESCRIPTIONS[et][0] for et in self._entity_types]
         if self._is_v2:
             self._gliner_labels_v2: dict[str, str] = {
                 ENTITY_LABEL_DESCRIPTIONS[et][0]: ENTITY_LABEL_DESCRIPTIONS[et][1] for et in self._entity_types
             }
-        self._gliner_labels: list[str] = [ENTITY_LABEL_DESCRIPTIONS[et][0] for et in self._entity_types]
 
     def startup(self) -> None:
         """Register the model in the registry for lazy loading.
@@ -294,6 +463,13 @@ class GLiNER2Engine(ClassificationEngine):
         Processes sample values in chunks, runs NER with descriptions,
         and maps predictions back to our entity taxonomy.
         """
+        # Sprint 10: skip numeric/temporal/boolean/bytes columns entirely
+        # before any model load.  NER cannot produce meaningful results on
+        # these types and running inference burns latency + generates false
+        # positives.  Empty ``data_type`` falls through (legacy connectors).
+        if column.data_type and column.data_type.upper() in _NON_TEXT_DATA_TYPES:
+            return []
+
         if not column.sample_values:
             return []
 
@@ -328,7 +504,11 @@ class GLiNER2Engine(ClassificationEngine):
                 mask_samples=mask_samples,
                 max_evidence_samples=max_evidence_samples,
             )
-            if col.sample_values
+            # Sprint 10: per-column data_type pre-filter — skip non-text types
+            # (numeric/temporal/boolean/bytes) entirely and emit an empty
+            # finding list in the corresponding output slot, matching
+            # classify_column's early-return contract.
+            if col.sample_values and not (col.data_type and col.data_type.upper() in _NON_TEXT_DATA_TYPES)
             else []
             for col in columns
         ]
@@ -352,11 +532,31 @@ class GLiNER2Engine(ClassificationEngine):
 
         for i in range(0, len(column.sample_values), _SAMPLE_CHUNK_SIZE):
             chunk = column.sample_values[i : i + _SAMPLE_CHUNK_SIZE]
-            text = _SAMPLE_SEPARATOR.join(chunk)
+            # Sprint 10 S1: wrap sample values in a natural-language sentence
+            # mentioning column/table/description metadata so that GLiNER
+            # sees training-distribution input instead of a raw bag-of-tokens
+            # ``value ; value ; value`` string.  See _build_ner_prompt for the
+            # metadata-graceful-degradation rules.
+            text = _build_ner_prompt(column, chunk)
 
             try:
                 if self._is_v2:
-                    result = model.extract_entities(text, self._gliner_labels_v2, include_confidence=True)
+                    # Sprint 9: pick label spec form based on descriptions_enabled.
+                    # - descriptions_enabled=True  -> dict[label, description]
+                    # - descriptions_enabled=False -> list[label] (fastino default)
+                    # Also plumb threshold through — the v2 path previously
+                    # silently ignored self._gliner_threshold and used
+                    # extract_entities' internal default, which was a latent
+                    # correctness bug affecting any v2 deployment.
+                    v2_entity_spec: list[str] | dict[str, str] = (
+                        self._gliner_labels_v2 if self._descriptions_enabled else self._gliner_labels
+                    )
+                    result = model.extract_entities(
+                        text,
+                        v2_entity_spec,
+                        threshold=self._gliner_threshold,
+                        include_confidence=True,
+                    )
                     for gliner_label, matches in result.get("entities", {}).items():
                         entity_type = GLINER_LABEL_TO_ENTITY.get(gliner_label)
                         if entity_type is None:

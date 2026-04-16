@@ -1,0 +1,47 @@
+title: "Dead _SSN_ADVERTISING_LIST entries cleanup \u2014 remove 10 unreachable 987-65-43xx\
+  \ entries"
+status: done
+priority: P3
+category: chore
+sprint_target: 7
+created: 2026-04-12
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: "Remove 10 unreachable 987-65-4320..4329 entries from _SSN_ADVERTISING_LIST\
+  \ in validators.py \u2014 these are shadowed by the post-Sprint-6 ITIN area check\
+  \ (900-999 rejected before the advertising list check) \u2014 and add a regression\
+  \ test proving the ITIN rule covers them."
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/validators.py \u2014 remove the '*(f\"98765{n:04d}\"\
+  \ for n in range(4320, 4330))' generator expansion from _SSN_ADVERTISING_LIST; keep\
+  \ the 2 plain-string entries"
+- "File: data_classifier/engines/validators.py \u2014 update module-level comment\
+  \ on _SSN_ADVERTISING_LIST to document why the advertising range was removed (ITIN\
+  \ area check handles it)"
+- "File: tests/test_ssn_validator.py \u2014 add test TestAdvertisingRangeHandledByAreaRule\
+  \ covering all 10 '98765432X' values"
+description: ''
+acceptance_criteria:
+- '_SSN_ADVERTISING_LIST contains exactly the 2 reachable entries: 078051120 (Woolworth
+  wallet insert) and 219099999 (WL Murphy)'
+- Module docstring / comment updated to explain that SSA's 987-65-43xx advertising
+  range lives inside the ITIN area (900-999) and is rejected by the area rule before
+  reaching the advertising list check
+- New regression test in tests/test_ssn_validator.py asserts all 10 values '987654320'-'987654329'
+  return False from ssn_zeros_check (covering that the area rule, not the list, rejects
+  them)
+- All 18 existing SSN validator tests still pass, all 1009+ tests green
+- Lint clean (ruff check, ruff format)
+test_plan:
+- "tests/test_ssn_validator.py::TestAdvertisingRangeHandledByAreaRule \u2014 parametrized\
+  \ over 10 values, asserts ssn_zeros_check returns False"
+- "tests/test_ssn_validator.py \u2014 all 18+ existing tests pass"
+- "pytest tests/ -q \u2014 1009+ tests pass, zero warnings regressions"
+notes: ''
+phase: review
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

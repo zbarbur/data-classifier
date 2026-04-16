@@ -1,5 +1,7 @@
 # Stream B: Benchmark Overhaul + Corpus Integration
 
+> **NOTE (2026-04-13):** This document cites F1 numbers measured against the `ai4privacy/pii-masking-300k` corpus, which has since been retired due to license non-compatibility. Historical numbers are preserved as records of what was measured at the time. See `docs/process/LICENSE_AUDIT.md` for context.
+
 ## Items
 1. Benchmark methodology — industry-standard evaluation (P1, M)
 2. Benchmark reporting — macro F1, per-entity F1, primary-label accuracy (P1, S)

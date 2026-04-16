@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "data_classifier"
-version = "0.1.0"
+version = "0.12.0"
 description = "General-purpose data classification engine for detecting sensitive data in structured database columns."
 readme = "README.md"
 license = {text = "MIT"}
@@ -18,6 +18,9 @@ dependencies = [
     "phonenumbers>=8.13",
 ]
 
+[project.scripts]
+data-classifier-download-models = "data_classifier.download_models:main"
+
 [project.optional-dependencies]
 meta = [
     "scikit-learn>=1.4",
@@ -25,19 +28,28 @@ meta = [
     "scipy>=1.11",
 ]
 ml = [
+    # Lean runtime extra. Ships what production needs to run the
+    # GLiNER2Engine against a pre-exported ONNX model via onnxruntime.
+    # The model itself is distributed separately via
+    # `python -m data_classifier.download_models` (Sprint 8 Item 5) —
+    # this extra intentionally does NOT pull torch/transformers.
     "gliner>=0.2",
     "onnxruntime>=1.17",
 ]
 ml-full = [
+    # Developer / export extra. Required for `python -m
+    # data_classifier.export_onnx` which converts an HF model to ONNX.
+    # NOT required at runtime. Bring this in on dev machines and in the
+    # release pipeline's export step, not in production containers.
     "gliner>=0.2",
     "onnxruntime>=1.17",
     "torch>=2.0",
     "transformers>=4.40",
     "onnx>=1.15",
 ]
-ml-api = [
-    "gliner2>=1.0",
-]
+# Note: the [ml-api] extra (gliner2>=1.0) was deleted in v0.8.0 —
+# see CHANGELOG.md. It declared a package name that does not match
+# what gliner_engine.py actually imports; no consumer used it.
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
@@ -49,6 +61,10 @@ dev = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.25",
+]
+bench-compare = [
+    "presidio-analyzer>=2.2",
+    "spacy>=3.7",
 ]
 
 [tool.setuptools.packages.find]
@@ -75,7 +91,13 @@ ignore = ["N815"]
 [tool.ruff.lint.per-file-ignores]
 "scripts/*" = ["E501", "N803", "N806"]
 "tests/benchmarks/meta_classifier/evaluate.py" = ["N803", "N806", "E741"]
+"tests/benchmarks/meta_classifier/sprint12_safety_audit.py" = ["N803", "N806", "E501"]
 "tests/test_meta_classifier_training.py" = ["N806"]
+# sklearn convention: feature matrix is named `X` (uppercase).
+"tests/conftest.py" = ["N806"]
+"tests/test_meta_classifier_features.py" = ["N806"]
+"tests/benchmarks/meta_classifier/per_class_diagnostic.py" = ["N806"]
+"tests/benchmarks/family_accuracy_benchmark.py" = ["N806"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -33,10 +33,22 @@ _log = logging.getLogger(__name__)
 
 # ── Feature schema ───────────────────────────────────────────────────────────
 
-# 15 features. The order MUST match the order used by
-# tests/benchmarks/meta_classifier/extract_features.py and by any future
-# shadow-inference code path.
-FEATURE_NAMES: tuple[str, ...] = (
+# Feature schema version. Bump whenever FEATURE_NAMES changes in a way
+# that invalidates trained model artifacts. Stored in the artifact and
+# checked on load — a mismatch disables shadow inference rather than
+# silently producing garbage predictions.
+#
+# Version history:
+#   1 — Sprint 6 original (15 features).
+#   2 — Sprint 11 Phase 2 widening (15 base + 31 primary_entity_type one-hot = 46).
+#   3 — Sprint 11 Phase 7: appended heuristic_dictionary_word_ratio at index 46 (total 47).
+#   4 — Sprint 12 Item #1: appended validator_rejected_credential_ratio at index 47 (total 48).
+#   5 — Sprint 12 Item #2: appended has_dictionary_name_match_ratio at index 48 (total 49).
+FEATURE_SCHEMA_VERSION: int = 5
+
+# Base column-level features. Do NOT reorder these 15 — downstream code
+# indexes them positionally in several places.
+_BASE_FEATURE_NAMES: tuple[str, ...] = (
     "top_overall_confidence",
     "regex_confidence",
     "column_name_confidence",
@@ -53,7 +65,78 @@ FEATURE_NAMES: tuple[str, ...] = (
     "primary_is_pii",
     "primary_is_credential",
 )
+
+# Primary-entity-type one-hot vocabulary. The top finding's entity_type
+# is encoded as a 1.0 in exactly one of these slots (or UNKNOWN if the
+# top entity_type is not in the vocab). Union of:
+#   - regex default_patterns.json entity types
+#   - GLiNER engine ENTITY_LABEL_DESCRIPTIONS keys
+#   - secret_scanner primary bucket (CREDENTIAL)
+#
+# APPEND-ONLY: when adding a new entity type, add it at the end (before
+# UNKNOWN) and bump FEATURE_SCHEMA_VERSION. Reordering silently corrupts
+# trained artifacts.
+PRIMARY_ENTITY_TYPES: tuple[str, ...] = (
+    "ABA_ROUTING",
+    "ADDRESS",
+    "API_KEY",
+    "BITCOIN_ADDRESS",
+    "CANADIAN_SIN",
+    "CREDENTIAL",
+    "CREDIT_CARD",
+    "DATE_OF_BIRTH",
+    "DATE_OF_BIRTH_EU",
+    "DEA_NUMBER",
+    "EIN",
+    "EMAIL",
+    "ETHEREUM_ADDRESS",
+    "HEALTH",
+    "IBAN",
+    "IP_ADDRESS",
+    "MAC_ADDRESS",
+    "MBI",
+    "NATIONAL_ID",
+    "NPI",
+    "OPAQUE_SECRET",
+    "ORGANIZATION",
+    "PASSWORD_HASH",
+    "PERSON_NAME",
+    "PHONE",
+    "PRIVATE_KEY",
+    "SSN",
+    "SWIFT_BIC",
+    "URL",
+    "VIN",
+    "UNKNOWN",
+)
+
+# Extra column-level features appended AFTER the one-hot slots so that
+# the 0-14 base indices and the 15-45 one-hot indices remain positionally
+# stable across schema upgrades. Sprint 11 Phase 7 adds one feature here;
+# future additions should also append at the end rather than inserting.
+_EXTRA_FEATURE_NAMES: tuple[str, ...] = (
+    "heuristic_dictionary_word_ratio",  # Sprint 11 Phase 7 — index 46
+    "validator_rejected_credential_ratio",  # Sprint 12 Item #1 — index 47
+    "has_dictionary_name_match_ratio",  # Sprint 12 Item #2 — index 48
+)
+
+# Full feature schema = 15 base + 31 entity-type one-hot slots + N extras.
+# Schema v2 = 46, v3 = 47, v4 = 48, v5 = 49.
+FEATURE_NAMES: tuple[str, ...] = (
+    _BASE_FEATURE_NAMES + tuple(f"primary_entity_type={t}" for t in PRIMARY_ENTITY_TYPES) + _EXTRA_FEATURE_NAMES
+)
 FEATURE_DIM: int = len(FEATURE_NAMES)
+
+# Precomputed index map: entity_type -> slot in FEATURE_NAMES. Used by
+# extract_features to set the one-hot bit without a linear scan.
+_PRIMARY_ENTITY_TYPE_INDEX: dict[str, int] = {
+    t: len(_BASE_FEATURE_NAMES) + i for i, t in enumerate(PRIMARY_ENTITY_TYPES)
+}
+_UNKNOWN_ENTITY_TYPE_INDEX: int = _PRIMARY_ENTITY_TYPE_INDEX["UNKNOWN"]
+
+# Precomputed index of the extras section. extract_features appends each
+# extra in the same order they appear in _EXTRA_FEATURE_NAMES.
+_EXTRA_BASE_INDEX: int = len(_BASE_FEATURE_NAMES) + len(PRIMARY_ENTITY_TYPES)
 
 # Engine name constants — must match the ``name`` class attribute on each
 # engine (see data_classifier/engines/*.py).
@@ -83,7 +166,16 @@ class MetaClassifierPrediction:
 
 
 _DEFAULT_MODEL_PACKAGE = "data_classifier.models"
-_DEFAULT_MODEL_RESOURCE = "meta_classifier_v1.pkl"
+# Sprint 12 Item #1 + Item #2: point at the v5 artifact
+# (feature_schema_version=5, 47 kept features after ALWAYS_DROP_REDUNDANT;
+# adds validator_rejected_credential_ratio at index 47 and
+# has_dictionary_name_match_ratio at index 48 — both landing together as the
+# first post-v3 additions). Schema v4 was transient: Phase 2 appended
+# validator_rejected_credential_ratio to the code, Phase 3 appended
+# has_dictionary_name_match_ratio before any v4 artifact was trained, so v5
+# is the first deployable post-Sprint-12 model. Older artifacts (v1, v2, v3)
+# are retained on disk but correctly refused by the version gate.
+_DEFAULT_MODEL_RESOURCE = "meta_classifier_v5.pkl"
 
 
 class MetaClassifier:
@@ -156,12 +248,29 @@ class MetaClassifier:
                 self._log_load_failure(f"model artifact not found: {exc}")
                 return False
             blob = pickle.loads(raw)  # noqa: S301 — trusted first-party artifact
+
+            # Version gate. Artifacts produced before Sprint 11 did not
+            # store a schema version and only have 15 feature names —
+            # silently using them with the current FEATURE_NAMES (46) via
+            # the drop-indices fallback would treat the 31 one-hot slots
+            # as "dropped" and predict on the wrong subspace. Refuse.
+            artifact_version = blob.get("feature_schema_version", 1)
+            if artifact_version != FEATURE_SCHEMA_VERSION:
+                self._log_load_failure(
+                    f"feature schema version mismatch: artifact v{artifact_version}, "
+                    f"code expects v{FEATURE_SCHEMA_VERSION}. "
+                    f"Retrain the meta-classifier against the current schema.",
+                )
+                return False
+
             self._model = blob["model"]
             self._scaler = blob["scaler"]
             self._feature_names = tuple(blob["feature_names"])
             self._class_labels = tuple(blob["class_labels"])
-            # Compute which indices in the FULL 15-feature vector the
+            # Compute which indices in the FULL feature vector the
             # trained model was NOT given (so we drop them at inference).
+            # Only meaningful for a same-version artifact trained on a
+            # subset of features; cross-version gaps are blocked above.
             self._dropped_feature_indices = self._compute_dropped_indices(
                 kept=self._feature_names,
                 full=FEATURE_NAMES,
@@ -193,6 +302,8 @@ class MetaClassifier:
         self,
         findings: "list[ClassificationFinding]",
         sample_values: "list[str] | None" = None,
+        *,
+        engine_findings: "dict[str, list[ClassificationFinding]] | None" = None,
     ) -> MetaClassifierPrediction | None:
         """Shadow inference. Returns ``None`` on any error or degradation.
 
@@ -201,19 +312,61 @@ class MetaClassifier:
         to modify ``classify_columns`` return values. Every exception
         path returns ``None`` so that shadow inference cannot crash the
         live path.
+
+        ``engine_findings`` (Sprint 12 Item #4 fix): when provided, the
+        flattened per-engine findings are fed to ``extract_features``
+        instead of ``findings``. The training path
+        (``extract_training_row`` → ``_run_all_engines``) builds its
+        feature vector from every engine's raw findings, including
+        duplicates by ``entity_type``. The live orchestrator collapses
+        these via its 7-pass authority-weighted merge before handing
+        the result to this function, which left the shadow path seeing
+        a strictly smaller feature vector than training — a silent
+        train/serve skew that caused 219 SSN columns to be predicted
+        as CREDIT_CARD in Phase 5a. Callers that don't pass this kwarg
+        keep the legacy behavior (unit tests that construct synthetic
+        finding lists directly rely on it).
         """
         if not self._ensure_loaded():
             return None
 
+        if engine_findings is not None:
+            findings_for_features: list[ClassificationFinding] = [
+                f for engine_fs in engine_findings.values() for f in engine_fs
+            ]
+        else:
+            findings_for_features = findings
+
         values = sample_values or []
         distinct = _distinct_ratio(values)
         avg_len = _avg_length_normalized(values)
+        # Sprint 11 Phase 7 + Sprint 12 Item #1 + Sprint 12 Item #2
+        # features, wired into shadow inference here so the training row
+        # (tests/benchmarks/meta_classifier/extract_features.py) and
+        # the live predict_shadow path compute the same index-46,
+        # index-47, and index-48 values for the same column. Missing
+        # this pass-through silently zeros the feature for every shadow
+        # prediction — a bug that existed between Phase 7 and its fix.
+        # The parity tests in tests/test_meta_classifier_inference_parity.py
+        # pin this contract.
+        from data_classifier.engines.heuristic_engine import (
+            compute_dictionary_name_match_ratio,
+            compute_dictionary_word_ratio,
+            compute_placeholder_credential_rejection_ratio,
+        )
+
+        dict_ratio = compute_dictionary_word_ratio(values)
+        rejection_ratio = compute_placeholder_credential_rejection_ratio(values)
+        name_ratio = compute_dictionary_name_match_ratio(values)
 
         try:
             full_vec = extract_features(
-                findings,
+                findings_for_features,
                 heuristic_distinct_ratio=distinct,
                 heuristic_avg_length=avg_len,
+                heuristic_dictionary_word_ratio=dict_ratio,
+                validator_rejected_credential_ratio=rejection_ratio,
+                has_dictionary_name_match_ratio=name_ratio,
             )
             dropped = set(self._dropped_feature_indices)
             kept_vec = [v for i, v in enumerate(full_vec) if i not in dropped]
@@ -268,9 +421,16 @@ class MetaClassifier:
 
 
 def _distinct_ratio(values: list[str]) -> float:
-    if not values:
-        return 0.0
-    return len(set(values)) / len(values)
+    # Sprint 11 Phase 8: delegate to the heuristic engine's Chao-1
+    # bias-corrected cardinality estimator so training, shadow
+    # inference, and the SSN/ABA heuristic rules all agree on a single
+    # distinctness definition. Import locally to keep
+    # ``meta_classifier`` import-time independent of the engines
+    # package (and to avoid cycles once engines grow new orchestrator
+    # back-references).
+    from data_classifier.engines.heuristic_engine import compute_cardinality_ratio
+
+    return compute_cardinality_ratio(values)
 
 
 def _avg_length_normalized(values: list[str]) -> float:
@@ -318,8 +478,11 @@ def extract_features(
     *,
     heuristic_distinct_ratio: float = 0.0,
     heuristic_avg_length: float = 0.0,
+    heuristic_dictionary_word_ratio: float = 0.0,
+    validator_rejected_credential_ratio: float = 0.0,
+    has_dictionary_name_match_ratio: float = 0.0,
 ) -> list[float]:
-    """Extract the 15-feature vector from a column's per-engine findings.
+    """Extract the 49-feature (schema v5) vector from a column's per-engine findings.
 
     The caller is expected to supply *all* findings produced for a single
     column, across every engine that ran. This function is pure: no I/O,
@@ -332,23 +495,59 @@ def extract_features(
     already be normalized — the caller should divide by 100 and clip to
     [0, 1] before passing.
 
-    Features (index → name, see :data:`FEATURE_NAMES`):
+    Feature layout (see :data:`FEATURE_NAMES` for exact names):
 
-    0  top_overall_confidence    — max confidence across all findings
-    1  regex_confidence          — max confidence from the regex engine
-    2  column_name_confidence    — max confidence from the column_name engine
-    3  heuristic_confidence      — max confidence from the heuristic_stats engine
-    4  secret_scanner_confidence — max confidence from the secret_scanner engine
-    5  engines_agreed            — how many engines voted for the top entity type
-    6  engines_fired             — how many distinct engines produced any finding
-    7  confidence_gap            — top − second finding (1.0 if only one finding)
-    8  regex_match_ratio         — sample_analysis.match_ratio for top regex finding
-    9  heuristic_distinct_ratio  — caller-supplied column statistic
-    10 heuristic_avg_length      — caller-supplied column statistic (normalized)
-    11 has_column_name_hit       — 1.0 if column_name engine fired, else 0.0
-    12 has_secret_indicators     — 1.0 if secret_scanner engine fired, else 0.0
-    13 primary_is_pii            — 1.0 if top finding's category == "PII"
-    14 primary_is_credential     — 1.0 if top finding's category == "Credential"
+    0..14  — base column-level features:
+        0  top_overall_confidence    — max confidence across all findings
+        1  regex_confidence          — max from the regex engine
+        2  column_name_confidence    — max from the column_name engine
+        3  heuristic_confidence      — max from the heuristic_stats engine
+        4  secret_scanner_confidence — max from the secret_scanner engine
+        5  engines_agreed            — how many engines voted for the top entity type
+        6  engines_fired             — how many distinct engines produced any finding
+        7  confidence_gap            — top − second finding (1.0 if only one finding)
+        8  regex_match_ratio         — sample_analysis.match_ratio for top regex finding
+        9  heuristic_distinct_ratio  — caller-supplied column statistic
+        10 heuristic_avg_length      — caller-supplied column statistic (normalized)
+        11 has_column_name_hit       — 1.0 if column_name engine fired, else 0.0
+        12 has_secret_indicators     — 1.0 if secret_scanner engine fired, else 0.0
+        13 primary_is_pii            — 1.0 if top finding's category == "PII"
+        14 primary_is_credential     — 1.0 if top finding's category == "Credential"
+
+    15..45 — primary_entity_type one-hot (31 slots, see
+    :data:`PRIMARY_ENTITY_TYPES`). Exactly one slot is 1.0: the slot for
+    the top finding's entity_type, or the UNKNOWN slot when there is no
+    top finding or the entity_type is outside the vocab.
+
+    46     heuristic_dictionary_word_ratio — caller-supplied column
+           statistic in [0.0, 1.0]. Fraction of sample values that
+           contain at least one English content word (computed via
+           :func:`data_classifier.engines.heuristic_engine.compute_dictionary_word_ratio`).
+           High ratio (>0.5) implies English-text columns (passwords,
+           descriptions, names); low ratio (<0.1) implies random-looking
+           identifiers (hashes, tokens, API keys).
+
+    47     validator_rejected_credential_ratio — caller-supplied column
+           statistic in [0.0, 1.0]. Fraction of sample values that the
+           :func:`data_classifier.engines.validators.not_placeholder_credential`
+           validator would reject (computed via
+           :func:`data_classifier.engines.heuristic_engine.compute_placeholder_credential_rejection_ratio`).
+           High ratio (>0.5) implies a column full of documentation
+           placeholders / example credentials; used as a NEGATIVE
+           discriminator for the meta-classifier on
+           credential-regex-matching columns that are structurally
+           placeholder-heavy.
+
+    48     has_dictionary_name_match_ratio — caller-supplied column
+           statistic in [0.0, 1.0]. Fraction of sample values that
+           contain at least one first name or surname from
+           ``data_classifier/patterns/name_lists.json`` (computed via
+           :func:`data_classifier.engines.heuristic_engine.compute_dictionary_name_match_ratio`).
+           High ratio (>0.5) implies a column full of name-like
+           strings (full names, first names, last names); used as a
+           positive signal so the meta-classifier emits PERSON_NAME
+           only when values actually contain names, and to defer to
+           NEGATIVE or the correct class otherwise.
     """
     regex_findings = _findings_for_engine(findings, _ENGINE_REGEX)
     column_name_findings = _findings_for_engine(findings, _ENGINE_COLUMN_NAME)
@@ -427,5 +626,25 @@ def extract_features(
         float(primary_is_pii),
         float(primary_is_credential),
     ]
+
+    # primary_entity_type one-hot. Exactly one slot is 1.0 (UNKNOWN when
+    # there is no top finding or the entity_type is not in the vocab);
+    # the rest are 0.0.
+    one_hot = [0.0] * len(PRIMARY_ENTITY_TYPES)
+    if top is None:
+        one_hot[_UNKNOWN_ENTITY_TYPE_INDEX - len(_BASE_FEATURE_NAMES)] = 1.0
+    else:
+        slot = _PRIMARY_ENTITY_TYPE_INDEX.get(top.entity_type)
+        if slot is None:
+            one_hot[_UNKNOWN_ENTITY_TYPE_INDEX - len(_BASE_FEATURE_NAMES)] = 1.0
+        else:
+            one_hot[slot - len(_BASE_FEATURE_NAMES)] = 1.0
+    vector.extend(one_hot)
+
+    # Extras — appended in the same order as _EXTRA_FEATURE_NAMES.
+    vector.append(float(heuristic_dictionary_word_ratio))
+    vector.append(float(validator_rejected_credential_ratio))
+    vector.append(float(has_dictionary_name_match_ratio))
+
     assert len(vector) == FEATURE_DIM, f"feature vector length {len(vector)} != {FEATURE_DIM}"
     return vector

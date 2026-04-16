@@ -1,0 +1,56 @@
+title: Confirm BQ connector populates ColumnInput context fields (table_name, dataset,
+  data_type, description)
+status: done
+priority: P1
+category: chore
+sprint_target: 10
+created: 2026-04-13
+updated: 2026-04-14
+depends_on: []
+tags:
+- bq,coordination,sprint9,docs
+goal: Produce a written verification document that the BQ connector correctly populates
+  ColumnInput.table_name, dataset, schema_name, data_type, description on every classification
+  call. Closes the verbal-confirmation-only state from Sprint 9 and unblocks the gliner-data-type-pre-filter
+  item's production utility.
+complexity: S
+technical_specs:
+- 'New doc docs/process/BQ_INTEGRATION_STATUS.md capturing the BQ-side integration
+  status. Structure: verification method (fresh BQ sample request trace, log grep
+  in staging, or direct code review of the connector ColumnInput construction), per-field
+  coverage table, known gaps with follow-up owners, date-stamp.'
+- 'Per-field coverage table with one row per field (table_name, dataset, schema_name,
+  data_type, description): populated / not populated / partial, format (e.g., data_type:
+  STRING vs string), edge cases if any.'
+- "Cross-reference from docs/process/PROJECT_CONTEXT.md \u2014 add a BQ integration\
+  \ status section pointing at BQ_INTEGRATION_STATUS.md as the source of truth."
+- "No code change. This is purely documentation. Main session chats with the BQ integration\
+  \ owner via the existing verbal channel \u2014 no agent dispatch needed."
+- 'If data_type is NOT populated: file a BQ-side follow-up item and note that gliner-data-type-pre-filter
+  falls through on data_type='''' safely, so the skip remains infrastructure-ready
+  for when BQ adds the field.'
+description: ''
+acceptance_criteria:
+- docs/process/BQ_INTEGRATION_STATUS.md exists and committed to sprint10/main
+- 'All 5 context fields (table_name, dataset, schema_name, data_type, description)
+  explicitly addressed: populated / not populated / partial'
+- "Date-stamped with 'As of 2026-04-<date>, confirmed by <method>' \u2014 no undated\
+  \ assertions"
+- If gaps are found, BQ-side follow-up item is filed and cross-referenced from BQ_INTEGRATION_STATUS.md
+- docs/process/PROJECT_CONTEXT.md cross-references the new doc under a BQ integration
+  status section
+test_plan:
+- "No automated tests \u2014 this is a documentation item. Review gate: the doc must\
+  \ name the verification method and date-stamp the result."
+notes: "2026-04-13 verbal confirmation from BQ team: they populate the ColumnInput\
+  \ context fields (table_name, dataset, schema_name, data_type, description) when\
+  \ calling classify_columns in the v0.8.0 integration. Written verification and docs/process/BQ_INTEGRATION_STATUS.md\
+  \ stub deferred to later in Sprint 9 or Sprint 10 \u2014 user (2026-04-13) said\
+  \ 'we can verify later'. Sprint 9 library-side work that consumes these fields (gliner-data-type-pre-filter,\
+  \ _table_context_boost) can proceed on the assumption that BQ populates them. If\
+  \ downstream BQ integration debugging reveals a gap, file it as a bug."
+phase: spec
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

@@ -27,6 +27,8 @@ Introspection::
     get_supported_entity_types()   — list entity types with metadata
     get_supported_sensitivity_levels() — list sensitivity levels in order
     get_pattern_library()          — list content patterns with metadata
+    get_active_engines()           — list engines loaded into the cascade
+    health_check()                 — run a canned classification probe
 
 Constants::
 
@@ -35,6 +37,13 @@ Constants::
 
 from __future__ import annotations
 
+import logging
+
+from data_classifier.core.taxonomy import (
+    ENTITY_TYPE_TO_FAMILY,
+    FAMILIES,
+    family_for,
+)
 from data_classifier.core.types import (
     SENSITIVITY_ORDER,
     ClassificationFinding,
@@ -57,6 +66,8 @@ from data_classifier.profiles import (
     load_profile_from_yaml,
 )
 
+logger = logging.getLogger(__name__)
+
 __all__ = [
     # Types
     "ColumnInput",
@@ -73,14 +84,48 @@ __all__ = [
     "load_profile_from_dict",
     "compute_rollups",
     "rollup_from_rollups",
+    "download_models",
     # Introspection
     "get_supported_categories",
     "get_supported_entity_types",
     "get_supported_sensitivity_levels",
     "get_pattern_library",
+    "get_active_engines",
+    "health_check",
+    # Taxonomy (Sprint 11)
+    "ENTITY_TYPE_TO_FAMILY",
+    "FAMILIES",
+    "family_for",
     # Constants
     "SENSITIVITY_ORDER",
 ]
+
+
+def download_models(argv: list[str] | None = None) -> int:
+    """Download the pre-exported GLiNER ONNX model tarball (lazy wrapper).
+
+    This is a thin wrapper around
+    :func:`data_classifier.download_models.main` that imports the module
+    lazily so ``import data_classifier`` never pulls in ``urllib``,
+    ``tarfile``, ``hashlib``, etc. until a caller actually needs the
+    downloader. Returns the CLI exit code.
+
+    Note: importing ``data_classifier.download_models`` as a submodule
+    rebinds ``data_classifier.download_models`` to the module object,
+    shadowing this function. We immediately restore the function binding
+    so repeated calls via ``data_classifier.download_models(...)`` keep
+    working. Callers that do ``from data_classifier import download_models``
+    are unaffected because they captured the function reference at
+    import time.
+    """
+    import sys as _sys
+
+    import data_classifier.download_models as _dm_module
+
+    exit_code = _dm_module.main(argv)
+    # Restore the function binding so the symbol stays callable.
+    _sys.modules[__name__].download_models = download_models
+    return exit_code
 
 
 # ── Module-level engine registry ─────────────────────────────────────────────
@@ -108,8 +153,11 @@ def _build_default_engines() -> list:
         onnx_path = os.environ.get("GLINER_ONNX_PATH")
         api_key = os.environ.get("GLINER_API_KEY")
         engines.append(GLiNER2Engine(onnx_path=onnx_path, api_key=api_key))
-    except ImportError:
-        pass  # gliner package not installed — skipping ML engine
+    except ImportError as e:
+        logger.warning(
+            "GLiNER2 engine disabled — install [ml] extras to enable: %s",
+            e,
+        )
     return engines
 
 
@@ -446,3 +494,119 @@ def get_pattern_library() -> list[dict]:
     from data_classifier.patterns import load_default_patterns
 
     return [asdict(p) for p in load_default_patterns()]
+
+
+def get_active_engines() -> list[dict]:
+    """Return the list of engines currently loaded into the default cascade.
+
+    Each entry contains:
+
+    - ``name``   — stable engine identifier (e.g. ``regex``, ``column_name``)
+    - ``order``  — execution order in the cascade (lower runs first)
+    - ``class``  — implementing class name (e.g. ``RegexEngine``)
+
+    Use this at service startup to verify which engines are live **before**
+    taking traffic. In particular, the GLiNER2 engine is only present when
+    the ``[ml]`` extras are installed and ``DATA_CLASSIFIER_DISABLE_ML`` is
+    not set — calling this lets consumers assert the expected engine set
+    instead of silently running regex-only.
+    """
+    return [
+        {
+            "name": engine.name,
+            "order": engine.order,
+            "class": type(engine).__name__,
+        }
+        for engine in _DEFAULT_ENGINES
+    ]
+
+
+def health_check(profile: ClassificationProfile | None = None) -> dict:
+    """Run a canned single-column classification probe and report status.
+
+    This is the canonical "is data_classifier alive?" check. It builds a
+    trivial :class:`ColumnInput` (``column_name='email_address'``,
+    ``sample_values=['alice@example.com']``), runs it through
+    :func:`classify_columns` with the standard profile, and captures which
+    engines executed via an internal event emitter.
+
+    The function **never raises** — any exception during probe execution
+    is caught, the error text is returned in the ``error`` field, and
+    ``healthy`` is set to ``False``. This makes it safe to call from
+    ``/health`` endpoints without worrying about a bad profile or a broken
+    engine crashing the service.
+
+    Args:
+        profile: Optional profile to probe against. If ``None``, loads the
+            bundled ``standard`` profile.
+
+    Returns:
+        Dict with keys::
+
+            {
+                "healthy": bool,
+                "engines_executed": list[str],   # authoritative from ClassificationEvent
+                "engines_skipped": list[str],
+                "latency_ms": float,             # wall-clock probe latency
+                "findings": list[dict],          # serialized ClassificationFinding subset
+                "error": str | None,             # exception text if healthy=False
+            }
+    """
+    import time
+
+    from data_classifier.events.emitter import CallbackHandler, EventEmitter
+    from data_classifier.events.types import ClassificationEvent
+
+    engines_executed: list[str] = []
+    engines_skipped: list[str] = []
+
+    def _capture(event: object) -> None:
+        if isinstance(event, ClassificationEvent):
+            engines_executed.extend(event.engines_executed)
+            engines_skipped.extend(event.engines_skipped)
+
+    result: dict = {
+        "healthy": False,
+        "engines_executed": engines_executed,
+        "engines_skipped": engines_skipped,
+        "latency_ms": 0.0,
+        "findings": [],
+        "error": None,
+    }
+
+    start = time.perf_counter()
+    try:
+        emitter = EventEmitter()
+        emitter.add_handler(CallbackHandler(_capture))
+
+        probe_profile = profile if profile is not None else load_profile("standard")
+        probe = ColumnInput(
+            column_name="email_address",
+            column_id="healthcheck:probe",
+            sample_values=["alice@example.com"],
+        )
+        findings = classify_columns(
+            [probe],
+            probe_profile,
+            event_emitter=emitter,
+        )
+        result["findings"] = [
+            {
+                "entity_type": f.entity_type,
+                "category": f.category,
+                "sensitivity": f.sensitivity,
+                "confidence": f.confidence,
+            }
+            for f in findings
+        ]
+        # Healthy iff at least one engine actually ran on the probe.
+        result["healthy"] = bool(engines_executed)
+        if not engines_executed:
+            result["error"] = "no engines executed on probe"
+    except Exception as e:  # noqa: BLE001 — probe must never raise
+        result["healthy"] = False
+        result["error"] = f"{type(e).__name__}: {e}"
+    finally:
+        result["latency_ms"] = (time.perf_counter() - start) * 1000.0
+
+    return result

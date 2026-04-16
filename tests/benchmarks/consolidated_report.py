@@ -2,7 +2,7 @@
 
 Generates a single HTML report containing:
 - Nemotron × named vs blind
-- Ai4Privacy × named vs blind
+- Gretel-EN × named vs blind
 - Executive summary comparing all 4 configurations
 - Per-entity matrix showing precision/recall/F1 per corpus/mode
 - Failure analysis (FPs, FNs grouped by root cause)
@@ -13,11 +13,16 @@ Usage:
     python -m tests.benchmarks.consolidated_report --sprint 5 --samples 100
 
 No performance benchmark — run perf separately when needed.
+
+Sprint 9 retired the 300k-row corpus formerly used here due to a
+non-OSS license; see ``docs/process/LICENSE_AUDIT.md``.  Gretel-EN
+(Apache 2.0) replaces it as the second real-corpus benchmark target.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -27,6 +32,7 @@ from pathlib import Path
 from tests.benchmarks.accuracy_benchmark import run_benchmark
 from tests.benchmarks.benchmark_history_io import (
     compute_delta,
+    history_dir,
     load_recent_sprints,
     save_sprint_benchmark,
 )
@@ -34,6 +40,7 @@ from tests.benchmarks.corpus_loader import load_corpus
 from tests.benchmarks.schema.benchmark_history import (
     CorpusResult,
     SprintBenchmark,
+    from_dict,
 )
 
 
@@ -121,8 +128,8 @@ def run_all(sprint: int, samples_per_col: int = 50) -> list[RunResult]:
     configs = [
         ("nemotron", False),
         ("nemotron", True),
-        ("ai4privacy", False),
-        ("ai4privacy", True),
+        ("gretel_en", False),
+        ("gretel_en", True),
     ]
     return [_run_single(corpus, blind, samples_per_col) for corpus, blind in configs]
 
@@ -320,6 +327,176 @@ def build_sprint_benchmark(sprint: int, runs: list[RunResult], *, git_sha: str |
         accuracy=[_run_to_corpus_result(r) for r in runs],
         perf=None,
     )
+
+
+def _runs_from_snapshot(snapshot: SprintBenchmark) -> list[RunResult]:
+    """Synthesize RunResult objects from a persisted snapshot.
+
+    Used when the live benchmark phases are skipped (e.g. a historical
+    sprint whose ad-hoc logs were committed after-the-fact). Per-entity
+    metrics, FPs, and FNs are left empty because they were not captured
+    in the history artifact — the report surfaces aggregate numbers
+    instead and links the raw logs from the sidecar directory.
+    """
+    runs: list[RunResult] = []
+    for acc in snapshot.accuracy:
+        primary = acc.primary_label_pct if acc.primary_label_pct is not None else acc.macro_f1
+        micro = acc.micro_f1 if acc.micro_f1 is not None else acc.macro_f1
+        runs.append(
+            RunResult(
+                corpus=acc.corpus,
+                blind=(acc.mode == "blind"),
+                samples_per_col=0,
+                num_columns=acc.tp_count + acc.fn_count,
+                macro_f1=acc.macro_f1,
+                micro_f1=micro,
+                primary_label_accuracy=primary,
+                precision=acc.precision,
+                recall=acc.recall,
+                total_tp=acc.tp_count,
+                total_fp=acc.fp_count,
+                total_fn=acc.fn_count,
+                per_entity={},
+                false_positives=[],
+                false_negatives=[],
+            )
+        )
+    return runs
+
+
+def _load_history_snapshot(sprint: int, *, history: Path | None = None) -> tuple[SprintBenchmark, dict]:
+    """Load ``sprint_N.json`` directly and return (snapshot, raw_dict).
+
+    The raw dict is kept alongside the parsed snapshot because the
+    ad-hoc Sprint 8 perf schema carries per-engine breakdowns that are
+    not modelled in ``PerfResult`` — the perf section renderer walks
+    the raw dict to display them.
+    """
+    directory = history or history_dir()
+    path = directory / f"sprint_{sprint}.json"
+    if not path.exists():
+        raise FileNotFoundError(f"No history snapshot for sprint {sprint}: {path}")
+    raw = json.loads(path.read_text())
+    snapshot = from_dict(raw)
+    return snapshot, raw
+
+
+def _render_sprint8_perf_section(raw: dict, sprint: int) -> str:
+    """Render a perf summary from the raw ``sprint_N.json`` dict.
+
+    Handles both the canonical ``PerfResult`` shape (used from Sprint 5
+    onward for accuracy+perf runs) and the Sprint 8 ad-hoc shape
+    (``full_cascade_p50_ms`` + ``per_engine: {engine: {total_ms, ...}}``).
+    Returns an empty string when no perf section is present.
+    """
+    perf = raw.get("perf")
+    if not perf:
+        return ""
+
+    method = perf.get("method") or "perf_benchmark (automated)"
+    notes = raw.get("note") or ""
+
+    # Normalize the top-line latency across the two known shapes.
+    total_p50 = perf.get("full_cascade_p50_ms") or perf.get("total_p50_ms") or 0.0
+    per_col_p50 = perf.get("ms_per_col_p50") or perf.get("per_column_p50_ms") or 0.0
+    n_columns = perf.get("n_columns") or "—"
+    samples_per_col = perf.get("samples_per_col") or "—"
+    iters = perf.get("iterations") or "—"
+    warmup = perf.get("warmup_s")
+    warmup_label = f"{warmup:.2f} s" if isinstance(warmup, (int, float)) else "—"
+
+    # Per-engine rows: handle both dict-of-dict and dict-of-float shapes.
+    raw_engines = perf.get("per_engine") or perf.get("per_engine_times_ms") or {}
+    engine_rows = ""
+    if isinstance(raw_engines, dict):
+        items: list[tuple[str, dict]] = []
+        for name, val in raw_engines.items():
+            if isinstance(val, dict):
+                items.append((name, val))
+            else:
+                items.append((name, {"total_ms": float(val)}))
+        items.sort(key=lambda kv: -(kv[1].get("total_ms") or 0.0))
+        for name, data in items:
+            total_ms = data.get("total_ms", 0.0) or 0.0
+            calls = data.get("calls", "—")
+            mean_ms = data.get("mean_ms", "—")
+            max_ms = data.get("max_ms", "—")
+            pct = data.get("pct_of_pipeline")
+            mean_str = f"{mean_ms:.2f}" if isinstance(mean_ms, (int, float)) else str(mean_ms)
+            max_str = f"{max_ms:.2f}" if isinstance(max_ms, (int, float)) else str(max_ms)
+            pct_str = f"{pct:.1f}%" if isinstance(pct, (int, float)) else "—"
+            engine_rows += f"""
+<tr>
+  <td><strong>{name}</strong></td>
+  <td class='num'>{calls}</td>
+  <td class='num'>{total_ms:.2f} ms</td>
+  <td class='num'>{mean_str}</td>
+  <td class='num'>{max_str}</td>
+  <td class='num'>{pct_str}</td>
+</tr>
+"""
+
+    raw_log_refs = ""
+    sidecar = Path(f"docs/benchmarks/sprint{sprint}")
+    if sidecar.exists():
+        log_files = sorted(sidecar.glob("*.log"))
+        if log_files:
+            items_html = "".join(f"<li><code>{p.relative_to(sidecar.parent.parent)}</code></li>" for p in log_files)
+            raw_log_refs = (
+                "<p style='margin-top:0.6rem;font-size:0.8rem;color:var(--text-muted)'>"
+                "<strong>Raw audit logs:</strong></p>"
+                f"<ul style='font-size:0.8rem;color:var(--text-muted);margin-left:1.2rem'>{items_html}</ul>"
+            )
+
+    notes_block = ""
+    if notes:
+        notes_block = (
+            f"<p style='margin-top:0.6rem;font-size:0.8rem;color:var(--text-muted);font-style:italic'>Note: {notes}</p>"
+        )
+
+    return f"""
+<div class="section">
+  <div class="section-header">
+    <h2>Performance</h2>
+    <span class="section-badge">{method}</span>
+  </div>
+  <div class="aggregate">
+    <div class="aggregate-metrics">
+      <div class="aggregate-metric">
+        <div class="label">Per-col p50</div>
+        <div class="value">{per_col_p50:.1f} ms</div>
+      </div>
+      <div class="aggregate-metric">
+        <div class="label">Cascade p50</div>
+        <div class="value">{total_p50:.0f} ms</div>
+      </div>
+      <div class="aggregate-metric">
+        <div class="label">Columns &times; samples</div>
+        <div class="value" style="font-size:1.1rem">{n_columns} &times; {samples_per_col}</div>
+      </div>
+      <div class="aggregate-metric">
+        <div class="label">Warmup / Iter</div>
+        <div class="value" style="font-size:1.1rem">{warmup_label} / {iters}</div>
+      </div>
+    </div>
+  </div>
+  <table>
+  <thead><tr>
+    <th>Engine</th>
+    <th class='num'>Calls</th>
+    <th class='num'>Total</th>
+    <th class='num'>Mean (ms)</th>
+    <th class='num'>Max (ms)</th>
+    <th class='num'>% of pipeline</th>
+  </tr></thead>
+  <tbody>
+    {engine_rows}
+  </tbody>
+  </table>
+  {raw_log_refs}
+  {notes_block}
+</div>
+"""
 
 
 def _render_svg_line_chart(
@@ -573,14 +750,25 @@ def generate_consolidated_html(
     history: list[SprintBenchmark] | None = None,
     current_snapshot: SprintBenchmark | None = None,
     delta: dict | None = None,
+    perf_section_html: str = "",
+    subtitle: str | None = None,
 ) -> str:
-    """Generate consolidated HTML report from all benchmark runs."""
+    """Generate consolidated HTML report from all benchmark runs.
+
+    ``perf_section_html``: optional pre-rendered performance section to
+    splice in after the executive summary. Supplied by the from-history
+    code path so the Sprint 8 perf snapshot is surfaced in the HTML.
+    ``subtitle``: override the header subtitle (used by from-history
+    mode to flag that the report was assembled from a history artifact
+    rather than live benchmark runs).
+    """
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     history = history or []
     delta = delta or {}
     trend_section = _render_trend_section(history)
     delta_section = _render_delta_section(current_snapshot, delta) if current_snapshot is not None else ""
+    header_subtitle = subtitle or "data_classifier &mdash; Accuracy across all corpora and modes"
 
     # Build table header for per-entity matrix
     run_headers = "".join(
@@ -732,7 +920,7 @@ def generate_consolidated_html(
 
 <div class="header">
   <h1>Sprint {sprint} &mdash; Consolidated Benchmark Report</h1>
-  <div class="subtitle">data_classifier &mdash; Accuracy across all corpora and modes</div>
+  <div class="subtitle">{header_subtitle}</div>
   <div class="meta">
     <span>Generated: <strong>{now}</strong></span>
     <span>Configurations: <strong>{len(runs)}</strong></span>
@@ -775,6 +963,8 @@ def generate_consolidated_html(
     {summary_cards}
   </div>
 </div>
+
+{perf_section_html}
 
 {delta_section}
 
@@ -838,20 +1028,152 @@ def generate_consolidated_html(
 </html>"""
 
 
+def _run_presidio_comparison(
+    runs: list[RunResult],
+    sprint: int,
+    samples_per_col: int,
+    mapping_mode: str,
+) -> None:
+    """Run Presidio on the same 4 configurations and print a side-by-side
+    comparison plus a disagreements JSONL file under ``docs/benchmarks/``.
+
+    Fails loudly with an actionable error if ``presidio-analyzer`` is not
+    installed — this mode is explicitly opt-in via ``--compare presidio``.
+    """
+    import json
+
+    from tests.benchmarks.comparators.presidio_comparator import (
+        compute_corpus_metrics,
+        format_side_by_side_table,
+        run_presidio_on_corpus,
+    )
+
+    configs = [
+        ("nemotron", False),
+        ("nemotron", True),
+        ("gretel_en", False),
+        ("gretel_en", True),
+    ]
+
+    print(f"\nRunning Presidio comparator ({mapping_mode} mapping)...", file=sys.stderr)
+
+    dc_rows: list[tuple[str, str, float, float, float]] = []
+    pr_rows: list[tuple[str, str, float, float, float]] = []
+    all_disagreements: list[dict] = []
+
+    for run, (corpus_name, blind) in zip(runs, configs, strict=True):
+        mode = "blind" if blind else "named"
+        corpus = load_corpus(corpus_name, max_rows=samples_per_col, blind=blind)
+
+        # Build data_classifier predictions from the existing RunResult
+        # by replaying ground truth alignment.
+        from tests.benchmarks.accuracy_benchmark import run_benchmark as _rb
+
+        dc_column_results, _ = _rb(corpus, corpus_source=corpus_name)
+        dc_predictions: dict[str, list[str]] = {
+            cr.column_id: list(cr.predicted_entity_types) for cr in dc_column_results
+        }
+
+        # Run Presidio on the same corpus
+        presidio_predictions = run_presidio_on_corpus(corpus, mode=mapping_mode)
+
+        comparator_result = compute_corpus_metrics(
+            corpus,
+            dc_predictions,
+            presidio_predictions,
+            corpus_name=corpus_name,
+            blind=blind,
+            mapping_mode=mapping_mode,
+        )
+
+        dc_rows.append((corpus_name, mode, run.precision, run.recall, run.macro_f1))
+        pr_rows.append(
+            (
+                corpus_name,
+                mode,
+                comparator_result.precision,
+                comparator_result.recall,
+                comparator_result.macro_f1,
+            )
+        )
+        for d in comparator_result.disagreements:
+            all_disagreements.append(
+                {
+                    "corpus": corpus_name,
+                    "mode": mode,
+                    "column_id": d.column_id,
+                    "expected": d.expected,
+                    "data_classifier": d.data_classifier_types,
+                    "presidio": d.presidio_types,
+                    "agreement": d.agreement,
+                }
+            )
+
+    table = format_side_by_side_table(dc_rows, pr_rows, comparator_name="Presidio")
+    print(f"\n{table}", file=sys.stderr)
+
+    # Write disagreement JSONL
+    out_path = Path(f"docs/benchmarks/SPRINT{sprint}_PRESIDIO_DISAGREEMENTS.jsonl")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w") as fh:
+        for record in all_disagreements:
+            fh.write(json.dumps(record) + "\n")
+    print(
+        f"Disagreements: {out_path} ({len(all_disagreements)} records)",
+        file=sys.stderr,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate consolidated sprint benchmark report")
     parser.add_argument("--sprint", type=int, required=True, help="Sprint number")
     parser.add_argument("--samples", type=int, default=50, help="Samples per column (default: 50)")
     parser.add_argument("--output", type=str, default=None, help="Output HTML path")
+    parser.add_argument(
+        "--from-history",
+        action="store_true",
+        help="Skip live benchmark runs and assemble the report directly from "
+        "docs/benchmarks/history/sprint_N.json. Used to retro-fit sprints "
+        "whose raw logs were committed after-the-fact (e.g. Sprint 8).",
+    )
+    parser.add_argument(
+        "--compare",
+        choices=["presidio"],
+        default=None,
+        help="Run an external comparator side-by-side (requires the corresponding optional extra)",
+    )
+    parser.add_argument(
+        "--compare-mode",
+        choices=["strict", "aggressive"],
+        default="strict",
+        help="Entity mapping mode for the comparator (default: strict)",
+    )
     args = parser.parse_args()
 
-    runs = run_all(args.sprint, samples_per_col=args.samples)
+    perf_section_html = ""
+    subtitle: str | None = None
+    if args.from_history:
+        snapshot, raw = _load_history_snapshot(args.sprint)
+        runs = _runs_from_snapshot(snapshot)
+        print(
+            f"Loaded sprint {args.sprint} from history ({len(runs)} configs, "
+            f"perf={'present' if raw.get('perf') else 'absent'})",
+            file=sys.stderr,
+        )
+        perf_section_html = _render_sprint8_perf_section(raw, args.sprint)
+        subtitle = "Retro-fit from history artifact (accuracy + perf snapshot) &mdash; no live benchmark runs"
+        # DO NOT overwrite the history file when loading from it — this path is
+        # read-only, otherwise we'd clobber the ad-hoc schema with a canonical
+        # round-trip that loses the per-engine breakdowns.
+    else:
+        runs = run_all(args.sprint, samples_per_col=args.samples)
 
-    # Build + persist versioned history snapshot, load prior sprints, compute deltas
-    snapshot = build_sprint_benchmark(args.sprint, runs)
-    saved_path = save_sprint_benchmark(snapshot)
-    print(f"History snapshot: {saved_path}", file=sys.stderr)
+        # Build + persist versioned history snapshot
+        snapshot = build_sprint_benchmark(args.sprint, runs)
+        saved_path = save_sprint_benchmark(snapshot)
+        print(f"History snapshot: {saved_path}", file=sys.stderr)
 
+    # Load prior sprints + compute deltas (always, for trend charts)
     history = load_recent_sprints(max_count=5)
     previous = None
     for sb in reversed(history):
@@ -866,6 +1188,8 @@ def main() -> None:
         history=history,
         current_snapshot=snapshot,
         delta=delta,
+        perf_section_html=perf_section_html,
+        subtitle=subtitle,
     )
 
     output_path = Path(args.output) if args.output else Path(f"docs/benchmarks/SPRINT{args.sprint}_CONSOLIDATED.html")
@@ -883,6 +1207,21 @@ def main() -> None:
             f"TP={r.total_tp:3d} FP={r.total_fp:3d} FN={r.total_fn:3d}",
             file=sys.stderr,
         )
+
+    # External comparator (Sprint 7 --compare flag)
+    if args.compare == "presidio":
+        if args.from_history:
+            print(
+                "Skipping --compare presidio: incompatible with --from-history (needs live corpus access).",
+                file=sys.stderr,
+            )
+        else:
+            _run_presidio_comparison(
+                runs,
+                args.sprint,
+                samples_per_col=args.samples,
+                mapping_mode=args.compare_mode,
+            )
 
 
 if __name__ == "__main__":

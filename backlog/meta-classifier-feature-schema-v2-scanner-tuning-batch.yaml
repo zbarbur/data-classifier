@@ -1,0 +1,41 @@
+title: Meta-classifier feature schema v2 + scanner tuning batch
+status: done
+priority: P1
+category: feature
+sprint_target: 11
+created: 2026-04-14
+updated: 2026-04-15
+depends_on: []
+tags: []
+goal: "Widen meta-classifier feature schema to v2 and tune scanner behavior across\
+  \ validators, stopwords, gate, and cardinality \u2014 ~10 phase batch spanning orchestrator,\
+  \ meta_classifier, validators, patterns, and tests."
+complexity: L
+technical_specs:
+- "File: data_classifier/orchestrator/meta_classifier.py \u2014 feature schema v2\
+  \ widening"
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 scanner tuning integration"
+- "File: data_classifier/engines/validators.py \u2014 validator tuning"
+- "File: data_classifier/patterns/*.json \u2014 scanner pattern tuning (excluding\
+  \ secret_key_names.json which is owned by sprint 11 item tighten-id-token-and-token-secret-match-type)"
+- "File: tests/test_meta_classifier_features.py \u2014 v2 schema test coverage"
+- "File: tests/test_meta_classifier_training.py::_base_feature_vector \u2014 fixture\
+  \ builder updated for v2 schema"
+- "File: tests/conftest.py \u2014 shared fixtures if needed"
+- "File: scripts/train_meta_classifier.py \u2014 training pipeline update for v2 schema"
+description: ''
+acceptance_criteria:
+- "TBD \u2014 filled in by the owning session as phases land"
+test_plan:
+- "TBD \u2014 filled in by the owning session as phases land"
+notes: "Branch: sprint11/scanner-tuning-batch, worktree: /Users/guyguzner/Projects/data_classifier-sprint11-scanner-tuning.\
+  \ Target merge: sprint11/main. Collision coordination: the 7 small Sprint 11 items\
+  \ (nemotron loader refresh, gretel-finance CLI wiring, drift lint, id_token tighten,\
+  \ env-leak hygiene, engine docs, fail-fast dispatch doc) will land FIRST on sprint11/main;\
+  \ this batch rebases on top. Known minor Python collision in tests/test_meta_classifier_training.py\
+  \ near the top-of-module env-var setup from item #5 \u2014 trivial to resolve."
+phase: review
+design_reviewed: true
+code_reviewed: true
+comments: []
+images: []

@@ -1,0 +1,189 @@
+Generating synthetic corpus (50 samples/type)...
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 399 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 499 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 504 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 599 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 390 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 884 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+======================================================================
+ACCURACY BENCHMARK REPORT
+======================================================================
+
+KEY METRICS
+----------------------------------------------------------------------
+  Macro F1:                0.915
+  Micro F1:                0.897
+  Primary-Label Accuracy:  96.3%
+  Corpus Source:           synthetic
+
+CORPUS STATISTICS
+  Total columns:      37
+  Positive columns:   27 (22 entity types)
+  Negative columns:   10
+  Total samples:      1850
+  Avg samples/column: 50
+
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 399 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 499 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 504 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 599 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+SAMPLE-LEVEL SUMMARY
+----------------------------------------------------------------------
+  Positive samples:     1,350
+  Negative samples:     500
+  Samples scanned:      1,350
+  Samples matched:      1,300 (96.3%)
+  Samples validated:    1,300 (100.0% of matched)
+
+  Entity Type               Matched    Scanned      Valid     Conf          Via
+  ---------------------- ---------- ---------- ---------- -------- ------------
+  SSN                         50(100%)         50         50    0.888  column_name
+  SSN                         50(100%)         50         50    0.938  column_name
+  EMAIL                       50(100%)         50         50    0.845  column_name
+  EMAIL                       50(100%)         50         50    0.895  column_name
+  PHONE                       50(100%)         50         50    0.845  column_name
+  PHONE                       50(100%)         50         50    0.895  column_name
+  CREDIT_CARD                 50(100%)         50         50    0.888  column_name
+  CREDIT_CARD                 50(100%)         50         50    0.888  column_name
+  DATE_OF_BIRTH               50(100%)         50         50    0.845  column_name
+  IP_ADDRESS                  50(100%)         50         50    0.802  column_name
+  URL                         50(100%)         50         50    0.645  column_name
+  PERSON_NAME                 50(100%)         50         50    0.688  column_name
+  ADDRESS                     50(100%)         50         50    0.730  column_name
+  IBAN                        50(100%)         50         50    0.845  column_name
+  SWIFT_BIC                   50(100%)         50         50    0.802  column_name
+  EIN                         50(100%)         50         50    0.845  column_name
+  VIN                         50(100%)         50         50    0.802  column_name
+  BITCOIN_ADDRESS             50(100%)         50         50    0.945        regex
+  ETHEREUM_ADDRESS            50(100%)         50         50    0.945        regex
+  NPI                         50(100%)         50         50    0.845  column_name
+  NPI                         50(100%)         50         50    0.845  column_name
+  DEA_NUMBER                  50(100%)         50         50    0.845  column_name
+  MBI                         50(100%)         50         50    0.845  column_name
+  ABA_ROUTING                 50(100%)         50         50    0.736  column_name
+  CANADIAN_SIN                50(100%)         50         50    0.845  column_name
+  MAC_ADDRESS                 50(100%)         50         50    0.945        regex
+  DATE_OF_BIRTH_EU             0(0%)         50          0    0.000       MISSED
+
+COLUMN-LEVEL ACCURACY (did the column get the correct entity label?)
+----------------------------------------------------------------------
+Entity Type              TP   FP   FN     Prec   Recall       F1
+----------------------------------------------------------------------
+ABA_ROUTING               1    0    0    1.000    1.000    1.000
+ADDRESS                   1    0    0    1.000    1.000    1.000
+BITCOIN_ADDRESS           1    0    0    1.000    1.000    1.000
+CANADIAN_SIN              1    0    0    1.000    1.000    1.000
+CREDIT_CARD               2    0    0    1.000    1.000    1.000
+DATE_OF_BIRTH             1    1    0    0.500    1.000    0.667
+DATE_OF_BIRTH_EU          0    0    1    0.000    0.000    0.000
+DEA_NUMBER                1    0    0    1.000    1.000    1.000
+EIN                       1    0    0    1.000    1.000    1.000
+EMAIL                     2    0    0    1.000    1.000    1.000
+ETHEREUM_ADDRESS          1    0    0    1.000    1.000    1.000
+IBAN                      1    0    0    1.000    1.000    1.000
+IP_ADDRESS                1    0    0    1.000    1.000    1.000
+MAC_ADDRESS               1    0    0    1.000    1.000    1.000
+MBI                       1    0    0    1.000    1.000    1.000
+NPI                       2    0    0    1.000    1.000    1.000
+ORGANIZATION              0    2    0    0.000    0.000    0.000
+PERSON_NAME               1    1    0    0.500    1.000    0.667
+PHONE                     2    0    0    1.000    1.000    1.000
+SSN                       2    1    0    0.667    1.000    0.800
+SWIFT_BIC                 1    0    0    1.000    1.000    1.000
+URL                       1    0    0    1.000    1.000    1.000
+VIN                       1    0    0    1.000    1.000    1.000
+----------------------------------------------------------------------
+OVERALL                  26    5    1    0.839    0.963    0.897
+
+ENGINE CONTRIBUTIONS
+----------------------------------------------------------------------
+Column                            Column Name Eng          Regex Eng
+----------------------------------------------------------------------
+  SSN (test_ssn_column)                       SSN   SSN, ABA_ROUTING
+  SSN (test_ssn_notes)                        SSN   SSN, ABA_ROUTING
+  EMAIL (test_email_colu)                   EMAIL              EMAIL
+  EMAIL (test_email_note)                   EMAIL              EMAIL
+  PHONE (test_phone_colu)                   PHONE              PHONE
+  PHONE (test_phone_note)                   PHONE              PHONE
+  CREDIT_CARD (test_credit_car)        CREDIT_CARD        CREDIT_CARD
+  CREDIT_CARD (test_credit_car)        CREDIT_CARD        CREDIT_CARD
+  DATE_OF_BIRTH (test_dob_column)      DATE_OF_BIRTH DATE_OF_BIRTH, DATE_OF_BIRTH_EU
+  IP_ADDRESS (test_ip_column)          IP_ADDRESS         IP_ADDRESS
+  URL (test_url_column)                       URL                URL
+  PERSON_NAME (test_person_nam)        PERSON_NAME                  -
+  ADDRESS (test_address_co)               ADDRESS            ADDRESS
+  IBAN (test_iban_colum)                     IBAN               IBAN
+  SWIFT_BIC (test_swift_colu)           SWIFT_BIC          SWIFT_BIC
+  EIN (test_ein_column)                       EIN                EIN
+  VIN (test_vin_column)                       VIN                VIN
+  BITCOIN_ADDRESS (test_bitcoin_co)                  -    BITCOIN_ADDRESS
+  ETHEREUM_ADDRESS (test_ethereum_c)                  -   ETHEREUM_ADDRESS
+  NPI (test_npi_column)                       NPI         NPI, PHONE
+  NPI (test_npi_notes)                        NPI         NPI, PHONE
+  DEA_NUMBER (test_dea_column)         DEA_NUMBER   DEA_NUMBER, IBAN
+  MBI (test_mbi_column)                       MBI                MBI
+  ABA_ROUTING (test_aba_column)        ABA_ROUTING ABA_ROUTING, SSN, CANADIAN_SIN
+  CANADIAN_SIN (test_sin_column)       CANADIAN_SIN CANADIAN_SIN, ABA_ROUTING, SSN
+  MAC_ADDRESS (test_mac_column)                  -        MAC_ADDRESS
+  DATE_OF_BIRTH_EU (test_dob_eu_col)      DATE_OF_BIRTH DATE_OF_BIRTH, DATE_OF_BIRTH_EU
+
+SAMPLE-LEVEL DETECTION
+----------------------------------------------------------------------
+  SSN                  via column name  confidence=0.888
+  SSN                  via column name  confidence=0.938
+  EMAIL                via column name  confidence=0.845
+  EMAIL                via column name  confidence=0.895
+  PHONE                via column name  confidence=0.845
+  PHONE                via column name  confidence=0.895
+  CREDIT_CARD          via column name  confidence=0.888
+  CREDIT_CARD          via column name  confidence=0.888
+  DATE_OF_BIRTH        via column name  confidence=0.845
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 399 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+  IP_ADDRESS           via column name  confidence=0.802
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 499 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+  URL                  via column name  confidence=0.645
+  PERSON_NAME          via column name  confidence=0.688
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 504 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+  ADDRESS              via column name  confidence=0.730
+  IBAN                 via column name  confidence=0.845
+  SWIFT_BIC            via column name  confidence=0.802
+  EIN                  via column name  confidence=0.845
+  VIN                  via column name  confidence=0.802
+  BITCOIN_ADDRESS      matched=50/50 (100%)  validated=50/50  confidence=0.945
+  ETHEREUM_ADDRESS     matched=50/50 (100%)  validated=50/50  confidence=0.945
+  NPI                  via column name  confidence=0.845
+  NPI                  via column name  confidence=0.845
+  DEA_NUMBER           via column name  confidence=0.845
+  MBI                  via column name  confidence=0.845
+  ABA_ROUTING          via column name  confidence=0.736
+  CANADIAN_SIN         via column name  confidence=0.845
+/Users/guyguzner/Projects/data_classifier/.venv/lib/python3.14/site-packages/gliner/data_processing/processor.py:395: UserWarning: Sentence of length 599 has been truncated to 384
+  batch = [self.preprocess_example(b["tokenized_text"], b[key], class_to_ids) for b in batch_list]
+  MAC_ADDRESS          matched=50/50 (100%)  validated=50/50  confidence=0.945
+  DATE_OF_BIRTH_EU     NOT DETECTED
+
+FALSE POSITIVES
+----------------------------------------------------------------------
+  corpus_DATE_OF_BIRTH_EU_0: predicted=DATE_OF_BIRTH, expected=DATE_OF_BIRTH_EU, engines={'column_name': ['DATE_OF_BIRTH'], 'regex': ['DATE_OF_BIRTH', 'DATE_OF_BIRTH_EU']}
+  corpus_none_company_names_0: predicted=ORGANIZATION, expected=None, engines={'column_name': [], 'regex': []}
+  corpus_none_sentences_0: predicted=ORGANIZATION, expected=None, engines={'column_name': [], 'regex': []}
+  corpus_none_paragraphs_0: predicted=PERSON_NAME, expected=None, engines={'column_name': [], 'regex': []}
+  corpus_none_numeric_ids_0: predicted=SSN, expected=None, engines={'column_name': [], 'regex': ['ABA_ROUTING', 'SSN', 'CANADIAN_SIN']}
+
+FALSE NEGATIVES
+----------------------------------------------------------------------
+  corpus_DATE_OF_BIRTH_EU_0: expected=DATE_OF_BIRTH_EU, got=['DATE_OF_BIRTH']
+

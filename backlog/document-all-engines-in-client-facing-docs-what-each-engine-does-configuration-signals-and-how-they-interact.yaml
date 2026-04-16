@@ -1,23 +1,44 @@
 title: "Document all engines in client-facing docs \u2014 what each engine does, configuration,\
   \ signals, and how they interact"
-status: backlog
+status: done
 priority: P2
 category: docs
-sprint_target: null
+sprint_target: 11
 created: 2026-04-11
-updated: 2026-04-11
+updated: 2026-04-15
 depends_on: []
 tags:
 - iter2
-goal: ''
-complexity: null
-technical_specs: []
+goal: "Document every engine (regex, column_name, secret_scanner, gliner) in the client\
+  \ integration guide with purpose, fire conditions, configuration knobs, input requirements,\
+  \ output format, and orchestrator cascade interaction \u2014 so consumers can predict\
+  \ and control classification behavior without reading engine source."
+complexity: M
+technical_specs:
+- "File: docs/CLIENT_INTEGRATION_GUIDE.md \u2014 new Engines and Orchestrator sections"
+- "Source: data_classifier/engines/regex_engine.py, column_name_engine.py, secret_scanner.py,\
+  \ gliner_engine.py \u2014 extract accurate behavior per engine"
+- "Source: data_classifier/orchestrator/orchestrator.py \u2014 document cascade +\
+  \ dedup rules"
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- docs/CLIENT_INTEGRATION_GUIDE.md gains an Engines section covering each engine that
+  exists on main
+- 'Per engine: purpose sentence, when it fires, configuration signals (from ColumnInput
+  or profile YAML), input requirements, output format, typical confidence range'
+- Orchestrator cascade order + cross-engine dedup logic documented as a standalone
+  subsection
+- Every statement is cross-referenced against the actual code path (no aspirational
+  / out-of-date claims)
+- 'Sprint 10 additions documented: GLiNER data_type pre-filter, S1 NL-prompt wrapping,
+  secret_key_names 178-entry dict'
+test_plan:
+- "Human review only \u2014 docs are compared against source code; no automated test\
+  \ beyond existing markdown-lint"
+- Verify all code references file:line anchors resolve on main at sprint close
 notes: ''
-phase: null
-design_reviewed: false
-code_reviewed: false
+phase: review
+design_reviewed: true
+code_reviewed: true
 comments: []
 images: []

@@ -17,8 +17,15 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from data_classifier.patterns._decoder import decode_encoded_strings
+
 _PATTERNS_DIR = Path(__file__).parent
 _DEFAULT_PATTERNS_FILE = _PATTERNS_DIR / "default_patterns.json"
+
+__all__ = [
+    "ContentPattern",
+    "load_default_patterns",
+]
 
 
 @dataclass
@@ -67,29 +74,21 @@ class ContentPattern:
     allowlist_patterns: list[str] = field(default_factory=list)
     """Regex patterns — if any matches the extracted value, confidence → 0."""
 
+    requires_column_hint: bool = False
+    """If True, this pattern only fires when the column name contains one of
+    ``column_hint_keywords``. Used for patterns that would produce catastrophic
+    false positives on content alone (e.g. random password detection)."""
 
-_XOR_KEY = 0x5A
+    column_hint_keywords: list[str] = field(default_factory=list)
+    """Case-insensitive substrings to search for in the column name when
+    ``requires_column_hint`` is True. Any match allows the pattern to fire."""
 
 
-def _decode_examples(values: list[str]) -> list[str]:
-    """Decode encoded test examples.
-
-    Credential pattern examples are XOR + base64 encoded in the JSON to
-    prevent GitHub push protection from flagging them as real secrets.
-    Supports ``xor:`` (XOR + base64) and ``b64:`` (base64 only) prefixes.
-    """
-    import base64
-
-    decoded = []
-    for v in values:
-        if v.startswith("xor:"):
-            raw = base64.b64decode(v[4:])
-            decoded.append(bytes(b ^ _XOR_KEY for b in raw).decode("utf-8"))
-        elif v.startswith("b64:"):
-            decoded.append(base64.b64decode(v[4:]).decode())
-        else:
-            decoded.append(v)
-    return decoded
+# Backwards-compatibility alias for the shared decoder. Prefer importing
+# ``decode_encoded_strings`` from ``data_classifier.patterns._decoder``
+# in new code; this shim keeps older imports (``_decode_examples``)
+# working until they're migrated.
+_decode_examples = decode_encoded_strings
 
 
 def load_default_patterns() -> list[ContentPattern]:
@@ -102,7 +101,7 @@ def load_default_patterns() -> list[ContentPattern]:
 
     patterns = []
     for p in raw["patterns"]:
-        p["examples_match"] = _decode_examples(p.get("examples_match", []))
-        p["examples_no_match"] = _decode_examples(p.get("examples_no_match", []))
+        p["examples_match"] = decode_encoded_strings(p.get("examples_match", []))
+        p["examples_no_match"] = decode_encoded_strings(p.get("examples_no_match", []))
         patterns.append(ContentPattern(**p))
     return patterns

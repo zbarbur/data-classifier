@@ -39,6 +39,73 @@ jobs:
         if: matrix.python-version == '3.12'
         run: mkdocs build --strict
 
+  lint-and-test-ml:
+    # Verifies the [ml] extras stack installs cleanly on a fresh runner
+    # and that GLiNER2Engine imports + constructs without errors. This
+    # is the regression guard Sprint 7 close asked for — an [ml]-enabled
+    # venv that silently drops findings regex-only CI never sees.
+    #
+    # SCOPE: install + import + construct. NOT real inference.
+    #
+    # DATA_CLASSIFIER_DISABLE_ML=1 is PERMANENT on this job (not a
+    # temporary flag). Real GLiNER2 inference requires the ONNX model,
+    # which lives in the private AR Generic repo `data-classifier-models`
+    # in `dag-bigquery-dev`. GitHub-hosted runners have no ambient GCP
+    # credentials, and Mode 2 in gliner_engine.py's loader falls back to
+    # HuggingFace — which BQ already saw 429-rate-limit us in prod. So
+    # without Workload Identity Federation, CI cannot reach the model
+    # and cannot run real inference without regressing the rate-limit
+    # issue.
+    #
+    # Real-inference CI is tracked as a Sprint 9+ item
+    # (`ml-ci-real-inference-via-workload-identity-federation`) that
+    # adds a google-github-actions/auth step, runs
+    # `python -m data_classifier.download_models`, and removes this
+    # kill-switch. Until then, real-inference coverage lives in:
+    #   - tests/test_download_models.py (unit)
+    #   - local pre-merge runs (`pytest tests/ -v` with [ml] installed
+    #     and ONNX model in ~/.cache/data_classifier/models/gliner_onnx)
+    #   - the Item 2 investigation run that pinned gap-suppression
+    runs-on: ubuntu-latest
+    env:
+      DATA_CLASSIFIER_DISABLE_ML: "1"
+    strategy:
+      matrix:
+        # Python 3.12 only — gliner's build dependencies may not have
+        # wheels for py3.13 yet, and py3.11 adds no signal beyond 3.12
+        # for the install-verification value this job delivers.
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies including ml extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,meta,ml]"
+
+      - name: Diagnostics venv and ml package versions
+        run: |
+          python -c "import sys; print('python:', sys.executable)"
+          python -c "import sys; print('version:', sys.version)"
+          pip list | grep -E '^(gliner|onnxruntime|data_classifier|scikit-learn|numpy)' || true
+
+      - name: Verify ML engine imports and constructs
+        # Does NOT load the model — just confirms the GLiNER2Engine class
+        # can be instantiated with the installed [ml] extras. This is the
+        # Sprint 5 regression guard: an engine that imports but cannot
+        # construct means a runtime ImportError in consumer deployments.
+        run: |
+          python -c "from data_classifier.engines.gliner_engine import GLiNER2Engine; e = GLiNER2Engine(); print('gliner2 engine constructed; name:', e.name, 'order:', e.order)"
+
+      - name: Run tests with ml disabled at runtime
+        run: pytest tests/ -v
+
   install-test:
     # Builds a wheel from the current checkout and installs it into a fresh
     # venv (no editable install, no dev extras), then runs a smoke test that
@@ -80,3 +147,14 @@ jobs:
         run: |
           cd /tmp
           /tmp/smoke_venv/bin/python "$REPO_DIR/scripts/install_smoke_test.py"
+
+      - name: Smoke test download_models CLI entry point
+        # Verifies that the data-classifier-download-models console script is
+        # registered by the wheel and that the module imports cleanly in a
+        # Python env with only the base extras installed. Does NOT download
+        # the actual model — just exercises the --help plumbing so a broken
+        # entry point (missing pyproject script, import error, heavy dep
+        # leaking into module top-level) fails CI.
+        run: |
+          /tmp/smoke_venv/bin/data-classifier-download-models --help
+          /tmp/smoke_venv/bin/python -m data_classifier.download_models --help

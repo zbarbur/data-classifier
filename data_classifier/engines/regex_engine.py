@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import typing
 from dataclasses import dataclass
+from pathlib import Path
 
 import re2
 
@@ -30,6 +31,7 @@ from data_classifier.core.types import (
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.engines.validators import VALIDATORS
 from data_classifier.patterns import ContentPattern, load_default_patterns
+from data_classifier.patterns._decoder import decode_encoded_strings
 
 logger = logging.getLogger(__name__)
 
@@ -93,16 +95,26 @@ def _compute_sample_confidence(base_confidence: float, matches: int, validated: 
 # ── Stopword / Allowlist / Context ──────────────────────────────────────────
 
 
-def _load_global_stopwords() -> set[str]:
-    """Load global stopwords from stopwords.json (known placeholder values)."""
-    import json
-    from pathlib import Path
+_GLOBAL_STOPWORDS_FILE: Path = Path(__file__).parent.parent / "patterns" / "stopwords.json"
 
-    stopwords_file = Path(__file__).parent.parent / "patterns" / "stopwords.json"
-    if stopwords_file.exists():
-        with open(stopwords_file) as f:
+
+def _load_global_stopwords() -> set[str]:
+    """Load global stopwords from stopwords.json (known placeholder values).
+
+    Entries may use the optional ``xor:`` / ``b64:`` encoding prefixes
+    handled by :func:`data_classifier.patterns._decoder.decode_encoded_strings`
+    so credential-shaped placeholder values (Stripe docs test keys,
+    PAT placeholders) can live in the file without tripping GitHub
+    push-protection on commit. Decoding happens before the
+    case-fold so the base64 body is never lowercased.
+    """
+    import json
+
+    if _GLOBAL_STOPWORDS_FILE.exists():
+        with open(_GLOBAL_STOPWORDS_FILE) as f:
             data = json.load(f)
-        return {s.lower() for s in data.get("stopwords", [])}
+        decoded = decode_encoded_strings(data.get("stopwords", []))
+        return {s.lower() for s in decoded}
     return set()
 
 
@@ -135,6 +147,25 @@ def _matches_allowlist(value: str, pattern: ContentPattern) -> bool:
         except Exception:
             pass
     return False
+
+
+def _column_hint_allows_pattern(column_name: str, pattern: ContentPattern) -> bool:
+    """Check whether the column name satisfies a pattern's column hint gate.
+
+    Patterns with ``requires_column_hint=True`` only fire when the column
+    name contains one of ``column_hint_keywords`` (case-insensitive substring
+    match). This prevents content-based FPs for patterns that cannot be
+    reliably distinguished from similar content in other contexts —
+    e.g. random passwords, which look like any mixed-class short string.
+
+    Patterns without the gate (the default) always pass.
+    """
+    if not pattern.requires_column_hint:
+        return True
+    if not pattern.column_hint_keywords:
+        return False
+    name_lower = column_name.lower()
+    return any(kw.lower() in name_lower for kw in pattern.column_hint_keywords)
 
 
 def _compute_context_adjustment(value: str, pattern: ContentPattern) -> float:
@@ -408,6 +439,11 @@ class RegexEngine(ClassificationEngine):
             for idx in hit_indices:
                 p = pset.patterns[idx]
                 validator = pset.validators[idx]
+
+                # Column hint gate — some patterns (e.g. random_password)
+                # only fire when the column name hints at them
+                if not _column_hint_allows_pattern(column.column_name, p):
+                    continue
 
                 # Stopword check — known placeholder values → skip entirely
                 if _is_stopword(value, p):

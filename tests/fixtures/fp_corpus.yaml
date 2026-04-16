@@ -10,7 +10,8 @@ cases:
 
   - name: "Hex strings that look like API keys"
     sample_values: ["abcdef1234567890abcdef1234567890", "0000000000000000000000000000000000000000"]
-    should_not_match: ["CREDENTIAL"]
+    # Sprint 8 Item 4: CREDENTIAL split into 4 subtypes
+    should_not_match: ["API_KEY", "PRIVATE_KEY", "PASSWORD_HASH", "OPAQUE_SECRET"]
 
   - name: "Dates that look like DOBs"
     sample_values: ["01/15/2024", "12/25/2023", "07/04/2024"]
@@ -31,7 +32,8 @@ cases:
 
   - name: "Placeholder API keys"
     sample_values: ["AKIAIOSFODNN7EXAMPLE", "sk_test_1234567890"]
-    should_not_match: ["CREDENTIAL"]
+    # Sprint 8 Item 4: CREDENTIAL split into 4 subtypes
+    should_not_match: ["API_KEY", "PRIVATE_KEY", "PASSWORD_HASH", "OPAQUE_SECRET"]
 
   - name: "Test credit card numbers"
     sample_values: ["4111111111111111", "5500000000000004"]

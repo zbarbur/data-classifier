@@ -1,0 +1,40 @@
+title: "_disable_ml fixture \u2014 list-copy + teardown guard in TestSampleValueMatching\
+  \ against in-place _DEFAULT_ENGINES mutation"
+status: done
+priority: P2
+category: chore
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-14
+depends_on: []
+tags: []
+goal: "Sprint 8 post-hoc review flagged that tests/test_regex_engine.py::TestSampleValueMatching._disable_ml\
+  \ uses monkeypatch.setattr(data_classifier, '_DEFAULT_ENGINES', non_ml_engines)\
+  \ which correctly restores the original list at teardown \u2014 but only if the\
+  \ engine list is REBOUND, not mutated in place. If any code path appends/removes\
+  \ from _DEFAULT_ENGINES instead of rebinding, the teardown won't catch it. Add list()\
+  \ copy + a module-teardown assertion that gliner2 is back in _DEFAULT_ENGINES."
+complexity: S
+technical_specs:
+- "File: tests/test_regex_engine.py:66-80 \u2014 wrap non_ml_engines in list() in\
+  \ the _disable_ml fixture body"
+- "File: tests/test_regex_engine.py \u2014 new module-scope autouse fixture that captures\
+  \ the engine list at session start and asserts it matches at session end"
+description: ''
+acceptance_criteria:
+- _disable_ml fixture wraps non_ml_engines in list(...) so the monkeypatched value
+  is a fresh copy, not a slice reference
+- "tests/test_regex_engine.py gains a module-level fixture (or test) that asserts\
+  \ gliner2 is in data_classifier._DEFAULT_ENGINES at module teardown \u2014 fails\
+  \ loudly if any test class leaks a mutated engine list"
+- All existing tests still pass; the new guard fires correctly on a deliberately-broken
+  test (verified locally before the guard ships)
+test_plan:
+- Run pytest tests/test_regex_engine.py -v and confirm the new guard exists. Manually
+  break a test (have it append to _DEFAULT_ENGINES) and confirm the guard fires.
+notes: ''
+phase: review
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

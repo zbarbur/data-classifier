@@ -49,6 +49,19 @@ Thumbs.db
 site/
 .hypothesis/
 
+# Generated stats snapshot (scripts/collect_stats.py)
+stats.json
+
+# Retired ai4privacy corpus derivative (Sprint 9 — license non-OSS, see
+# docs/process/LICENSE_AUDIT.md). Historical commits still contain this
+# file; we just prevent accidental re-add.
+tests/fixtures/corpora/ai4privacy_sample.json
+
+# Meta-classifier training JSONL is regenerated locally via
+# `python -m tests.benchmarks.meta_classifier.build_training_data`
+# and no longer committed (retired with ai4privacy drop, Sprint 9).
+tests/benchmarks/meta_classifier/training_data.jsonl
+
 # ML models (too large for git, exported via `python -m data_classifier.export_onnx`)
 # The Phase 2 meta-classifier artifacts are small (~8 KB combined) and
 # committed per decision D5 — everything else in this directory is
@@ -58,8 +71,33 @@ data_classifier/models/*
 !data_classifier/models/meta_classifier_v1.pkl
 !data_classifier/models/meta_classifier_v1.metadata.json
 !data_classifier/models/meta_classifier_v1.eval.json
+# Sprint 11 Phase 2/3: v2 meta-classifier artifact (46-feature schema,
+# 44 kept features after ALWAYS_DROP_REDUNDANT, feature_schema_version=2).
+!data_classifier/models/meta_classifier_v2.pkl
+!data_classifier/models/meta_classifier_v2.metadata.json
+# Sprint 11 Phase 7: v3 meta-classifier artifact (47-feature schema,
+# 45 kept features after ALWAYS_DROP_REDUNDANT; includes
+# heuristic_dictionary_word_ratio at index 46, feature_schema_version=3).
+!data_classifier/models/meta_classifier_v3.pkl
+!data_classifier/models/meta_classifier_v3.metadata.json
+# Sprint 12 Item #1 + Item #2: v5 meta-classifier artifact (49-feature
+# schema, 47 kept features after ALWAYS_DROP_REDUNDANT; adds
+# validator_rejected_credential_ratio at index 47 and
+# has_dictionary_name_match_ratio at index 48, feature_schema_version=5).
+# Schema v4 was transient and never deployed — Phase 2 added index 47
+# but the artifact was never trained before Phase 3 appended index 48.
+!data_classifier/models/meta_classifier_v5.pkl
+!data_classifier/models/meta_classifier_v5.metadata.json
 # Research candidate artifacts from parallel experiments (meta-classifier queue).
 # Same size class as v1; see docs/experiments/meta_classifier/queue.md file-ownership.
-!data_classifier/models/meta_classifier_v1_*.pkl
-!data_classifier/models/meta_classifier_v1_*.metadata.json
+# Allows candidate suffixes like meta_classifier_v1_q3.pkl, meta_classifier_v5_e12.pkl.
+!data_classifier/models/meta_classifier_v*_*.pkl
+!data_classifier/models/meta_classifier_v*_*.metadata.json
+# Keep the gliner_onnx/ placeholder directory (populated by download_models CLI
+# at container build time) so package_data globs have a target, but ignore the
+# actual model weights.
+!data_classifier/models/gliner_onnx/
+data_classifier/models/gliner_onnx/*
+!data_classifier/models/gliner_onnx/.gitkeep
+!data_classifier/models/gliner_onnx/README.md
 models/gliner_onnx/

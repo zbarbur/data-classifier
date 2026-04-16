@@ -3,9 +3,9 @@ title: "Cloud DLP comparator \u2014 benchmark data_classifier against Google Clo
 status: backlog
 priority: P2
 category: feature
-sprint_target: null
+sprint_target: 9
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-13
 depends_on: []
 tags: []
 goal: Benchmark data_classifier against Google Cloud DLP on Nemotron + Ai4Privacy

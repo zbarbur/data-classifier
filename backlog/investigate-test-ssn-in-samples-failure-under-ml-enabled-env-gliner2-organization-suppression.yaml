@@ -1,0 +1,65 @@
+title: Investigate test_ssn_in_samples failure under ML-enabled env (GLiNER2 ORGANIZATION
+  suppression)
+status: done
+priority: P1
+category: bug
+sprint_target: 8
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: 'Investigate and fix test_regex_engine.py::TestSampleValueMatching::test_ssn_in_samples
+  failing when run from a Python env with [ml] extras installed. With GLiNER2 active,
+  the test input ([''123-45-6789'', ''987-65-4321'', ''hello world''] under column_name=''data_field'')
+  produces only one finding: ORGANIZATION from gliner2 at confidence 0.741, with no
+  SSN finding despite a valid regex+validator match on 123-45-6789. Determine root
+  cause (orchestrator authority suppression vs aggressive_secondary_suppression vs
+  GLiNER replacing rather than adding findings) and fix either the test expectation
+  or the orchestrator logic.'
+complexity: M
+technical_specs:
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 review the collision\
+  \ resolution, authority gap, agreement boost, and aggressive_secondary_suppression\
+  \ logic. The test expects SSN to survive alongside ORGANIZATION; figure out what\
+  \ drops it"
+- "File: tests/test_regex_engine.py \u2014 the existing test at TestSampleValueMatching::test_ssn_in_samples\
+  \ may need its assertion updated if the ML-on behavior is actually correct and the\
+  \ test was written before ML landed"
+- "File: tests/test_orchestrator_ml_interaction.py (new) \u2014 add a dedicated test\
+  \ module exercising regex+ML-engine interactions under various authority and confidence\
+  \ scenarios"
+- 'Debug command to reproduce: .venv/bin/python -m pytest tests/test_regex_engine.py::TestSampleValueMatching::test_ssn_in_samples
+  -v'
+description: ''
+acceptance_criteria:
+- 'Root cause identified and documented: which mechanism in orchestrator.py or gliner_engine.py
+  causes the regex SSN finding to be dropped when gliner fires ORGANIZATION'
+- Fix applied EITHER to the test (updating the assertion to reflect correct ML-on
+  behavior) OR to the orchestrator (stopping the inappropriate suppression) based
+  on which is actually correct for the spec
+- test_ssn_in_samples passes under both ML-on and ML-off environments
+- A new regression test pins the specific scenario (regex SSN match + gliner ORGANIZATION
+  hit under a generic column name) so the same failure cannot silently recur
+- Full pytest tests/ -v green on [dev,meta,ml] environment
+- Lint clean
+test_plan:
+- Reproduce the failure from main@324cfe4 (pre-Sprint-7) to confirm this is pre-existing,
+  not a Sprint 7 regression
+- Run debug script to print all findings (not just the final list) to see whether
+  the regex engine emits SSN and orchestrator then drops it, or if the regex engine
+  never emits it
+- 'After fix: full pytest pass under [dev,meta,ml]; verify the new ci-matrix job goes
+  green'
+notes: "Discovered Sprint 7 close, 2026-04-13. GLiNER2 classifies the input as ORGANIZATION\
+  \ (conf 0.741) \u2014 the model is reading 'data_field' as an org-hint. Regex SSN\
+  \ match on 123-45-6789 is still valid (area 123 is in canonical range, validator\
+  \ passes) but somehow does not appear in the final findings output. Test was likely\
+  \ written before the ML engine landed in Sprint 5 and has been silently broken under\
+  \ ML-on env for 2+ sprints. Depends on: ci-matrix-add-ml-extra-job-to-catch-ml-dependent-test-failures\
+  \ (that item adds the job that will show the failure red and block merges). LANDING\
+  \ ORDER: ci-matrix first, then this bug fix."
+phase: review
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

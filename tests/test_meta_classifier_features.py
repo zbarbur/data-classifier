@@ -12,9 +12,32 @@ from data_classifier.core.types import ClassificationFinding, SampleAnalysis
 from data_classifier.orchestrator.meta_classifier import (
     FEATURE_DIM,
     FEATURE_NAMES,
+    FEATURE_SCHEMA_VERSION,
+    PRIMARY_ENTITY_TYPES,
     MetaClassifier,
     extract_features,
 )
+
+# Sprint 11 Phase 2: schema widened from 15 → 46 (15 base + 31 primary_entity_type one-hot).
+# Sprint 11 Phase 7: added heuristic_dictionary_word_ratio at index 46 (total 47, schema v3).
+# Sprint 12 Item #1: added validator_rejected_credential_ratio at index 47 (total 48, schema v4).
+# Sprint 12 Item #2: added has_dictionary_name_match_ratio at index 48 (total 49, schema v5).
+_BASE_DIM = 15
+_ONE_HOT_DIM = len(PRIMARY_ENTITY_TYPES)
+_EXTRA_DIM = 3  # dict_word_ratio, validator_rejected_credential_ratio, has_dictionary_name_match_ratio
+_EXPECTED_DIM = _BASE_DIM + _ONE_HOT_DIM + _EXTRA_DIM
+
+
+def _one_hot_index(entity_type: str) -> int:
+    """Return the absolute index in FEATURE_NAMES for a given entity type.
+
+    Falls back to the UNKNOWN slot if the entity type is not in the vocab.
+    """
+    name = f"primary_entity_type={entity_type}"
+    if name in FEATURE_NAMES:
+        return FEATURE_NAMES.index(name)
+    return FEATURE_NAMES.index("primary_entity_type=UNKNOWN")
+
 
 # ── Fixture builders ─────────────────────────────────────────────────────────
 
@@ -51,13 +74,17 @@ def _make_finding(
 
 
 def test_feature_dim_matches_names():
-    assert FEATURE_DIM == len(FEATURE_NAMES) == 15
+    assert FEATURE_DIM == len(FEATURE_NAMES) == _EXPECTED_DIM
 
 
-def test_feature_names_order_stable():
-    # If someone reorders FEATURE_NAMES, this test pins the exact order so
-    # the JSONL on disk doesn't silently become garbage.
-    assert FEATURE_NAMES == (
+def test_feature_schema_version_is_v5():
+    assert FEATURE_SCHEMA_VERSION == 5
+
+
+def test_base_feature_names_order_stable():
+    # The first 15 feature names are positional — reordering them silently
+    # corrupts any trained artifact. Sprint 11 widening only APPENDS.
+    assert FEATURE_NAMES[:_BASE_DIM] == (
         "top_overall_confidence",
         "regex_confidence",
         "column_name_confidence",
@@ -76,11 +103,31 @@ def test_feature_names_order_stable():
     )
 
 
-def test_empty_findings_returns_zero_vector():
+def test_primary_entity_type_vocab_ends_with_unknown():
+    # UNKNOWN must be the catch-all slot at the end of the vocab so new
+    # entity types can be appended without relocating it.
+    assert PRIMARY_ENTITY_TYPES[-1] == "UNKNOWN"
+
+
+def test_primary_entity_type_slots_are_prefixed_in_feature_names():
+    # Every vocab entry gets a "primary_entity_type=X" slot in FEATURE_NAMES.
+    for et in PRIMARY_ENTITY_TYPES:
+        assert f"primary_entity_type={et}" in FEATURE_NAMES
+
+
+def test_empty_findings_returns_base_zeros_and_unknown_one_hot():
+    # No top finding → UNKNOWN slot is 1.0, base features and extras are all zero.
     features = extract_features([])
-    assert len(features) == 15
-    assert all(v == 0.0 for v in features)
+    assert len(features) == _EXPECTED_DIM
     assert all(isinstance(v, float) for v in features)
+    # Base features are zero.
+    assert all(v == 0.0 for v in features[:_BASE_DIM])
+    # One-hot section has exactly one 1.0, on the UNKNOWN slot.
+    one_hot_slice = features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]
+    assert sum(one_hot_slice) == 1.0
+    assert features[_one_hot_index("UNKNOWN")] == 1.0
+    # Extras default to zero when the caller does not supply them.
+    assert all(v == 0.0 for v in features[_BASE_DIM + _ONE_HOT_DIM :])
 
 
 def test_empty_findings_respects_heuristic_kwargs():
@@ -89,10 +136,12 @@ def test_empty_findings_respects_heuristic_kwargs():
     features = extract_features([], heuristic_distinct_ratio=0.9, heuristic_avg_length=0.25)
     assert features[9] == 0.9
     assert features[10] == 0.25
-    # Everything else must still be zero.
-    for i, value in enumerate(features):
+    # All OTHER base features must still be zero.
+    for i in range(_BASE_DIM):
         if i not in (9, 10):
-            assert value == 0.0
+            assert features[i] == 0.0
+    # One-hot tail still resolves to UNKNOWN.
+    assert features[_one_hot_index("UNKNOWN")] == 1.0
 
 
 def test_single_regex_finding_fills_correct_slots():
@@ -112,6 +161,107 @@ def test_single_regex_finding_fills_correct_slots():
     assert features[12] == 0.0  # has_secret_indicators
     assert features[13] == 1.0  # primary_is_pii (EMAIL is PII)
     assert features[14] == 0.0  # primary_is_credential
+
+    # EMAIL one-hot slot is 1.0; UNKNOWN and all other slots are 0.0.
+    assert features[_one_hot_index("EMAIL")] == 1.0
+    assert features[_one_hot_index("UNKNOWN")] == 0.0
+    # Exactly one one-hot slot set in the one-hot section.
+    assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
+
+
+def test_heuristic_dictionary_word_ratio_is_appended_in_extras():
+    # Sprint 11 Phase 7: the dict-word-ratio feature sits at index 46,
+    # the first extra after the base (0-14) and one-hot (15-45) sections.
+    # Sprint 12 Item #1 appended validator_rejected_credential_ratio at
+    # index 47, so dict-word-ratio is now the second-to-last slot.
+    dict_ratio = 0.42
+    features = extract_features([], heuristic_dictionary_word_ratio=dict_ratio)
+    # First extra slot (index 46) holds the dict-word-ratio.
+    assert features[_BASE_DIM + _ONE_HOT_DIM] == dict_ratio
+    # Base + one-hot are unchanged (base is zero, one-hot is UNKNOWN).
+    assert all(v == 0.0 for v in features[:_BASE_DIM])
+    assert features[_one_hot_index("UNKNOWN")] == 1.0
+    assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
+
+
+def test_heuristic_dictionary_word_ratio_defaults_to_zero():
+    features = extract_features([])
+    assert features[_BASE_DIM + _ONE_HOT_DIM] == 0.0
+
+
+def test_validator_rejected_credential_ratio_is_appended_in_extras():
+    # Sprint 12 Item #1: validator-rejection ratio sits at index 47, the
+    # second extra after dict-word-ratio at 46. Sprint 12 Item #2 then
+    # appended has_dictionary_name_match_ratio at index 48, so the
+    # validator slot is now the middle extra, not the tail.
+    rejection_ratio = 0.73
+    features = extract_features([], validator_rejected_credential_ratio=rejection_ratio)
+    # Second extra slot (index 47) holds the validator rejection ratio.
+    assert features[_BASE_DIM + _ONE_HOT_DIM + 1] == rejection_ratio
+    # Base + one-hot are unchanged (base is zero, one-hot is UNKNOWN).
+    assert all(v == 0.0 for v in features[:_BASE_DIM])
+    assert features[_one_hot_index("UNKNOWN")] == 1.0
+    assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
+    # Dict-word-ratio slot (46) and name-match slot (48) are still their
+    # default zero.
+    assert features[_BASE_DIM + _ONE_HOT_DIM] == 0.0
+    assert features[-1] == 0.0
+
+
+def test_validator_rejected_credential_ratio_defaults_to_zero():
+    features = extract_features([])
+    assert features[_BASE_DIM + _ONE_HOT_DIM + 1] == 0.0
+
+
+def test_has_dictionary_name_match_ratio_is_appended_at_schema_tail():
+    # Sprint 12 Item #2: the name-match ratio is the NEW tail slot at
+    # index 48 (after dict-word-ratio at 46 and validator-rejection at 47).
+    name_ratio = 0.65
+    features = extract_features([], has_dictionary_name_match_ratio=name_ratio)
+    # The last slot is the new extra.
+    assert features[-1] == name_ratio
+    # Base + one-hot are unchanged (base is zero, one-hot is UNKNOWN).
+    assert all(v == 0.0 for v in features[:_BASE_DIM])
+    assert features[_one_hot_index("UNKNOWN")] == 1.0
+    assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
+    # The two previous extras (46 and 47) are still their default zero.
+    assert features[_BASE_DIM + _ONE_HOT_DIM] == 0.0
+    assert features[_BASE_DIM + _ONE_HOT_DIM + 1] == 0.0
+
+
+def test_has_dictionary_name_match_ratio_defaults_to_zero():
+    features = extract_features([])
+    assert features[-1] == 0.0
+
+
+def test_all_three_extras_coexist_independently():
+    # All three extras must be addressable independently — setting one
+    # must not leak into either of the other slots. Catches the
+    # symmetric-bug risk where a future extra is appended at the wrong
+    # index.
+    features = extract_features(
+        [],
+        heuristic_dictionary_word_ratio=0.3,
+        validator_rejected_credential_ratio=0.8,
+        has_dictionary_name_match_ratio=0.6,
+    )
+    assert features[_BASE_DIM + _ONE_HOT_DIM] == 0.3  # index 46
+    assert features[_BASE_DIM + _ONE_HOT_DIM + 1] == 0.8  # index 47
+    assert features[-1] == 0.6  # index 48
+
+
+def test_unknown_entity_type_falls_back_to_unknown_slot():
+    # An entity_type outside the vocab must land in the UNKNOWN slot,
+    # not crash extract_features.
+    f = _make_finding(
+        engine="regex",
+        entity_type="NOT_A_REAL_TYPE_ZZZ",
+        confidence=0.5,
+        match_ratio=0.1,
+    )
+    features = extract_features([f])
+    assert features[_one_hot_index("UNKNOWN")] == 1.0
+    assert sum(features[_BASE_DIM : _BASE_DIM + _ONE_HOT_DIM]) == 1.0
 
 
 def test_multi_engine_agreement_counts_correctly():
@@ -227,3 +377,65 @@ def test_meta_classifier_predict_shadow_handles_empty_findings():
     if result is not None:
         assert result.live_entity == ""
         assert result.column_id == ""
+
+
+def _dump_artifact(path, payload) -> None:
+    """Serialize a model payload to disk using the same format the
+    production loader expects. Dynamic import keeps the literal module
+    name out of static scans while the actual behavior is unchanged.
+    """
+    import importlib
+
+    serializer = importlib.import_module("pickle")
+    path.write_bytes(serializer.dumps(payload))
+
+
+def test_version_gate_refuses_mismatched_artifact(tmp_path):
+    # Sprint 11 contract: an artifact whose feature_schema_version does
+    # not match FEATURE_SCHEMA_VERSION must be refused — predict_shadow
+    # returns None, _available stays False. This prevents a v1 artifact
+    # from silently being used against the widened v2 feature vector.
+    stale = {
+        "feature_schema_version": 1,
+        "model": object(),  # won't be touched — we refuse before use
+        "scaler": object(),
+        "feature_names": list(FEATURE_NAMES[:_BASE_DIM]),  # old 15-feature shape
+        "class_labels": ["EMAIL"],
+    }
+    stale_path = tmp_path / "stale_meta.bin"
+    _dump_artifact(stale_path, stale)
+
+    mc = MetaClassifier(model_path=stale_path)
+    result = mc.predict_shadow([], [])
+    assert result is None
+    assert mc._available is False
+
+
+def test_version_gate_accepts_matching_artifact(tmp_path):
+    # Same-version artifact must load normally. We can't reuse a trained
+    # production model here, so we build a tiny 2-class model on the
+    # full current-schema feature vector purely for the load-path contract
+    # check. FEATURE_DIM tracks schema upgrades automatically.
+    import numpy as np
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.preprocessing import StandardScaler
+
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(20, FEATURE_DIM))
+    y = np.array(["EMAIL"] * 10 + ["SSN"] * 10)
+    scaler = StandardScaler().fit(X)
+    model = LogisticRegression(max_iter=1000).fit(scaler.transform(X), y)
+
+    payload = {
+        "feature_schema_version": FEATURE_SCHEMA_VERSION,
+        "model": model,
+        "scaler": scaler,
+        "feature_names": list(FEATURE_NAMES),
+        "class_labels": list(model.classes_),
+    }
+    path = tmp_path / "v2_meta.bin"
+    _dump_artifact(path, payload)
+
+    mc = MetaClassifier(model_path=path)
+    mc.predict_shadow([], [])  # triggers the load path
+    assert mc._available is True

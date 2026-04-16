@@ -4,8 +4,8 @@ Usage (from repo root)::
 
     python -m scripts.train_meta_classifier \\
         --input tests/benchmarks/meta_classifier/training_data.jsonl \\
-        --output data_classifier/models/meta_classifier_v1.pkl \\
-        --metadata data_classifier/models/meta_classifier_v1.metadata.json
+        --output data_classifier/models/meta_classifier_v5.pkl \\
+        --metadata data_classifier/models/meta_classifier_v5.metadata.json
 
 The model artifact is a pickled dict (decision D5 in the Phase 2 dispatch):
 ``{model, scaler, feature_names, class_labels, dropped_features,
@@ -38,9 +38,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import subprocess
-import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,6 +53,10 @@ os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
 # the pickle and load only from a committed in-repo path, so there is no
 # untrusted-input exposure.  See D5 in the Phase 2 dispatch.
 import pickle as _pickle_impl  # noqa: S403
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+_log = logging.getLogger(__name__)
+
 
 # ── Features to drop (Session A §2.1) ──────────────────────────────────────
 
@@ -156,28 +160,71 @@ def train(
     import numpy as np
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import classification_report, f1_score
-    from sklearn.model_selection import StratifiedGroupKFold, train_test_split
+    from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold, train_test_split
     from sklearn.preprocessing import StandardScaler
 
     X_full = np.asarray(dataset.features, dtype=np.float64)[:, kept_indices]
     y = np.asarray(dataset.labels)
     column_ids = np.asarray(dataset.column_ids)
     corpora_arr = np.asarray(dataset.corpora)
+    modes_arr = np.asarray(dataset.modes)
 
-    X_train, X_test, y_train, y_test, id_train, id_test, corpora_train, _corpora_test = train_test_split(
-        X_full,
-        y,
-        column_ids,
-        corpora_arr,
-        test_size=0.2,
-        random_state=RANDOM_STATE,
-        stratify=y,
+    # Sprint 11 Phase 4 fix: the previous train_test_split(stratify=y)
+    # put named/blind shard twins (identical sample values, different
+    # column_name only) in opposite folds, which silently inflated
+    # held-out test macro F1 by ~0.45. The fix collapses twins onto a
+    # single "base shard ID" and uses StratifiedGroupKFold to carve
+    # out an 80/20 cut that is both class-stratified and group-aware.
+    #
+    # The same _base_shard_id helper lives in
+    # tests/benchmarks/meta_classifier/evaluate.py — keep them in sync.
+    base_shard_ids = np.asarray(
+        [cid.replace(f"_{m}_", "_base_", 1) for cid, m in zip(column_ids, modes_arr, strict=True)],
     )
 
-    # Column-id leak invariant
+    # Adaptive: StratifiedGroupKFold needs at least n_splits distinct
+    # groups. For tiny single-corpus test fixtures (used in unit tests)
+    # the group count can be below 5, in which case fall back to a
+    # plain stratified split. Production training data always has
+    # hundreds of groups so the group-aware branch is the normal path.
+    n_groups = len(np.unique(base_shard_ids))
+    if n_groups >= 5:
+        sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
+        train_idx, test_idx = next(sgkf.split(X_full, y, groups=base_shard_ids))
+
+        def _slice(a: np.ndarray, idx: np.ndarray) -> np.ndarray:
+            return a[idx]
+
+        X_train = _slice(X_full, train_idx)
+        X_test = _slice(X_full, test_idx)
+        y_train = _slice(y, train_idx)
+        y_test = _slice(y, test_idx)
+        id_train = _slice(column_ids, train_idx)
+        id_test = _slice(column_ids, test_idx)
+        corpora_train = _slice(corpora_arr, train_idx)
+    else:
+        X_train, X_test, y_train, y_test, id_train, id_test, corpora_train, _corpora_test = train_test_split(
+            X_full,
+            y,
+            column_ids,
+            corpora_arr,
+            test_size=0.2,
+            random_state=RANDOM_STATE,
+            stratify=y,
+        )
+
+    # Column-id leak invariant (trivial — IDs are already unique).
     train_ids = set(id_train.tolist())
     test_ids = set(id_test.tolist())
     assert not (train_ids & test_ids), "column_id leaked between train/test"
+
+    # Shard-twin leak invariant (Sprint 11 Phase 4). This catches the
+    # case where two rows with distinct column_ids but identical base
+    # shard IDs land in opposite folds.
+    if n_groups >= 5:
+        train_base = set(base_shard_ids[train_idx].tolist())
+        test_base = set(base_shard_ids[test_idx].tolist())
+        assert not (train_base & test_base), "shard-twin leak: base shard in both train and test folds"
 
     # Scale only on training data.
     scaler = StandardScaler()
@@ -185,20 +232,35 @@ def train(
     X_test_s = scaler.transform(X_test)
 
     # 5-fold CV over C grid.
-    # M1 fix (Sprint 9, Q3 diagnosis): use StratifiedGroupKFold with groups=corpora
-    # so best-C selection does NOT reward corpus fingerprinting. Prior StratifiedKFold
-    # leaked across corpora and picked C=100 (worst LOCO). GroupKFold picks a
-    # smaller C and raises LOCO — ~+0.034 per Q3 §5a. See
-    # docs/experiments/meta_classifier/runs/<m1-timestamp>/result.md.
+    # M1 fix (Sprint 9, Q3 diagnosis): use StratifiedGroupKFold with
+    # groups=corpora so best-C selection does NOT reward corpus
+    # fingerprinting. Prior StratifiedKFold leaked across corpora and
+    # picked C=100 (worst LOCO). GroupKFold picks a smaller C and raises
+    # LOCO. See docs/experiments/meta_classifier/runs/m1-2026-04-13/result.md
+    # on research/meta-classifier for the honest-CV analysis.
+    #
+    # Adaptive fallback: when the training data has fewer unique corpora
+    # than CV_FOLDS (e.g., single-corpus test fixtures), StratifiedGroupKFold
+    # can't produce enough distinct folds. In that case fall back to plain
+    # StratifiedKFold — there's no cross-corpus leakage to prevent when
+    # there's only one corpus.
+    n_unique_groups = len(np.unique(corpora_train))
+    use_group_kfold = n_unique_groups >= CV_FOLDS
+    if use_group_kfold:
+        kf = StratifiedGroupKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
+    else:
+        kf = StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
     best_c = 1.0
     best_cv_mean = -1.0
     best_cv_std = 0.0
     cv_history: list[dict[str, float]] = []
-    kf = StratifiedGroupKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
 
     for C in C_GRID:
         fold_f1s: list[float] = []
-        for tr_idx, va_idx in kf.split(X_train_s, y_train, groups=corpora_train):
+        split_iter = (
+            kf.split(X_train_s, y_train, groups=corpora_train) if use_group_kfold else kf.split(X_train_s, y_train)
+        )
+        for tr_idx, va_idx in split_iter:
             clf = LogisticRegression(
                 C=C,
                 solver="lbfgs",
@@ -322,7 +384,10 @@ def save_artifacts(
     model = trained["model"]
     scaler = trained["scaler"]
 
+    from data_classifier.orchestrator.meta_classifier import FEATURE_SCHEMA_VERSION
+
     payload = {
+        "feature_schema_version": FEATURE_SCHEMA_VERSION,
         "model": model,
         "scaler": scaler,
         "feature_names": kept_names,
@@ -378,15 +443,15 @@ def save_artifacts(
     }
     metadata_path.write_text(json.dumps(metadata, indent=2, default=str))
 
-    print(f"Saved model to {output}")
-    print(f"Saved metadata to {metadata_path}")
-    print(f"  best C = {trained['best_c']}")
-    print(f"  CV mean macro F1 = {trained['cv_mean_f1']:.4f} ± {trained['cv_std_f1']:.4f}")
-    print(f"  held-out test macro F1 = {test_f1:.4f}")
-    print(f"  95% BCa CI = [{ci_low:.4f}, {ci_high:.4f}] (width {ci_high - ci_low:.4f})")
-    print("  top 5 features:")
+    _log.info("Saved model to %s", output)
+    _log.info("Saved metadata to %s", metadata_path)
+    _log.info("  best C = %s", trained["best_c"])
+    _log.info("  CV mean macro F1 = %.4f ± %.4f", trained["cv_mean_f1"], trained["cv_std_f1"])
+    _log.info("  held-out test macro F1 = %.4f", test_f1)
+    _log.info("  95%% BCa CI = [%.4f, %.4f] (width %.4f)", ci_low, ci_high, ci_high - ci_low)
+    _log.info("  top 5 features:")
     for entry in trained["top_importances"]:
-        print(f"    {entry['feature']:<32} {entry['abs_coef_sum']:.4f}")
+        _log.info("    %-32s %.4f", entry["feature"], entry["abs_coef_sum"])
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────
@@ -402,12 +467,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("data_classifier/models/meta_classifier_v1.pkl"),
+        default=Path("data_classifier/models/meta_classifier_v5.pkl"),
     )
     parser.add_argument(
         "--metadata",
         type=Path,
-        default=Path("data_classifier/models/meta_classifier_v1.metadata.json"),
+        default=Path("data_classifier/models/meta_classifier_v5.metadata.json"),
     )
     return parser.parse_args(argv)
 
@@ -420,11 +485,11 @@ def main(argv: list[str] | None = None) -> int:
 
     dataset = load_jsonl(args.input, FEATURE_NAMES)
     if not dataset.labels:
-        print(f"No training rows in {args.input}", file=sys.stderr)
+        _log.error("No training rows in %s", args.input)
         return 1
 
     kept_names, kept_indices = resolve_feature_subset(dataset)
-    print(f"Loaded {len(dataset.labels)} rows; using {len(kept_names)} features: {kept_names}")
+    _log.info("Loaded %d rows; using %d features: %s", len(dataset.labels), len(kept_names), kept_names)
 
     trained = train(dataset, kept_indices=kept_indices)
     save_artifacts(

@@ -13,6 +13,8 @@ related:
 
 # Sharding strategy for the meta-classifier training set
 
+> **NOTE (2026-04-13):** This document cites F1 numbers measured against the `ai4privacy/pii-masking-300k` corpus, which has since been retired due to license non-compatibility. Historical numbers are preserved as records of what was measured at the time. See `docs/process/LICENSE_AUDIT.md` for context.
+
 ## 1. Why this matters now
 
 Phase 1 of the meta-classifier (backlog item

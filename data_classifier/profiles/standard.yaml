@@ -31,13 +31,43 @@ profiles:
         patterns:
           - "(^|_)(ssn|social_security|social_security_number|taxpayer_id)(_|$)"
 
-      - entity_type: CREDENTIAL
+      # ── Credential subtypes (Sprint 8 Item 4) ─────────────────────────────
+      # CREDENTIAL was split into four deterministic subtypes. All rollup
+      # under ``category: Credential`` so consumers can still query a single
+      # category. Order: more specific (PRIVATE_KEY, PASSWORD_HASH, API_KEY)
+      # before the catch-all OPAQUE_SECRET.
+
+      - entity_type: PRIVATE_KEY
         category: Credential
         sensitivity: CRITICAL
         regulatory: [PCI_DSS, SOC2]
         confidence: 0.95
         patterns:
-          - "(^|_)(password|passwd|passcode|secret|api_key|apikey|auth_token|access_token|private_key|client_secret)(_|$)"
+          - "(^|_)(private_key|privatekey|pem_key|rsa_private_key|ssh_private_key|pgp_private_key)(_|$)"
+
+      - entity_type: PASSWORD_HASH
+        category: Credential
+        sensitivity: CRITICAL
+        regulatory: [PCI_DSS, SOC2]
+        confidence: 0.95
+        patterns:
+          - "(^|_)(password_hash|hashed_password|pwd_hash|pass_hash|password_digest|bcrypt_hash|argon2_hash|scrypt_hash|crypt)(_|$)"
+
+      - entity_type: API_KEY
+        category: Credential
+        sensitivity: CRITICAL
+        regulatory: [PCI_DSS, SOC2]
+        confidence: 0.95
+        patterns:
+          - "(^|_)(api_key|apikey|api_secret|api_token|access_key|access_token|auth_token|bearer_token|client_secret|oauth_token|oauth_secret|refresh_token|service_account_key|secret_token)(_|$)"
+
+      - entity_type: OPAQUE_SECRET
+        category: Credential
+        sensitivity: CRITICAL
+        regulatory: [PCI_DSS, SOC2]
+        confidence: 0.90
+        patterns:
+          - "(^|_)(password|passwd|passcode|pwd|passphrase|secret|credential|credentials|token)(_|$)"
 
       - entity_type: CREDIT_CARD
         category: Financial
@@ -71,15 +101,12 @@ profiles:
         regulatory: [PII, HIPAA, GDPR, COPPA]
         confidence: 0.90
         patterns:
-          - "(^|_)(dob|date_of_birth|dateofbirth|birth_date|birthdate|birthday|birth_year)(_|$)"
-
-      - entity_type: DATE_OF_BIRTH_EU
-        category: PII
-        sensitivity: HIGH
-        regulatory: [PII, HIPAA, GDPR, COPPA]
-        confidence: 0.90
-        patterns:
-          - "(^|_)(dob_eu|date_of_birth_eu|birth_date_eu|geburtsdatum|date_naissance|fecha_nacimiento|data_nascita)(_|$)"
+          # Sprint 12 retired DATE_OF_BIRTH_EU — the EU-format column-name
+          # hints (geburtsdatum, date_naissance, fecha_nacimiento,
+          # data_nascita) are folded into DATE_OF_BIRTH alongside the
+          # English hints. Format does not indicate jurisdiction; the
+          # sensitivity tier and regulatory scope are identical.
+          - "(^|_)(dob|date_of_birth|dateofbirth|birth_date|birthdate|birthday|birth_year|dob_eu|date_of_birth_eu|birth_date_eu|geburtsdatum|date_naissance|fecha_nacimiento|data_nascita)(_|$)"
 
       - entity_type: FINANCIAL
         category: Financial

@@ -65,3 +65,37 @@ class MetaClassifierEvent:
     agreement: bool
     run_id: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+@dataclass
+class GateRoutingEvent:
+    """Emitted by the Sprint 11 tier-1 credential pattern-hit gate.
+
+    The gate is evaluated whenever a column has credential-category
+    signal (primary finding is a credential, OR the secret-scanner
+    fired with confidence ≥ 0.50). It reports whether a "strong
+    pattern hit" threshold was crossed so downstream consumers can
+    measure tier-1 coverage against the meta-classifier's shadow
+    stream.
+
+    Landing semantics: **observability-only** in Sprint 11. The gate
+    decision does NOT mutate ``classify_columns()`` return values —
+    the event exists to measure how often the gate would fire in
+    production before promoting it to a directive routing rule.
+    """
+
+    column_id: str
+    gate_fired: bool
+    gate_reason: str
+    """Short human-readable tag for why the gate did/didn't fire
+    (e.g. ``"regex+ratio"``, ``"secret_scanner"``, ``"regex_confidence_low"``).
+    """
+
+    primary_entity: str
+    primary_confidence: float
+    primary_is_credential: bool
+    regex_confidence: float
+    regex_match_ratio: float
+    secret_scanner_confidence: float
+    run_id: str = ""
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

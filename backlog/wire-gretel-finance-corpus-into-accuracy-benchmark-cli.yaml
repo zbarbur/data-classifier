@@ -1,0 +1,44 @@
+title: Wire gretel-finance corpus into accuracy_benchmark CLI
+status: done
+priority: P1
+category: chore
+sprint_target: 11
+created: 2026-04-14
+updated: 2026-04-15
+depends_on: []
+tags: []
+goal: Add gretel_finance to the accuracy_benchmark CLI --corpus flag so the Sprint
+  10 Gretel-finance ingest can be measured as a 3rd blind corpus.
+complexity: S
+technical_specs:
+- "File: tests/benchmarks/accuracy_benchmark.py \u2014 extend --corpus click/argparse\
+  \ choices, add gretel_finance dispatch branch calling load_gretel_finance_corpus"
+- "File: tests/benchmarks/corpus_loader.py \u2014 verify load_gretel_finance_corpus\
+  \ is exported (shipped Sprint 10, just needs CLI wiring)"
+- "File: tests/test_accuracy_benchmark.py (or new tests/test_accuracy_benchmark_cli.py)\
+  \ \u2014 smoke test new CLI option produces non-empty output"
+description: 'Sprint 10 item #3 landed gretelai/synthetic_pii_finance_multilingual
+  as corpus #8 (loader, shard builder, fixture all in place) but did not add ''gretel_finance''
+  to the tests/benchmarks/accuracy_benchmark.py --corpus flag choices. Add the CLI
+  plumbing and re-run Sprint 10 close benchmarks for the full picture. Should take
+  <30 minutes of wiring.'
+acceptance_criteria:
+- CLI --corpus flag accepts 'gretel_finance' as a discrete choice; --corpus all includes
+  it
+- python -m tests.benchmarks.accuracy_benchmark --corpus gretel_finance --samples
+  50 runs to completion in both blind and named modes
+- Sprint 11 benchmark report (docs/benchmarks/history/sprint_11.json) includes Gretel-finance
+  blind + named F1 numbers
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . --exclude .claude/worktrees && ruff format --check . --exclude
+  .claude/worktrees)
+test_plan:
+- 'CLI smoke: --corpus gretel_finance --samples 10 produces at least 1 finding'
+- 'CLI smoke: --corpus all includes gretel_finance rows in output'
+- 'Full benchmark: --samples 50 blind + named, recorded in sprint_11.json'
+notes: ''
+phase: review
+design_reviewed: true
+code_reviewed: true
+comments: []
+images: []

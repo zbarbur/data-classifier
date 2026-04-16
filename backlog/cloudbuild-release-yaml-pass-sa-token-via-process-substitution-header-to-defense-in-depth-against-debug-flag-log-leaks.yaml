@@ -1,0 +1,44 @@
+title: "cloudbuild-release.yaml \u2014 pass SA token via process-substitution header\
+  \ to defense-in-depth against debug-flag log leaks"
+status: done
+priority: P3
+category: chore
+sprint_target: 9
+created: 2026-04-13
+updated: 2026-04-14
+depends_on: []
+tags: []
+goal: 'Sprint 8 post-hoc review flagged that cloudbuild-release.yaml passes the metadata
+  SA token to curl via -H "Authorization: Bearer ${ACCESS_TOKEN}". On Cloud Build
+  this is fine (no set -x, private build env), but a future debug flag or set -x would
+  dump the token to the build log via command echo or ps. Replace the inline header
+  form with curl --header @<(printf ''Authorization: Bearer %s\n'' "${ACCESS_TOKEN}")
+  to keep the token off the command line.'
+complexity: S
+technical_specs:
+- "File: cloudbuild-release.yaml \u2014 publish-wheel step, preflight curl block (lines\
+  \ ~130-140 of the inline bash). Use curl --header @<(printf 'Authorization: Bearer\
+  \ %s\\n' \"${ACCESS_TOKEN}\") instead of -H \"Authorization: Bearer ${ACCESS_TOKEN}\"\
+  ."
+- Bash supports process substitution (<(...)) only in non-POSIX modes. Cloud Build
+  uses bash by default, but verify the entrypoint = bash directive is set and the
+  script is run via bash -c, not sh -c.
+description: ''
+acceptance_criteria:
+- publish-wheel step in cloudbuild-release.yaml uses process-substitution-or-stdin
+  form for the Authorization header on both the preflight curl and any future curl
+  that needs auth
+- Cloud Build trigger data-classifier-release still runs green end-to-end (preflight
+  idempotency confirmed, wheel publish succeeds)
+- ACCESS_TOKEN never appears in command echo even with set -x (manually verify by
+  running the script locally with set -x)
+test_plan:
+- Push a no-op commit to a branch with the new cloudbuild-release.yaml, trigger a
+  manual build via gcloud builds submit, confirm the build is green and the publish-wheel
+  step's logs do not show ACCESS_TOKEN anywhere.
+notes: ''
+phase: review
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

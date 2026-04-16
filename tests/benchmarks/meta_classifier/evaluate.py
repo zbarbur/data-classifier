@@ -13,9 +13,8 @@ The evaluator produces a single report covering:
    BCa bootstrap 95% CI on the macro F1 delta vs the calibration
    baseline (the live pipeline).
 2. **Secondary — leave-one-corpus-out.**
-   Train on ``{Nemotron + synthetic + secretbench + gitleaks +
-   detect_secrets}`` and test on Ai4Privacy, then swap so Ai4Privacy
-   becomes the training corpus. Report F1 deltas vs the primary model.
+   Train on the remaining corpora and test on one held-out corpus
+   at a time.  Report F1 deltas vs the primary model.
 3. **Tertiary — blind-only macro F1.**
    The blind-mode rows are the sample-values-only subset — the one that
    matters for the BQ connector use case.  The ship gate is defined on
@@ -271,10 +270,46 @@ def _mcnemar(y_true: list[str], y_a: list[str], y_b: list[str]) -> dict[str, flo
 # ── Evaluation tiers ───────────────────────────────────────────────────────
 
 
+def _base_shard_id(column_id: str, mode: str) -> str:
+    """Derive the mode-agnostic base shard ID from a column_id.
+
+    ``shard_builder`` emits each shard twice — once with
+    ``mode="named"`` and once with ``mode="blind"`` — but the sample
+    values are IDENTICAL between the twins. Only the column_name differs
+    (``{corpus}_{type_lower}`` vs ``col_{k}``). The resulting column_ids
+    are ``{corpus}_named_{type}_shard{k}`` and
+    ``{corpus}_blind_{type}_shard{k}``.
+
+    A random row-wise train/test split puts some of these twins in the
+    train fold and their counterparts in the test fold. The test
+    assertion ``set(id_train) & set(id_test) == empty`` passes (the
+    strings differ) but the MODEL has seen the exact same values at
+    training time — the regex_confidence, match_ratio, and distinct
+    ratio features are already burned in. Held-out F1 is inflated.
+
+    This helper collapses the twin IDs onto a single base ID by
+    stripping the mode token, so a group-aware splitter can keep both
+    twins in the same fold.
+    """
+    # Replace only the first occurrence — the type name may contain
+    # the literal "named" or "blind" token in theory, though not in
+    # the current shard_builder vocab.
+    return column_id.replace(f"_{mode}_", "_base_", 1)
+
+
 def primary_split(dataset: LoadedDataset) -> dict[str, list]:
-    """Reproduce the train/test split used by ``train_meta_classifier``."""
+    """Produce a leak-free 80/20 train/test split.
+
+    Sprint 11 Phase 4 fix: previously this used row-wise
+    ``train_test_split`` which put named/blind shard twins in opposite
+    folds and inflated the held-out macro F1 by ~0.45 (measured: CV
+    0.51 vs holdout 0.96 on the v2 model). The fix groups rows by
+    ``_base_shard_id`` so both twins always land together, while
+    preserving class stratification via ``StratifiedGroupKFold``
+    (taking the first fold as the 80/20 cut).
+    """
     import numpy as np
-    from sklearn.model_selection import train_test_split
+    from sklearn.model_selection import StratifiedGroupKFold
 
     y = np.asarray(dataset.labels)
     X = np.asarray(dataset.features, dtype=np.float64)
@@ -283,32 +318,44 @@ def primary_split(dataset: LoadedDataset) -> dict[str, list]:
     corpora = np.asarray(dataset.corpora)
     sources = np.asarray(dataset.sources)
 
-    (
-        X_train,
-        X_test,
-        y_train,
-        y_test,
-        id_train,
-        id_test,
-        mode_train,
-        mode_test,
-        corpus_train,
-        corpus_test,
-        src_train,
-        src_test,
-    ) = train_test_split(
-        X,
-        y,
-        ids,
-        modes,
-        corpora,
-        sources,
-        test_size=0.2,
-        random_state=RANDOM_STATE,
-        stratify=y,
+    # Collapse named/blind twins onto one group key.
+    groups = np.asarray(
+        [_base_shard_id(cid, m) for cid, m in zip(ids, modes, strict=True)],
     )
 
-    assert not (set(id_train.tolist()) & set(id_test.tolist()))
+    # StratifiedGroupKFold preserves class balance AND keeps shard
+    # twins together. 5 folds ≈ 80/20; take the first fold as the
+    # canonical primary split.
+    sgkf = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
+    train_idx, test_idx = next(sgkf.split(X, y, groups=groups))
+
+    def _slice(a: np.ndarray, idx: np.ndarray) -> np.ndarray:
+        return a[idx]
+
+    X_train = _slice(X, train_idx)
+    X_test = _slice(X, test_idx)
+    y_train = _slice(y, train_idx)
+    y_test = _slice(y, test_idx)
+    id_train = _slice(ids, train_idx)
+    id_test = _slice(ids, test_idx)
+    mode_train = _slice(modes, train_idx)
+    mode_test = _slice(modes, test_idx)
+    corpus_train = _slice(corpora, train_idx)
+    corpus_test = _slice(corpora, test_idx)
+    src_train = _slice(sources, train_idx)
+    src_test = _slice(sources, test_idx)
+
+    # Tight leak assertions. Two independent invariants:
+    #   1. No column_id appears in both folds (pre-fix weak check).
+    #   2. No BASE shard ID appears in both folds — this is the shard-
+    #      twin leak that the pre-fix code silently violated.
+    train_ids_set = set(id_train.tolist())
+    test_ids_set = set(id_test.tolist())
+    assert not (train_ids_set & test_ids_set), "column_id overlap between train/test"
+
+    train_groups = set(groups[train_idx].tolist())
+    test_groups = set(groups[test_idx].tolist())
+    assert not (train_groups & test_groups), "shard-twin leak: a base shard appears in both train and test folds"
 
     return {
         "X_train": X_train,
@@ -514,9 +561,12 @@ def run_evaluation(
     # ── Secondary tier — LOCO ─────────────────────────────────────
     all_corpora = set(dataset.corpora)
     loco_results: dict[str, dict[str, float]] = {}
-    for holdout in ("ai4privacy", "nemotron"):
-        if holdout not in all_corpora:
-            continue
+    # LOCO holdout set: each real, non-synthetic corpus in turn.  The
+    # Sprint 9 retirement of the 300k-row corpus left this list dynamic
+    # — we discover the available corpora from the training data rather
+    # than hardcoding.
+    loco_candidates = sorted(c for c in all_corpora if c not in {"synthetic", "NEGATIVE"})
+    for holdout in loco_candidates:
         train_set = all_corpora - {holdout}
         test_set = {holdout}
         y_true_loco, y_pred_loco = _loco_fit_predict(
@@ -537,9 +587,10 @@ def run_evaluation(
         print("  no LOCO results", file=stream)
     for holdout, stats in loco_results.items():
         print(f"  hold out {holdout:<14} n_test={stats['n_test']:<5}  macro F1={stats['f1']:.4f}", file=stream)
-    if "ai4privacy" in loco_results and "nemotron" in loco_results:
-        diff = abs(loco_results["ai4privacy"]["f1"] - loco_results["nemotron"]["f1"])
-        print(f"  |ai4privacy - nemotron| F1 gap = {diff:.4f}", file=stream)
+    if len(loco_results) >= 2:
+        f1_values = [stats["f1"] for stats in loco_results.values()]
+        diff = max(f1_values) - min(f1_values)
+        print(f"  max LOCO F1 spread = {diff:.4f}", file=stream)
 
     # ── Per-corpus and per-mode macro F1 (debug) ──────────────────
     by_mode_corpus_meta: dict[tuple[str, str], tuple[list[str], list[str]]] = defaultdict(lambda: ([], []))

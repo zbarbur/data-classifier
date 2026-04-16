@@ -33,9 +33,14 @@ from pathlib import Path
 from data_classifier.core.types import ColumnInput
 from tests.benchmarks.corpus_loader import (
     _FIXTURES_DIR,
-    AI4PRIVACY_TYPE_MAP,
     NEGATIVE_GROUND_TRUTH,
     NEMOTRON_TYPE_MAP,
+)
+from tests.benchmarks.corpus_loader import (
+    _GRETEL_EN_POST_ETL_IDENTITY as _GRETEL_EN_POOL_IDENTITY,
+)
+from tests.benchmarks.corpus_loader import (
+    _GRETEL_FINANCE_POST_ETL_IDENTITY as _GRETEL_FINANCE_POOL_IDENTITY,
 )
 
 # ── Sharding parameters (Session A §7 TL;DR) ───────────────────────────────
@@ -50,7 +55,7 @@ SYNTH_SHARDS_BACKED: int = 30
 
 #: Synthetic shards emitted for types that exist only in the Faker
 #: synthetic generator (IBAN, BITCOIN_ADDRESS, VIN, MBI, NPI, DEA, EIN,
-#: CANADIAN_SIN, DATE_OF_BIRTH_EU, ETHEREUM_ADDRESS).
+#: CANADIAN_SIN, ETHEREUM_ADDRESS).
 SYNTH_SHARDS_SYNTHETIC_ONLY: int = 150
 
 #: Bucketed M distribution: (weight, lo, hi).
@@ -102,16 +107,44 @@ def _load_raw_records(path: Path) -> list[dict]:
         return json.load(f)
 
 
-def _ai4privacy_pool() -> dict[str, list[str]]:
-    """Return ``{mapped_type: [values...]}`` for the Ai4Privacy sample."""
-    records = _load_raw_records(_FIXTURES_DIR / "ai4privacy_sample.json")
+def _gretel_en_pool() -> dict[str, list[str]]:
+    """Return ``{mapped_type: [values...]}`` for the Gretel-EN sample.
+
+    The fixture is already flattened with post-ETL data_classifier labels
+    (see ``corpus_loader.load_gretel_en_corpus``), so ``entity_type``
+    values are passed through an identity map.
+    """
+    records = _load_raw_records(_FIXTURES_DIR / "gretel_en_sample.json")
     pool: dict[str, list[str]] = {}
     for rec in records:
         ext = rec.get("entity_type", rec.get("type", ""))
         value = rec.get("value", "")
         if not value or not ext:
             continue
-        mapped = AI4PRIVACY_TYPE_MAP.get(ext)
+        mapped = _GRETEL_EN_POOL_IDENTITY.get(ext)
+        if mapped is None:
+            continue
+        pool.setdefault(mapped, []).append(str(value))
+    return pool
+
+
+def _gretel_finance_pool() -> dict[str, list[str]]:
+    """Return ``{mapped_type: [values...]}`` for the Gretel-finance sample.
+
+    Parallels :func:`_gretel_en_pool`.  The fixture is flattened with
+    post-ETL taxonomy labels (see
+    ``corpus_loader.load_gretel_finance_corpus``) and carries credential
+    records with additional ``source_context`` metadata — the pool only
+    uses ``entity_type`` and ``value``.
+    """
+    records = _load_raw_records(_FIXTURES_DIR / "gretel_finance_sample.json")
+    pool: dict[str, list[str]] = {}
+    for rec in records:
+        ext = rec.get("entity_type", rec.get("type", ""))
+        value = rec.get("value", "")
+        if not value or not ext:
+            continue
+        mapped = _GRETEL_FINANCE_POOL_IDENTITY.get(ext)
         if mapped is None:
             continue
         pool.setdefault(mapped, []).append(str(value))
@@ -338,8 +371,10 @@ def build_real_corpus_shards(
 ) -> list[ShardSpec]:
     """Emit shards for every ``(entity_type, real_corpus)`` combo.
 
-    Covers Ai4Privacy, Nemotron, SecretBench, gitleaks, and detect_secrets
-    (including each corpus's NEGATIVE rows where applicable).
+    Covers Nemotron, Gretel-EN, SecretBench, gitleaks, and detect_secrets
+    (including each corpus's NEGATIVE rows where applicable).  A legacy
+    300k-row corpus was retired in Sprint 9 due to a non-OSS license; see
+    ``docs/process/LICENSE_AUDIT.md``.
 
     Returns a flat list of :class:`ShardSpec` objects.  The caller runs
     feature extraction against each spec to produce a training row.
@@ -347,20 +382,7 @@ def build_real_corpus_shards(
     rng = random.Random(seed)
     shards: list[ShardSpec] = []
 
-    # Ai4Privacy + Nemotron — bare-value corpora, positives only.
-    pool_ai = _ai4privacy_pool()
-    for gt, values in sorted(pool_ai.items()):
-        shards.extend(
-            _emit_shards_for_type(
-                values=values,
-                ground_truth=gt,
-                corpus="ai4privacy",
-                source="real",
-                num_shards=shards_per_type,
-                rng=rng,
-            )
-        )
-
+    # Nemotron — bare-value corpus, positives only.
     pool_nemo = _nemotron_pool()
     for gt, values in sorted(pool_nemo.items()):
         shards.extend(
@@ -368,6 +390,47 @@ def build_real_corpus_shards(
                 values=values,
                 ground_truth=gt,
                 corpus="nemotron",
+                source="real",
+                num_shards=shards_per_type,
+                rng=rng,
+            )
+        )
+
+    # Gretel-PII-masking-EN-v1 — mixed-label corpus (Sprint 9).  Schema
+    # is already normalised via scripts/download_corpora.py:download_gretel_en,
+    # so we treat it like nemotron: positives only, one ground-truth per
+    # column shard.
+    pool_gretel_en = _gretel_en_pool()
+    for gt, values in sorted(pool_gretel_en.items()):
+        shards.extend(
+            _emit_shards_for_type(
+                values=values,
+                ground_truth=gt,
+                corpus="gretel_en",
+                source="real",
+                num_shards=shards_per_type,
+                rng=rng,
+            )
+        )
+
+    # Gretel synthetic_pii_finance_multilingual — mixed-label corpus
+    # (Sprint 10).  Same handling as Gretel-EN: already-normalised
+    # schema, positives only, one ground-truth per shard.  The reason
+    # it's an *additional* corpus rather than a replacement is that its
+    # credential labels live inside long-form financial-document prose
+    # (loan agreements, MT940 statements, insurance forms), which is
+    # the targeted intervention for the ``heuristic_avg_length``
+    # corpus-fingerprint shortcut diagnosed in M1 — credentials from
+    # this corpus have *long* surrounding context, breaking the
+    # ``short-text == credential`` correlation that dominated the
+    # Sprint 9 meta-classifier.
+    pool_gretel_finance = _gretel_finance_pool()
+    for gt, values in sorted(pool_gretel_finance.items()):
+        shards.extend(
+            _emit_shards_for_type(
+                values=values,
+                ground_truth=gt,
+                corpus="gretel_finance",
                 source="real",
                 num_shards=shards_per_type,
                 rng=rng,
@@ -420,7 +483,6 @@ SYNTHETIC_ONLY_TYPES: frozenset[str] = frozenset(
         "DEA_NUMBER",
         "EIN",
         "CANADIAN_SIN",
-        "DATE_OF_BIRTH_EU",
     }
 )
 

@@ -1,0 +1,51 @@
+title: 'CI matrix: add [ml] extra job to catch ML-dependent test failures'
+status: done
+priority: P1
+category: chore
+sprint_target: 8
+created: 2026-04-13
+updated: 2026-04-13
+depends_on: []
+tags: []
+goal: "Add a GitHub Actions job that installs [dev,meta,ml] and runs the full test\
+  \ suite, so ML-dependent code paths (GLiNER2 engine, orchestrator interactions with\
+  \ ML findings) are exercised in CI. This gap was discovered at Sprint 7 close when\
+  \ test_regex_engine.py::TestSampleValueMatching::test_ssn_in_samples was found failing\
+  \ under ML-enabled env \u2014 CI had been running [dev,meta] only and missing this\
+  \ failure for multiple sprints."
+complexity: S
+technical_specs:
+- "File: .github/workflows/ci.yaml \u2014 add 'lint-and-test-ml' job as a sibling\
+  \ of 'lint-and-test', identical structure but with pip install extras '.[dev,meta,ml]'"
+- "File: .github/workflows/ci.yaml \u2014 optionally restrict to py3.12 only (matrix:\
+  \ [3.12]) to avoid gliner build issues on py3.13 until those are resolved upstream"
+- 'GitHub settings: mark the new job as required in branch protection for main once
+  it''s green'
+description: ''
+acceptance_criteria:
+- .github/workflows/ci.yaml adds a new job (lint-and-test-ml) that installs 'pip install
+  -e .[dev,meta,ml]' and runs 'pytest tests/ -v'
+- The new job runs on at least one Python version (py3.12 recommended; gliner may
+  not build on py3.13 yet)
+- The new job prints 'python -c import sys; print(sys.executable)' to confirm venv
+  usage and 'pip list | grep -E gliner or onnxruntime' to confirm ML extras loaded
+- The job is REQUIRED for PR merge (branch protection updated to include it in the
+  merge gate)
+- Running the new job locally with 'act' or equivalent reproduces the current test_ssn_in_samples
+  failure (documents the known gap)
+test_plan:
+- Push a branch with the new workflow, confirm the job runs and reports failures (test_ssn_in_samples
+  will be red until the bug item ships)
+- 'Merge-gate check: try to merge a PR without the new job passing; confirm GitHub
+  blocks the merge'
+notes: 'Sprint 7 closure discovered that CI''s ''pip install -e .[dev,meta]'' does
+  not exercise the ML engine (GLiNER2). The .venv on dev machines has [ml] installed
+  and catches a test failure that CI missed for multiple sprints. This item closes
+  the coverage gap. Related: investigate-test-ssn-in-samples-failure-under-ml-enabled-env-gliner2-organization-suppression
+  (the actual bug the new job will surface). Landing order: this item first (adds
+  the gate), then the bug fix lands against the gate.'
+phase: build
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

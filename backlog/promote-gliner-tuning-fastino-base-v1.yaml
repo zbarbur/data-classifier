@@ -1,0 +1,77 @@
+title: "Promote GLiNER tuning \u2014 fastino/gliner2-base-v1 + threshold 0.80 + SSN/PERSON_NAME\
+  \ label swaps"
+status: backlog
+priority: P1
+category: feature
+sprint_target: 11
+created: 2026-04-13
+updated: 2026-04-14
+depends_on: []
+tags:
+- gliner
+- accuracy
+- sprint9-candidate
+goal: 'Ship the GLiNER eval session''s recommended config behind gliner_engine.py:
+  model swap (urchade/gliner_multi_pii-v1 -> fastino/gliner2-base-v1), threshold raise
+  (0.50 -> 0.80), SSN label swap (national identification number -> social security
+  number), PERSON_NAME label swap (person -> full name), descriptions disabled. Gated
+  on a full-pipeline accuracy_benchmark run showing Ai4Privacy blind macro F1 lift
+  >= +0.02 vs current main.'
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/gliner_engine.py:34 \u2014 change _MODEL_ID to fastino/gliner2-base-v1"
+- "File: data_classifier/engines/gliner_engine.py:97 \u2014 change _DEFAULT_GLINER_THRESHOLD\
+  \ to 0.80"
+- "File: data_classifier/engines/gliner_engine.py:43 \u2014 update ENTITY_LABEL_DESCRIPTIONS['SSN']\
+  \ tuple first element to 'social security number'"
+- "File: data_classifier/engines/gliner_engine.py:43 \u2014 update ENTITY_LABEL_DESCRIPTIONS['PERSON_NAME']\
+  \ tuple first element to 'full name'"
+- "File: data_classifier/engines/gliner_engine.py \u2014 at the inference call site,\
+  \ pass label-list mode (drop descriptions) instead of label+description dict for\
+  \ fastino. Verify this works for both gliner v1 and gliner2 v2 APIs since the engine\
+  \ may need to support both during transition."
+- "File: scripts/export_onnx_model.py \u2014 verify it can export fastino/gliner2-base-v1\
+  \ (architecture is DeBERTa-v3-base, ~140M params)"
+- "File: data_classifier/models/gliner_onnx/ \u2014 re-export ONNX bundle for the\
+  \ new model (may be a separate sub-task)"
+- "File: tests/test_gliner_engine.py \u2014 update mock label/description fixtures\
+  \ to match new strings"
+description: ''
+acceptance_criteria:
+- "Combined-swap micro-sweep run BEFORE merging: fastino @ 0.80 desc=off \xD7 {baseline,\
+  \ +SSN swap, +PERSON_NAME swap, +both swaps} \xD7 2 corpora (8 runs). Confirm both-swaps\
+  \ config is at least neutral (within noise) on each corpus per the GLiNER eval memo\
+  \ \xA7'Follow-ups the memo deliberately does not answer' #1"
+- "Full-pipeline accuracy benchmark (tests/benchmarks/accuracy_benchmark.py) shows\
+  \ Ai4Privacy blind macro F1 lift \u2265 +0.02 vs current main. The eval memo predicts\
+  \ +0.02 to +0.05 \u2014 set \u2265+0.02 as the merge gate."
+- "Nemotron blind macro F1 must NOT regress (ship-gate: \u0394 \u2265 -0.005 within\
+  \ noise floor)"
+- "Latency regression check via perf_quick: \u2264 +5% per-column on the GLiNER engine\
+  \ in isolation"
+- All gliner_engine tests + shadow tests pass; install_smoke_test.py passes
+- ONNX export of fastino/gliner2-base-v1 succeeds OR a follow-up backlog item is filed
+  if the export tooling needs work (do not block Sprint 9 ship on ONNX if PyTorch
+  fallback is acceptable for one sprint)
+- PROJECT_CONTEXT.md updated with new Ai4Privacy blind macro F1 number
+- SPRINT_HANDOVER.md (current sprint) cites the eval memo as the source of the change
+- Lint clean, full pytest tests/ -v green
+test_plan:
+- 'tests/test_gliner_engine.py: existing tests must pass with new model + labels'
+- 'Manual: combined-swap micro-sweep (8 runs, ~5 min on quantized ONNX, ~30 min on
+  PyTorch fallback)'
+- 'Manual: tests/benchmarks/accuracy_benchmark.py full pipeline run on both blind
+  corpora'
+- 'Manual: install smoke test on a fresh wheel'
+notes: 'Sprint 10 wave 3 attempt FAILED blind-corpus gates. Measured (sprint10/main
+  + fastino + threshold 0.80 + S1 wrapping live, descriptions off, label swaps): Gretel-EN
+  0.611->0.413 (-0.198), Nemotron 0.821->0.526 (-0.295). Dominant failure: fastino
+  fires PHONE@0.92+ on numeric columns (ABA/BANK_ACCOUNT/CC/HEALTH/VIN), orchestrator
+  dedup suppresses correct regex findings. 2 integration tests also regressed (DOB_EU
+  32/13/2000, SIN-luhn). Reverted. Successor: fastino-promotion-retry-investigate-s1-variant-b-always-wrap-fallback-to-close-blind-corpus-regression
+  (Sprint 11 investigation item). This item blocked pending that research.'
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

@@ -728,7 +728,7 @@ if __name__ == "__main__":
         "--corpus",
         type=str,
         default="synthetic",
-        choices=["synthetic", "ai4privacy", "nemotron", "all"],
+        choices=["synthetic", "nemotron", "gretel_en", "all"],
         help="Corpus source (default: synthetic)",
     )
     parser.add_argument(

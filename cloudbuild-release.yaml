@@ -1,0 +1,225 @@
+# Cloud Build config: tag-triggered wheel + ONNX model release to
+# Google Artifact Registry.
+#
+# Sprint 8 Items 3 and 5 — wheel versioning + model distribution.
+#
+# Fires from a Cloud Build trigger (created manually — see below) that
+# listens for tag pushes matching `^v.*` on the zbarbur/data-classifier
+# GitHub repo. The trigger links to this file via --build-config.
+#
+# Publishes two artifacts on every v* tag push:
+#
+#   1. The Python wheel to the Python-format AR repo:
+#        https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/
+#      Consumers install via:
+#        pip install --extra-index-url \
+#          https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/simple/ \
+#          "data_classifier[ml]==0.8.0"
+#
+#   2. The GLiNER2 ONNX model tarball + SHA-256 checksum to the
+#      Generic-format AR repo:
+#        us-central1-docker.pkg.dev/${PROJECT_ID}/data-classifier-models/
+#      Consumers fetch via:
+#        python -m data_classifier.download_models
+#      which reads ~/.cache/data_classifier/models/gliner_onnx/ — the
+#      path `_find_bundled_onnx_model()` in gliner_engine.py searches.
+#
+# ── Prerequisites (Phase 2 manual setup, Sprint 8) ──────────────────────
+#
+# 1. Install the Google Cloud Build GitHub App on zbarbur/data-classifier
+#    (https://github.com/marketplace/google-cloud-build) AND complete
+#    the GCP-side repo connection in the Cloud Build console
+#    (https://console.cloud.google.com/cloud-build/triggers → Connect
+#    Repository → pick dag-bigquery-dev → select zbarbur/data-classifier).
+#
+# 2. Create the Python Artifact Registry repository:
+#      gcloud artifacts repositories create data-classifier \
+#          --repository-format=python \
+#          --location=us-central1 \
+#          --project=dag-bigquery-dev
+#
+# 3. Create the Generic Artifact Registry repository (for the ONNX
+#    model tarball — Item 5):
+#      gcloud artifacts repositories create data-classifier-models \
+#          --repository-format=generic \
+#          --location=us-central1 \
+#          --project=dag-bigquery-dev
+#
+# 4. Grant the Cloud Build default service account artifactregistry.writer
+#    on BOTH repos (one project-wide binding covers both):
+#      PROJECT_NUM=$(gcloud projects describe dag-bigquery-dev \
+#          --format='value(projectNumber)')
+#      gcloud projects add-iam-policy-binding dag-bigquery-dev \
+#          --member="serviceAccount:${PROJECT_NUM}@cloudbuild.gserviceaccount.com" \
+#          --role=roles/artifactregistry.writer
+#
+# 5. Create the tag-triggered Cloud Build trigger:
+#      gcloud builds triggers create github \
+#          --repo-owner=zbarbur \
+#          --repo-name=data-classifier \
+#          --tag-pattern='^v.*' \
+#          --build-config=cloudbuild-release.yaml \
+#          --project=dag-bigquery-dev \
+#          --name=data-classifier-release
+#
+# ── Build steps ─────────────────────────────────────────────────────────
+
+steps:
+  # Step 1: build the wheel in a clean Python 3.12 image
+  - name: python:3.12-slim
+    id: build-wheel
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        echo "::group::Python version"
+        python --version
+        echo "::endgroup::"
+
+        echo "::group::Install build tools"
+        pip install --upgrade pip
+        pip install --upgrade build
+        echo "::endgroup::"
+
+        echo "::group::Build wheel"
+        python -m build --wheel
+        ls -la dist/
+        echo "::endgroup::"
+
+        # Sanity check: the wheel name must carry the current pyproject version.
+        # If someone pushes a tag that does not match the version in
+        # pyproject.toml, we want to catch it here rather than publish a
+        # mislabelled artifact.
+        WHEEL_VERSION=$(python -c "import tomllib,sys; \
+          data=tomllib.loads(open('pyproject.toml','rb').read().decode()); \
+          sys.stdout.write(data['project']['version'])")
+        echo "pyproject version: $${WHEEL_VERSION}"
+        ls dist/data_classifier-$${WHEEL_VERSION}-*.whl >/dev/null
+
+  # Step 2: publish the wheel to Artifact Registry Python repo
+  - name: python:3.12-slim
+    id: publish-wheel
+    entrypoint: bash
+    waitFor: ["build-wheel"]
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        echo "::group::Install publish tools"
+        pip install --upgrade pip
+        pip install --upgrade twine keyrings.google-artifactregistry-auth
+        apt-get update -qq && apt-get install -y -qq curl >/dev/null
+        echo "::endgroup::"
+
+        echo "::group::Preflight: check if this wheel version is already published"
+        # Rebuild the wheel version from pyproject.toml so this step is
+        # independent of build-wheel's /workspace state.
+        WHEEL_VERSION=$(python -c "import tomllib,sys; \
+          data=tomllib.loads(open('pyproject.toml','rb').read().decode()); \
+          sys.stdout.write(data['project']['version'])")
+        WHEEL_FILENAME="data_classifier-$${WHEEL_VERSION}-py3-none-any.whl"
+        # AR Python repo file-ID format: <package>/<filename>, with the
+        # slash URL-encoded as %2F in the REST path. Confirmed against
+        # the AR v1 files.get endpoint — see commit message for URL test.
+        CHECK_URL="https://artifactregistry.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-central1/repositories/data-classifier/files/data-classifier%2F$${WHEEL_FILENAME}"
+
+        # Defense-in-depth against a future `set -x` / `bash -x` / --trace
+        # flag echoing the SA bearer token to build logs:
+        #
+        #   1. Save the current xtrace state and locally suppress it around
+        #      the token fetch + preflight curl via `{ set +x; } 2>/dev/null`.
+        #      Cloud Build runs this step without xtrace today, but a future
+        #      debug flag would otherwise echo both the ACCESS_TOKEN=...
+        #      assignment and any process-substitution subshells (bash
+        #      propagates xtrace into `<(...)` subshells, so the `printf`
+        #      inside would still dump the token otherwise).
+        #
+        #   2. Pass the Authorization header to curl via process substitution
+        #      rather than `-H "Authorization: Bearer $$TOKEN"` so the token
+        #      never lands on the curl command line — keeps it out of `ps`
+        #      / `/proc/*/cmdline` / any command-echo log. Requires bash
+        #      (entrypoint: bash above); `<(...)` is not POSIX.
+        #
+        #   3. Unset ACCESS_TOKEN as soon as the preflight is done so nothing
+        #      downstream can accidentally re-expose it, then restore the
+        #      previously-saved xtrace state.
+        #
+        # Cloud Build injects a default service account token via the
+        # metadata service — same auth path that download_models.py uses
+        # for the consumer side.
+        case $- in *x*) _DC_XTRACE_WAS_ON=1;; *) _DC_XTRACE_WAS_ON=0;; esac
+        { set +x; } 2>/dev/null
+        ACCESS_TOKEN=$(curl -sSf -H "Metadata-Flavor: Google" \
+          http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
+          | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          --header @<(printf 'Authorization: Bearer %s\n' "$${ACCESS_TOKEN}") \
+          "$${CHECK_URL}")
+        unset ACCESS_TOKEN
+        if [ "$${_DC_XTRACE_WAS_ON}" = "1" ]; then set -x; fi
+        unset _DC_XTRACE_WAS_ON
+
+        if [ "$${STATUS}" = "200" ]; then
+          echo "Wheel $${WHEEL_FILENAME} is already present in AR — skipping upload."
+          echo "(This keeps re-tags and trigger re-runs idempotent. If you"
+          echo " really need to overwrite the version, delete it first via"
+          echo " 'gcloud artifacts versions delete'.)"
+          exit 0
+        fi
+        echo "AR returned HTTP $${STATUS} for $${WHEEL_FILENAME} — proceeding with upload."
+        echo "::endgroup::"
+
+        echo "::group::Upload wheel to Artifact Registry"
+        # keyrings.google-artifactregistry-auth plugs into twine's keyring
+        # lookup and resolves credentials from the Cloud Build service
+        # account's Application Default Credentials transparently.
+        #
+        # NOTE: --skip-existing is NOT supported by Google Artifact Registry
+        # ("UnsupportedConfiguration" error from twine). We emulate
+        # idempotency with the preflight check above instead.
+        twine upload \
+          --repository-url "https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/" \
+          --non-interactive \
+          dist/data_classifier-*.whl
+        echo "::endgroup::"
+
+# ── The GLiNER2 ONNX model is published OUT-OF-BAND. ─────────────────────
+#
+# The ONNX model tarball is a separate build-time artifact derived from
+# an upstream HuggingFace checkpoint (urchade/gliner_multi_pii-v1). It
+# does NOT change when we rev the data_classifier library — the same
+# base model is used across many sprint releases. Re-exporting it on
+# every release would install ~2GB of torch + transformers + onnx into
+# the build runner for zero net effect on the output.
+#
+# Instead, the model is uploaded to the `data-classifier-models` AR
+# Generic repo ONCE, manually, under a stable version name that tracks
+# the upstream model (e.g. `urchade-gliner-multi-pii-v1`). The
+# `DEFAULT_MODEL_VERSION` constant in
+# `data_classifier/download_models.py` pins the version that consumers
+# fetch. To release a new base model, a human runs:
+#
+#     python -m data_classifier.export_onnx --user
+#     # rename model_quantized.onnx -> model.onnx (GLiNER loader requires this name)
+#     tar czf gliner_onnx-<model-version>.tar.gz gliner_onnx/
+#     sha256sum gliner_onnx-<model-version>.tar.gz > gliner_onnx-<model-version>.tar.gz.sha256
+#     gcloud artifacts generic upload --project=dag-bigquery-dev \\
+#         --location=us-central1 --repository=data-classifier-models \\
+#         --package=gliner-onnx --version=<model-version> \\
+#         --source=gliner_onnx-<model-version>.tar.gz
+#
+# This decoupling keeps the release pipeline focused on what actually
+# changes per sprint (the wheel) and keeps build time ~1 minute instead
+# of ~15.
+
+# Log to Cloud Logging only; skip the default per-build GCS log bucket
+# so we do not require a storage bucket in the project.
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+# 5 minutes is plenty — the wheel build + publish takes <1 minute on
+# Cloud Build's default machine type. Previously we budgeted 25 min
+# because the (now-removed) publish-model step installed torch and
+# re-exported the ONNX model on every release.
+timeout: 300s

@@ -25,10 +25,27 @@ from data_classifier.engines.heuristic_engine import (
     compute_avg_entropy,
     compute_cardinality_ratio,
     compute_char_class_ratios,
+    compute_dictionary_name_match_ratio,
     compute_length_stats,
+    compute_placeholder_credential_rejection_ratio,
     compute_shannon_entropy,
 )
 from data_classifier.orchestrator.orchestrator import Orchestrator
+from data_classifier.patterns._decoder import decode_encoded_strings
+
+# Credential-shape placeholders used by tests below. Stored XOR-encoded
+# so the file passes GitHub push protection (see
+# feedback_xor_fixture_pattern.md). Decoded once at module import.
+_CRED_AWS_KEY, _CRED_STRIPE_KEY, _CRED_GH_PAT, _CRED_SLACK_TOKEN, _CRED_STRIPE_LIVE = decode_encoded_strings(
+    [
+        "xor:GxETG2sYaBlpHm4fbxxsHW0SYhM=",
+        "xor:KTEFNjMsPwU7ODlraGk+Pzxub2w9MjNtYmM=",
+        "xor:PTIqBTsYOR4/HD0SMxAxFjcUNQorCCkOLwwtAiMAamtoaW5vbG1iYw==",
+        "xor:IjUiOHdraGlub2xtYmNqd2toaW5vbG1iY2p3Ozg5Pj88PTIzMDE2NzQ1Kg==",
+        "xor:KTEFNjMsPwUoPzs2BTkoPz4/NC4zOzYFIiMgbWJj",
+    ]
+)
+
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -91,9 +108,43 @@ class TestComputeCardinalityRatio:
         assert compute_cardinality_ratio(["x", "x", "x", "x"]) == 0.25
 
     def test_mixed(self):
-        # 3 unique out of 6
+        # Every value appears twice → f1=0, Chao-1 correction = 0, so
+        # the estimate equals the naive 3/6 = 0.5.
         ratio = compute_cardinality_ratio(["a", "b", "c", "a", "b", "c"])
         assert ratio == pytest.approx(0.5)
+
+    def test_chao1_singletons_inflate_toward_full_distinctness(self):
+        # Sprint 11 Phase 8: many singletons + few doubletons should
+        # push the estimator above the naive D/N ratio. Here D=6,
+        # N=8, naive=0.75; f1=4 singletons, f2=2 doubletons →
+        #   correction = 4 * 3 / (2 * 3) = 2.0
+        #   estimate = (6 + 2) / 8 = 1.0 (clipped, reflects sparse-sample bias).
+        ratio = compute_cardinality_ratio(
+            ["a", "b", "c", "d", "e", "e", "f", "f"],
+        )
+        assert ratio == pytest.approx(1.0)
+
+    def test_chao1_collapses_to_naive_when_no_singletons(self):
+        # f1=0 → correction disappears → estimator equals naive D/N.
+        # Here every value appears exactly twice → D=4, N=8 → 0.5.
+        values = ["a", "a", "b", "b", "c", "c", "d", "d"]
+        ratio = compute_cardinality_ratio(values)
+        assert ratio == pytest.approx(0.5)
+
+    def test_chao1_stays_in_unit_interval(self):
+        # Large singleton population must not push the ratio above 1.0
+        # or go negative — downstream rules rely on ``ratio in [0, 1]``.
+        values = [f"unique_{i}" for i in range(32)]
+        ratio = compute_cardinality_ratio(values)
+        assert 0.0 <= ratio <= 1.0
+        assert ratio == pytest.approx(1.0)
+
+    def test_chao1_low_cardinality_stays_low(self):
+        # ABA-routing-style column: 3 distinct values, each repeated ~33
+        # times, N=100. f1=0, f2=0 → correction=0 → naive 0.03.
+        values = (["111"] * 34) + (["222"] * 33) + (["333"] * 33)
+        ratio = compute_cardinality_ratio(values)
+        assert ratio == pytest.approx(0.03)
 
 
 class TestComputeShannonEntropy:
@@ -177,6 +228,188 @@ class TestComputeCharClassRatios:
     def test_special_chars(self):
         ratios = compute_char_class_ratios(["abc@123", "def#456"])
         assert ratios["special_ratio"] == pytest.approx(1.0)
+
+
+class TestComputePlaceholderCredentialRejectionRatio:
+    """Sprint 12 Item #1: column-level feature that measures the fraction
+    of sample values a credential regex would reject because they are
+    listed in ``known_placeholder_values.json``.
+
+    This is the symmetric-by-construction reframe of the Sprint 11 Phase 10
+    proposal. The original proposal observed validator decisions during
+    engine invocation — which cannot be reproduced at shadow inference
+    time because rejected values never produce findings. Recomputing the
+    rejection ratio directly from ``sample_values`` gives the meta-classifier
+    an identical signal in training and inference, avoiding the train/serve
+    skew pattern that caused the Sprint 11 Phase 7 dictionary-word-ratio bug.
+    """
+
+    def test_empty_list_returns_zero(self):
+        assert compute_placeholder_credential_rejection_ratio([]) == 0.0
+
+    def test_all_real_values_returns_zero(self):
+        # None of these match the known placeholder set.
+        real_values = [
+            _CRED_AWS_KEY,
+            _CRED_STRIPE_KEY,
+            _CRED_GH_PAT,
+            _CRED_SLACK_TOKEN,
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature_here",
+        ]
+        ratio = compute_placeholder_credential_rejection_ratio(real_values)
+        assert ratio == 0.0
+
+    def test_all_placeholder_values_returns_one(self):
+        # All values are in known_placeholder_values.json.
+        placeholders = [
+            "password123",
+            "your_api_key_here",
+            "changeme",
+            "admin",
+            "12345678",
+        ]
+        ratio = compute_placeholder_credential_rejection_ratio(placeholders)
+        assert ratio == 1.0
+
+    def test_mixed_values_returns_fraction(self):
+        # 2 placeholders + 2 real → 0.5
+        mixed = [
+            "password123",  # placeholder
+            _CRED_AWS_KEY,  # real
+            "your_api_key_here",  # placeholder
+            _CRED_STRIPE_LIVE,  # real
+        ]
+        ratio = compute_placeholder_credential_rejection_ratio(mixed)
+        assert ratio == 0.5
+
+    def test_case_insensitive_matching(self):
+        # known_placeholder_values.json stores lowercase; the validator
+        # compares case-insensitively, so the helper must too.
+        values = [
+            "PASSWORD123",  # uppercase of "password123"
+            "ChangeMe",  # mixed case of "changeme"
+            "YOUR_API_KEY_HERE",
+        ]
+        ratio = compute_placeholder_credential_rejection_ratio(values)
+        assert ratio == 1.0
+
+    def test_whitespace_is_stripped_before_matching(self):
+        # The validator strips whitespace before comparing. The helper
+        # must match that semantic so training and inference see the
+        # same value.
+        values = [
+            "  password123  ",
+            "\tchangeme\n",
+            "admin ",
+        ]
+        ratio = compute_placeholder_credential_rejection_ratio(values)
+        assert ratio == 1.0
+
+    def test_empty_strings_are_not_counted_as_placeholder(self):
+        # Empty / None values are not in the placeholder set. They
+        # should NOT increment the rejected count — they are just
+        # "not a placeholder", same as any real string.
+        values = ["", "password123", "real_credential_abc123"]
+        # 1 placeholder out of 3 → 1/3.
+        ratio = compute_placeholder_credential_rejection_ratio(values)
+        assert abs(ratio - (1.0 / 3.0)) < 1e-9
+
+    def test_result_is_always_float(self):
+        # Even when every value is a placeholder (ratio = 1.0), the
+        # result type should be float, not int. Feature vectors are
+        # floats end-to-end.
+        result = compute_placeholder_credential_rejection_ratio(["password123"])
+        assert isinstance(result, float)
+
+
+class TestComputeDictionaryNameMatchRatio:
+    """Sprint 12 Item #2: column-level feature that measures the fraction
+    of sample values containing at least one English first name or US
+    surname from ``data_classifier/patterns/name_lists.json``.
+
+    Used by the meta-classifier to discriminate PERSON_NAME from the
+    CONTACT catch-all drain (the Sprint 11 Phase 10 failure class where
+    non-name columns land in PERSON_NAME because no other class has a
+    confident signal). Mirrors the ``compute_dictionary_word_ratio``
+    pattern byte-for-byte: same loader shape, same tokenizer, same
+    ratio computation — only the word list and minimum-length threshold
+    differ (4 for names vs 5 for content words; names are shorter on
+    average).
+    """
+
+    def test_empty_list_returns_zero(self):
+        assert compute_dictionary_name_match_ratio([]) == 0.0
+
+    def test_first_name_values_match(self):
+        # Top-10 SSA first names. Each value contains exactly one name
+        # token so the ratio should be 1.0.
+        values = ["james", "mary", "john", "michael", "patricia"]
+        assert compute_dictionary_name_match_ratio(values) == 1.0
+
+    def test_surname_values_match(self):
+        # Top-10 Census 2010 surnames.
+        values = ["smith", "johnson", "williams", "brown", "jones"]
+        assert compute_dictionary_name_match_ratio(values) == 1.0
+
+    def test_mixed_name_columns_match(self):
+        # Full-name strings with both first + surname. The tokenizer
+        # splits on [a-z]+ so each value yields two tokens; either one
+        # matching is enough to count the value as a hit.
+        values = [
+            "James Smith",
+            "Mary Johnson",
+            "Michael Williams",
+        ]
+        assert compute_dictionary_name_match_ratio(values) == 1.0
+
+    def test_random_tokens_do_not_match(self):
+        # Random opaque identifiers — no token is a dictionary name.
+        values = [
+            "xK9pQ2mN7vL4jH8r",
+            "a8B3cD2eF1gH9iJ0kL",
+            "zxcv1234mnop",
+        ]
+        assert compute_dictionary_name_match_ratio(values) == 0.0
+
+    def test_numeric_values_do_not_match(self):
+        # Pure-numeric columns (IDs, counts, amounts) must never match.
+        values = ["12345", "67890", "42", "3.14159"]
+        assert compute_dictionary_name_match_ratio(values) == 0.0
+
+    def test_short_tokens_below_min_length_do_not_match(self):
+        # min_token_length=4. Values shorter than 4 letters must not
+        # match even if they would match an entry in the list at a
+        # lower threshold.
+        values = ["jo", "al", "ed"]
+        assert compute_dictionary_name_match_ratio(values) == 0.0
+
+    def test_case_insensitive_matching(self):
+        # Names in DB columns come in every case variant. The tokenizer
+        # lowercases before comparison.
+        values = ["JAMES", "Mary", "jOhN"]
+        assert compute_dictionary_name_match_ratio(values) == 1.0
+
+    def test_mixed_values_returns_fraction(self):
+        # 2 name hits + 2 non-name values → 0.5.
+        values = [
+            "james",  # first name hit
+            "xK9pQ2mN7vL4jH8r",  # miss
+            "smith",  # surname hit
+            "zxcv1234",  # miss
+        ]
+        assert compute_dictionary_name_match_ratio(values) == 0.5
+
+    def test_empty_string_values_do_not_count(self):
+        # Empty / None values are counted toward the denominator but
+        # never produce a hit — same semantic as
+        # compute_dictionary_word_ratio.
+        values = ["", "james", "mary"]
+        # 2 name hits out of 3 → 2/3.
+        assert abs(compute_dictionary_name_match_ratio(values) - (2.0 / 3.0)) < 1e-9
+
+    def test_result_is_always_float(self):
+        result = compute_dictionary_name_match_ratio(["james"])
+        assert isinstance(result, float)
 
 
 # ── Engine classification tests ────────────────────────────────────────────

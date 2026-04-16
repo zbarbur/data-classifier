@@ -1,0 +1,59 @@
+{
+  "accuracy": [
+    {
+      "corpus": "nemotron",
+      "fn_count": 1,
+      "fp_count": 1,
+      "macro_f1": 0.9231,
+      "micro_f1": 0.9231,
+      "mode": "named",
+      "precision": 0.9231,
+      "primary_label_pct": 0.9231,
+      "recall": 0.9231,
+      "tp_count": 12
+    },
+    {
+      "corpus": "nemotron",
+      "fn_count": 2,
+      "fp_count": 5,
+      "macro_f1": 0.7742,
+      "micro_f1": 0.7586,
+      "mode": "blind",
+      "precision": 0.6875,
+      "primary_label_pct": 0.8462,
+      "recall": 0.8462,
+      "tp_count": 11,
+      "note": "Regression vs Sprint 9 (0.8205 -> 0.7742) is a label-taxonomy mismatch, not a real detection regression. Item #4 dict expansion now correctly emits API_KEY on col_2 but the Nemotron loader still maps the column label to legacy 'CREDENTIAL' (pre-Sprint-8 split). Filed Sprint 11 item `nemotron-corpus-loader-taxonomy-refresh-map-legacy-CREDENTIAL-to-new-4-subtypes` to resolve."
+    },
+    {
+      "corpus": "gretel_en",
+      "fn_count": 1,
+      "fp_count": 1,
+      "macro_f1": 0.9167,
+      "micro_f1": 0.8800,
+      "mode": "named",
+      "precision": 0.8462,
+      "primary_label_pct": 0.9167,
+      "recall": 0.9167,
+      "tp_count": 11
+    },
+    {
+      "corpus": "gretel_en",
+      "fn_count": 4,
+      "fp_count": 4,
+      "macro_f1": 0.6111,
+      "micro_f1": 0.6667,
+      "mode": "blind",
+      "precision": 0.6667,
+      "primary_label_pct": 0.6667,
+      "recall": 0.6667,
+      "tp_count": 8
+    }
+  ],
+  "date": "2026-04-14",
+  "git_sha": "7aafa01",
+  "note": "Sprint 10 tip: post-S1 wrapping + data_type pre-filter + secret dict +90 net-new entries + Gretel-finance ingest (not yet wired into accuracy_benchmark CLI). Gretel-EN blind/named held flat vs Sprint 9. Nemotron named held flat. Nemotron blind apparent -0.047 regression diagnosed as Sprint-8 CREDENTIAL-split label mismatch in corpus loader, not a real detection-quality regression — filed as Sprint 11 corpus-loader refresh item. Fastino promotion attempted (wave 3 stretch, commit a2ac147) and reverted after gates failed by -0.198 (Gretel-EN) and -0.295 (Nemotron). Filed Sprint 11 retry item.",
+  "perf": null,
+  "schema_version": 1,
+  "sprint": 10
+}

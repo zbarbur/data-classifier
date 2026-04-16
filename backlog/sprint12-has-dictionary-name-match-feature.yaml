@@ -1,0 +1,61 @@
+title: 'Sprint 12: has_dictionary_name_match feature in meta-classifier vector'
+status: done
+priority: P1
+category: feature
+sprint_target: 12
+created: 2026-04-15
+updated: 2026-04-16
+depends_on: []
+tags:
+- sprint12
+- meta-classifier
+- family-metric
+- CONTACT-family
+goal: 'Add a dictionary-based first-name / surname match feature to the meta-classifier
+  vector so PERSON_NAME stops being used as the catch-all drain for columns where
+  other features are indeterminate.
+
+  '
+complexity: M
+technical_specs:
+- New feature "has_dictionary_name_match" at the tail of FEATURE_NAMES
+- Float in [0.0, 1.0] representing fraction of sample values that contain at least
+  one token matching a first-name or surname dictionary
+- Dictionary sourced from permissive-licensed name lists (e.g. US Census names, international
+  name datasets)
+- Pure function in heuristic_engine alongside compute_dictionary_word_ratio
+- Populated by extract_features like the other Chao-1 / dict-word features
+- Requires feature_schema_version bump (v4 if applied after validator_rejected_credential,
+  otherwise v3 -> v4 combined)
+description: "Sprint 11 Phase 10 family A/B decomposition showed CONTACT family\n\
+  precision at 0.882 on candidate shadow \u2014 the 12% precision drop is\ncarried\
+  \ by 354 catch-all confusions landing in PERSON_NAME:\n\n  145 ADDRESS -> PERSON_NAME\n\
+  \   75 VIN -> PERSON_NAME\n   59 BANK_ACCOUNT -> PERSON_NAME\n   75 NEGATIVE ->\
+  \ PERSON_NAME\n\nThe v3 model uses PERSON_NAME as a fallback when no other class\
+  \ has a\nconfident signal. Adding a positive dictionary-name feature gives the\n\
+  model a reason to emit PERSON_NAME *only* when the column actually\ncontains name-like\
+  \ values, and to defer to NEGATIVE or the correct\nclass otherwise.\n\nProjected\
+  \ impact: PERSON_NAME precision 0.579 -> ~0.80 (subtype\nlevel), CONTACT family\
+  \ precision 0.882 -> ~0.95, shadow cross_family_rate\n0.059 -> ~0.035.\n"
+acceptance_criteria:
+- New helper compute_dictionary_name_match_ratio in heuristic_engine
+- Content dictionary committed at data_classifier/patterns/name_lists.json (or similar)
+  with permissive license
+- FEATURE_SCHEMA_VERSION bumped and v4 / v5 model trained and shipped
+- Family benchmark shows CONTACT family precision >= 0.93
+- Family benchmark cross_family_rate < 0.040 (combined with validator_rejected_credential
+  item = combined target < 0.030)
+test_plan:
+- Unit tests for compute_dictionary_name_match_ratio
+- 'Regression check: PERSON_NAME recall must stay >= 0.95'
+- Family benchmark delta measurement before and after
+notes: "This item is the #2 Sprint 12 priority. It complements the\nvalidator_rejected_credential\
+  \ item \u2014 together they should get shadow\ncross_family_rate below the Sprint\
+  \ 12 target of 0.030.\n\nDictionary sourcing is the main scoping risk. US Census\
+  \ name data is\npublic domain; international names may need vetting. Consider starting\n\
+  with a US-only dictionary and expanding in later sprints.\n"
+phase: done
+design_reviewed: true
+code_reviewed: true
+comments: []
+images: []

@@ -1,0 +1,38 @@
+title: Document fail-fast stretch-item dispatch protocol from Sprint 10 lesson 3
+status: done
+priority: P2
+category: docs
+sprint_target: 11
+created: 2026-04-14
+updated: 2026-04-15
+depends_on: []
+tags: []
+goal: 'Codify the fail-fast stretch-item dispatch protocol (Sprint 10 lesson #3) as
+  a durable process doc so the REVERT-and-file-next-sprint pattern survives across
+  sessions and becomes the default stretch-item playbook.'
+complexity: S
+technical_specs:
+- 'File: docs/process/FAIL_FAST_STRETCH_DISPATCH.md (new)'
+- "File: docs/process/PROJECT_CONTEXT.md \u2014 add link in process-doc index"
+- 'Source: docs/sprints/SPRINT10_HANDOVER.md lesson #3 + the fastino revert commits
+  (7aafa01 and the agent dispatch transcript) for the worked example'
+description: ''
+acceptance_criteria:
+- 'docs/process/FAIL_FAST_STRETCH_DISPATCH.md exists with sections: When to use, Dispatch
+  prompt template, REVERT protocol, Sprint N+1 filing template, Worked example from
+  Sprint 10 fastino promotion retry'
+- Doc is linked from docs/process/PROJECT_CONTEXT.md (or the project's main process
+  index)
+- Doc explicitly distinguishes stretch items (fail-fast OK) from core sprint items
+  (fix-forward required)
+- Lint clean (no code changes, but markdown-lint if project has it)
+test_plan:
+- "Docs only \u2014 no automated tests"
+- 'Peer review: confirm doc is actionable by reading it cold and attempting to dispatch
+  a stretch item'
+notes: ''
+phase: review
+design_reviewed: true
+code_reviewed: true
+comments: []
+images: []

@@ -560,3 +560,602 @@ class TestDeduplication:
         # Both EMAIL and PHONE have specificity 3 — both kept
         assert "EMAIL" in entity_types
         assert "PHONE" in entity_types
+
+
+# ── Test: Sprint 9 v2 infrastructure hardening ────────────────────────────
+#
+# These tests cover infrastructure added in Sprint 9 ahead of the fastino
+# model swap (blocked on blind-corpus regression, deferred to Sprint 10
+# pending research/gliner-context context-injection work).  The
+# infrastructure itself ships now because:
+#   1. The v2 inference path was silently ignoring the configured
+#      threshold — a latent correctness bug that affected any v2
+#      deployment, not just fastino.
+#   2. The descriptions_enabled flag + ONNX auto-discovery guard provide
+#      the seam for a future fastino promotion without further code
+#      changes once the input-format work on research/gliner-context lands.
+
+
+class TestDescriptionsEnabledFlag:
+    """descriptions_enabled init flag — default selection and override."""
+
+    def test_v1_model_defaults_descriptions_on(self):
+        """Urchade (v1) engines default to descriptions_enabled=True.
+
+        v1 ignores the flag at inference time (it only accepts a label
+        list via ``predict_entities``), but the flag is still set for
+        consistency and testability.
+        """
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engine = GLiNER2Engine(model_id="urchade/gliner_multi_pii-v1")
+        assert engine._is_v2 is False
+        assert engine._descriptions_enabled is True
+
+    def test_fastino_model_defaults_descriptions_off(self):
+        """Fastino (v2) engines default to descriptions_enabled=False.
+
+        Per the Sprint 9 GLiNER eval memo, fastino regresses by -0.062
+        to -0.093 macro F1 when descriptions are enabled, so the auto
+        selection ships with descriptions off for any ``fastino/*``
+        model_id.
+        """
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engine = GLiNER2Engine(model_id="fastino/gliner2-base-v1")
+        assert engine._is_v2 is True
+        assert engine._descriptions_enabled is False
+
+    def test_explicit_override_wins_over_auto_selection(self):
+        """Caller can force descriptions_enabled regardless of model_id."""
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engine = GLiNER2Engine(
+            model_id="fastino/gliner2-base-v1",
+            descriptions_enabled=True,
+        )
+        assert engine._descriptions_enabled is True
+
+        engine = GLiNER2Engine(
+            model_id="urchade/gliner_multi_pii-v1",
+            descriptions_enabled=False,
+        )
+        assert engine._descriptions_enabled is False
+
+
+class TestV2InferencePathThresholdPlumbing:
+    """v2 extract_entities call shape — threshold passed, spec form correct.
+
+    Regression guard for a latent bug discovered Sprint 9: the v2 path
+    was calling ``model.extract_entities(text, spec, include_confidence=True)``
+    without forwarding ``self._gliner_threshold``, so the gliner2
+    internal default threshold was used regardless of how the engine
+    was constructed.  Any downstream threshold tuning was silently
+    ignored for v2 deployments.
+    """
+
+    def _make_v2_engine(
+        self,
+        mock_registry,
+        mock_model,
+        *,
+        descriptions_enabled: bool | None = None,
+        gliner_threshold: float = 0.80,
+    ):
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engine = GLiNER2Engine(
+            registry=mock_registry,
+            model_id="fastino/gliner2-base-v1",
+            gliner_threshold=gliner_threshold,
+            descriptions_enabled=descriptions_enabled,
+        )
+        mock_registry.register(
+            "gliner2-ner",
+            loader=lambda: mock_model,
+            model_class="gliner2.GLiNER2",
+            requires=[],
+        )
+        engine._registered = True
+        return engine
+
+    def test_v2_descriptions_off_passes_label_list_with_threshold(self, mock_registry):
+        """When descriptions_enabled=False, engine passes a list[str] spec
+        AND forwards the configured threshold to extract_entities."""
+        mock_model = MagicMock()
+        mock_model.extract_entities = MagicMock(
+            return_value={"entities": {"person": [{"text": "Jane Doe", "confidence": 0.91}]}}
+        )
+        engine = self._make_v2_engine(mock_registry, mock_model, gliner_threshold=0.80)
+
+        column = ColumnInput(column_name="name", column_id="c1", sample_values=["Jane Doe"])
+        findings = engine.classify_column(column, min_confidence=0.0)
+
+        assert len(findings) == 1
+        assert findings[0].entity_type == "PERSON_NAME"
+
+        assert mock_model.extract_entities.called
+        call = mock_model.extract_entities.call_args
+        entity_spec = call.args[1] if len(call.args) > 1 else call.kwargs.get("entity_types")
+        assert isinstance(entity_spec, list), (
+            f"Expected list[str] when descriptions_enabled=False, got {type(entity_spec).__name__}"
+        )
+        assert "person" in entity_spec
+        # Threshold must be forwarded — this is the latent bug the fix closes.
+        assert call.kwargs.get("threshold") == 0.80
+
+    def test_v2_descriptions_on_passes_label_dict_with_threshold(self, mock_registry):
+        """When descriptions_enabled=True, engine passes dict[str, str]
+        AND still forwards the configured threshold."""
+        mock_model = MagicMock()
+        mock_model.extract_entities = MagicMock(return_value={"entities": {}})
+        engine = self._make_v2_engine(
+            mock_registry,
+            mock_model,
+            descriptions_enabled=True,
+            gliner_threshold=0.65,
+        )
+
+        column = ColumnInput(column_name="x", column_id="c1", sample_values=["something"])
+        engine.classify_column(column, min_confidence=0.0)
+
+        call = mock_model.extract_entities.call_args
+        entity_spec = call.args[1] if len(call.args) > 1 else call.kwargs.get("entity_types")
+        assert isinstance(entity_spec, dict), (
+            f"Expected dict[str, str] when descriptions_enabled=True, got {type(entity_spec).__name__}"
+        )
+        assert "person" in entity_spec
+        # Descriptions must be non-empty in the dict form.
+        assert entity_spec["person"]
+        assert call.kwargs.get("threshold") == 0.65
+
+
+class TestOnnxAutoDiscoveryGuardForV2:
+    """ONNX auto-discovery must NOT serve a v1 export to a v2 engine.
+
+    The standard ONNX search paths (package models/, ~/.cache/..., etc.)
+    hold v1 exports from Sprint 5 onwards.  Before Sprint 9, constructing
+    a GLiNER2Engine with ``model_id="fastino/gliner2-base-v1"`` would
+    auto-discover the v1 bundle and load it with the v1 gliner package,
+    silently serving the wrong model.  The guard ensures auto-discovery
+    only runs for v1 engines.
+    """
+
+    def test_v2_engine_skips_auto_discovery_when_onnx_path_unset(self):
+        """fastino engine without explicit onnx_path must NOT pick up
+        a bundled v1 model from the auto-discovery paths."""
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        engine = GLiNER2Engine(model_id="fastino/gliner2-base-v1")
+        assert engine._onnx_path is None, (
+            "v2 engine auto-discovered an ONNX bundle; v2 must fall through to "
+            "PyTorch loading or require an explicit onnx_path"
+        )
+
+    def test_v2_engine_honors_explicit_onnx_path(self, tmp_path):
+        """If caller explicitly sets onnx_path on a v2 engine, the guard
+        must NOT override it — hand-exported fastino bundles should work."""
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        explicit_path = str(tmp_path / "fake_fastino_onnx_dir")
+        engine = GLiNER2Engine(
+            model_id="fastino/gliner2-base-v1",
+            onnx_path=explicit_path,
+        )
+        assert engine._onnx_path == explicit_path
+
+
+# ── Sprint 10: S1 NL-prompt wrapping ───────────────────────────────────────
+#
+# Pass 1 on research/gliner-context @ 7b2ed91 measured that wrapping sample
+# values in a natural-language sentence with column/table/description
+# metadata recovers +0.0887 macro F1 on Ai4Privacy (BCa 95% CI
+# [+0.050, +0.131], n=315) because GLiNER is a context-attention NER model
+# trained on sentences, not bag-of-tokens input.  The improvement is
+# primarily false-positive suppression — baseline over-fires ORGANIZATION,
+# PERSON_NAME, and PHONE on numeric-dash strings (e.g., "123-45-6789"),
+# and the NL prefix narrows the plausible interpretation space enough to
+# suppress those FPs.  The tests below cover the helper's metadata
+# graceful-degradation contract and the ORGANIZATION numeric-dash
+# regression that the research memo identified.
+
+
+class TestBuildNerPrompt:
+    """Unit tests for the pure ``_build_ner_prompt`` helper."""
+
+    def test_all_metadata_present(self):
+        """All three metadata fields produce the full NL prefix."""
+        from data_classifier.engines.gliner_engine import _build_ner_prompt
+
+        column = ColumnInput(
+            column_name="customer_email",
+            column_id="c1",
+            table_name="customers",
+            description="Primary contact email for the customer",
+            sample_values=["jane@example.com", "john@example.org"],
+        )
+        prompt = _build_ner_prompt(column, column.sample_values)
+
+        assert "Column 'customer_email'" in prompt
+        assert "from table 'customers'" in prompt
+        assert "Description: Primary contact email for the customer" in prompt
+        assert "Sample values: jane@example.com, john@example.org" in prompt
+        # The legacy " ; " separator must not appear when metadata is present.
+        assert " ; " not in prompt
+
+    def test_only_column_name(self):
+        """Only column_name populated: prefix omits table + description clauses."""
+        from data_classifier.engines.gliner_engine import _build_ner_prompt
+
+        column = ColumnInput(
+            column_name="ssn",
+            column_id="c1",
+            sample_values=["123-45-6789", "987-65-4321"],
+        )
+        prompt = _build_ner_prompt(column, column.sample_values)
+
+        assert "Column 'ssn'" in prompt
+        assert "Sample values: 123-45-6789, 987-65-4321" in prompt
+        assert "table" not in prompt
+        assert "Description" not in prompt
+
+    def test_only_description(self):
+        """Only description populated: prefix is a bare description clause."""
+        from data_classifier.engines.gliner_engine import _build_ner_prompt
+
+        column = ColumnInput(
+            column_name="",
+            column_id="c1",
+            description="IPv4 address of the client",
+            sample_values=["192.168.1.1", "10.0.0.5"],
+        )
+        prompt = _build_ner_prompt(column, column.sample_values)
+
+        assert "Description: IPv4 address of the client" in prompt
+        assert "Sample values: 192.168.1.1, 10.0.0.5" in prompt
+        assert "Column '" not in prompt
+        assert "table" not in prompt
+
+    def test_no_metadata_falls_back_to_legacy_separator(self):
+        """With no metadata the helper emits the pre-S1 legacy shape."""
+        from data_classifier.engines.gliner_engine import _SAMPLE_SEPARATOR, _build_ner_prompt
+
+        column = ColumnInput(
+            column_name="",
+            column_id="c1",
+            sample_values=["alpha", "beta", "gamma"],
+        )
+        prompt = _build_ner_prompt(column, column.sample_values)
+
+        assert prompt == _SAMPLE_SEPARATOR.join(["alpha", "beta", "gamma"])
+        assert "Column '" not in prompt
+        assert "Sample values:" not in prompt
+
+    def test_table_name_with_empty_column_name(self):
+        """Only table_name populated: prefix starts with Table '...'."""
+        from data_classifier.engines.gliner_engine import _build_ner_prompt
+
+        column = ColumnInput(
+            column_name="",
+            column_id="c1",
+            table_name="users",
+            sample_values=["Alice", "Bob"],
+        )
+        prompt = _build_ner_prompt(column, column.sample_values)
+
+        assert "Table 'users'" in prompt
+        assert "Sample values: Alice, Bob" in prompt
+        assert "Column '" not in prompt
+        assert "from table" not in prompt
+
+    def test_long_description_is_truncated_within_max_len(self):
+        """A description that would overflow the prompt budget is truncated
+        instead of silently dropping samples."""
+        from data_classifier.engines.gliner_engine import _MAX_PROMPT_CHARS, _build_ner_prompt
+
+        # Construct a description that is larger than the whole budget
+        # on its own, and a chunk of moderately-sized sample values.  The
+        # guard should shorten the description and still emit all the
+        # samples and the column metadata.
+        long_description = "x" * (_MAX_PROMPT_CHARS * 2)
+        samples = [f"sample_value_{i}_padding" for i in range(30)]
+        column = ColumnInput(
+            column_name="field_x",
+            column_id="c1",
+            table_name="big_table",
+            description=long_description,
+            sample_values=samples,
+        )
+        prompt = _build_ner_prompt(column, samples)
+
+        # Truncation applied: prompt fits inside the character budget.
+        assert len(prompt) <= _MAX_PROMPT_CHARS
+        # Metadata survives truncation.
+        assert "Column 'field_x'" in prompt
+        assert "from table 'big_table'" in prompt
+        assert "Description: " in prompt
+        assert "..." in prompt  # ellipsis marker from truncation
+        # ALL sample values still present — we shed description bytes,
+        # not sample bytes.
+        for s in samples:
+            assert s in prompt
+
+
+class TestS1PromptIntegratesWithInference:
+    """Integration check: ``predict_entities`` receives the NL-wrapped text."""
+
+    def test_predict_entities_receives_nl_prefixed_text(self, engine_with_mock, mock_gliner_model):
+        """When column has metadata, GLiNER sees the NL-wrapped prompt."""
+        mock_gliner_model.predict_entities.return_value = []
+        column = ColumnInput(
+            column_name="full_name",
+            column_id="c1",
+            table_name="employees",
+            description="Employee legal name",
+            sample_values=["John Smith", "Maria Garcia"],
+        )
+        engine_with_mock.classify_column(column)
+
+        assert mock_gliner_model.predict_entities.called
+        call = mock_gliner_model.predict_entities.call_args
+        text_arg = call.args[0]
+        assert "Column 'full_name'" in text_arg
+        assert "from table 'employees'" in text_arg
+        assert "Description: Employee legal name" in text_arg
+        assert "Sample values: John Smith, Maria Garcia" in text_arg
+
+    def test_predict_entities_receives_legacy_text_when_no_metadata(self, engine_with_mock, mock_gliner_model):
+        """With no metadata the engine still emits the pre-S1 legacy shape."""
+        mock_gliner_model.predict_entities.return_value = []
+        column = ColumnInput(
+            column_name="",
+            column_id="c1",
+            sample_values=["alpha", "beta"],
+        )
+        engine_with_mock.classify_column(column)
+
+        assert mock_gliner_model.predict_entities.called
+        call = mock_gliner_model.predict_entities.call_args
+        text_arg = call.args[0]
+        assert text_arg == "alpha ; beta"
+        assert "Column '" not in text_arg
+
+
+class TestOrgOverfireRegression:
+    """Regression test for gliner2-over-fires-organization-on-numeric-dash-inputs.
+
+    Pass 1 measured the baseline firing ORGANIZATION on ~25 columns at
+    threshold 0.8 despite ORGANIZATION having zero ground-truth support in
+    the corpus; S1 reduces this to ~8 false fires.  With the mock model
+    configured to behave like baseline GLiNER (return an ORGANIZATION
+    prediction on the raw bag-of-tokens input) this test proves that at
+    threshold 0.8 an SSN-format column no longer surfaces an ORGANIZATION
+    finding when wrapped with NL context.
+    """
+
+    def test_no_org_overfire_on_numeric_dash_at_threshold_08(self, mock_registry):
+        """SSN-format values in an SSN-named column must not fire ORGANIZATION.
+
+        Mocks GLiNER to return an ORGANIZATION prediction iff the raw
+        bag-of-tokens prompt is used (legacy shape) AND no prediction when
+        the S1 NL-wrapped prompt is used (which is what the research memo
+        measured as the FP-suppression mechanism).  A failing assertion
+        on the returned findings list therefore pins the engine to the
+        S1 behavior by construction.
+        """
+        from data_classifier.engines.gliner_engine import GLiNER2Engine
+
+        mock_model = MagicMock()
+
+        def _simulate_baseline_org_overfire(text, labels, threshold):
+            # Baseline: raw " ; "-joined numeric-dash string triggers ORG.
+            # S1: the NL-wrapped prompt with column/table metadata does not.
+            if "Column 'ssn'" in text or "from table 'users'" in text:
+                return []
+            return [
+                {"text": "123-45-6789", "label": "organization", "score": 0.87},
+                {"text": "987-65-4321", "label": "organization", "score": 0.85},
+            ]
+
+        mock_model.predict_entities = MagicMock(side_effect=_simulate_baseline_org_overfire)
+
+        engine = GLiNER2Engine(registry=mock_registry, gliner_threshold=0.8)
+        mock_registry.register(
+            "gliner2-ner",
+            loader=lambda: mock_model,
+            model_class="gliner.GLiNER",
+            requires=[],
+        )
+        engine._registered = True
+
+        column = ColumnInput(
+            column_name="ssn",
+            column_id="col_ssn",
+            table_name="users",
+            description="Social security number",
+            sample_values=[
+                "123-45-6789",
+                "987-65-4321",
+                "555-12-3456",
+                "111-22-3333",
+                "444-55-6666",
+            ],
+        )
+
+        findings = engine.classify_column(column, min_confidence=0.0)
+
+        entity_types = {f.entity_type for f in findings}
+        assert "ORGANIZATION" not in entity_types, (
+            "S1 NL-wrapping must suppress ORGANIZATION over-fire on numeric-dash "
+            "inputs — regression against Sprint 8 bug "
+            "gliner2-over-fires-organization-on-numeric-dash-inputs"
+        )
+
+
+# ── Test: Sprint 10 data_type pre-filter ────────────────────────────────────
+
+
+_NON_TEXT_TYPES_CANONICAL = [
+    "INTEGER",
+    "INT64",
+    "FLOAT",
+    "FLOAT64",
+    "NUMERIC",
+    "BIGNUMERIC",
+    "BOOLEAN",
+    "BOOL",
+    "TIMESTAMP",
+    "DATE",
+    "DATETIME",
+    "TIME",
+    "BYTES",
+]
+
+
+class TestDataTypePrefilter:
+    """Sprint 10: GLiNER skips non-text SQL types entirely.
+
+    The engine must return ``[]`` immediately for columns whose
+    ``data_type`` is numeric/temporal/boolean/bytes — without invoking
+    the underlying model or loading it into memory.  Text types
+    (``""``, ``"STRING"``, ``"TEXT"``, ``"VARCHAR"``) and unknown
+    types must fall through to the normal inference path.
+    """
+
+    def test_non_text_types_constant_membership(self):
+        """_NON_TEXT_DATA_TYPES must contain exactly the 13 canonical types."""
+        from data_classifier.engines.gliner_engine import _NON_TEXT_DATA_TYPES
+
+        assert isinstance(_NON_TEXT_DATA_TYPES, frozenset)
+        assert _NON_TEXT_DATA_TYPES == frozenset(_NON_TEXT_TYPES_CANONICAL)
+        assert len(_NON_TEXT_DATA_TYPES) == 13
+
+    @pytest.mark.parametrize("data_type", _NON_TEXT_TYPES_CANONICAL)
+    def test_non_text_types_skipped(self, engine_with_mock, mock_gliner_model, data_type):
+        """classify_column returns [] and never invokes the model on non-text types."""
+        column = ColumnInput(
+            column_name="value",
+            column_id="c1",
+            data_type=data_type,
+            sample_values=["1", "2", "3"],
+        )
+
+        findings = engine_with_mock.classify_column(column)
+
+        assert findings == []
+        assert not mock_gliner_model.predict_entities.called
+        assert not mock_gliner_model.extract_entities.called
+
+    @pytest.mark.parametrize("data_type", ["integer", "Integer", "INTEGER", "iNtEgEr"])
+    def test_case_insensitive(self, engine_with_mock, mock_gliner_model, data_type):
+        """Case variants of non-text types all skip."""
+        column = ColumnInput(
+            column_name="amount",
+            column_id="c1",
+            data_type=data_type,
+            sample_values=["42"],
+        )
+
+        findings = engine_with_mock.classify_column(column)
+
+        assert findings == []
+        assert not mock_gliner_model.predict_entities.called
+
+    @pytest.mark.parametrize("data_type", ["", "STRING", "TEXT", "VARCHAR", "UNKNOWN_TYPE"])
+    def test_text_types_fall_through(self, engine_with_mock, mock_gliner_model, data_type):
+        """Text types and empty string still invoke the model."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("John Smith", 0.92)]})
+        column = ColumnInput(
+            column_name="full_name",
+            column_id="c1",
+            data_type=data_type,
+            sample_values=["John Smith", "Maria Garcia"],
+        )
+
+        engine_with_mock.classify_column(column)
+
+        assert mock_gliner_model.predict_entities.called
+
+    @pytest.mark.parametrize("data_type", ["string", "String", "text", "Text", "varchar"])
+    def test_case_insensitive_fallthrough(self, engine_with_mock, mock_gliner_model, data_type):
+        """Lowercase / mixed-case STRING/TEXT/VARCHAR must fall through to the model.
+
+        Belt-and-suspenders: any data_type not in the non-text frozenset
+        (after upper-casing) goes to the model regardless of case.
+        """
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("John Smith", 0.92)]})
+        column = ColumnInput(
+            column_name="full_name",
+            column_id="c1",
+            data_type=data_type,
+            sample_values=["John Smith"],
+        )
+
+        engine_with_mock.classify_column(column)
+
+        assert mock_gliner_model.predict_entities.called
+
+    def test_batch_skip(self, engine_with_mock, mock_gliner_model):
+        """classify_batch applies the skip per-column in the correct output order."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("John Smith", 0.92)]})
+
+        text_col = ColumnInput(
+            column_name="full_name",
+            column_id="c_text",
+            data_type="STRING",
+            sample_values=["John Smith"],
+        )
+        int_col = ColumnInput(
+            column_name="user_id",
+            column_id="c_int",
+            data_type="INTEGER",
+            sample_values=["42", "7", "99"],
+        )
+        ts_col = ColumnInput(
+            column_name="created_at",
+            column_id="c_ts",
+            data_type="TIMESTAMP",
+            sample_values=["2026-04-14T12:00:00Z"],
+        )
+        another_text_col = ColumnInput(
+            column_name="email",
+            column_id="c_text2",
+            data_type="",  # empty falls through
+            sample_values=["user@example.com"],
+        )
+
+        results = engine_with_mock.classify_batch([text_col, int_col, ts_col, another_text_col])
+
+        assert len(results) == 4
+        # Text column got findings from mocked model.
+        assert len(results[0]) == 1
+        assert results[0][0].entity_type == "PERSON_NAME"
+        # Non-text columns were skipped entirely.
+        assert results[1] == []
+        assert results[2] == []
+        # Empty-string data_type falls through to the model.
+        assert len(results[3]) == 1
+
+        # Model was called exactly twice — once per text column, zero on
+        # the non-text columns.
+        assert mock_gliner_model.predict_entities.call_count == 2
+
+    def test_batch_mixed_with_empty_samples(self, engine_with_mock, mock_gliner_model):
+        """Empty-sample non-text columns still yield [] without calling the model."""
+        int_col_no_samples = ColumnInput(
+            column_name="user_id",
+            column_id="c_int",
+            data_type="INTEGER",
+            sample_values=[],
+        )
+        text_col_no_samples = ColumnInput(
+            column_name="notes",
+            column_id="c_text",
+            data_type="STRING",
+            sample_values=[],
+        )
+
+        results = engine_with_mock.classify_batch([int_col_no_samples, text_col_no_samples])
+
+        assert results == [[], []]
+        assert not mock_gliner_model.predict_entities.called

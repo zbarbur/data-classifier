@@ -261,66 +261,66 @@ class TestKeyNameScoring:
         return data["key_names"]
 
     def test_api_key_high_score(self, key_entries: list[dict]) -> None:
-        score, tier = _score_key_name("api_key", key_entries)
+        score, tier, _subtype = _score_key_name("api_key", key_entries)
         assert score >= 0.90
         assert tier == "definitive"
 
     def test_password_high_score(self, key_entries: list[dict]) -> None:
-        score, tier = _score_key_name("password", key_entries)
+        score, tier, _subtype = _score_key_name("password", key_entries)
         assert score >= 0.90
         assert tier == "definitive"
 
     def test_db_password_high_score(self, key_entries: list[dict]) -> None:
-        score, tier = _score_key_name("DB_PASSWORD", key_entries)
+        score, tier, _subtype = _score_key_name("DB_PASSWORD", key_entries)
         assert score >= 0.90
 
     def test_my_custom_api_key_matches(self, key_entries: list[dict]) -> None:
         """Substring matching: 'api_key' is in 'MY_CUSTOM_API_KEY'."""
-        score, _tier = _score_key_name("MY_CUSTOM_API_KEY", key_entries)
+        score, _tier, _subtype = _score_key_name("MY_CUSTOM_API_KEY", key_entries)
         assert score >= 0.90
 
     def test_name_no_match(self, key_entries: list[dict]) -> None:
-        score, _tier = _score_key_name("name", key_entries)
+        score, _tier, _subtype = _score_key_name("name", key_entries)
         assert score == 0.0
 
     def test_config_path_no_match(self, key_entries: list[dict]) -> None:
-        score, _tier = _score_key_name("config_path", key_entries)
+        score, _tier, _subtype = _score_key_name("config_path", key_entries)
         assert score == 0.0
 
     def test_username_no_match(self, key_entries: list[dict]) -> None:
         """'username' should not match 'pass' or 'password'."""
-        score, _tier = _score_key_name("username", key_entries)
+        score, _tier, _subtype = _score_key_name("username", key_entries)
         assert score == 0.0
 
     def test_token_moderate_score(self, key_entries: list[dict]) -> None:
-        score, tier = _score_key_name("token", key_entries)
+        score, tier, _subtype = _score_key_name("token", key_entries)
         assert 0.5 < score < 1.0
         assert tier == "strong"
 
     def test_author_not_matched(self, key_entries: list[dict]) -> None:
         """'author' should NOT match 'auth' (word_boundary)."""
-        score, _tier = _score_key_name("author", key_entries)
+        score, _tier, _subtype = _score_key_name("author", key_entries)
         assert score == 0.0
 
     def test_keyboard_not_matched(self, key_entries: list[dict]) -> None:
         """'keyboard' should NOT match 'key' (suffix)."""
-        score, _tier = _score_key_name("keyboard", key_entries)
+        score, _tier, _subtype = _score_key_name("keyboard", key_entries)
         assert score == 0.0
 
     def test_authenticate_not_matched(self, key_entries: list[dict]) -> None:
         """'authenticate' should NOT match 'auth' (word_boundary)."""
-        score, _tier = _score_key_name("authenticate", key_entries)
+        score, _tier, _subtype = _score_key_name("authenticate", key_entries)
         assert score == 0.0
 
     def test_auth_token_matches_definitive(self, key_entries: list[dict]) -> None:
         """'auth_token' should match the specific 'auth_token' pattern (definitive)."""
-        score, tier = _score_key_name("auth_token", key_entries)
+        score, tier, _subtype = _score_key_name("auth_token", key_entries)
         assert score >= 0.90
         assert tier == "definitive"
 
     def test_my_auth_matches(self, key_entries: list[dict]) -> None:
         """'my_auth' should match 'auth' at word boundary."""
-        score, _tier = _score_key_name("my_auth", key_entries)
+        score, _tier, _subtype = _score_key_name("my_auth", key_entries)
         assert score > 0.0
 
 
@@ -403,7 +403,9 @@ class TestTieredScoring:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) == 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: password key → OPAQUE_SECRET subtype
+        assert findings[0].entity_type == "OPAQUE_SECRET"
+        assert findings[0].category == "Credential"
         assert findings[0].confidence > 0.5
 
     def test_definitive_tier_rejects_placeholder(self, engine: SecretScannerEngine) -> None:
@@ -465,7 +467,9 @@ class TestTieredScoring:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) == 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: DB_PASSWORD key → OPAQUE_SECRET subtype
+        assert findings[0].entity_type == "OPAQUE_SECRET"
+        assert findings[0].category == "Credential"
         assert findings[0].confidence > 0.3
 
     def test_name_with_value_not_detected(self, engine: SecretScannerEngine) -> None:
@@ -555,7 +559,9 @@ class TestIntegration:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) >= 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: DB_PASSWORD / API_TOKEN both resolve to the new
+        # credential subtypes (OPAQUE_SECRET and API_KEY respectively).
+        assert findings[0].entity_type in {"OPAQUE_SECRET", "API_KEY"}
         assert findings[0].category == "Credential"
         assert findings[0].sensitivity == "CRITICAL"
         assert findings[0].engine == "secret_scanner"
@@ -570,7 +576,9 @@ class TestIntegration:
         )
         findings = engine.classify_column(column, min_confidence=0.3)
         assert len(findings) >= 1
-        assert findings[0].entity_type == "CREDENTIAL"
+        # Sprint 8 Item 4: db_password → OPAQUE_SECRET subtype
+        assert findings[0].entity_type == "OPAQUE_SECRET"
+        assert findings[0].category == "Credential"
 
     def test_code_literal_detected(self, engine: SecretScannerEngine) -> None:
         column = ColumnInput(
@@ -740,3 +748,387 @@ class TestEngineRegistration:
         orch = Orchestrator(engines=_DEFAULT_ENGINES, mode="structured")
         engine_names = [e.name for e in orch.engines]
         assert "secret_scanner" in engine_names
+
+
+# ── Sprint 10: net-new dictionary entries (Kingfisher/gitleaks/NP harvest) ──
+#
+# Item: expand-secret-key-names-dictionary-kingfisher-gitleaks-nosey-parker-
+# 80-net-new-entries-sprint-10-m-sibling-of-kingfisher-l
+#
+# These tests cover:
+#   1. TestNewDictionaryEntries — every curated net-new pattern fires with
+#      the recorded (score, tier, subtype) tuple.
+#   2. TestIngestionScript      — idempotence and required-field schema.
+#   3. TestDictionaryHealth     — full-dict invariants on patterns, scores,
+#      tiers, and match types.
+
+
+def _import_ingest_module():
+    """Import scripts/ingest_credential_patterns.py as ``ingest_credential_patterns``.
+
+    Python 3.12+ requires the module to be registered in ``sys.modules``
+    BEFORE ``exec_module`` so that @dataclass decoration (which looks up
+    the defining module via ``sys.modules[cls.__module__].__dict__``)
+    succeeds.  Cached on second call.
+    """
+    import importlib.util
+    import sys as _sys
+    from pathlib import Path
+
+    if "ingest_credential_patterns" in _sys.modules:
+        return _sys.modules["ingest_credential_patterns"]
+    script = Path(__file__).parent.parent / "scripts" / "ingest_credential_patterns.py"
+    spec = importlib.util.spec_from_file_location("ingest_credential_patterns", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    _sys.modules["ingest_credential_patterns"] = module
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+def _load_curated_manifest() -> list[dict]:
+    """Import the curated manifest from scripts/ingest_credential_patterns.py.
+
+    Returns a list of dicts with keys:
+        pattern, score, match_type, tier, subtype, category_tag,
+        upstream, upstream_rule_id.
+    """
+    module = _import_ingest_module()
+    return [
+        {
+            "pattern": e.pattern,
+            "score": e.score,
+            "match_type": e.match_type,
+            "tier": e.tier,
+            "subtype": e.subtype,
+            "category_tag": e.category_tag,
+            "upstream": e.upstream,
+            "upstream_rule_id": e.upstream_rule_id,
+        }
+        for e in module.CURATED_ENTRIES
+    ]
+
+
+def _load_full_dictionary() -> list[dict]:
+    """Read all key_names entries from secret_key_names.json."""
+    from pathlib import Path
+
+    path = Path(__file__).parent.parent / "data_classifier" / "patterns" / "secret_key_names.json"
+    with open(path) as fh:
+        return json.load(fh)["key_names"]
+
+
+_CURATED_MANIFEST = _load_curated_manifest()
+
+
+class TestNewDictionaryEntries:
+    """Parametrized test: each curated net-new entry fires with recorded tier/subtype.
+
+    The test key used is the pattern itself (a real-world key like
+    ``datadog_app_key`` is itself a sensible test input).  The expectation
+    is that ``_score_key_name`` returns a score >= the entry's recorded
+    score, and the same subtype.  A stronger existing pattern may win
+    (e.g., ``password`` outranks ``admin_password``) — that's an acceptable
+    outcome because it still fires and attributes to a credential subtype
+    with equal-or-higher confidence.  The assertion therefore uses
+    ``>=`` on score and checks subtype consistency within the credential
+    taxonomy, not exact equality to the manifest entry.
+    """
+
+    @pytest.fixture(scope="class")
+    def key_entries(self) -> list[dict]:
+        return _load_full_dictionary()
+
+    @pytest.mark.parametrize(
+        "entry",
+        _CURATED_MANIFEST,
+        ids=[e["pattern"] for e in _CURATED_MANIFEST],
+    )
+    def test_new_entry_fires_with_expected_tier_and_subtype(self, entry: dict, key_entries: list[dict]) -> None:
+        score, tier, subtype = _score_key_name(entry["pattern"], key_entries)
+        # The entry must fire with at least the recorded score.
+        assert score >= entry["score"], f"{entry['pattern']}: got score {score}, expected >= {entry['score']}"
+        # Tier must be at least as strong as recorded
+        # (definitive > strong > contextual).
+        tier_rank = {"contextual": 0, "strong": 1, "definitive": 2}
+        assert tier_rank[tier] >= tier_rank[entry["tier"]], (
+            f"{entry['pattern']}: got tier {tier!r}, expected >= {entry['tier']!r}"
+        )
+        # Subtype must be in the credential taxonomy.
+        assert subtype in {"API_KEY", "OPAQUE_SECRET", "PRIVATE_KEY", "PASSWORD_HASH"}
+
+    def test_manifest_has_at_least_80_entries(self) -> None:
+        assert len(_CURATED_MANIFEST) >= 80, f"Manifest has {len(_CURATED_MANIFEST)} entries, minimum 80"
+
+    def test_manifest_within_hard_ceiling(self) -> None:
+        assert len(_CURATED_MANIFEST) <= 95, f"Manifest has {len(_CURATED_MANIFEST)} entries, hard ceiling 95"
+
+    def test_definitive_fraction_above_60_percent(self) -> None:
+        definitive = sum(1 for e in _CURATED_MANIFEST if e["tier"] == "definitive")
+        frac = definitive / max(len(_CURATED_MANIFEST), 1)
+        assert frac >= 0.60, f"Definitive fraction {frac:.2%}, minimum 60%"
+
+    @pytest.mark.parametrize(
+        "category, minimum",
+        [
+            ("saas", 30),
+            ("cloud", 15),
+            ("cicd", 12),
+            ("database", 8),
+            ("oauth", 6),
+            ("pwd_crypto", 13),
+        ],
+    )
+    def test_category_minimum_counts_met(self, category: str, minimum: int) -> None:
+        got = sum(1 for e in _CURATED_MANIFEST if e["category_tag"] == category)
+        assert got >= minimum, f"Category {category}: {got} entries, minimum {minimum}"
+
+
+class TestIngestionScript:
+    """Tests for scripts/ingest_credential_patterns.py."""
+
+    def test_ingest_script_is_idempotent(self) -> None:
+        """Running the script twice leaves the dictionary byte-identical.
+
+        First run syncs any missing entries.  Second run must report
+        zero changes and touch no files.
+        """
+        from pathlib import Path
+
+        module = _import_ingest_module()
+        dict_path = Path(module.DICT_PATH)
+        md_path = Path(module.ATTRIBUTION_MD_PATH)
+
+        # First pass (usually already a no-op on disk, but may normalize).
+        rc = module.main([])
+        assert rc == 0
+        dict_snapshot = dict_path.read_bytes()
+        md_snapshot = md_path.read_bytes() if md_path.exists() else b""
+
+        # Second pass must be bit-for-bit identical on disk.
+        rc2 = module.main([])
+        assert rc2 == 0
+        assert dict_path.read_bytes() == dict_snapshot, "Dictionary file changed on second script run — not idempotent"
+        assert md_path.read_bytes() == md_snapshot, "Attribution md changed on second script run — not idempotent"
+
+    def test_all_new_entries_have_required_fields(self) -> None:
+        """Every curated entry must have pattern, score, match_type, tier, subtype."""
+        required = {"pattern", "score", "match_type", "tier", "subtype"}
+        for entry in _CURATED_MANIFEST:
+            missing = required - entry.keys()
+            assert not missing, f"{entry.get('pattern', '?')}: missing fields {missing}"
+            # Also sanity-check field types
+            assert isinstance(entry["pattern"], str)
+            assert isinstance(entry["score"], float)
+            assert entry["match_type"] in {"substring", "word_boundary", "suffix"}
+            assert entry["tier"] in {"definitive", "strong", "contextual"}
+            assert entry["subtype"] in {
+                "API_KEY",
+                "OPAQUE_SECRET",
+                "PRIVATE_KEY",
+                "PASSWORD_HASH",
+            }
+
+    def test_manifest_validation_passes(self) -> None:
+        """validate_manifest() returns zero errors for the current manifest."""
+        module = _import_ingest_module()
+        errors = module.validate_manifest(module.CURATED_ENTRIES)
+        assert errors == [], f"Manifest validation errors: {errors}"
+
+
+class TestDictionaryHealth:
+    """Invariants on the full secret_key_names.json file (existing + net-new)."""
+
+    def test_dictionary_has_no_duplicate_patterns(self) -> None:
+        entries = _load_full_dictionary()
+        patterns = [e["pattern"].lower() for e in entries]
+        duplicates = {p for p in patterns if patterns.count(p) > 1}
+        assert not duplicates, f"Duplicate patterns: {duplicates}"
+
+    def test_dictionary_scores_in_valid_range(self) -> None:
+        entries = _load_full_dictionary()
+        for e in entries:
+            assert 0.0 <= e["score"] <= 1.0, f"{e['pattern']}: score {e['score']} out of [0, 1]"
+
+    def test_dictionary_tiers_valid(self) -> None:
+        entries = _load_full_dictionary()
+        valid = {"definitive", "strong", "contextual"}
+        for e in entries:
+            assert e["tier"] in valid, f"{e['pattern']}: invalid tier {e['tier']!r}"
+
+    def test_dictionary_match_types_valid(self) -> None:
+        entries = _load_full_dictionary()
+        valid = {"substring", "word_boundary", "suffix"}
+        for e in entries:
+            assert e["match_type"] in valid, f"{e['pattern']}: invalid match_type {e['match_type']!r}"
+
+    def test_dictionary_subtypes_valid(self) -> None:
+        entries = _load_full_dictionary()
+        valid = {"API_KEY", "OPAQUE_SECRET", "PRIVATE_KEY", "PASSWORD_HASH"}
+        for e in entries:
+            assert e["subtype"] in valid, f"{e['pattern']}: invalid subtype {e['subtype']!r}"
+
+    def test_dictionary_grew_from_88_baseline(self) -> None:
+        """Sanity guard: Sprint 9 baseline was 88 entries.  We must have
+        grown by at least the hard-minimum 80 net-new."""
+        entries = _load_full_dictionary()
+        assert len(entries) >= 88 + 80, (
+            f"Dictionary has {len(entries)} entries, expected >= 168 (88 baseline + 80 minimum net-new)"
+        )
+
+
+class TestMatchTypeTightening:
+    """Sprint 11 item #4 — ``id_token`` and ``token_secret`` must not fire
+    on substring-containing compound identifiers.
+
+    The pre-Sprint-11 ``match_type: substring`` rule caused the id_token
+    pattern to over-fire on any key whose middle or suffix happened to
+    contain the literal string ``id_token`` (e.g. ``rapid_token`` — the
+    substring ``id_token`` occurs at positions 3–10). Tightening to
+    ``match_type: word_boundary`` requires the pattern to be preceded
+    and followed by a word-break character (``^``, ``_``, ``-``, ``.``,
+    whitespace, or ``$``).
+
+    These tests pin both the JSON-level invariant and the runtime
+    behaviour so neither can silently regress.
+    """
+
+    def _find_entry(self, pattern: str) -> dict:
+        entries = _load_full_dictionary()
+        matches = [e for e in entries if e["pattern"] == pattern]
+        assert len(matches) == 1, f"expected exactly one entry for {pattern!r}, got {len(matches)}"
+        return matches[0]
+
+    def test_id_token_uses_word_boundary_match_type(self) -> None:
+        entry = self._find_entry("id_token")
+        assert entry["match_type"] == "word_boundary", (
+            f"id_token must use word_boundary match_type (was {entry['match_type']!r})"
+        )
+
+    def test_token_secret_uses_word_boundary_match_type(self) -> None:
+        entry = self._find_entry("token_secret")
+        assert entry["match_type"] == "word_boundary", (
+            f"token_secret must use word_boundary match_type (was {entry['match_type']!r})"
+        )
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "id_token",
+            "user_id_token",
+            "id_token_v2",
+            "oauth.id_token",
+            "ID_TOKEN",  # case-insensitive
+        ],
+    )
+    def test_id_token_still_matches_legitimate_keys(self, key: str) -> None:
+        """Positive regression: the tightened pattern must still fire on real id_token columns."""
+        from data_classifier.engines.secret_scanner import _match_key_pattern
+
+        assert _match_key_pattern(key.lower(), "id_token", "word_boundary"), (
+            f"tightened id_token pattern should still match {key!r}"
+        )
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "rapid_token",  # "id_token" at positions 3–10, preceded by "p"
+            "avid_tokens",  # "id_token" at positions 1–8, preceded by "v"
+            "mid_token_v2",  # "id_token" at positions 1–8, preceded by "m"
+            "squid_token",  # "id_token" at positions 3–10, preceded by "u"
+        ],
+    )
+    def test_id_token_does_not_fire_on_compound_substrings(self, key: str) -> None:
+        """Negative regression: the tightened pattern must NOT fire on unrelated compound keys."""
+        from data_classifier.engines.secret_scanner import _match_key_pattern
+
+        assert not _match_key_pattern(key.lower(), "id_token", "word_boundary"), (
+            f"tightened id_token pattern should NOT match {key!r}"
+        )
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "token_secret",
+            "api_token_secret",
+            "token_secret_v2",
+            "oauth.token_secret",
+            "TOKEN_SECRET",
+        ],
+    )
+    def test_token_secret_still_matches_legitimate_keys(self, key: str) -> None:
+        from data_classifier.engines.secret_scanner import _match_key_pattern
+
+        assert _match_key_pattern(key.lower(), "token_secret", "word_boundary"), (
+            f"tightened token_secret pattern should still match {key!r}"
+        )
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "bigtoken_secret",  # "token_secret" at positions 3–14, preceded by "g"
+            "atoken_secrets",  # preceded by "a", suffix "s"
+            "mytoken_secret_v2",  # preceded by "y"
+        ],
+    )
+    def test_token_secret_does_not_fire_on_compound_substrings(self, key: str) -> None:
+        from data_classifier.engines.secret_scanner import _match_key_pattern
+
+        assert not _match_key_pattern(key.lower(), "token_secret", "word_boundary"), (
+            f"tightened token_secret pattern should NOT match {key!r}"
+        )
+
+    def test_secret_scanner_engine_does_not_fire_via_id_token_on_rapid_token_kv(self) -> None:
+        """End-to-end integration regression: the full ``SecretScannerEngine``
+        must NOT attribute any finding on a ``rapid_token=<value>`` KV pair
+        to the ``id_token`` or ``token_secret`` dictionary entries.  This
+        pins the ENGINE-level behavior (not just the ``_match_key_pattern``
+        helper) so a future refactor that changes how ``_score_key_name``
+        consumes ``match_type`` would still be caught — the low-level
+        helper tests above would pass while the engine silently over-fired,
+        which is exactly the failure mode Sprint 11 item #4 was filed to
+        prevent.
+
+        Note: the generic ``token`` dictionary entry may still (correctly)
+        fire on ``rapid_token`` in the ``strong`` tier — that is a
+        separate dictionary question, out of scope for item #4.  This
+        test specifically checks that ``id_token`` / ``token_secret``
+        substring matches on compound keys are NOT the cause of any
+        finding emitted by the scanner.
+        """
+        from data_classifier.core.types import ColumnInput
+        from data_classifier.engines.secret_scanner import SecretScannerEngine
+
+        engine = SecretScannerEngine()
+        engine.startup()
+
+        # Construct a column whose sample values parse into ``rapid_token``
+        # keyed KV pairs — the exact shape that would have over-fired the
+        # pre-tightening id_token pattern in production.  Value is
+        # deliberately high-entropy / long so any engine-level fire would
+        # reach a visibly large composite score.
+        column = ColumnInput(
+            column_name="api_config",
+            column_id="api_config",
+            data_type="STRING",
+            sample_values=[
+                "rapid_token=k8sR9xMp2wLqV3nT7bY5jH1fD4gA6cE",
+                "rapid_token=aB3cD4eF5gH6iJ7kL8mN9oP0qR1sT2uV",
+                "rapid_token=xY9zW8vU7tS6rQ5pO4nM3lK2jI1hG0fE",
+            ],
+        )
+
+        findings = engine.classify_column(column, min_confidence=0.0)
+        # For every finding emitted, assert its evidence string does NOT
+        # cite ``id_token`` or ``token_secret`` as the matched key —
+        # because ``rapid_token`` only has those as interior substrings
+        # and the Sprint 11 tightening moved both to ``word_boundary``.
+        # If a finding's evidence mentions ``key='rapid_token'`` via a
+        # ``token`` (generic) match, that's the existing broad-token
+        # behavior and is allowed here.
+        forbidden_keys = ("'id_token'", "'token_secret'")
+        offenders = [f for f in findings if any(k in (f.evidence or "") for k in forbidden_keys)]
+        assert offenders == [], (
+            f"SecretScannerEngine attributed a rapid_token finding to id_token / "
+            f"token_secret: {[(f.entity_type, f.confidence, f.evidence) for f in offenders]}"
+        )

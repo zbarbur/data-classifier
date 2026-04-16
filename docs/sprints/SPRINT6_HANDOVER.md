@@ -1,5 +1,7 @@
 # Sprint 6 Handover — Hardening + Meta-Classifier Shadow Ship
 
+> **NOTE (2026-04-13):** This document cites F1 numbers measured against the `ai4privacy/pii-masking-300k` corpus, which has since been retired due to license non-compatibility. Historical numbers are preserved as records of what was measured at the time. See `docs/process/LICENSE_AUDIT.md` for context.
+
 > **Date:** 2026-04-12
 > **Theme:** Engine precision hardening, entity split, CI install test, meta-classifier (3 phases, shipped shadow-only)
 > **Branch:** sprint6/main → merged to main
@@ -110,6 +112,137 @@
 2. **~67% of Phase 2 training rows are resampled** (CREDENTIAL/NEGATIVE pools were smaller than 75 unique shards). Session A research said to exclude resampled rows from CI calculations. Phase 2 did not. Q2 experiment queued to re-run the bootstrap with exclusion and validate the +0.25 / 0.058 numbers.
 3. **Phase 2 model predicts PERSON_NAME for canonical email columns.** Training data quality issue. Acceptable because shadow-only. Documented in queue.md.
 4. **DATE_OF_BIRTH / DATE_OF_BIRTH_EU confusion pair.** Per-class F1 on held-out test: DOB = 0.527, DOB_EU = 0.828. Worst confusion pair in the 24-class output space. Q4 experiment queued to measure whether merging the labels improves macro F1.
+
+### Methodology correction — M1 (added Sprint 7, 2026-04-13)
+
+The Sprint 6 headline **"CV macro F1 = 0.916"** is a methodology artifact,
+not a generalization estimate. `scripts/train_meta_classifier.py` uses
+`sklearn.model_selection.StratifiedKFold(n_splits=5)` for best-`C` selection,
+which builds folds row-wise across all 6 training corpora. Every training
+fold therefore contains rows from every corpus, which lets the model learn
+corpus-specific feature fingerprints and reuse them at evaluation time. On
+the *same* data the LOCO evaluator reports **macro F1 = 0.30** — the
+**honest generalization number**.
+
+Primary source: `docs/experiments/meta_classifier/runs/20260412-q3-loco-investigation/result.md`
+(Q3 session A, on `research/meta-classifier`). Key findings from §5a and §6:
+
+- **Regularization sweep on the 13-feature schema:**
+
+  | C | ai4p LOCO F1 | nemo LOCO F1 | mean |
+  |---|---|---|---|
+  | 0.01  | 0.1792 | 0.2159 | 0.1976 |
+  | 0.1   | 0.2254 | 0.3376 | 0.2815 |
+  | **1.0**   | **0.3237** | **0.3617** | **0.3427** |
+  | 10.0  | 0.2678 | 0.3681 | 0.3179 |
+  | 100.0 (prod-selected) | 0.2595 | 0.3579 | **0.3087** |
+
+  The production CV picked **C=100** (worst LOCO) because i.i.d. 5-fold CV
+  rewards corpus fingerprinting — the model that memorizes within-corpus
+  quirks also scores highest on held-out rows from the same corpora.
+
+- **Expected impact of the M1 fix** (`StratifiedKFold → StratifiedGroupKFold`
+  with `groups=[row.corpus for row in dataset]`): honest C-selection picks
+  C≈1, LOCO mean rises from 0.3087 → **~0.3427** (Δ ≈ +0.034). This closes
+  about **6.2%** of the 0.55 gap — a *real* correctness improvement, but
+  **not** a gap collapse.
+
+- **Why the gap mostly stays:** Q3 §6 verdict is **A + C dominate, weak B.**
+  - (A) Inherent to 6-corpus training: only 2 of 6 corpora support a
+    meaningful LOCO holdout; the rest have <2 classes or collapse to
+    <0.14 F1.
+  - (C) Generator-level i.i.d. violation: extended LOCO shows `synthetic`,
+    `gitleaks`, `detect_secrets` holdouts collapse to 0.05–0.13 F1 —
+    each corpus carries its own distribution fingerprint that the model
+    cannot generalize past without more sources or features.
+  - (B) No single feature is doing the leaking. Forward drop-one max
+    Δ = +0.011. A 3-feature drop `{confidence_gap, engines_agreed,
+    heuristic_confidence}` + refit at C=10 recovers +0.13 LOCO, about
+    21% of the gap — real but far from closing it.
+
+**What this means for earlier Sprint 6 claims:**
+
+- The **CV macro F1 = 0.916** headline stands as a CV number but should
+  always be reported alongside LOCO (~0.30) going forward. The CV number
+  measured memorization, not generalization.
+- The **"+0.25 Phase 2 delta" held-out test claim** (80/20 random split)
+  is a separate metric from LOCO and is **not** directly affected by
+  this CV fix — the 80/20 test split is also i.i.d. across corpora, so
+  it has the same corpus-fingerprinting ceiling.
+- Q6 (inverted stage 1, same branch, 2026-04-13) confirms the A+C
+  dominance independently: filtering CREDENTIAL+NEGATIVE rows and
+  retraining on PII-only moves LOCO from 0.250 to 0.266 (+0.016),
+  McNemar p = 0.77. Structural problem, not a label-purity problem.
+
+**Sprint 7 delivery:** M1 is tracked as a P0 bug backlog item
+(`m1-meta-classifier-cv-fix-stratifiedkfold-stratifiedgroupkfold-q3-diagnosis`).
+The code change + retrain + install smoke test updates are deferred to a
+dedicated session, pending visibility into E10's scope
+(`research/e10-gliner-features` is still running locally on
+`../data_classifier-e10` as of 2026-04-13 and has not been pushed, so
+its diff against `scripts/train_meta_classifier.py` is not observable
+from `origin`). The Sprint 7 backlog item's acceptance criteria have
+been updated to reflect the ~0.34 honest target, replacing the original
+"convergence within 0.10" criterion which was based on a queue.md
+summary that did not match Q3's primary numbers.
+
+### Honest baseline correction — E10 (added 2026-04-13)
+
+E10 (`research/e10-gliner-features`, pushed to origin 2026-04-13)
+re-ran the Phase 2 evaluation against the **honest 5-engine live
+baseline** (i.e. with GLiNER enabled in `classify_columns`, instead of
+the 4-engine baseline that Phase 2 used because both
+`build_training_data.py:29` and `evaluate.py:49` set
+`DATA_CLASSIFIER_DISABLE_ML=1`). E10 also widened the meta-classifier
+feature schema from 15 to 20 to add 5 GLiNER-derived features, retrained
+to produce `meta_classifier_v1_e10.pkl`, and ran the same suite of
+evaluations.
+
+**Headline correction to the Sprint 6 numbers above:**
+
+| Metric                              | Sprint 6 claim | E10 honest measurement |
+|-------------------------------------|---------------:|-----------------------:|
+| Held-out delta (meta − live)        |        +0.117  |               +0.093   |
+| Blind-only delta (meta − live)      |    **+0.257**  |           **+0.191**   |
+| Blind CI width (BCa 95%)            |         0.058  |                0.054   |
+| Live blind macro F1                 |         0.652  |                0.735   |
+| Meta blind macro F1                 |         0.909  |                0.925   |
+
+The meta-classifier's blind-only delta drops from **+0.257** to
+**+0.191** under the honest 5-engine baseline. The drop is because
+GLiNER alone (without any meta-classifier) closes most of the gap the
+4-engine framing attributed to the meta-classifier. The remaining
++0.191 is the meta-classifier's real value-add. It still passes the
+ship gate (Δ ≥ +0.02, CI width ≤ 0.06) and is statistically
+significant (McNemar p ≈ 0).
+
+**When citing Phase 2 results to stakeholders going forward, use the
+honest +0.191 number, not the +0.257 number from Sprint 6.** The +0.257
+was real for the 4-engine baseline that Phase 2 measured against, but
+that baseline does not match shipped Sprint 6 production code.
+
+**E10 also produced an unrelated negative result on LOCO:** the GLiNER
+features did NOT close the LOCO gap — they regressed it. LOCO ai4privacy
+went from 0.260 to 0.183 (−0.077), mean LOCO from 0.309 to 0.278.
+Hypothesis: GLiNER's confidence calibration is itself corpus-sensitive,
+so the new features added another corpus-fingerprint dimension instead
+of a corpus-invariant abstraction. Per-class breakdown: PHONE +0.18,
+DATE_OF_BIRTH +0.27, PERSON_NAME +0.10 (GLiNER-native types) but
+CANADIAN_SIN −0.18, DATE_OF_BIRTH_EU −0.14 (GLiNER cannot make
+format-level distinctions). Net macro F1 +0.010 — an unusually brittle
+aggregate.
+
+**Recommendation:** `meta_classifier_v1_e10.pkl` is NOT promoted. The
+artifact lives on `origin/research/e10-gliner-features` as a frozen
+historical archive. The full memo lives at
+`docs/experiments/meta_classifier/runs/20260412-230000-e10-gliner-features/result.md`
+on `research/meta-classifier`.
+
+**Sprint 8 decision (2026-04-13):** meta-classifier work is paused
+pending Sprint 8 credential taxonomy work (Items A + B) and the GLiNER
+tuning research session (`research/gliner-eval`). E4 (bin
+`heuristic_avg_length`) is queued in the meta-classifier research queue
+but is not scheduled.
 
 ## Lessons Learned
 

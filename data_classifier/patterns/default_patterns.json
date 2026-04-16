@@ -2,7 +2,7 @@
   "_metadata": {
     "version": "0.1.0",
     "description": "Curated content-matching patterns for PII, financial, credential, and health data detection. RE2-compatible.",
-    "pattern_count": 56,
+    "pattern_count": 77,
     "last_updated": "2026-04-11",
     "coverage_notes": "Iteration 1: core PII + financial + credential patterns. Benchmarked against Presidio, gitleaks, trufflehog. Service-specific API key patterns from gitleaks audit."
   },
@@ -207,20 +207,26 @@
     },
     {
       "name": "international_phone",
-      "regex": "\\+\\d{1,3}[-.\\s]?\\d{4,14}",
+      "regex": "\\+\\d{1,3}(?:[-.\\s]?\\d{1,10}){1,7}",
       "entity_type": "PHONE",
       "category": "PII",
       "sensitivity": "HIGH",
       "confidence": 0.7,
-      "description": "International phone number with country code",
+      "description": "International phone number with country code, supporting multi-segment mixed-separator formats",
       "validator": "phone_number",
       "examples_match": [
         "+44207946095",
-        "+813123456789"
+        "+813123456789",
+        "+44 20 7946 0958",
+        "+49 30 1234567",
+        "+33 1 42 34 56 78",
+        "+543 51-082.8035",
+        "+51-063-367.7939"
       ],
       "examples_no_match": [
         "+1",
-        "442079460958"
+        "442079460958",
+        "+"
       ],
       "context_words_boost": [
         "phone",
@@ -236,6 +242,48 @@
         "npi",
         "provider",
         "ssn"
+      ]
+    },
+    {
+      "name": "international_phone_local",
+      "regex": "\\b(?:00|0)\\d{1,4}[-.\\s]\\d{2,14}(?:[-.\\s]\\d{1,14}){0,5}\\b",
+      "entity_type": "PHONE",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.6,
+      "description": "Non-plus-prefixed international/local phone \u2014 trunk-0 or international-access-00 prefixed multi-segment format (e.g. UK '020 7946 0958', DE '0911 1234567', Ai4Privacy '076 1352.8018')",
+      "validator": "phone_number",
+      "examples_match": [
+        "076 1352.8018",
+        "020 7946 0958",
+        "0911 1234567",
+        "01881.881.151-3030",
+        "00758-30091",
+        "082-1814520"
+      ],
+      "examples_no_match": [
+        "0",
+        "0.5",
+        "01234",
+        "3.14159",
+        "4111 1111 1111 1111"
+      ],
+      "context_words_boost": [
+        "phone",
+        "tel",
+        "telephone",
+        "call",
+        "mobile",
+        "cell",
+        "fax",
+        "contact"
+      ],
+      "context_words_suppress": [
+        "npi",
+        "provider",
+        "ssn",
+        "iban",
+        "account"
       ]
     },
     {
@@ -295,12 +343,12 @@
     {
       "name": "aws_access_key",
       "regex": "\\bAKIA[0-9A-Z]{16}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "AWS Access Key ID (AKIA prefix + 16 alphanumeric)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -319,7 +367,7 @@
     {
       "name": "aws_secret_key",
       "regex": "\\b[A-Za-z0-9/+=]{40}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.5,
@@ -349,12 +397,12 @@
     {
       "name": "jwt_token",
       "regex": "\\beyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "JSON Web Token (three base64url segments starting with eyJ)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -373,12 +421,12 @@
     {
       "name": "private_key_pem",
       "regex": "-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "PRIVATE_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "PEM-encoded private key header",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -397,12 +445,12 @@
     {
       "name": "generic_api_key",
       "regex": "(?i)(?:api[_-]?key|apikey|api[_-]?secret|api[_-]?token)[\\s]*[=:][\\s]*['\"]?([a-zA-Z0-9_\\-]{20,})['\"]?",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.8,
       "description": "Generic API key assignment pattern (api_key=... or api-key: ...)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -421,12 +469,12 @@
     {
       "name": "connection_string",
       "regex": "(?i)(?:mysql|postgres|postgresql|mongodb|redis|amqp|mssql)://[^\\s]+",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.9,
       "description": "Database connection string with protocol prefix",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -553,7 +601,7 @@
       "entity_type": "HEALTH",
       "category": "Health",
       "sensitivity": "HIGH",
-      "confidence": 0.30,
+      "confidence": 0.3,
       "description": "ICD-10 diagnosis code (letter + 2 digits + decimal + 1-4 digits). Requires decimal portion to reduce FPs on generic codes. Low confidence alone \u2014 needs column-name context.",
       "validator": "",
       "examples_match": [
@@ -571,8 +619,25 @@
         "C99",
         "SKU123"
       ],
-      "context_words_boost": ["diagnosis", "icd", "medical", "clinical", "patient", "condition", "disease"],
-      "context_words_suppress": ["product", "sku", "item", "code", "version", "zone", "model", "serial"]
+      "context_words_boost": [
+        "diagnosis",
+        "icd",
+        "medical",
+        "clinical",
+        "patient",
+        "condition",
+        "disease"
+      ],
+      "context_words_suppress": [
+        "product",
+        "sku",
+        "item",
+        "code",
+        "version",
+        "zone",
+        "model",
+        "serial"
+      ]
     },
     {
       "name": "mac_address",
@@ -594,12 +659,12 @@
     {
       "name": "github_token",
       "regex": "\\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "GitHub personal access token or OAuth token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -618,12 +683,12 @@
     {
       "name": "stripe_secret_key",
       "regex": "\\b(?:sk|rk)_(?:test|live|prod)_[a-zA-Z0-9]{10,99}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Stripe secret or restricted key (sk_live_*, rk_live_*, sk_test_*)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -642,12 +707,12 @@
     {
       "name": "stripe_publishable_key",
       "regex": "\\bpk_(?:test|live|prod)_[a-zA-Z0-9]{10,99}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "HIGH",
       "confidence": 0.95,
       "description": "Stripe publishable key (less sensitive than secret, but still a credential)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -666,12 +731,12 @@
     {
       "name": "slack_bot_token",
       "regex": "\\bxoxb-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Slack bot token (xoxb- prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -690,12 +755,12 @@
     {
       "name": "slack_user_token",
       "regex": "\\bxoxp-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Slack user token (xoxp- prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -714,12 +779,12 @@
     {
       "name": "slack_webhook_url",
       "regex": "https://hooks\\.slack\\.com/services/T[A-Z0-9]{8,}/B[A-Z0-9]{8,}/[a-zA-Z0-9]{24}",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "HIGH",
       "confidence": 0.99,
       "description": "Slack incoming webhook URL",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -738,12 +803,12 @@
     {
       "name": "sendgrid_api_key",
       "regex": "\\bSG\\.[a-zA-Z0-9_\\-]{20,}\\.[a-zA-Z0-9_\\-]{40,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "SendGrid API key (SG. prefix with two base64 segments)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -762,12 +827,12 @@
     {
       "name": "twilio_api_key",
       "regex": "\\bSK[0-9a-fA-F]{32}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Twilio API key (SK prefix + 32 hex chars)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -786,12 +851,12 @@
     {
       "name": "mailgun_api_key",
       "regex": "\\bkey-[a-f0-9]{32}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Mailgun API key (key- prefix + 32 hex chars)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -810,12 +875,12 @@
     {
       "name": "google_api_key",
       "regex": "\\bAIza[0-9A-Za-z\\-_]{35}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Google API key (AIza prefix + 35 chars)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -834,12 +899,12 @@
     {
       "name": "openai_api_key",
       "regex": "\\bsk-proj-[a-zA-Z0-9\\-_]{80,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "OpenAI project API key (sk-proj- prefix, 80+ chars)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -858,12 +923,12 @@
     {
       "name": "gitlab_pat",
       "regex": "\\bglpat-[0-9a-zA-Z_\\-]{20}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "GitLab personal access token (glpat- prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -882,12 +947,12 @@
     {
       "name": "shopify_access_token",
       "regex": "\\bshp(?:at|ca|pa|ss)_[a-fA-F0-9]{32}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.99,
       "description": "Shopify access token (shpat_, shpca_, shppa_, shpss_ prefix + 32 hex)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -906,12 +971,12 @@
     {
       "name": "databricks_token",
       "regex": "\\bdapi[a-h0-9]{32}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Databricks personal access token (dapi prefix + 32 hex-like chars)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [
@@ -1131,11 +1196,11 @@
     {
       "name": "dob_european",
       "regex": "\\b(0[1-9]|[12]\\d|3[01])[/.](0[1-9]|1[0-2])[/.](19|20)\\d{2}\\b",
-      "entity_type": "DATE_OF_BIRTH_EU",
+      "entity_type": "DATE_OF_BIRTH",
       "category": "PII",
       "sensitivity": "HIGH",
       "confidence": 0.6,
-      "description": "Date of birth European format DD/MM/YYYY or DD.MM.YYYY. Ambiguous cases like 04/03/1990 will also match the US date_of_birth_format pattern, producing both DATE_OF_BIRTH and DATE_OF_BIRTH_EU findings for downstream region-based disambiguation.",
+      "description": "Date of birth European format DD/MM/YYYY or DD.MM.YYYY. Sprint 12 retired the separate DATE_OF_BIRTH_EU subtype — format does not indicate jurisdiction, and GDPR / CCPA / HIPAA treat dates of birth as PII regardless of format. Ambiguous cases (day<=12) also match the US date_of_birth_format pattern; both findings collapse to DATE_OF_BIRTH.",
       "validator": "",
       "examples_match": [
         "15/03/1985",
@@ -1221,11 +1286,12 @@
       "category": "Financial",
       "sensitivity": "HIGH",
       "confidence": 0.9,
-      "description": "Bitcoin address (P2PKH/P2SH/Bech32)",
-      "validator": "",
+      "description": "Bitcoin address (P2PKH/P2SH/Bech32, checksum-verified)",
+      "validator": "bitcoin_address",
       "examples_match": [
         "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
-        "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"
+        "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy",
+        "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"
       ],
       "examples_no_match": [
         "1BvB",
@@ -1240,7 +1306,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.9,
       "description": "Ethereum/EVM address",
-      "validator": "",
+      "validator": "ethereum_address",
       "examples_match": [
         "0x32Be343B94f860124dC4fEe278FDCBD38C102D88",
         "0xdAC17F958D2ee523a2206206994597C13D831ec7"
@@ -1322,12 +1388,12 @@
     {
       "name": "discord_bot_token",
       "regex": "[MN][A-Za-z0-9]{23,}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{27,}",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Discord bot token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Fw4TIBQeD2gUID1vFx4fIxcgC2sUMDludB0yAiMFIHQbGBkeHxwdEhMQERYXFBUKCwgJDg8MDQIDADs="
       ],
@@ -1350,12 +1416,12 @@
     {
       "name": "npm_token",
       "regex": "\\bnpm_[A-Za-z0-9]{36}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "npm access token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:NCo3BTsYOR4/HD0SMxAxFjcUNQorCCkOLwwtAiMAamtoaW5vbG1iYw=="
       ],
@@ -1378,12 +1444,12 @@
     {
       "name": "hashicorp_vault_token",
       "regex": "\\bhvs\\.[A-Za-z0-9_-]{24,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "HashiCorp Vault token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:MiwpdBkbHwkTEBQyAw4MMxUNFDAWDggxFzAfLg=="
       ],
@@ -1406,12 +1472,12 @@
     {
       "name": "pulumi_access_token",
       "regex": "\\bpul-[a-f0-9]{40}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Pulumi access token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Ki82dzs4OT4/PGtoaW5vbG1iY2o7ODk+PzxraGlub2xtYmNqOzg5Pj88a2g="
       ],
@@ -1434,12 +1500,12 @@
     {
       "name": "digitalocean_pat",
       "regex": "\\bdop_v1_[a-f0-9]{64}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "DigitalOcean Personal Access Token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PjUqBSxrBTs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -1462,12 +1528,12 @@
     {
       "name": "digitalocean_oauth_token",
       "regex": "\\bdoo_v1_[a-f0-9]{64}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "DigitalOcean OAuth access token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PjU1BSxrBTg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg="
       ],
@@ -1490,12 +1556,12 @@
     {
       "name": "azure_storage_account_key",
       "regex": "AccountKey=[A-Za-z0-9+/]{86}==",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Azure Storage Account key (AccountKey= connection string fragment)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Gzk5NS80LhE/I2cbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbG2dn"
       ],
@@ -1517,12 +1583,12 @@
     {
       "name": "cloudflare_api_token",
       "regex": "\\bv1\\.0-[a-f0-9]{40}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Cloudflare API token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:LGt0anc5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5"
       ],
@@ -1544,12 +1610,12 @@
     {
       "name": "huggingface_token",
       "regex": "\\bhf_[A-Za-z0-9]{20,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Hugging Face API token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:MjwFHh4eHh4eHh4eHh4eHh4eHh4eHh4="
       ],
@@ -1571,12 +1637,12 @@
     {
       "name": "sentry_auth_token",
       "regex": "\\bsntrys_[A-Za-z0-9]{32,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Sentry auth token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KTQuKCMpBR8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f"
       ],
@@ -1598,12 +1664,12 @@
     {
       "name": "supabase_service_key",
       "regex": "\\bsbp_[A-Za-z0-9]{40,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Supabase service role / personal access token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KTgqBTw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw8PDw="
       ],
@@ -1625,12 +1691,12 @@
     {
       "name": "terraform_cloud_token",
       "regex": "\\batlasv1\\.[A-Za-z0-9]{24,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Terraform Cloud / HCP Terraform API token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Oy42Oyksa3Q9PT09PT09PT09PT09PT09PT09PT09PT0="
       ],
@@ -1652,12 +1718,12 @@
     {
       "name": "vercel_api_token",
       "regex": "\\bvercel_[A-Za-z0-9]{24,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Vercel API token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:LD8oOT82BRISEhISEhISEhISEhISEhISEhISEhISEg=="
       ],
@@ -1679,12 +1745,12 @@
     {
       "name": "linear_api_key",
       "regex": "\\blin_api_[A-Za-z0-9]{40,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Linear API key",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:NjM0BTsqMwUzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMz"
       ],
@@ -1706,12 +1772,12 @@
     {
       "name": "netlify_pat",
       "regex": "\\bnfp_[A-Za-z0-9]{40,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Netlify Personal Access Token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:NDwqBRAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBA="
       ],
@@ -1733,12 +1799,12 @@
     {
       "name": "flyio_api_token",
       "regex": "\\bfo1_[A-Za-z0-9]{40,}\\b",
-      "entity_type": "CREDENTIAL",
+      "entity_type": "API_KEY",
       "category": "Credential",
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Fly.io API token",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PDVrBTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="
       ],
@@ -1755,6 +1821,114 @@
         "sample",
         "your_fly_token_here",
         "insert_key_here"
+      ]
+    },
+    {
+      "name": "random_password",
+      "regex": "\\S{4,64}",
+      "entity_type": "OPAQUE_SECRET",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.6,
+      "description": "Column-name-gated random password: short mixed-class string in a password/secret column. Emits OPAQUE_SECRET \u2014 it's a shape detector (length + char-class diversity) not a specific prefix/format match, so the subtype is 'opaque' rather than API_KEY/PASSWORD_HASH.",
+      "validator": "random_password",
+      "requires_column_hint": true,
+      "column_hint_keywords": [
+        "password",
+        "passwd",
+        "passphrase",
+        "passcode",
+        "secret",
+        "pwd",
+        "pass_code",
+        "user_password",
+        "admin_password"
+      ],
+      "examples_match": [
+        "P@ssw0rd!",
+        "Tr0ub4dor&3"
+      ],
+      "examples_no_match": [
+        "",
+        "   ",
+        "abc"
+      ],
+      "stopwords": [
+        "changeme",
+        "password",
+        "12345678",
+        "qwerty",
+        "letmein",
+        "test"
+      ]
+    },
+    {
+      "name": "bcrypt_hash",
+      "regex": "\\$2[aby]\\$[0-9]{2}\\$[A-Za-z0-9./]{53}",
+      "entity_type": "PASSWORD_HASH",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.99,
+      "description": "bcrypt password hash ($2a$/$2b$/$2y$ prefix, cost + 22-char salt + 31-char hash).",
+      "validator": "not_placeholder_credential",
+      "examples_match": [
+        "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+        "$2b$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW"
+      ],
+      "examples_no_match": [
+        "abcdef1234567890",
+        "plaintext"
+      ]
+    },
+    {
+      "name": "argon2_hash",
+      "regex": "\\$argon2(?:id|i|d)\\$v=[0-9]+\\$m=[0-9]+,t=[0-9]+,p=[0-9]+\\$[A-Za-z0-9+/]+\\$[A-Za-z0-9+/]+",
+      "entity_type": "PASSWORD_HASH",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.99,
+      "description": "Argon2 password hash ($argon2id$, $argon2i$, $argon2d$ prefix + version/params/salt/hash segments).",
+      "validator": "not_placeholder_credential",
+      "examples_match": [
+        "$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
+      ],
+      "examples_no_match": [
+        "argon2_without_prefix",
+        "$2a$10$abc"
+      ]
+    },
+    {
+      "name": "scrypt_hash",
+      "regex": "\\$scrypt\\$(?:ln=[0-9]+,r=[0-9]+,p=[0-9]+)?\\$[A-Za-z0-9+/]+\\$[A-Za-z0-9+/]+",
+      "entity_type": "PASSWORD_HASH",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.99,
+      "description": "scrypt password hash ($scrypt$ prefix with optional params + salt + hash).",
+      "validator": "not_placeholder_credential",
+      "examples_match": [
+        "$scrypt$ln=16,r=8,p=1$c29tZXNhbHQ$aGFzaGVkdmFsdWU"
+      ],
+      "examples_no_match": [
+        "scrypt_raw_value"
+      ]
+    },
+    {
+      "name": "shacrypt_hash",
+      "regex": "\\$(?:5|6)\\$(?:rounds=[0-9]+\\$)?[A-Za-z0-9./]{1,16}\\$[A-Za-z0-9./]+",
+      "entity_type": "PASSWORD_HASH",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.99,
+      "description": "SHA-256 ($5$) or SHA-512 ($6$) crypt password hash (glibc/Linux shadow format).",
+      "validator": "not_placeholder_credential",
+      "examples_match": [
+        "$6$rounds=5000$saltstring$0J6J2HRZp0vzjvNhe7kwYJrRJvXuyxXdQH.CnyRmH4cLdlR.aO8xvsRlvFbkQjy8HCM1e9kc3Jl0gTcMrDd0V1",
+        "$5$saltstring$5B8vYYiY.CVt1RlTTf8KbXBH3hsxY/GNooZaBBGWEc5"
+      ],
+      "examples_no_match": [
+        "abcdef1234567890abcdef1234567890",
+        "$2a$10$something"
       ]
     }
   ]

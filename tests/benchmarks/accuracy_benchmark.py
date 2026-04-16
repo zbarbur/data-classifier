@@ -546,7 +546,12 @@ def print_report(
         print()  # noqa: T201
 
 
-if __name__ == "__main__":
+def _build_parser() -> argparse.ArgumentParser:
+    """Construct the accuracy_benchmark CLI argparser.
+
+    Exposed as a helper so tests can inspect the ``--corpus`` choices
+    without invoking the full benchmark pipeline (which loads ML models).
+    """
     parser = argparse.ArgumentParser(description="Run accuracy benchmark")
     parser.add_argument("--samples", type=int, default=100, help="Samples per entity type")
     parser.add_argument("--verbose", action="store_true", help="Include per-sample analysis")
@@ -554,7 +559,7 @@ if __name__ == "__main__":
         "--corpus",
         type=str,
         default="synthetic",
-        choices=["synthetic", "ai4privacy", "nemotron", "all"],
+        choices=["synthetic", "nemotron", "gretel_en", "gretel_finance", "all"],
         help="Corpus source to use (default: synthetic)",
     )
     parser.add_argument("--max-rows", type=int, default=500, help="Max rows for real-world corpora")
@@ -563,7 +568,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Use generic column names (col_0, col_1, ...) to test sample-value-only classification",
     )
-    args = parser.parse_args()
+    return parser
+
+
+if __name__ == "__main__":
+    args = _build_parser().parse_args()
 
     corpus_source = args.corpus
 

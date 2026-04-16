@@ -8,7 +8,7 @@ report.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 
 BENCHMARK_HISTORY_SCHEMA_VERSION = 1
 
@@ -17,7 +17,7 @@ BENCHMARK_HISTORY_SCHEMA_VERSION = 1
 class CorpusResult:
     """Accuracy metrics for one (corpus, mode) benchmark run."""
 
-    corpus: str  # "nemotron" | "ai4privacy"
+    corpus: str  # "nemotron" | "gretel_en" | ...  (Sprint 9 retired a legacy corpus)
     mode: str  # "named" | "blind"
     macro_f1: float
     micro_f1: float | None = None
@@ -59,18 +59,55 @@ def to_dict(sb: SprintBenchmark) -> dict:
     return asdict(sb)
 
 
+def _filter_known_fields(dc_type, payload: dict) -> dict:
+    """Return a dict containing only keys that match dataclass fields.
+
+    Older/ad-hoc snapshots may carry extra keys (e.g. ``n_columns``,
+    ``method``) that the canonical schema doesn't know about. Filtering
+    them out keeps the loader resilient across schema drift instead of
+    raising ``TypeError: unexpected keyword argument``.
+    """
+    known = {f.name for f in fields(dc_type)}
+    return {k: v for k, v in payload.items() if k in known}
+
+
 def from_dict(data: dict) -> SprintBenchmark:
-    """Load a benchmark snapshot from dict, validating schema version."""
+    """Load a benchmark snapshot from dict, validating schema version.
+
+    Extra keys not present in the dataclass schema are silently ignored
+    so that ad-hoc sprint snapshots (e.g. the Sprint 8 retro-fit) can
+    still be consumed by the consolidated report generator.
+    """
     version = data.get("schema_version", 0)
     if version != BENCHMARK_HISTORY_SCHEMA_VERSION:
         raise ValueError(
             f"benchmark history schema version mismatch: got {version}, expected {BENCHMARK_HISTORY_SCHEMA_VERSION}"
         )
+    perf_payload = data.get("perf")
+    perf_obj: PerfResult | None = None
+    if perf_payload:
+        filtered_perf = _filter_known_fields(PerfResult, perf_payload)
+        # ``total_p50_ms`` is the only required perf field; if it's missing
+        # (as in the Sprint 8 ad-hoc snapshot which used
+        # ``full_cascade_p50_ms``), fall back to a known alternate key so
+        # the perf block still loads.
+        if "total_p50_ms" not in filtered_perf:
+            for alt in ("full_cascade_p50_ms", "total_ms", "p50_ms"):
+                if alt in perf_payload:
+                    filtered_perf["total_p50_ms"] = perf_payload[alt]
+                    break
+        if "per_column_p50_ms" not in filtered_perf:
+            for alt in ("ms_per_col_p50", "per_col_p50_ms"):
+                if alt in perf_payload:
+                    filtered_perf["per_column_p50_ms"] = perf_payload[alt]
+                    break
+        if "total_p50_ms" in filtered_perf:
+            perf_obj = PerfResult(**filtered_perf)
     return SprintBenchmark(
         sprint=data["sprint"],
         date=data["date"],
         git_sha=data["git_sha"],
-        accuracy=[CorpusResult(**r) for r in data.get("accuracy", [])],
-        perf=PerfResult(**data["perf"]) if data.get("perf") else None,
+        accuracy=[CorpusResult(**_filter_known_fields(CorpusResult, r)) for r in data.get("accuracy", [])],
+        perf=perf_obj,
         note=data.get("note"),
     )
