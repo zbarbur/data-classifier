@@ -1,3 +1,7 @@
+import os
+
+import pytest
+
 from data_classifier import load_profile
 from data_classifier.core.types import ColumnInput
 from data_classifier.engines.column_name_engine import ColumnNameEngine
@@ -95,10 +99,8 @@ def test_meta_classifier_shadow_suppressed_on_heterogeneous():
 
 def test_meta_classifier_shadow_emitted_on_structured_single():
     """Structured single columns preserve Sprint 11 behavior — shadow still fires."""
-    import os
-
     if os.environ.get("DATA_CLASSIFIER_DISABLE_META", "").lower() in ("1", "true", "yes"):
-        return  # skip when meta-classifier is disabled in CI matrix
+        pytest.skip("Meta-classifier disabled in CI matrix")
     emitter, events = _collect_events()
     orch = _orchestrator(emitter)
     column = ColumnInput(
@@ -109,3 +111,35 @@ def test_meta_classifier_shadow_emitted_on_structured_single():
     orch.classify_column(column, load_profile("standard"))
     meta_events = [e for e in events if isinstance(e, MetaClassifierEvent)]
     assert len(meta_events) == 1
+
+
+def test_shape_detection_failure_degrades_gracefully(monkeypatch):
+    """Defensive guard: if detect_column_shape raises, orchestrator returns a
+    valid classification result without emitting ColumnShapeEvent. Preserves
+    Sprint 11 behavior as the safe fallback.
+    """
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated shape detection failure")
+
+    # Patch the detect_column_shape imported into the orchestrator module,
+    # not the one in shape_detector (the orchestrator imports a bound name).
+    monkeypatch.setattr(
+        "data_classifier.orchestrator.orchestrator.detect_column_shape",
+        _boom,
+    )
+
+    emitter, events = _collect_events()
+    orch = _orchestrator(emitter)
+    column = ColumnInput(
+        column_id="col_email",
+        column_name="email",
+        sample_values=["alice@ex.com", "bob@ex.org"] * 5,
+    )
+    result = orch.classify_column(column, load_profile("standard"))
+
+    # Classification itself must still succeed
+    assert isinstance(result, list)
+    # ColumnShapeEvent must NOT be emitted (shape_detection is None)
+    shape_events = [e for e in events if isinstance(e, ColumnShapeEvent)]
+    assert len(shape_events) == 0

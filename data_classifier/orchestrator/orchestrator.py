@@ -318,7 +318,7 @@ class Orchestrator:
         # shapes per the Sprint 12 safety audit §3).
         try:
             shape_detection = detect_column_shape(column, engine_findings)
-        except Exception:  # pragma: no cover — defensive
+        except Exception:
             logger.debug("Shape detection failed; defaulting to structured_single behavior", exc_info=True)
             shape_detection = None
 
@@ -378,8 +378,8 @@ class Orchestrator:
         # (see docs/research/meta_classifier/sprint12_safety_audit.md §3).
         # Skip shadow emission on those branches to stop feeding wrong-
         # class predictions into downstream telemetry.
-        shape_allows_shadow = shape_detection is None or shape_detection.shape == "structured_single"
-        if self._meta_classifier is not None and shape_allows_shadow:
+        should_emit_shadow = shape_detection is None or shape_detection.shape == "structured_single"
+        if self._meta_classifier is not None and should_emit_shadow:
             try:
                 shadow = self._meta_classifier.predict_shadow(
                     result,
