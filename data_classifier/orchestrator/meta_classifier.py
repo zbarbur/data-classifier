@@ -339,7 +339,6 @@ class MetaClassifier:
 
         values = sample_values or []
         distinct = _distinct_ratio(values)
-        avg_len = _avg_length_normalized(values)
         # Sprint 11 Phase 7 + Sprint 12 Item #1 + Sprint 12 Item #2
         # features, wired into shadow inference here so the training row
         # (tests/benchmarks/meta_classifier/extract_features.py) and
@@ -350,10 +349,13 @@ class MetaClassifier:
         # The parity tests in tests/test_meta_classifier_inference_parity.py
         # pin this contract.
         from data_classifier.engines.heuristic_engine import (
+            compute_avg_length_normalized,
             compute_dictionary_name_match_ratio,
             compute_dictionary_word_ratio,
             compute_placeholder_credential_rejection_ratio,
         )
+
+        avg_len = compute_avg_length_normalized(values)
 
         dict_ratio = compute_dictionary_word_ratio(values)
         rejection_ratio = compute_placeholder_credential_rejection_ratio(values)
@@ -431,19 +433,6 @@ def _distinct_ratio(values: list[str]) -> float:
     from data_classifier.engines.heuristic_engine import compute_cardinality_ratio
 
     return compute_cardinality_ratio(values)
-
-
-def _avg_length_normalized(values: list[str]) -> float:
-    if not values:
-        return 0.0
-    total = sum(len(v) for v in values)
-    mean = total / len(values)
-    normalized = mean / 100.0
-    if normalized < 0.0:
-        return 0.0
-    if normalized > 1.0:
-        return 1.0
-    return normalized
 
 
 # ── Pure feature extraction ─────────────────────────────────────────────────
