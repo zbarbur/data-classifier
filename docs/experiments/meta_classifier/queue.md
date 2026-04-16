@@ -310,7 +310,7 @@ LOCO F1 ≥ 0.55 vs current 0.27-0.36).
 
 ### Q4 — DOB / DOB-EU merge experiment
 
-**Status:** ⏸ SUPERSEDED — validated by Sprint 11 Phase 10 A/B; DATE_OF_BIRTH_EU being retired in Sprint 12
+**Status:** ✅ SHIPPED — Sprint 12 retired `DATE_OF_BIRTH_EU` (commit `2e4a9d7` + `cb756f7` + `e6b8056`, backlog item `sprint12-retire-date-of-birth-eu-subtype`, merged via PR #15 into main `b5a64d0`). v3-compat alias preserves backward compatibility for external consumers referencing the old name.
 **Priority:** P2
 **Estimated time:** 30-60 min
 **Why it matters:** Phase 2's worst per-class F1 is `DATE_OF_BIRTH = 0.527`
@@ -1083,6 +1083,21 @@ backlog item promotes v1_e10 to production. If outcome C
 ### E11 — Gated architecture — tier-1 pattern-hit routing × model class ablation
 
 **Status:** ✅ complete (see `runs/20260414-e11-gated-tier1-ablation/result.md`) — **Yellow** verdict: gate+LR beats flat LR by +0.067 CV / +0.035 LOCO; gate+HGB is strictly worse than flat LR on both metrics
+
+> **Sprint 11 + 12 post-merge annotation (2026-04-16):** Sprint 11
+> item 11-F (tier-1 credential pattern-hit gate, commit `bb1644f`)
+> shipped this as observability-only precursor. Sprint 12's Phase 5b
+> safety audit on the proposed flat-softmax directive promotion
+> returned RED on heterogeneous columns; the full gated-architecture
+> `q8-continuation` backlog item was retired as "wrong framing"
+> during Sprint 12 close-out (see multi-label philosophy memo at
+> `docs/research/multi_label_philosophy.md` §5). Replaced by Sprint 13
+> column-shape router (backlog/`sprint13-column-shape-router.yaml`
+> + B + C) — heuristic routing to existing tools, not specialist
+> stage-2 classifiers. Per multi-label philosophy §3, specialists
+> inside router branches (e.g., Q8 below for the opaque_tokens
+> branch) remain viable Sprint 14+ candidates; specialists-as-
+> architecture is what was retired.
 **Priority:** P0 — answers whether the architectural axis has more leverage than the feature-engineering axis on the gated-classifier direction (learning memo §5)
 **Estimated time:** 4-6 research hours (~30 min gate preliminary + ~1 hour per model training + 1 hour writeup)
 **Contract note:** does NOT exercise the feature-schema exception — no changes to `orchestrator/meta_classifier.py` FEATURE_NAMES or `extract_features`. Uses the existing 15-feature schema unchanged.
@@ -1468,7 +1483,24 @@ next decision:
 
 ### Q8 — Opaque-secret specialized meta-classifier
 
-**Status:** 🟡 queued — Sprint 8 prerequisite satisfied; scope partially subsumed by Sprint 10 gated-architecture item
+**Status:** 🟡 queued — Sprint 14+ specialist-ML candidate under multi-label philosophy §3 (reframed 2026-04-16 post-Sprint-12)
+
+> **Sprint 12 reframe (2026-04-16):** The Sprint 10 gated-architecture
+> item that was said to "partially subsume" Q8 was itself retired
+> during Sprint 12 close-out as wrong framing (softmax is wrong
+> primitive at column scope — see multi-label philosophy memo at
+> `docs/research/multi_label_philosophy.md` §5). Under the new
+> framing, Q8 becomes the concrete specialist-classifier candidate
+> for the `opaque_tokens` router branch: "does a trained credential-
+> subtype classifier (API_KEY / PRIVATE_KEY / PASSWORD_HASH /
+> OPAQUE_SECRET / NOT_SECRET, single-label per value) outperform the
+> heuristic `secret_scanner + entropy` baseline?" Sprint 13 Item C
+> (backlog/`sprint13-opaque-token-branch-tuning.yaml`) is the
+> heuristic-baseline prerequisite — tunes the current non-ML tools
+> first. Q8 becomes the Sprint 14+ specialist-ML follow-up, gated on
+> the three multi-label philosophy §3 criteria (sufficient training
+> data, narrow-enough task for valid single-label, measurably better
+> than the tuned baseline).
 **Priority:** P2
 **Estimated time:** 2-3 hours
 **Depends on:** Sprint 8 production candidate A (CREDENTIAL split) — ✅ landed
