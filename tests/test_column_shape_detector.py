@@ -73,3 +73,44 @@ def test_empty_sample_values_defaults_to_structured_single():
     result = detect_column_shape(column, {})
     assert result.shape == "structured_single"
     assert result.avg_len_normalized == 0.0
+
+
+def test_short_values_multiple_entities_routes_to_opaque():
+    """Regression test: structured_single requires BOTH short values AND <= 1 entity.
+    When the cascade finds multiple entities on short values, the column must fall
+    through the structured check and land in opaque_tokens (assuming low dict_word_ratio).
+    """
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    column = ColumnInput(
+        column_id="col_1",
+        column_name="token",
+        sample_values=["a1b2c3d4", "e5f6g7h8", "i9j0k1l2"] * 4,
+    )
+    engine_findings = {
+        "regex": [_finding("EMAIL"), _finding("PHONE")],
+    }
+    result = detect_column_shape(column, engine_findings)
+    assert result.avg_len_normalized < 0.3
+    assert result.n_cascade_entities == 2
+    assert result.dict_word_ratio < 0.1
+    assert result.shape == "opaque_tokens"
+
+
+def test_long_values_zero_entities_opaque_tokens():
+    """Regression test: long values with no cascade entities still route correctly.
+    Covers the case where a base64-like column has no regex matches but its values
+    are long. Must land in opaque_tokens, not structured_single.
+    """
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    column = ColumnInput(
+        column_id="col_1",
+        column_name="hash",
+        sample_values=["a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0" * 2] * 10,
+    )
+    result = detect_column_shape(column, {})
+    assert result.avg_len_normalized >= 0.3
+    assert result.n_cascade_entities == 0
+    assert result.dict_word_ratio < 0.1
+    assert result.shape == "opaque_tokens"

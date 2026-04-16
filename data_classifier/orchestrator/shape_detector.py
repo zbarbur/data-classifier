@@ -11,13 +11,14 @@ to:
   opaque_tokens           — base64 payloads, JWTs, hashes. No dictionary
                             words. Item C handles.
 
-Routing is deterministic and auditable: three content signals
-(``avg_len_normalized``, ``dictionary_word_ratio``,
-``cardinality_ratio``) plus the cascade's entity-type count, with a
-narrow column-name tiebreaker band for ambiguous middle-ground cases
-(the tiebreaker lands in Sprint 13 Item A Task 4 — this module starts
-content-signal-only). Thresholds come from the Sprint 12 safety audit
-§6 evidence (see ``docs/research/meta_classifier/sprint12_safety_audit.md``).
+Routing is deterministic and auditable: two content signals
+(``avg_len_normalized``, ``dictionary_word_ratio``) plus the cascade's
+entity-type count, with a narrow column-name tiebreaker band for ambiguous
+middle-ground cases (the tiebreaker lands in Sprint 13 Item A Task 4 — this
+module starts content-signal-only). ``cardinality_ratio`` is carried for
+event emission only and is not consulted in the routing decision.
+Thresholds come from the Sprint 12 safety audit §6 evidence
+(see ``docs/research/meta_classifier/sprint12_safety_audit.md``).
 """
 
 from __future__ import annotations
@@ -46,7 +47,8 @@ _DICT_WORD_HETERO_MIN: float = 0.1
 class ShapeDetection:
     """Result of ``detect_column_shape``. Carries the decision and the
     signals that drove it so a ``ColumnShapeEvent`` can be built
-    without recomputing.
+    without recomputing. Frozen so instances are safe to cache and pass
+    across coroutine boundaries without defensive copying.
     """
 
     shape: Shape
