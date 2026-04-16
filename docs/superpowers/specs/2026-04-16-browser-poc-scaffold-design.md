@@ -66,6 +66,7 @@ data_classifier/clients/browser/
 │   ├── validators.js             # Credential-touching validators only
 │   ├── entropy.js                # shannon + charset-aware relative entropy
 │   ├── kv-parsers.js             # JSON / env / code-assignment / quoted-KV
+│   ├── redaction.js              # strategies; right-to-left span replacement
 │   ├── decoder.js                # xor:/b64: decoder (mirror of _decoder.py)
 │   └── generated/                # .gitignored; generator output
 │       ├── patterns.js
@@ -96,19 +97,38 @@ Python wheel excludes `data_classifier/clients/browser/**` via
 ### Main thread — `scanner.js`
 
 ```
-scan(text, { timeoutMs = 100, failMode = 'open' }) → Promise<Finding[]>
-    ↓
-pool.run({ text })            // Promise, raced against timeoutMs
-    ↓
-worker.js → scanner-core.scanText(text) → postMessage(findings)
+scan(text, opts) → Promise<{
+  findings: Finding[],
+  redactedText: string,
+  scannedMs: number
+}>
+
+opts: {
+  timeoutMs?: 100,              // scan kill budget
+  failMode?: 'open' | 'closed', // on timeout; default 'open'
+  redactStrategy?: 'type-label' // default; see "Redaction"
+                | 'asterisk'
+                | 'placeholder'
+                | 'none',
+  verbose?: false,              // include `details` on findings
+  dangerouslyIncludeRawValues?: false,  // dev-only; see warning
+  categoryFilter?: ['Credential']       // default Credential-only in v1
+}
+
+  ↓
+pool.run({ text, opts })        // Promise, raced against timeoutMs
+  ↓
+worker.js → scanner-core.scanText(text, opts) → postMessage({findings, redactedText})
 ```
 
 On timeout:
 
 - `pool.terminate(worker)` kills the worker (ReDoS defense).
 - Pool respawns lazily on next request.
-- Result is `[]` if `failMode === 'open'` (default), or a
-  `{code: 'TIMEOUT'}` rejection if `'closed'`.
+- Result is `{findings: [], redactedText: text, scannedMs: N}` if
+  `failMode === 'open'` (default), or a `{code: 'TIMEOUT'}` rejection
+  if `'closed'`. Note fail-open returns the original text unmodified —
+  we cannot redact what we did not scan.
 
 ### Worker — `scanner-core.js`
 
@@ -134,24 +154,77 @@ sample sets).
 
 ```js
 {
-  entity_type: string,     // e.g. "API_KEY", "OPAQUE_SECRET"
+  entity_type: string,            // e.g. "API_KEY", "OPAQUE_SECRET"
   category: "Credential",
   sensitivity: "CRITICAL",
-  confidence: number,      // 0.0-1.0
+  confidence: number,             // 0.0-1.0
   engine: "regex" | "secret_scanner",
-  evidence: string,        // human-readable reason
-  match: {                 // regex-pass only
-    value: string,         // masked per entity_type
-    start: number,
+  evidence: string,               // human-readable summary
+
+  match: {                        // always present
+    valueMasked: string,          // e.g. "gh***x9"
+    valueRaw?: string,            // only if dangerouslyIncludeRawValues
+    start: number,                // byte offset in original text
     end: number
   },
-  kv: {                    // secret-scanner-pass only
+
+  kv?: {                          // secret-scanner-pass only
     key: string,
-    valueMasked: string,
     tier: "definitive" | "strong" | "contextual"
+  },
+
+  details?: {                     // only if verbose === true
+    pattern: string,              // e.g. "github_pat_token"
+    validator: "passed" | "failed" | "stubbed" | "none",
+    entropy?: {
+      shannon: number,
+      relative: number,
+      charset: "hex" | "base64" | "alphanumeric" | "full",
+      score: number
+    },
+    contextBoostedBy?: string[],
+    contextSuppressedBy?: string[]
   }
 }
 ```
+
+### Redaction
+
+`redactedText` is always returned. Strategies (default `'type-label'`):
+
+| Strategy | Example replacement for `ghp_abc...xyz` |
+|---|---|
+| `'type-label'` | `[REDACTED:API_KEY]` |
+| `'asterisk'` | `****************` (length-preserving) |
+| `'placeholder'` | `«secret»` |
+| `'none'` | returned unchanged; caller redacts from offsets |
+
+For secret-scanner findings whose match is the *value* of a KV pair
+(e.g. `AUTH_TOKEN=xyz`), redaction replaces only the value span, not
+the key. The key remains visible so the user understands what was
+hidden.
+
+Offsets always refer to the original `text` argument. The
+`redactedText` is computed by replacing match spans right-to-left so
+earlier offsets remain valid throughout the substitution pass.
+
+### Raw-value escape hatch — `dangerouslyIncludeRawValues`
+
+`scan(text, { dangerouslyIncludeRawValues: true })` populates
+`match.valueRaw` with the original (unmasked) value.
+
+**Never enable in production.** The README carries a prominent
+warning. Use cases: local fixture authoring, differential-test
+diagnostics, pattern debugging. Any telemetry or log pipeline that
+could receive a finding from this code path must strip `valueRaw`
+before emit.
+
+### Verbose mode — `details`
+
+`scan(text, { verbose: true })` attaches a `details` block to each
+finding. Adds ~100-200 bytes per finding; useful for the tester
+page, differential-test failure diagnostics, and pattern-author
+debugging. Default off.
 
 ## Narrow scope decisions (approved 2026-04-16)
 
@@ -173,7 +246,14 @@ sample sets).
   Python decoder's tests.
 - `validators.test.js` — table-driven per validator (accept / reject
   cases imported from the Python test corpus).
-- `kv-parsers.test.js` — each format's positive + negative cases.
+- `kv-parsers.test.js` — each format's positive + negative cases,
+  plus an offset-correctness case per format
+  (`text.slice(valueStart, valueEnd) === value`).
+- `redaction.test.js` — each strategy on a fixed finding set;
+  length-preservation assertion for `'asterisk'`; key-preservation
+  assertion for KV findings under all strategies; right-to-left
+  offset-stability assertion when a scan emits multiple overlapping
+  findings.
 - `pool.test.js` — lazy init (first call spawns), timeout →
   `terminate` called, respawn on next call, size-2 concurrency.
   Uses `@vitest/web-worker` (official Vitest plugin that treats
@@ -255,10 +335,16 @@ Each module has one responsibility and a small interface:
   `charClassDiversity(s)`. Pure functions, no imports.
 - `validators.js` — object of validators keyed by name; signature
   `(value: string) → boolean`. Pure.
-- `kv-parsers.js` — `parseKeyValues(text: string) → [key, value][]`.
-  Pure.
+- `kv-parsers.js` — `parseKeyValues(text: string) → KvPair[]` where
+  `KvPair = { key, value, valueStart, valueEnd }`. Pure. Value
+  offsets are additive metadata — they preserve Python↔JS parity on
+  semantic output (`key`, `value`) since the differential test
+  compares findings, not offsets.
 - `regex-backend.js` — `createBackend() → { iterate(text, patterns, cb) }`.
   Swappable; Stage 2 reimplements `createBackend()` against re2-wasm.
+- `redaction.js` — `redact(text, findings, strategy) → string`.
+  Pure; no imports from `src/`. Handles the right-to-left span
+  replacement and key-preservation for KV findings.
 - `scanner-core.js` — composes the above; exports
   `scanText(text, config) → Finding[]`. No DOM, no worker APIs.
 - `worker.js` — worker-only shim; imports `scanner-core` and handles
