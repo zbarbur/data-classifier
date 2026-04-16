@@ -24,9 +24,12 @@ Thresholds come from the Sprint 12 safety audit §6 evidence
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from data_classifier.core.types import ClassificationFinding, ColumnInput
+
+if TYPE_CHECKING:
+    from data_classifier.engines.column_name_engine import ColumnNameEngine
 from data_classifier.engines.heuristic_engine import (
     compute_avg_length_normalized,
     compute_cardinality_ratio,
@@ -41,6 +44,14 @@ Shape = Literal["structured_single", "free_text_heterogeneous", "opaque_tokens"]
 #   Base64 tokens: dict_word_ratio ~0
 _AVG_LEN_STRUCTURED_MAX: float = 0.3
 _DICT_WORD_HETERO_MIN: float = 0.1
+
+# Sprint 13 scoping Q1 decision (2026-04-16): column-name tiebreaker
+# middle-band. Only consulted when content signals land in this
+# ambiguous zone. Content signals remain authoritative outside the band.
+_TIEBREAKER_AVG_LEN_MIN: float = 0.3
+_TIEBREAKER_AVG_LEN_MAX: float = 0.45
+_TIEBREAKER_DICT_RATIO_MIN: float = 0.05
+_TIEBREAKER_DICT_RATIO_MAX: float = 0.15
 
 
 @dataclass(frozen=True)
@@ -63,19 +74,7 @@ def detect_column_shape(
     column: ColumnInput,
     engine_findings: dict[str, list[ClassificationFinding]],
 ) -> ShapeDetection:
-    """Pure column-shape detector. Returns the routing decision and signals.
-
-    Routing rules (Sprint 12 safety audit §6):
-
-      if avg_len_norm < 0.3 AND n_cascade_entities <= 1:
-          structured_single
-      elif dict_word_ratio >= 0.1:
-          free_text_heterogeneous
-      else:
-          opaque_tokens
-
-    The column-name tiebreaker (Sprint 13 scoping Q1) is added in Task 4.
-    """
+    """Pure column-shape detector. Returns the routing decision and signals."""
     values = column.sample_values
     avg_len = compute_avg_length_normalized(values)
     dict_ratio = compute_dictionary_word_ratio(values)
@@ -87,6 +86,7 @@ def detect_column_shape(
             distinct_entities.add(f.entity_type)
     n_cascade = len(distinct_entities)
 
+    # Content-signal routing (authoritative).
     if avg_len < _AVG_LEN_STRUCTURED_MAX and n_cascade <= 1:
         shape: Shape = "structured_single"
     elif dict_ratio >= _DICT_WORD_HETERO_MIN:
@@ -94,11 +94,52 @@ def detect_column_shape(
     else:
         shape = "opaque_tokens"
 
+    hint_applied = False
+    # Column-name tiebreaker (Sprint 13 scoping Q1): only when content
+    # signal is ambiguous (middle band). Content remains authoritative
+    # outside this narrow zone.
+    in_middle_band = (
+        _TIEBREAKER_AVG_LEN_MIN <= avg_len <= _TIEBREAKER_AVG_LEN_MAX
+        and _TIEBREAKER_DICT_RATIO_MIN <= dict_ratio <= _TIEBREAKER_DICT_RATIO_MAX
+    )
+    if in_middle_band:
+        hint = _lookup_column_name_hint(column.column_name)
+        if hint == "heterogeneous":
+            shape = "free_text_heterogeneous"
+            hint_applied = True
+        elif hint == "structured":
+            shape = "structured_single"
+            hint_applied = True
+
     return ShapeDetection(
         shape=shape,
         avg_len_normalized=avg_len,
         dict_word_ratio=dict_ratio,
         cardinality_ratio=cardinality,
         n_cascade_entities=n_cascade,
-        column_name_hint_applied=False,
+        column_name_hint_applied=hint_applied,
     )
+
+
+# Lazy singleton: column-name engine takes ~5ms to initialize. Creating
+# it inside detect_column_shape would add that cost to every call; the
+# module-level lazy init amortizes it across the first call.
+_COLUMN_NAME_ENGINE: "ColumnNameEngine | None" = None
+
+
+def _lookup_column_name_hint(column_name: str) -> str | None:
+    """Return ``"structured"``, ``"heterogeneous"``, or ``None``.
+
+    Lazy-loads the ColumnNameEngine on first use.
+    """
+    global _COLUMN_NAME_ENGINE
+    if _COLUMN_NAME_ENGINE is None:
+        # Local import to avoid a module-load-time circular dependency:
+        # engines/column_name_engine.py imports from core.types, and
+        # this module imports from engines.heuristic_engine. Importing
+        # ColumnNameEngine lazily here keeps the orchestrator layer's
+        # import graph clean.
+        from data_classifier.engines.column_name_engine import ColumnNameEngine
+
+        _COLUMN_NAME_ENGINE = ColumnNameEngine()
+    return _COLUMN_NAME_ENGINE.get_variant_category(column_name)

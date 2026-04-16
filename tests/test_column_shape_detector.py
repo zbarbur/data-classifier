@@ -114,3 +114,58 @@ def test_long_values_zero_entities_opaque_tokens():
     assert result.n_cascade_entities == 0
     assert result.dict_word_ratio < 0.1
     assert result.shape == "opaque_tokens"
+
+
+# ── Column-name tiebreaker tests (Sprint 13 scoping Q1 decision) ──────────
+# Fixture construction: 1 value with 'error' (dict word) + 19 filler values
+# of ~32 chars produce avg_len_norm ≈ 0.32 and dict_word_ratio = 0.05 —
+# both inside the middle band ([0.3, 0.45] × [0.05, 0.15]).
+_TIEBREAKER_FILLER = [f"xkqzmpfw_{i:04d}_jnrt_vbcd_xyz_end_" for i in range(19)]
+_TIEBREAKER_WITH_DICT_WORD = ["error_0001_xkqzmpfw_jnrt_vbcd_xyz"] + _TIEBREAKER_FILLER
+
+
+def test_ambiguous_middle_band_column_name_points_to_hetero():
+    """Column name 'log_line' should tip an ambiguous signal toward heterogeneous."""
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    column = ColumnInput(
+        column_id="col_1",
+        column_name="log_line",  # known heterogeneous hint
+        sample_values=_TIEBREAKER_WITH_DICT_WORD,
+    )
+    result = detect_column_shape(column, {"regex": []})
+    assert 0.3 <= result.avg_len_normalized <= 0.45
+    assert 0.05 <= result.dict_word_ratio <= 0.15
+    assert result.shape == "free_text_heterogeneous"
+    assert result.column_name_hint_applied is True
+
+
+def test_ambiguous_middle_band_column_name_points_to_structured():
+    """Column name 'email' should tip an ambiguous signal toward structured_single."""
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    column = ColumnInput(
+        column_id="col_1",
+        column_name="email",  # known structured hint
+        sample_values=_TIEBREAKER_WITH_DICT_WORD,
+    )
+    result = detect_column_shape(column, {"regex": []})
+    assert 0.3 <= result.avg_len_normalized <= 0.45
+    assert 0.05 <= result.dict_word_ratio <= 0.15
+    assert result.shape == "structured_single"
+    assert result.column_name_hint_applied is True
+
+
+def test_unambiguous_signal_ignores_column_name_hint():
+    """Even 'log_line' column name should not override strong structured signals."""
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    column = ColumnInput(
+        column_id="col_1",
+        column_name="log_line",  # misleading column name
+        sample_values=["alice@ex.com", "bob@ex.org"] * 5,  # strong structured signal
+    )
+    engine_findings = {"regex": [_finding("EMAIL")]}
+    result = detect_column_shape(column, engine_findings)
+    assert result.shape == "structured_single"
+    assert result.column_name_hint_applied is False  # content decisive — hint didn't fire
