@@ -230,10 +230,28 @@ infrastructure.
   Provenance is per-pattern (source, license_clearance, pulled date,
   validator) in `docs/process/CREDENTIAL_PATTERN_SOURCES.md`,
   CI-enforced.
+- **Validators are first-class for the JS port** (added 2026-04-16
+  from S0 evidence). Empirical finding: in a 500-prompt smoke against
+  WildChat, every regex-pattern false positive was correctly rejected
+  by its validator (phone, AWS_secret_key, dob, ipv4-as-substring all
+  matched the regex but failed the validator). The browser JS port MUST
+  faithfully implement validators, not just regexes — patterns alone
+  overfire ~4× per pattern. Same applies to stopwords / placeholder
+  filters. This is a Day-1 architectural commitment, not an
+  optimization.
+- **`secret_scanner` heuristic (key + entropy) MUST be in the JS port**
+  (added 2026-04-16 from S0 evidence). The only confirmed real
+  credential found in the 500-prompt smoke was caught by
+  `secret_scanner` (`password = "stcmalta"` in pasted C# login code),
+  not by any of the 76 regex patterns. Real-world prompts contain
+  hardcoded credentials in code snippets — these have no standard
+  format, only key+value structure. Pure-regex JS port would miss the
+  most common real positive.
 
 ### Stage S0 — Prevalence scan on WildChat-1M
 
-- **Status:** 🟡 unblocked — can start immediately, zero dependencies
+- **Status:** 🟢 in progress — smoke (500) + 50K complete 2026-04-16,
+  full 1M deferred pending v2 script with deduplication
 - **Blocks:** S1; informs the client product conversation
 - **Effort:** ~½ day
 
@@ -246,12 +264,31 @@ WildChat-1M user-message column. Output:
 - Top-K most-fired patterns
 - Captured examples (XOR-encoded per the fixture rule)
 
-This is the first real-world data on prompt-secret leakage rate. The
-number reframes the product conversation — "1 in 100K" is a different
-product than "1 in 100". Doubles as the seed for the differential-test
-corpus committed under `clients/browser/tester/corpus/`.
+**Findings as of 2026-04-16 (50K)**:
 
-Output location: `docs/experiments/prompt_analysis/s0_wildchat_prevalence.md`.
+- Engine-level prevalence (any entity type): **3.66%** (1,830 / 50K)
+- **Credential-family prevalence**: **0.12%** (59 = 36 OPAQUE_SECRET + 23 API_KEY)
+- One real positive confirmed in the 500-smoke audit: hardcoded
+  `password = "stcmalta"` in pasted C# login code, caught by
+  `secret_scanner`. Extrapolation: ~720 OPAQUE_SECRET + ~460 API_KEY = ~1,200 real credential leaks per 1M prompts.
+- Two general-classifier precision bugs surfaced + filed as Sprint 13
+  backlog items: SWIFT_BIC missing validator (593 FPs in 50K) +
+  IPv4 validator-too-narrow + boundary issue.
+- Two missing patterns surfaced + filed as Sprint 13 backlog item:
+  OpenAI legacy `sk-*` (no `proj-` prefix) + Anthropic `sk-ant-api03-*`.
+- Throughput: 1,140 prompts/sec on warm cache; 1M run ≈ 15 min wall.
+
+**Script v2 deferred work** (not blocking v1 findings):
+
+- Drop finditer accounting (overcounts because validators are bypassed)
+- Capture engine-only positives in audit_sample (current bug skips
+  secret_scanner-only finds)
+- Deduplicate repeated-substring matches (one base64 blob produced
+  11 AWS_secret_key sub-spans in smoke — engine validator caught it,
+  but pattern_hits.json overcounted)
+
+Output location: `docs/experiments/prompt_analysis/s0_artifacts/`
+(committed at end of Stage S0 with the formal memo).
 
 ### Stage S1 — Pattern gap audit
 
