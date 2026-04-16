@@ -93,10 +93,13 @@ acceptance_criteria:
   regress on structured_single columns (which is the current test distribution)
 - Lint + format clean, full test suite green
 test_plan:
-- Unit tests: shape detection on 12+ fixtures covering all 3 shapes
-- Integration: safety audit re-run → Q3 green
-- Regression: family benchmark re-run → no regression on structured columns
-- Manual spot-check: pick 5 real-looking columns, inspect detected shape
+- 'Unit tests on shape detection across 12+ fixtures covering all 3 shapes (6
+  heterogeneous + 4 homogeneous + 2 opaque)'
+- 'Integration via safety audit re-run — Q3 verdict should drop to GREEN'
+- 'Regression check on family benchmark re-run — no regression on structured
+  columns (the current test distribution)'
+- 'Manual spot-check on 5 real-looking columns, inspect detected shape is
+  sensible'
 notes: |
   Estimated ~1 week of implementation. Depends on a clean baseline (Sprint 12
   shadow-only artifacts + this item's branch). Item B (per-value GLiNER) and

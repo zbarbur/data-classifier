@@ -387,3 +387,36 @@ class TestPredictShadowAcceptsRawEngineFindings:
         fed = captured.get("_findings")
         assert fed is not None
         assert len(fed) == 1 and fed[0].entity_type == "EMAIL"
+
+    def test_predict_shadow_handles_empty_engine_findings_dict(self, monkeypatch):
+        """Edge case: the orchestrator can produce ``engine_findings={}``
+        when every engine is budget-skipped or when an all-numeric column
+        short-circuits ML. In that case the positional ``findings`` list
+        may still be populated (by merge post-processing or by a
+        column_name-only hit). The kwarg takes precedence by design —
+        empty dict → empty flat list → UNKNOWN one-hot in the feature
+        vector — and this test pins that semantic so a future refactor
+        can't silently fall back to the positional list and re-introduce
+        the Phase 5a skew on budget-skip paths.
+        """
+        captured = _spy_extract_features(monkeypatch)
+
+        positional = [_finding("US_SSN", 0.80, "column_name")]
+        mc = MetaClassifier()
+        result = mc.predict_shadow(
+            positional,
+            ["not a real ssn", "just some text"],
+            engine_findings={},
+        )
+
+        # Prediction should still succeed (model sees an empty findings
+        # list, falls into the UNKNOWN one-hot slot, returns some label).
+        assert result is not None, "predict_shadow should not return None on empty engine_findings"
+        assert captured.get("_called"), "extract_features was never called"
+        fed = captured.get("_findings")
+        assert fed is not None
+        # The empty dict, not the positional list, is what extract_features sees.
+        assert len(fed) == 0, (
+            f"empty engine_findings should produce empty flat list, "
+            f"got {len(fed)} findings — likely falling back to positional list"
+        )

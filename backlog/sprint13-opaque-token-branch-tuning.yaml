@@ -91,7 +91,7 @@ test_plan:
 - Entropy helper tests (if implemented)
 - Integration via safety audit Q3 base64 fixture — verdict should stay
   GREEN or improve (shadow should emit OPAQUE_SECRET instead of VIN)
-- Regression: family benchmark + full test suite
+- 'Regression check on family benchmark + full test suite'
 notes: |
   Estimated ~3 days if secret_scanner patterns are sufficient, ~1 week if
   an entropy-based helper is needed. Can proceed in parallel with Item B

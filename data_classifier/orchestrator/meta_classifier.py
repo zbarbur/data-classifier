@@ -169,12 +169,12 @@ _DEFAULT_MODEL_PACKAGE = "data_classifier.models"
 # Sprint 12 Item #1 + Item #2: point at the v5 artifact
 # (feature_schema_version=5, 47 kept features after ALWAYS_DROP_REDUNDANT;
 # adds validator_rejected_credential_ratio at index 47 and
-# has_dictionary_name_match_ratio at index 48 on top of the v3 schema).
-# Schema v4 was transient: Phase 2 appended validator_rejected_credential_ratio
-# to the code, Phase 3 appended has_dictionary_name_match_ratio before any
-# v4 artifact was trained, so v5 is the first deployable post-Sprint-12
-# model. Older artifacts (v1, v2, v3) are retained on disk but correctly
-# refused by the version gate.
+# has_dictionary_name_match_ratio at index 48 — both landing together as the
+# first post-v3 additions). Schema v4 was transient: Phase 2 appended
+# validator_rejected_credential_ratio to the code, Phase 3 appended
+# has_dictionary_name_match_ratio before any v4 artifact was trained, so v5
+# is the first deployable post-Sprint-12 model. Older artifacts (v1, v2, v3)
+# are retained on disk but correctly refused by the version gate.
 _DEFAULT_MODEL_RESOURCE = "meta_classifier_v5.pkl"
 
 
