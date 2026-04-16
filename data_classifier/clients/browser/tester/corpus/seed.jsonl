@@ -1,0 +1,5 @@
+{"id": "seed_01_plain_prose", "text": "please help me write a cover letter"}
+{"id": "seed_02_env_github_pat", "text": "export GITHUB_TOKEN=ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+{"id": "seed_03_json_aws_secret", "text": "{\"aws_secret_access_key\": \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\"}"}
+{"id": "seed_04_code_literal_password", "text": "db_password = \"S3cureP@ss!xyz\""}
+{"id": "seed_05_placeholder_only", "text": "export API_KEY=YOUR_API_KEY_HERE"}
