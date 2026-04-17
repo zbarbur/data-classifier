@@ -407,6 +407,20 @@ class Orchestrator:
                 finally:
                     per_value_inference_ms = int((time.monotonic() - t0) * 1000)
 
+        # ── Sprint 13 Item C: entropy-based handler on opaque_tokens branch ──
+        if shape_detection is not None and shape_detection.shape == "opaque_tokens":
+            try:
+                from data_classifier.orchestrator.opaque_token_handler import classify_opaque_tokens
+
+                opaque_findings = classify_opaque_tokens(column.column_id, column.sample_values)
+                if opaque_findings:
+                    result = _union_findings(result, opaque_findings)
+            except Exception:
+                logger.exception(
+                    "Opaque-token handler failed for column %s; falling back to cascade output",
+                    column.column_id,
+                )
+
         # ── Sprint 13 Item A: emit ColumnShapeEvent (moved after Item B) ──
         if shape_detection is not None:
             self.emitter.emit(
