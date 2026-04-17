@@ -1,16 +1,16 @@
-# data_classifier — browser client (PoC)
+# @data-classifier/browser
 
 Client-side secret detection engine, ported from the Python
 `data_classifier` library. Scans user-submitted text (e.g. a prompt
 about to be sent to a chat AI) and returns findings + a redacted
 version.
 
-> **Scaffold — not yet published.** Tracks Sprint 14 item
-> `sprint14/browser-poc-secret`. Honest performance + full pattern
-> coverage arrive in subsequent sprint items. See
-> `docs/superpowers/specs/2026-04-16-browser-poc-scaffold-design.md`.
+**12.5 KB gzipped.** No runtime dependencies. ES module.
 
-## Usage
+> Scaffold — tracking `sprint14/browser-poc-secret`. Full pattern
+> coverage arrives in subsequent sprint items.
+
+## Quick start
 
 ```js
 import { createScanner } from '@data-classifier/browser';
@@ -21,82 +21,128 @@ const { findings, redactedText, scannedMs } = await scanner.scan(
 );
 ```
 
-### Options
+## Chrome extension integration
+
+The extension's bundler resolves the main entry. The worker file must
+be copied as a separate static asset:
+
+```js
+// In your extension code (offscreen document or content script)
+import { createScanner } from '@data-classifier/browser';
+
+const scanner = createScanner({
+  spawn: () => new Worker(
+    chrome.runtime.getURL('worker.esm.js'),
+    { type: 'module' }
+  ),
+});
+
+const { findings, redactedText } = await scanner.scan(promptText);
+```
+
+**Webpack:** Use `copy-webpack-plugin` to copy `node_modules/@data-classifier/browser/dist/worker.esm.js` to your output directory.
+
+**Vite:** Copy the worker file in a `buildEnd` plugin hook.
+
+### MV3 lifecycle
+
+```js
+chrome.runtime.onSuspend.addListener(() => {
+  scanner.onServiceWorkerSuspend();
+});
+```
+
+## Scan options
 
 ```js
 scanner.scan(text, {
-  timeoutMs: 100,                 // kill budget
-  failMode: 'open',               // 'open' → empty findings on timeout
-                                  // 'closed' → rejects with {code:'TIMEOUT'}
-  redactStrategy: 'type-label',   // | 'asterisk' | 'placeholder' | 'none'
-  verbose: false,                 // include a `details` block per finding
+  timeoutMs: 100,                       // worker kill budget (ms)
+  failMode: 'open',                     // 'open' = empty on timeout
+                                        // 'closed' = rejects with {code:'TIMEOUT'}
+  redactStrategy: 'type-label',         // 'asterisk' | 'placeholder' | 'none'
+  verbose: false,                       // attach details block per finding
   dangerouslyIncludeRawValues: false,   // see WARNING below
-  categoryFilter: ['Credential'],       // v1 Credential-only by default
+  categoryFilter: ['Credential'],       // v1 Credential-only
 });
 ```
+
+## Standalone testing
+
+```
+git clone <repo>
+cd data_classifier/clients/browser
+npm install
+npm run serve
+# open http://localhost:4173/tester/
+```
+
+The tester page includes 12 real-world examples from the WildChat
+corpus. Select one from the dropdown to see the scanner in action.
 
 ## Development
 
 ```
 npm install
-npm run generate      # regenerates src/generated/ from the Python library
-npm run build         # esbuild → dist/
-npm run test:unit     # Vitest
-npm run test:e2e      # Playwright (builds first)
-npm run bench         # order-of-magnitude latency benchmark
+npm run generate      # regenerate src/generated/ from Python library
+npm run build         # esbuild -> dist/ (minified, no sourcemaps)
+npm run build:dev     # esbuild -> dist/ (unminified, with sourcemaps)
+npm run dist          # generate + build + size report
+npm run serve         # generate + build + http-server on :4173
+npm run test:unit     # Vitest (75 tests)
+npm run test:e2e      # Playwright (smoke + timeout + differential)
+npm run bench         # 1K-prompt latency benchmark
 ```
 
-`src/generated/` is gitignored. The `pretest` hook runs `generate`
-every time, so generated assets are always fresh.
-
-## ⚠️ Raw-value escape hatch
+## Raw-value escape hatch
 
 `scan(text, { dangerouslyIncludeRawValues: true })` populates
 `match.valueRaw` with the unmasked matched value.
 
 **Never enable in production.** Use only for local fixture authoring
-and differential-test diagnostics. Any telemetry or log pipeline
-that could receive a finding from this code path must strip
-`valueRaw` before emit.
+and differential-test diagnostics.
 
-## Python ↔ JS sync
+## Python-JS sync
 
-See the "Python → JS sync" section of the design spec. In short:
-
-- **Data** (patterns, key names, stopwords, placeholders) — emitted
-  by `scripts/generate_browser_patterns.py`. Run `npm run generate`.
-- **Scoring parameters** (`engine_defaults.yaml`) — also emitted by
-  the generator as `constants.js`. Run `npm run generate`.
-- **Algorithm changes** — the generator SHAs the Python logic files
-  into `PYTHON_LOGIC_VERSION` and stamps both fixtures and
-  constants. If Python's logic changes, the differential test fails
-  until the JS port follows.
+- **Data** (patterns, stopwords, placeholders, key names) — generated
+  from Python source. Run `npm run generate`.
+- **Scoring params** (`engine_defaults.yaml`) — also generated as
+  `constants.js`. Run `npm run generate`.
+- **Algorithm changes** — `PYTHON_LOGIC_VERSION` SHA stamps fixtures
+  and constants. Differential test fails on drift.
 
 ### CI integration
 
-After Python tests pass, run:
-
 ```
-./scripts/ci_browser_parity.sh
-```
-
-With `--strict-validators`, the script also fails if any pattern
-references a validator not yet ported to JS:
-
-```
-./scripts/ci_browser_parity.sh --strict-validators
+./scripts/ci_browser_parity.sh                 # after pytest
+./scripts/ci_browser_parity.sh --strict-validators  # also fail on stubs
 ```
 
-## Architecture pointers
+## Documentation
 
-- `src/scanner.js` — public API.
-- `src/pool.js` — 2-worker pool, lazy init, eager respawn, MV3-aware hook.
-- `src/worker.js` — worker shim routing messages to scanner-core.
-- `src/scanner-core.js` — orchestration of regex + secret-scanner passes.
-- `src/regex-backend.js` — Stage-1 JS `RegExp` backend; Stage 2 swap target.
-- `src/kv-parsers.js` — JSON / env / code-literal parsers with offsets.
-- `src/redaction.js` — four strategies, right-to-left span replacement.
-- `src/validators.js` — three ported validators; stubs for the rest.
-- `src/entropy.js` — Shannon + charset-aware relative entropy.
-- `src/decoder.js` — `xor:` / `b64:` prefix decoder.
-- `src/generated/` — regen'd from Python; gitignored.
+- [Pattern reference](docs/patterns.md) — all 77 patterns with validators and descriptions
+- [Secret detection logic](docs/secret-scanner.md) — how the scanner works
+- [Real-world stories](docs/stories.md) — 12 annotated examples from WildChat
+
+## Architecture
+
+- `src/scanner.js` — public API
+- `src/pool.js` — 2-worker pool, lazy init, respawn, MV3-aware
+- `src/worker.js` — worker shim
+- `src/scanner-core.js` — regex + secret-scanner orchestration
+- `src/regex-backend.js` — Stage-1 JS RegExp backend
+- `src/kv-parsers.js` — JSON / env / code-literal parsers
+- `src/redaction.js` — four strategies, right-to-left replacement
+- `src/validators.js` — three ported validators + stubs
+- `src/entropy.js` — Shannon + relative entropy
+- `src/decoder.js` — xor: / b64: prefix decoder
+- `src/generated/` — regenerated from Python; gitignored
+
+## Footprint
+
+| Component | Raw | Gzipped | In extension? |
+|-----------|-----|---------|---------------|
+| scanner.esm.js | 1.5 KB | 0.8 KB | Yes |
+| worker.esm.js | 77 KB | 11.7 KB | Yes |
+| **Extension total** | **78.5 KB** | **12.5 KB** | |
+| Tester + stories + docs | ~55 KB | ~10 KB | No |
+| **npm package total** | ~135 KB | ~25 KB | |
