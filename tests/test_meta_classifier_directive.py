@@ -282,13 +282,13 @@ def test_meta_event_directive_field_when_applied(
     emitter = EventEmitter()
     emitter.add_handler(CallbackHandler(events.append))
 
-    # Cascade says SSN, but mock meta-classifier to predict CREDIT_CARD
+    # Cascade says SSN with low confidence, mock meta-classifier to predict CREDIT_CARD
     stub = _StubEngine(
         name="regex",
         order=10,
         authority=5,
         findings=[
-            _make_finding("SSN", 0.90, "regex", category="PII"),
+            _make_finding("SSN", 0.65, "regex", category="PII"),
         ],
     )
 
@@ -416,8 +416,8 @@ def test_directive_promotes_existing_cascade_finding(
     """
     # Test the static method directly to avoid shape-routing complications
     cascade_result = [
-        _make_finding("SSN", 0.90, "regex", category="PII", column_id="col_x"),
-        _make_finding("CREDIT_CARD", 0.70, "regex", category="Financial", column_id="col_x"),
+        _make_finding("SSN", 0.70, "regex", category="PII", column_id="col_x"),
+        _make_finding("CREDIT_CARD", 0.60, "regex", category="Financial", column_id="col_x"),
     ]
     prediction = MetaClassifierPrediction(
         column_id="col_x",
@@ -435,7 +435,7 @@ def test_directive_promotes_existing_cascade_finding(
     top = max(result, key=lambda f: f.confidence)
     assert top.entity_type == "CREDIT_CARD"
     assert top.engine == "meta_classifier"
-    assert top.confidence > 0.90  # Promoted above SSN's 0.90
+    assert top.confidence > 0.70  # Promoted above SSN's 0.70
 
     # SSN should still be present
     ssn_findings = [f for f in result if f.entity_type == "SSN"]
@@ -458,7 +458,7 @@ def test_directive_creates_new_finding_from_profile(
         name="regex",
         order=10,
         authority=5,
-        findings=[_make_finding("SSN", 0.85, "regex", category="PII")],
+        findings=[_make_finding("SSN", 0.65, "regex", category="PII")],
     )
 
     mc = MetaClassifier()

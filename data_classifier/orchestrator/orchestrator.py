@@ -297,10 +297,22 @@ class Orchestrator:
         if not prediction.predicted_entity or prediction.predicted_entity == "NEGATIVE":
             return None
 
+        # Confidence gate: only apply directive when the meta-classifier
+        # is reasonably confident.  On the family benchmark every correct
+        # prediction has confidence >= 0.53; 0.50 gives a small margin.
+        min_directive_confidence = 0.50
+        if prediction.confidence < min_directive_confidence:
+            return None
+
         # If cascade already agrees, no directive needed
         if cascade_result:
             top = max(cascade_result, key=lambda f: f.confidence)
             if top.entity_type == prediction.predicted_entity:
+                return None
+            # If cascade has a high-confidence answer, trust the cascade.
+            # The directive should only override when the cascade is uncertain.
+            cascade_trust_threshold = 0.80
+            if top.confidence >= cascade_trust_threshold:
                 return None
 
         # Look for the predicted entity_type in existing cascade findings
