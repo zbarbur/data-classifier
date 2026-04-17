@@ -1,5 +1,5 @@
 title: "Sprint 14: Meta-classifier v4 retrain \u2014 drop DATE_OF_BIRTH_EU class label"
-status: doing
+status: review
 priority: P3
 category: chore
 sprint_target: 14
@@ -96,7 +96,7 @@ notes: 'Filed during Sprint 12 worktree B recovery (2026-04-15) as the followup 
   commit message and the taxonomy.py long-form comment.
 
   '
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

@@ -44,7 +44,8 @@ _log = logging.getLogger(__name__)
 #   3 — Sprint 11 Phase 7: appended heuristic_dictionary_word_ratio at index 46 (total 47).
 #   4 — Sprint 12 Item #1: appended validator_rejected_credential_ratio at index 47 (total 48).
 #   5 — Sprint 12 Item #2: appended has_dictionary_name_match_ratio at index 48 (total 49).
-FEATURE_SCHEMA_VERSION: int = 5
+#   6 — Sprint 14: removed DATE_OF_BIRTH_EU from PRIMARY_ENTITY_TYPES (30 one-hot slots, total 48).
+FEATURE_SCHEMA_VERSION: int = 6
 
 # Base column-level features. Do NOT reorder these 15 — downstream code
 # indexes them positionally in several places.
@@ -85,7 +86,6 @@ PRIMARY_ENTITY_TYPES: tuple[str, ...] = (
     "CREDENTIAL",
     "CREDIT_CARD",
     "DATE_OF_BIRTH",
-    "DATE_OF_BIRTH_EU",
     "DEA_NUMBER",
     "EIN",
     "EMAIL",
@@ -120,8 +120,8 @@ _EXTRA_FEATURE_NAMES: tuple[str, ...] = (
     "has_dictionary_name_match_ratio",  # Sprint 12 Item #2 — index 48
 )
 
-# Full feature schema = 15 base + 31 entity-type one-hot slots + N extras.
-# Schema v2 = 46, v3 = 47, v4 = 48, v5 = 49.
+# Full feature schema = 15 base + 30 entity-type one-hot slots + N extras.
+# Schema v2 = 46, v3 = 47, v4 = 48, v5 = 49, v6 = 48 (DATE_OF_BIRTH_EU slot removed).
 FEATURE_NAMES: tuple[str, ...] = (
     _BASE_FEATURE_NAMES + tuple(f"primary_entity_type={t}" for t in PRIMARY_ENTITY_TYPES) + _EXTRA_FEATURE_NAMES
 )
@@ -166,16 +166,11 @@ class MetaClassifierPrediction:
 
 
 _DEFAULT_MODEL_PACKAGE = "data_classifier.models"
-# Sprint 12 Item #1 + Item #2: point at the v5 artifact
-# (feature_schema_version=5, 47 kept features after ALWAYS_DROP_REDUNDANT;
-# adds validator_rejected_credential_ratio at index 47 and
-# has_dictionary_name_match_ratio at index 48 — both landing together as the
-# first post-v3 additions). Schema v4 was transient: Phase 2 appended
-# validator_rejected_credential_ratio to the code, Phase 3 appended
-# has_dictionary_name_match_ratio before any v4 artifact was trained, so v5
-# is the first deployable post-Sprint-12 model. Older artifacts (v1, v2, v3)
-# are retained on disk but correctly refused by the version gate.
-_DEFAULT_MODEL_RESOURCE = "meta_classifier_v5.pkl"
+# Sprint 14: point at the v6 artifact (feature_schema_version=6,
+# DATE_OF_BIRTH_EU removed from PRIMARY_ENTITY_TYPES — 30 one-hot slots
+# instead of 31, total 48 features before dropping). Older artifacts
+# (v1..v5) are retained on disk but correctly refused by the version gate.
+_DEFAULT_MODEL_RESOURCE = "meta_classifier_v6.pkl"
 
 
 class MetaClassifier:
@@ -476,7 +471,7 @@ def extract_features(
     validator_rejected_credential_ratio: float = 0.0,
     has_dictionary_name_match_ratio: float = 0.0,
 ) -> list[float]:
-    """Extract the 49-feature (schema v5) vector from a column's per-engine findings.
+    """Extract the 48-feature (schema v6) vector from a column's per-engine findings.
 
     The caller is expected to supply *all* findings produced for a single
     column, across every engine that ran. This function is pure: no I/O,
@@ -508,7 +503,7 @@ def extract_features(
         13 primary_is_pii            — 1.0 if top finding's category == "PII"
         14 primary_is_credential     — 1.0 if top finding's category == "Credential"
 
-    15..45 — primary_entity_type one-hot (31 slots, see
+    15..44 — primary_entity_type one-hot (30 slots, see
     :data:`PRIMARY_ENTITY_TYPES`). Exactly one slot is 1.0: the slot for
     the top finding's entity_type, or the UNKNOWN slot when there is no
     top finding or the entity_type is outside the vocab.

@@ -53,28 +53,10 @@ ENTITY_TYPE_TO_FAMILY: dict[str, str] = {
     # ── DATE family ─────────────────────────────────────────────────
     # Date of birth in any format (US MM/DD/YYYY, EU DD/MM/YYYY, ISO-8601,
     # long-form "March 15 1985", etc.). Sprint 12 retired the
-    # ``DATE_OF_BIRTH_EU`` subtype from emission — format does not
-    # indicate jurisdiction, the distinction is unresolvable for
-    # ambiguous day<=12 cases, and GDPR / CCPA / HIPAA treat dates of
-    # birth as PII regardless of format. See
-    # ``docs/research/meta_classifier/sprint11_family_ab_result.md``.
-    #
-    # The ``DATE_OF_BIRTH_EU`` key below is a compatibility alias, NOT
-    # a production emission target. No engine in the current cascade
-    # produces ``DATE_OF_BIRTH_EU`` findings — the dob_european regex
-    # was remapped to emit ``DATE_OF_BIRTH`` as part of the Sprint 12
-    # retirement. The alias exists solely because the meta-classifier
-    # v3 artifact (shipped as the default in Sprint 12 per the sprint
-    # reframe) was trained with ``DATE_OF_BIRTH_EU`` as one of its
-    # output ``class_labels`` (300 training rows; test F1 0.83), and
-    # its shadow predictions can still surface the label. Mapping it
-    # to DATE here keeps ``family_for()`` coherent and prevents the
-    # family benchmark's ``cross_family_rate`` from regressing on
-    # those predictions. This alias will be removed when Sprint 13
-    # lands the v4 retrain that collapses ``DOB_EU`` into ``DOB`` in
-    # the training data and drops the class label.
+    # ``DATE_OF_BIRTH_EU`` subtype from emission; Sprint 14 completed
+    # the cleanup by retraining the meta-classifier as v6 without the
+    # DOB_EU class label and removing the compatibility alias.
     "DATE_OF_BIRTH": "DATE",
-    "DATE_OF_BIRTH_EU": "DATE",
     # ── CREDENTIAL family ───────────────────────────────────────────
     # All credential subtypes share the same sensitivity tier and
     # the same DLP handling (reject, rotate, audit). The subtype
