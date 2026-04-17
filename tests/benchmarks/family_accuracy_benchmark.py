@@ -138,6 +138,9 @@ def _run_one_shard(shard, profile) -> dict:
     return {
         "column_id": shard.column_id,
         "ground_truth": shard.ground_truth,
+        "ground_truth_families": (
+            shard.ground_truth_families if shard.ground_truth_families else [family_for(shard.ground_truth)]
+        ),
         "mode": shard.mode,
         "corpus": shard.corpus,
         "source": shard.source,
@@ -298,16 +301,20 @@ def _compute_multilabel_family_metrics(predictions: list[dict], pred_field: str)
     Unlike single-label scoring (winner-takes-all), multi-label scoring
     considers ALL findings emitted by the cascade for each column. For
     each family F:
-      - is_present(shard) := ground_truth maps to family F (single-label GT)
+      - is_present(shard) := F is in ground_truth_families (multi-label GT)
       - is_predicted(shard) := ANY finding in the shard has family F
       - TP(F) := shards where is_predicted AND is_present
       - FP(F) := shards where is_predicted AND NOT is_present
       - FN(F) := shards where is_present AND NOT is_predicted
 
-    This corrects two systematic mismeasurements:
-      1. Mixed-entity columns: URL+CREDENTIAL content scores both families
-      2. False-positive inflation: NEGATIVE shards with noisy content
-         only penalise the structurally-wrong predictions, not all of them
+    When ``ground_truth_families`` is available on the prediction record
+    (populated by the shard builder's structural presence scanner), the
+    ground truth is multi-label — e.g. a CREDENTIAL shard that also
+    contains URLs will have ``ground_truth_families = ["CREDENTIAL", "URL"]``.
+    Predicting URL on such a shard is a TP for URL, not an FP.
+
+    Falls back to single-label ground truth when ``ground_truth_families``
+    is absent (backwards compatibility with older prediction files).
     """
     # Determine which families are predicted per shard from findings
     # For the "predicted" field, use the findings list directly.
@@ -321,8 +328,18 @@ def _compute_multilabel_family_metrics(predictions: list[dict], pred_field: str)
     support: dict[str, int] = defaultdict(int)
 
     for p in predictions:
-        gt_fam = family_for(p["ground_truth"])
-        if not gt_fam:
+        # Multi-label ground truth: use ground_truth_families when
+        # available, fall back to single-label family_for(ground_truth).
+        gt_families_raw = p.get("ground_truth_families")
+        if gt_families_raw:
+            gt_families = set(gt_families_raw)
+        else:
+            gt_fam = family_for(p["ground_truth"])
+            if not gt_fam:
+                continue
+            gt_families = {gt_fam}
+
+        if not gt_families:
             continue
 
         # Collect predicted families for this shard
@@ -334,9 +351,9 @@ def _compute_multilabel_family_metrics(predictions: list[dict], pred_field: str)
             predicted_families = {pr_fam} if pr_fam else set()
 
         # Score each family independently
-        all_families = {gt_fam} | predicted_families
+        all_families = gt_families | predicted_families
         for fam in all_families:
-            is_present = fam == gt_fam
+            is_present = fam in gt_families
             is_predicted = fam in predicted_families
 
             if is_present:

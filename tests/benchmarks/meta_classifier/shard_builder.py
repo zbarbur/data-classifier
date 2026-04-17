@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -74,6 +75,65 @@ NAMED_COLUMN_NAME_FMT: str = "{corpus}_{type_lower}"
 _CREDENTIAL_CORPORA: tuple[str, ...] = ("secretbench", "gitleaks", "detect_secrets")
 
 
+# ── Structural presence detection (multi-label ground truth) ──────────────
+
+#: Lightweight regexes for detecting structurally present families in
+#: shard sample values.  These are intentionally simple — we are NOT
+#: reclassifying, just checking "does this text contain a URL/email/
+#: credential substring?" to build honest multi-label ground truth.
+_URL_RE = re.compile(r"https?://[a-zA-Z0-9]", re.ASCII)
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", re.ASCII)
+_CREDENTIAL_PREFIX_RE = re.compile(
+    r"(?:"
+    r"sk-[a-zA-Z0-9]{20}"  # OpenAI
+    r"|ghp_[a-zA-Z0-9]{36}"  # GitHub PAT
+    r"|ghs_[a-zA-Z0-9]{36}"  # GitHub app token
+    r"|glpat-[a-zA-Z0-9\-]{20}"  # GitLab PAT
+    r"|xox[baprs]-[a-zA-Z0-9\-]+"  # Slack
+    r"|AKIA[A-Z0-9]{16}"  # AWS access key
+    r"|ya29\.[a-zA-Z0-9_\-]+"  # Google OAuth
+    r"|eyJ[a-zA-Z0-9_\-]{10,}\.[a-zA-Z0-9_\-]{10,}"  # JWT
+    r"|-----BEGIN\s(?:RSA\s)?PRIVATE\sKEY-----"  # Private key
+    r"|sk-ant-[a-zA-Z0-9\-]{20}"  # Anthropic
+    r")",
+    re.ASCII,
+)
+
+
+def _detect_structural_families(values: list[str], primary_family: str) -> list[str]:
+    """Scan sample values and return all families structurally present.
+
+    Always includes ``primary_family`` (the single-label ground truth).
+    Adds URL, CONTACT (for email), or CREDENTIAL when structural patterns
+    are found in the values.  Only families *different* from the primary
+    are scanned — no point confirming what we already know.
+
+    Uses a low threshold: if >= 3 values match a pattern, the family is
+    considered present.  This avoids noise from single-value coincidences
+    (e.g. a URL appearing once in a 300-value CREDENTIAL shard is noise).
+    """
+    families = {primary_family}
+    min_hits = 3
+
+    # Only scan for families that differ from the primary
+    if primary_family != "URL":
+        hits = sum(1 for v in values if _URL_RE.search(v))
+        if hits >= min_hits:
+            families.add("URL")
+
+    if primary_family != "CONTACT":
+        hits = sum(1 for v in values if _EMAIL_RE.search(v))
+        if hits >= min_hits:
+            families.add("CONTACT")
+
+    if primary_family != "CREDENTIAL":
+        hits = sum(1 for v in values if _CREDENTIAL_PREFIX_RE.search(v))
+        if hits >= min_hits:
+            families.add("CREDENTIAL")
+
+    return sorted(families)
+
+
 # ── Shard specification ────────────────────────────────────────────────────
 
 
@@ -95,6 +155,10 @@ class ShardSpec:
     column_id: str
     sampling: str = "unique"  # "unique" | "resampled"
     extra_metadata: dict[str, object] = field(default_factory=dict)
+    #: Multi-label ground truth: all families structurally present in
+    #: the shard's sample values.  Always includes the primary
+    #: ``ground_truth`` family.  Populated by :func:`annotate_shard_families`.
+    ground_truth_families: list[str] = field(default_factory=list)
 
 
 # ── Pool extraction ────────────────────────────────────────────────────────
@@ -554,7 +618,28 @@ def build_shards(
         assert shard.column_id not in seen, f"duplicate column_id: {shard.column_id}"
         seen.add(shard.column_id)
 
+    # Annotate multi-label ground truth families via structural
+    # presence detection on sample values.
+    annotate_shard_families(shards)
+
     return shards
+
+
+def annotate_shard_families(shards: list[ShardSpec]) -> None:
+    """Populate ``ground_truth_families`` on every shard in-place.
+
+    Runs the lightweight structural presence scanner on each shard's
+    sample values to detect URL, EMAIL (→ CONTACT), and CREDENTIAL
+    patterns that co-occur alongside the primary ground truth.
+    """
+    from data_classifier.core.taxonomy import family_for
+
+    for shard in shards:
+        primary_family = family_for(shard.ground_truth)
+        shard.ground_truth_families = _detect_structural_families(
+            shard.column.sample_values,
+            primary_family,
+        )
 
 
 def summarise_shards(shards: Iterable[ShardSpec]) -> dict[str, object]:
@@ -607,6 +692,7 @@ __all__ = [
     "SYNTH_SHARDS_BACKED",
     "SYNTH_SHARDS_SYNTHETIC_ONLY",
     "ShardSpec",
+    "annotate_shard_families",
     "build_real_corpus_shards",
     "build_shards",
     "build_synthetic_shards",
