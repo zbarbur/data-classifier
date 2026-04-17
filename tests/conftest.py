@@ -8,6 +8,9 @@ import warnings
 
 import pytest
 
+from data_classifier import ClassificationProfile, load_profile  # noqa: E402
+from data_classifier.core.types import ColumnInput  # noqa: E402
+
 # ── Venv guard: fail loudly if ML deps are missing ──────────────────────
 # The project venv has gliner2/torch installed; system python does not.
 # Running tests outside the venv causes GLiNER to silently skip, producing
@@ -34,9 +37,6 @@ if not _IN_CI and not _ML_DISABLED:
             f"Set DATA_CLASSIFIER_DISABLE_ML=1 to skip ML tests intentionally.",
             returncode=1,
         )
-
-from data_classifier import ClassificationProfile, load_profile
-from data_classifier.core.types import ColumnInput
 
 
 @pytest.fixture

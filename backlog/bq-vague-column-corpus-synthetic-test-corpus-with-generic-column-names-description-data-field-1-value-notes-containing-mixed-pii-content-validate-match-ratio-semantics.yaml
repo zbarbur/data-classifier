@@ -1,7 +1,7 @@
 title: "BQ vague column corpus \u2014 synthetic test corpus with generic column names\
   \ (description, data, field_1, value, notes) containing mixed PII content, validate\
   \ match_ratio semantics"
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 14

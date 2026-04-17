@@ -71,6 +71,17 @@ _COLLISION_GAP_THRESHOLD: float = 0.15
 _PHONE_SUPPRESSION_WINNERS: set[str] = {
     "DATE_OF_BIRTH",
     "CREDIT_CARD",
+    "IBAN",
+    "EIN",
+    "ABA_ROUTING",
+    "BANK_ACCOUNT",
+    "SSN",
+    "CANADIAN_SIN",
+    "NATIONAL_ID",
+    "NPI",
+    "IP_ADDRESS",
+    "MAC_ADDRESS",
+    "VIN",
 }
 
 # Confidence boost when a high-authority engine agrees with a lower-authority engine
@@ -302,6 +313,11 @@ class Orchestrator:
         # prediction has confidence >= 0.53; 0.50 gives a small margin.
         min_directive_confidence = 0.50
         if prediction.confidence < min_directive_confidence:
+            return None
+
+        # Never inject findings from nothing — the directive should only
+        # re-rank or correct existing cascade output, not hallucinate.
+        if not cascade_result:
             return None
 
         # If cascade already agrees, no directive needed

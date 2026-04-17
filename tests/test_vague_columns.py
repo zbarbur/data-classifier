@@ -16,8 +16,28 @@ from pathlib import Path
 
 import pytest
 
-from data_classifier import ColumnInput, classify_columns
+from data_classifier import ColumnInput
+from data_classifier.engines.column_name_engine import ColumnNameEngine
+from data_classifier.engines.heuristic_engine import HeuristicEngine
+from data_classifier.engines.regex_engine import RegexEngine
+from data_classifier.engines.secret_scanner import SecretScannerEngine
+from data_classifier.orchestrator.orchestrator import Orchestrator
 from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+
+def _classify_no_ml(columns, profile, **kwargs):
+    """Classify columns WITHOUT GLiNER — tests cascade/router behavior only.
+
+    Uses an explicit engine list to avoid the module-level _DEFAULT_ENGINES
+    cache which may already include GLiNER from other tests in the session.
+    """
+    engines = [ColumnNameEngine(), RegexEngine(), HeuristicEngine(), SecretScannerEngine()]
+    orch = Orchestrator(engines=engines, mode="structured")
+    results = []
+    for col in columns:
+        results.extend(orch.classify_column(col, profile, **kwargs))
+    return results
+
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +95,7 @@ def _make_column(case: dict) -> ColumnInput:
 def test_router_branch_assignment(case, standard_profile):
     """Verify the column-shape router assigns the expected branch."""
     column = _make_column(case)
-    # Run classification to get post-merge findings (router needs them)
-    findings = classify_columns([column], standard_profile, min_confidence=0.0)
+    findings = _classify_no_ml([column], standard_profile, min_confidence=0.0)
     shape = detect_column_shape(column, findings)
     assert shape.shape == case["expected_router_branch"], (
         f"Column '{case['column_name']}' (id={case['id']}): "
@@ -93,7 +112,7 @@ def test_router_branch_assignment(case, standard_profile):
 def test_structured_single_entity_detection(case, standard_profile):
     """Vague-named structured columns must detect the correct entity type from content alone."""
     column = _make_column(case)
-    findings = classify_columns([column], standard_profile, min_confidence=0.0)
+    findings = _classify_no_ml([column], standard_profile, min_confidence=0.0)
 
     expected = case["expected_entity_type"]
     entity_types = [f.entity_type for f in findings]
@@ -115,7 +134,7 @@ def test_structured_single_entity_detection(case, standard_profile):
 def test_structured_single_match_ratio(case, standard_profile):
     """Structured single-entity columns should have high match_ratio from content."""
     column = _make_column(case)
-    findings = classify_columns([column], standard_profile, min_confidence=0.0)
+    findings = _classify_no_ml([column], standard_profile, min_confidence=0.0)
 
     expected = case["expected_entity_type"]
     matching = [f for f in findings if f.entity_type == expected]
@@ -141,7 +160,7 @@ def test_structured_single_match_ratio(case, standard_profile):
 def test_heterogeneous_detects_pii(case, standard_profile):
     """Free-text columns with embedded PII must detect at least one expected entity type."""
     column = _make_column(case)
-    findings = classify_columns([column], standard_profile, min_confidence=0.0)
+    findings = _classify_no_ml([column], standard_profile, min_confidence=0.0)
 
     expected_any = case.get("expected_entity_types_any", [])
     entity_types = {f.entity_type for f in findings}
@@ -161,7 +180,7 @@ def test_heterogeneous_detects_pii(case, standard_profile):
 def test_nonstructured_entity_detection(case, standard_profile):
     """Non-structured columns (opaque tokens, URLs, BTC) must detect the expected entity type."""
     column = _make_column(case)
-    findings = classify_columns([column], standard_profile, min_confidence=0.0)
+    findings = _classify_no_ml([column], standard_profile, min_confidence=0.0)
 
     expected = case["expected_entity_type"]
     entity_types = [f.entity_type for f in findings]
@@ -178,13 +197,13 @@ def test_nonstructured_entity_detection(case, standard_profile):
 def test_negative_no_pii_detected(case, standard_profile):
     """Vague-named columns with no PII content should produce no findings."""
     column = _make_column(case)
-    findings = classify_columns([column], standard_profile, min_confidence=0.5)
+    threshold = 0.5
+    findings = _classify_no_ml([column], standard_profile, min_confidence=0.0)
 
-    # Allow very-low-confidence noise but nothing actionable
-    high_confidence = [f for f in findings if f.confidence >= 0.5]
+    high_confidence = [f for f in findings if f.confidence >= threshold]
     assert not high_confidence, (
         f"Column '{case['column_name']}' (id={case['id']}): "
-        f"expected no findings, got {[(f.entity_type, f.confidence) for f in high_confidence]}"
+        f"expected no findings above {threshold}, got {[(f.entity_type, f.confidence) for f in high_confidence]}"
     )
 
 
@@ -241,7 +260,7 @@ def test_empty_samples_no_crash(standard_profile):
         column_id="vague:edge:empty",
         sample_values=[],
     )
-    findings = classify_columns([column], standard_profile, min_confidence=0.5)
+    findings = _classify_no_ml([column], standard_profile, min_confidence=0.5)
     assert isinstance(findings, list)
 
 
@@ -252,7 +271,7 @@ def test_all_empty_strings_no_crash(standard_profile):
         column_id="vague:edge:all_empty",
         sample_values=["", "", "", "", ""],
     )
-    findings = classify_columns([column], standard_profile, min_confidence=0.5)
+    findings = _classify_no_ml([column], standard_profile, min_confidence=0.5)
     assert isinstance(findings, list)
 
 
@@ -296,7 +315,7 @@ def test_batch_vague_columns(standard_profile):
             ],
         ),
     ]
-    findings = classify_columns(columns, standard_profile, min_confidence=0.0)
+    findings = _classify_no_ml(columns, standard_profile, min_confidence=0.0)
 
     # Group by column
     by_col = {}
