@@ -5,7 +5,7 @@ priority: P1
 category: feature
 sprint_target: 13
 created: 2026-04-16
-updated: 2026-04-16
+updated: 2026-04-17
 depends_on:
 - sprint13-column-shape-router
 tags:
@@ -36,16 +36,16 @@ technical_specs:
   span of this type), (b) emits one ClassificationFinding per entity type observed
   with confidence = coverage * max_span_confidence. Threshold: drop entity types with
   coverage < 0.1 (arbitrary noise floor, tune in implementation).'
-- "Orchestrator integration (2026-04-17 revised from \"replace\" to \"union\"): Item\
-  \ A's free_text_heterogeneous branch calls the per-value GLiNER handler and merges\
-  \ the aggregated findings with the existing 7-pass cascade output via the orchestrator's\
-  \ existing authority + suppression passes. Cascade findings (regex floor, 100% precision\
-  \ where patterns match) are preserved; GLiNER per-value findings are ADDED on top,\
-  \ contributing entity types the regex cascade does not express (ORGANIZATION, free-form\
-  \ DOB, prose PERSON_NAME). On duplicate entity_types, the merge uses the higher confidence.\
-  \ Rationale: replacing the cascade would sacrifice deterministic regex precision\
-  \ + language-agnostic coverage for GLiNER's English-only, hallucination-prone output.\
-  \ Union preserves the regex floor and lets GLiNER add coverage."
+- 'Orchestrator integration (2026-04-17 revised from "replace" to "union"): Item A''s
+  free_text_heterogeneous branch calls the per-value GLiNER handler and merges the
+  aggregated findings with the existing 7-pass cascade output via the orchestrator''s
+  existing authority + suppression passes. Cascade findings (regex floor, 100% precision
+  where patterns match) are preserved; GLiNER per-value findings are ADDED on top,
+  contributing entity types the regex cascade does not express (ORGANIZATION, free-form
+  DOB, prose PERSON_NAME). On duplicate entity_types, the merge uses the higher confidence.
+  Rationale: replacing the cascade would sacrifice deterministic regex precision +
+  language-agnostic coverage for GLiNER''s English-only, hallucination-prone output.
+  Union preserves the regex floor and lets GLiNER add coverage.'
 - "Performance budget (Sprint 13 scoping Q2 decision, 2026-04-16): cap per-value inference\
   \ at N=60 sample values, selected deterministically by stable hash (reproducible\
   \ across runs, independent of insertion order). The cap is exposed as ``per_value_gliner_sample_size``\
@@ -87,18 +87,18 @@ acceptance_criteria:
 - GLiNERInferenceEngine supports a per_value mode
 - aggregate_per_value_spans helper exists and converts per-value spans to column-level
   list[ClassificationFinding]
-- Orchestrator free_text_heterogeneous branch calls per-value handler and merges
-  its findings with the cascade output via the existing authority/suppression passes
-  (union design, 2026-04-17; cascade regex floor preserved, GLiNER adds coverage)
-- On all 6 Q3 fixtures from sprint12_safety_audit.py, orchestrator output is a
-  SUPERSET of the pre-Item-B cascade entity set (structural, true under union by
-  construction — the test asserts it is still observed end-to-end)
-- GLiNER contributes at least one entity type not in the cascade set on at least
-  3 of 6 Q3 fixtures (demonstrates real GLiNER lift — e.g. ORGANIZATION, DATE_OF_BIRTH
-  in prose, PERSON_NAME in chat)
-- No Q3 fixture emits an entity type not plausibly present in the column
-  (hallucination guard — operator-level list of plausible entities per fixture is
-  included in the fixture metadata)
+- Orchestrator free_text_heterogeneous branch calls per-value handler and merges its
+  findings with the cascade output via the existing authority/suppression passes (union
+  design, 2026-04-17; cascade regex floor preserved, GLiNER adds coverage)
+- "On all 6 Q3 fixtures from sprint12_safety_audit.py, orchestrator output is a SUPERSET\
+  \ of the pre-Item-B cascade entity set (structural, true under union by construction\
+  \ \u2014 the test asserts it is still observed end-to-end)"
+- "GLiNER contributes at least one entity type not in the cascade set on at least\
+  \ 3 of 6 Q3 fixtures (demonstrates real GLiNER lift \u2014 e.g. ORGANIZATION, DATE_OF_BIRTH\
+  \ in prose, PERSON_NAME in chat)"
+- "No Q3 fixture emits an entity type not plausibly present in the column (hallucination\
+  \ guard \u2014 operator-level list of plausible entities per fixture is included\
+  \ in the fixture metadata)"
 - Integration test on tests/benchmarks/meta_classifier/sprint12_safety_audit.py produces
   Q3 aggregate verdict GREEN after this item lands (Item A already lifted it by routing
   away from v5; Item B improves the handler)
@@ -138,7 +138,7 @@ notes: "Estimated ~1 week of implementation. The biggest unknowns are (a) whethe
   \ but may need tuning.\n\nONNX runtime note: current GLiNER ONNX export is wired\
   \ through\ndata_classifier.download_models. The per-value mode should work with\
   \ the\nexisting ONNX session without model changes \u2014 just a new inference pattern.\n"
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
