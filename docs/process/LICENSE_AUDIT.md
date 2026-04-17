@@ -59,6 +59,21 @@ include:
 | [detect_secrets fixtures](https://github.com/Yelp/detect-secrets) | Apache-2.0 | `Apache-2.0` | 2026-04-11 | Direct LICENSE fetch |
 | Synthetic (Faker-based, in-repo generator) | MIT (inherited from Faker) | `MIT` | n/a | Generated locally, no external data |
 
+### 🟢 Ingested — Sprint 14
+
+| Corpus | License | SPDX | Verified on | How verified | Status |
+|---|---|---|---|---|---|
+| [ai4privacy/pii-masking-openpii-1m](https://huggingface.co/datasets/ai4privacy/pii-masking-openpii-1m) | CC BY 4.0 | `CC-BY-4.0` | 2026-04-14 | HuggingFace dataset page — explicit license statement: "License: CC-BY-4.0. Copyright 2026 Ai Suisse SA. Permitted Use: Research, commercial use, redistribution, and modification — subject to attribution requirements under CC-BY-4.0." | Corpus loader + type map added Sprint 14 |
+
+> **Sprint 9 correction (Sprint 14 scope):** The Sprint 9 removal decision
+> removed `ai4privacy/pii-masking-300k` and was initially applied as a blanket
+> ban on the `ai4privacy` namespace. The correction footnote added in Sprint 10
+> (see below) clarified that `openpii-1m` is CC-BY-4.0 and NOT covered by the
+> ban. Sprint 14 completes the re-ingest by adding a full corpus loader,
+> type map (19 labels mapped to 9 data_classifier entity types), and benchmark
+> wiring. The Sprint 9 removal of `pii-masking-300k` and `pii-masking-400k`
+> remains correct — those variants have custom non-OSI licenses.
+
 ### 🟡 Being ingested — Sprint 10 in-flight
 
 | Corpus | License | SPDX | Verified on | How verified | Status |
@@ -183,6 +198,7 @@ place.
 | 2026-04-14 | Added `gretelai/synthetic_pii_finance_multilingual` under Sprint 10 in-flight ingestion. Same license-fetch evidence profile as Gretel-EN (no standalone LICENSE file; README frontmatter + HF cardData both tag Apache-2.0). Open follow-up: both Gretel rows to be promoted to "Currently in use" once written license confirmation is received from Gretel AI. | Sprint 10 ingest (Claude, `ingest-gretel-pii-finance-multilingual`) |
 | 2026-04-14 | Added Kingfisher + gitleaks + Nosey Parker as credential pattern upstreams for the Sprint 10 secret key-name dictionary expansion. See "Credential-pattern upstreams" section below and `docs/process/CREDENTIAL_PATTERN_SOURCES.md` for per-entry attribution. | Sprint 10 item `expand-secret-key-names-dictionary` |
 | 2026-04-14 | Correction footnote added to the Sprint 9 ai4privacy removal section: blanket `ai4privacy` namespace ban was wrong. `ai4privacy/pii-masking-openpii-1m` is CC-BY-4.0 (commercial + redistribution + modification permitted with attribution). Sprint 11 follow-up item `review-ai4privacy-dataset-family-and-ingest-best-cc-by-4-0-variant` filed to review all 4 variants and re-ingest the best. | Sprint 10 correction |
+| 2026-04-17 | Added `ai4privacy/pii-masking-openpii-1m` under "Ingested — Sprint 14" with CC-BY-4.0 verification. Corpus loader, type map (19 labels → 9 entity types), benchmark CLI wiring, and tests added. Completes the Sprint 11 follow-up item. | Sprint 14 ingest |
 
 ## Credential-pattern upstreams (Sprint 10)
 

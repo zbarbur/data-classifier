@@ -10,6 +10,9 @@ Supports multiple corpus sources:
 - Gretel-PII-masking-en-v1 (HuggingFace sample; Apache 2.0 mixed-label
   corpus, 60k rows / 47 domains) — replaced a retired 300k-row corpus
   in Sprint 9 (license non-OSS, see docs/process/LICENSE_AUDIT.md).
+- ai4privacy/pii-masking-openpii-1m (CC-BY-4.0, 1.4M rows, 23 languages,
+  19 entity labels) — added Sprint 14. Re-opens Sprint 9 removal decision
+  for the openpii-1m variant specifically (license verified CC-BY-4.0).
 
 Sample data ships in tests/fixtures/corpora/ for offline benchmarking.
 
@@ -89,6 +92,65 @@ GRETEL_EN_TYPE_MAP: dict[str, str] = {
 # labels.  We do not re-map from the raw Gretel labels here because the
 # raw labels never appear in the fixture.
 _GRETEL_EN_POST_ETL_IDENTITY: dict[str, str] = {label: label for label in set(GRETEL_EN_TYPE_MAP.values())}
+
+
+# ai4privacy/pii-masking-openpii-1m label map — locked 2026-04-17,
+# Sprint 14.  CC-BY-4.0 (verified 2026-04-14 via HuggingFace page).
+#
+# 19 raw labels → 8 data_classifier entity types.  Mapping decisions:
+#
+# - GIVENNAME / SURNAME → PERSON_NAME (name components).
+# - USERNAME → PERSON_NAME (user handle, closest PII fit; no USERNAME
+#   entity type exists in the taxonomy and adding one is out of scope).
+# - BUILDINGNUM / STREET / CITY / ZIPCODE / STATE / COUNTY → ADDRESS
+#   (address components, same family as ADDRESS).
+# - IDCARDNUM / DRIVERLICENSENUM / PASSPORTNUM → NATIONAL_ID
+#   (government-issued identity documents; existing entity type covers
+#   passports + drivers licenses + national IDs).
+# - TAXNUM → SSN (tax identifier — SSN/TIN/NIF equivalent; SSN is the
+#   closest existing entity type for government tax IDs).
+# - SOCIALNUM → SSN (social security / social insurance number).
+# - CREDITCARDNUMBER → CREDIT_CARD (payment card number).
+# - ACCOUNTNUM → BANK_ACCOUNT (financial account number).
+# - EMAIL → EMAIL (email address).
+# - PHONENUMBER → PHONE (phone number).
+# - DATE → DATE_OF_BIRTH (most date PII in this corpus is
+#   birth-date-adjacent; no generic DATE entity type exists, and adding
+#   one would widen the taxonomy beyond what this sprint can validate.
+#   Conservative mapping — benchmark scoring treats DATE_OF_BIRTH and
+#   any future DATE type as the same DATE family).
+OPENPII_1M_TYPE_MAP: dict[str, str] = {
+    # Identity / PII
+    "GIVENNAME": "PERSON_NAME",
+    "SURNAME": "PERSON_NAME",
+    "USERNAME": "PERSON_NAME",
+    # Address components
+    "BUILDINGNUM": "ADDRESS",
+    "STREET": "ADDRESS",
+    "CITY": "ADDRESS",
+    "ZIPCODE": "ADDRESS",
+    "STATE": "ADDRESS",
+    "COUNTY": "ADDRESS",
+    # Government-issued IDs
+    "IDCARDNUM": "NATIONAL_ID",
+    "DRIVERLICENSENUM": "NATIONAL_ID",
+    "PASSPORTNUM": "NATIONAL_ID",
+    # Tax / social security
+    "TAXNUM": "SSN",
+    "SOCIALNUM": "SSN",
+    # Financial
+    "CREDITCARDNUMBER": "CREDIT_CARD",
+    "ACCOUNTNUM": "BANK_ACCOUNT",
+    # Contact
+    "EMAIL": "EMAIL",
+    "PHONENUMBER": "PHONE",
+    # Date
+    "DATE": "DATE_OF_BIRTH",
+}
+
+#: Identity map over the already-flattened post-ETL labels in the
+#: openpii-1m fixture, matching the Gretel-EN approach.
+_OPENPII_1M_POST_ETL_IDENTITY: dict[str, str] = {label: label for label in set(OPENPII_1M_TYPE_MAP.values())}
 
 
 # Gretel synthetic_pii_finance_multilingual label map — locked
@@ -437,6 +499,73 @@ def load_gretel_finance_corpus(
         max_rows,
         blind=blind,
     )
+
+
+def load_openpii_1m_corpus(
+    path: Path | str | None = None,
+    max_rows: int = 500,
+    *,
+    blind: bool = False,
+) -> list[tuple[ColumnInput, str | None]]:
+    """Load the ai4privacy/pii-masking-openpii-1m corpus sample.
+
+    The dataset is CC-BY-4.0 (1.4M rows, 23 languages, 19 entity labels).
+    It is too large to commit and must be downloaded to
+    ``~/.cache/data_classifier/datasets/ai4privacy_openpii_1m/`` at
+    training/benchmark time.
+
+    The bundled fixture (if present) at
+    ``tests/fixtures/corpora/openpii_1m_sample.json`` is **already
+    flattened** to the ``{"entity_type": <data_classifier type>,
+    "value": <raw value>}`` schema.  The download-side ETL maps labels
+    through :data:`OPENPII_1M_TYPE_MAP` and writes the post-ETL taxonomy
+    labels to disk.  The loader therefore uses an identity map over the
+    already-mapped taxonomy labels.
+
+    If no fixture file exists, the loader tries the cache directory at
+    ``~/.cache/data_classifier/datasets/ai4privacy_openpii_1m/openpii_1m_sample.json``.
+    If neither exists, it returns an empty list with a warning — CI
+    without the corpus does not break.
+
+    Args:
+        path: Path to JSON sample file. Defaults to bundled fixture,
+            then falls back to cache directory.
+        max_rows: Maximum sample values per entity type.
+        blind: If True, use generic column names (``col_0``, ``col_1``,
+            ...) so the column-name engine cannot cheat.
+
+    Returns:
+        List of ``(ColumnInput, expected_entity_type)`` tuples.
+    """
+    if path is None:
+        # Try bundled fixture first, then cache directory.
+        fixture_path = _FIXTURES_DIR / "openpii_1m_sample.json"
+        cache_path = (
+            Path.home() / ".cache" / "data_classifier" / "datasets" / "ai4privacy_openpii_1m" / "openpii_1m_sample.json"
+        )
+        if fixture_path.exists():
+            path = fixture_path
+        elif cache_path.exists():
+            path = cache_path
+        else:
+            logger.warning(
+                "OpenPII-1M corpus not found at %s or %s. "
+                "Download via scripts/download_corpora.py --corpus openpii_1m "
+                "or place a fixture at %s.",
+                fixture_path,
+                cache_path,
+                fixture_path,
+            )
+            return []
+    else:
+        path = Path(path)
+
+    records = _load_json_corpus(path)
+    if not records:
+        logger.warning("No records loaded from OpenPII-1M corpus at %s", path)
+        return []
+
+    return _records_to_corpus(records, _OPENPII_1M_POST_ETL_IDENTITY, "openpii_1m", max_rows, blind=blind)
 
 
 #: Generic sentinel for "this column's ground truth is that nothing
@@ -816,7 +945,8 @@ def load_corpus(
     Args:
         source: One of ``"synthetic"``, ``"nemotron"``,
             ``"secretbench"``, ``"gitleaks"``, ``"detect_secrets"``,
-            ``"gretel_en"``, ``"gretel_finance"``, or ``"all"``.
+            ``"gretel_en"``, ``"gretel_finance"``, ``"openpii_1m"``,
+            or ``"all"``.
         max_rows: Max rows for real-world corpora.
         path: Optional custom path to corpus file.
         samples_per_type: Samples per type for synthetic corpus.
@@ -840,6 +970,8 @@ def load_corpus(
         return load_gretel_en_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "gretel_finance":
         return load_gretel_finance_corpus(path=path, max_rows=max_rows, blind=blind)
+    elif source == "openpii_1m":
+        return load_openpii_1m_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "all":
         corpus: list[tuple[ColumnInput, str | None]] = []
         corpus.extend(load_synthetic_corpus(samples_per_type=samples_per_type))
@@ -849,11 +981,12 @@ def load_corpus(
         corpus.extend(load_detect_secrets_corpus(blind=blind))
         corpus.extend(load_gretel_en_corpus(max_rows=max_rows, blind=blind))
         corpus.extend(load_gretel_finance_corpus(max_rows=max_rows, blind=blind))
+        corpus.extend(load_openpii_1m_corpus(max_rows=max_rows, blind=blind))
         return corpus
     else:
         msg = (
             f"Unknown corpus source: {source!r}. Valid: synthetic, "
             "nemotron, secretbench, gitleaks, detect_secrets, "
-            "gretel_en, gretel_finance, all"
+            "gretel_en, gretel_finance, openpii_1m, all"
         )
         raise ValueError(msg)
