@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from data_classifier.config import load_engine_config
 from data_classifier.core.types import (
     ClassificationFinding,
     ClassificationProfile,
@@ -259,6 +260,21 @@ def _find_bundled_onnx_model() -> str | None:
             logger.info("Auto-discovered ONNX model at %s", path)
             return str(path)
     return None
+
+
+_DEFAULT_PER_VALUE_SAMPLE_SIZE: int = 60
+
+
+def _load_per_value_sample_size() -> int:
+    """Read the per-value sample-size cap from engine_defaults.yaml."""
+    try:
+        cfg = load_engine_config().get("gliner_engine", {}) or {}
+        value = cfg.get("per_value_sample_size", _DEFAULT_PER_VALUE_SAMPLE_SIZE)
+        if isinstance(value, int) and value > 0:
+            return value
+    except Exception:
+        logger.exception("Failed to load per_value_sample_size; falling back to default")
+    return _DEFAULT_PER_VALUE_SAMPLE_SIZE
 
 
 class GLiNER2Engine(ClassificationEngine):
