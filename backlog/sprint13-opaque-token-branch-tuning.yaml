@@ -5,7 +5,7 @@ priority: P2
 category: feature
 sprint_target: 13
 created: 2026-04-16
-updated: 2026-04-16
+updated: 2026-04-17
 depends_on:
 - sprint13-column-shape-router
 tags:
@@ -85,7 +85,7 @@ notes: "Estimated ~3 days if secret_scanner patterns are sufficient, ~1 week if\
   \ of opaque-token columns\n     (encrypted vs hashed vs encoded vs random)? May\
   \ or may not matter\n     for BQ customers.\n  3. Does Shannon entropy correlate\
   \ with \"this is a secret\" labeling\n     in our corpora? Quick spike to check.\n"
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
