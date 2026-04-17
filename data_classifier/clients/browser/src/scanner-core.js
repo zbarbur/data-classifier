@@ -177,8 +177,8 @@ function tieredScore(keyScore, tier, value) {
 function valueIsObviouslyNotSecret(value) {
   const v = value.toLowerCase().trim();
   if (SECRET_SCANNER.configValues.includes(v)) return true;
-  if (/^https?:\/\//i.test(value)) return true;
-  if (/^\d{4}[-/]\d{2}[-/]\d{2}/.test(value)) return true;
+  if (_URL_LIKE_RE.test(value)) return true;
+  if (_DATE_LIKE_RE.test(value)) return true;
   if (value.includes(' ')) {
     let alpha = 0;
     for (const c of value) if (/[A-Za-z]/.test(c)) alpha++;
@@ -187,34 +187,14 @@ function valueIsObviouslyNotSecret(value) {
   return false;
 }
 
-/**
- * Port of Python's _is_placeholder_value — regex-based placeholder detection.
- * Catches values like "ghp_aaaa...", "xxxxxxxxxxxx", "<your-token>",
- * "YOUR_API_KEY_HERE", "{{VAR}}", "${VAR}", and common documentation examples.
- */
-const _PLACEHOLDER_RES = [
-  /x{5,}/i,                                                // 5+ consecutive x/X
-  /(.)\1{7,}/,                                              // any char repeated 8+
-  /<[^>]{1,80}>/,                                           // <angle-bracket>
-  /your[_\-\s]?(api|access|auth|secret|token|private|aws|gcp|azure)?[_\-\s]?(key|token|secret|password|credential)/i,
-  /put[_\-\s]?your/i,
-  /insert[_\-\s]?your/i,
-  /replace[_\-\s]?(me|with|this)/i,
-  /placeholder/i,
-  /redacted/i,
-  /\bexample\b/i,
-  /^sample[_\-]/i,
-  /^dummy[_\-]?/i,
-  /\{\{.*\}\}/,                                             // {{VAR}}
-  /\$\{[A-Z_]+\}/,                                         // ${VAR}
-  /EXAMPLE$/,                                               // AWS doc keys
-  /(key|token|secret|password)[_\-\s]here/i,
-  /goes[_\-\s]here/i,
-  /\bchangeme\b/i,
-  /\bfoobar\b/i,
-  /\btodo\b/i,
-  /\bfixme\b/i,
-];
+// Compiled from Python's _PLACEHOLDER_PATTERNS via generator
+const _PLACEHOLDER_RES = SECRET_SCANNER.placeholderPatterns.map(
+  ({ pattern, flags }) => new RegExp(pattern, flags)
+);
+
+// Compiled from Python's _URL_LIKE / _DATE_LIKE via generator
+const _URL_LIKE_RE = new RegExp(SECRET_SCANNER.urlLikePattern.pattern, SECRET_SCANNER.urlLikePattern.flags);
+const _DATE_LIKE_RE = new RegExp(SECRET_SCANNER.dateLikePattern.pattern, SECRET_SCANNER.dateLikePattern.flags);
 
 function isPlaceholderPattern(value) {
   for (const re of _PLACEHOLDER_RES) {

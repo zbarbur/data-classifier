@@ -16,9 +16,11 @@ JS fixtures and forces the port to follow.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -66,15 +68,40 @@ def load_secret_scanner_config() -> dict:
 
 
 def emit_constants(version: str) -> None:
-    from data_classifier.engines.secret_scanner import _CONFIG_VALUES
+    from data_classifier.engines.secret_scanner import (
+        _CONFIG_VALUES,
+        _DATE_LIKE,
+        _PLACEHOLDER_PATTERNS,
+        _URL_LIKE,
+    )
 
     cfg = load_secret_scanner_config()
     scoring = cfg.get("scoring", {})
     rel = scoring.get("relative_entropy_thresholds", {})
     tiers = scoring.get("tier_boundaries", {})
     config_values_sorted = sorted(_CONFIG_VALUES)
+
+    # Serialize _PLACEHOLDER_PATTERNS as array of {pattern, flags} objects
+    placeholder_patterns = []
+    for pat in _PLACEHOLDER_PATTERNS:
+        flags = ""
+        if pat.flags & re.IGNORECASE:
+            flags += "i"
+        placeholder_patterns.append({"pattern": pat.pattern, "flags": flags})
+
+    # _URL_LIKE and _DATE_LIKE
+    url_like = {"pattern": _URL_LIKE.pattern, "flags": "i" if _URL_LIKE.flags & re.IGNORECASE else ""}
+    date_like = {"pattern": _DATE_LIKE.pattern, "flags": "i" if _DATE_LIKE.flags & re.IGNORECASE else ""}
+
+    # Per-file hash map for targeted drift diagnosis
+    file_hashes = {}
+    for p in sorted(LOGIC_FILES):
+        file_hashes[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+
     js = f"""// GENERATED - do not edit. Run: npm run generate
 export const PYTHON_LOGIC_VERSION = {json.dumps(version)};
+
+export const PYTHON_LOGIC_FILE_HASHES = {json.dumps(file_hashes, indent=2)};
 
 export const SECRET_SCANNER = {{
   minValueLength: {cfg.get("min_value_length", 8)},
@@ -88,13 +115,16 @@ export const SECRET_SCANNER = {{
   proseAlphaThreshold: {scoring.get("prose_alpha_threshold", 0.6)},
   tierBoundaryDefinitive: {tiers.get("definitive", 0.9)},
   tierBoundaryStrong: {tiers.get("strong", 0.7)},
+  placeholderPatterns: {json.dumps(placeholder_patterns)},
+  urlLikePattern: {json.dumps(url_like)},
+  dateLikePattern: {json.dumps(date_like)},
 }};
 """
     (GENERATED_DIR / "constants.js").write_text(js)
     log.info("wrote constants.js (PYTHON_LOGIC_VERSION=%s)", version)
 
 
-def emit_patterns() -> None:
+def emit_patterns() -> int:
     from data_classifier.patterns import load_default_patterns
 
     patterns = load_default_patterns()
@@ -135,6 +165,7 @@ def emit_patterns() -> None:
     )
     (GENERATED_DIR / "patterns.js").write_text(js)
     log.info("wrote patterns.js (%d patterns)", len(out))
+    return len(stub_report)
 
 
 def emit_secret_key_names() -> None:
@@ -271,14 +302,26 @@ def emit_fixtures(version: str) -> None:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--strict-validators",
+        action="store_true",
+        help="Exit non-zero if any pattern references an unported validator",
+    )
+    args = parser.parse_args()
+
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
     version = python_logic_version()
     emit_constants(version)
-    emit_patterns()
+    stub_count = emit_patterns()
     emit_secret_key_names()
     emit_stopwords()
     emit_placeholder_values()
     emit_fixtures(version)
+
+    if args.strict_validators and stub_count > 0:
+        log.error("--strict-validators: %d pattern(s) use unported validators", stub_count)
+        return 1
     return 0
 
 
