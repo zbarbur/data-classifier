@@ -315,25 +315,31 @@ detect-secrets / spec), and rough effort estimate.
 
 ### Stage S2 — Browser-port feasibility spike
 
-- **Status:** 🟡 unblocked — can start in parallel with S0
-- **Blocks:** the PoC build itself (separate sprint item, post-spike)
-- **Effort:** ~1 day
+- **Status:** ✅ COMPLETE 2026-04-17 — see `s2_spike/report/s2_browser_port_spike.md`
+- **Blocks (resolved):** execution track can now commit to Path 1 (native JS RegExp)
+- **Effort actual:** ~½ day (vs 1-day estimate; DVC infra setup took the other ½ day)
+
+**Headline numbers** (77 content regex patterns, 11K WildChat corpus):
+
+- Per-prompt scan latency P99 = **0.70 ms** (all 77), **0.30 ms** (41 credential-only)
+- Max latency = 2.50 ms (all), 1.40 ms (credential-only)
+- ReDoS: **73 safe / 3 polynomial / 0 exponential** — all polynomial patterns sub-0.3ms measured
+- Bundle gzipped: **13.45 KB** projected total (target 200 KB) — 93% headroom
+- **Path 1 (native JS RegExp) is a clear go.** No re2-wasm needed.
+- Worker kill budget can be set generously (100ms) with zero expected kills at any tested threshold
 
 Three measurements in headless Chrome via Playwright:
 
-1. **JS regex perf benchmark** — all 178 current patterns over a
-   WildChat sample. Report P50/P95/P99/max scan latency, throughput,
-   bundle parse time, memory delta.
-2. **ReDoS audit** — all 178 patterns through `recheck`. Categorize
-   by severity (exponential / polynomial / safe). No gate, just data.
-3. **Bundle size estimate** — pattern dict + entropy + validators,
-   minified + gzipped. Target <200KB.
+1. **JS regex perf benchmark** — all 77 content regex patterns over an
+   11K WildChat sample (10K random + 1K longest). Reports P50-P99.9,
+   histogram, per-pattern max, compile time. Separate distributions for
+   all-patterns vs credential-only (browser PoC scope = 41 credential).
+2. **ReDoS audit** — all 77 patterns through `recheck`. 73 safe,
+   3 polynomial (email, JWT, Discord bot), 0 exponential.
+3. **Bundle size** — patterns + entropy = 2.44 KB gzipped; plus
+   projected validators ~11 KB = 13.45 KB total (target 200 KB).
 
-Output: go/no-go on Path 1 (audited JS regex) vs Path 2 (re2-wasm)
-for the PoC. If worst-case scan stays under the worker kill budget,
-Path 1 ships; otherwise Path 2.
-
-Output location: `docs/experiments/prompt_analysis/s2_browser_port_spike.md`.
+Output location: `s2_spike/report/s2_browser_port_spike.md`.
 
 ### Stage S3 — Pattern expansion mine (filed on `main`, Sprint 14 candidate)
 
