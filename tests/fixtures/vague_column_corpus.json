@@ -75,7 +75,7 @@
       "id": "vague:structured:credit_cards",
       "column_name": "col1",
       "expected_entity_type": "CREDIT_CARD",
-      "expected_router_branch": "structured_single",
+      "expected_router_branch": "opaque_tokens",
       "sample_values": [
         "4111-1111-1111-1111",
         "4222-2222-2222-2222",
@@ -98,7 +98,7 @@
       "id": "vague:structured:dob",
       "column_name": "info",
       "expected_entity_type": "DATE_OF_BIRTH",
-      "expected_router_branch": "structured_single",
+      "expected_router_branch": "opaque_tokens",
       "sample_values": [
         "1985-03-15",
         "1990-07-22",
