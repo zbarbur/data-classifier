@@ -2417,6 +2417,154 @@ extend.
 
 **Deliverable:** `tests/benchmarks/meta_classifier/family_accuracy_benchmark.py` extended + new `tests/test_multi_label_metrics_benchmark_parity.py` for regression guarding.
 
+## Corpus hygiene / ground-truth quality (M5 track)
+
+**Rationale:** The 2026-04-17 investigation of Sprint 13's 273 CREDENTIAL FPs
+surfaced that SecretBench (Basak & Neil, MSR 2023) is a **tool-alignment
+corpus**, not a value-classification corpus. Its labels answer "did a
+scanner's match at these file coordinates correspond to a real leak?" —
+not "is this string a secret?". On our 1,068-row fixture, 34.5% of
+is_secret=True entries are structurally not-a-secret under value
+semantics. This track covers follow-up work that extends beyond the
+Sprint 14 execution items (the fixture-level relabel and v2 adoption
+already shipped).
+
+Full context: `docs/research/meta_classifier/binary_pii_gate_evaluation_memo.md`
+Finding 3 + 4.
+
+### M5a — SecretBench full-corpus value-level relabel (BigQuery extension)
+
+**Status:** 🟡 queued
+**Priority:** P2 — fixture v2 already unblocks Sprint 14; full-corpus expansion is valuable but not blocking
+**Estimated time:** 3-5 days (includes BigQuery access / DPA sign-off)
+
+**Goal:** Extend the 1,068-row fixture relabel to the full 97,479-row
+SecretBench dataset. Our Sprint 14 v2 fixture covers what `shard_builder`
+pulls today; a full-corpus relabel gives us a reusable asset for any
+future credential-precision work that wants more volume.
+
+**What to build:**
+
+- Request BigQuery access to the SecretBench public dataset (contact
+  authors, sign the data-protection agreement — see
+  `https://github.com/setu1421/SecretBench`).
+- Reuse `scripts/relabel_secretbench.py` rules (11 structural rules,
+  all precision-weighted, zero False→True flips).
+- Run over the full 15,084 is_secret=True entries. Expected flip rate:
+  ~25-35% based on fixture sample.
+- Produce a versioned artifact at
+  `docs/research/meta_classifier/secretbench_full_v2_relabels.jsonl`
+  with per-row upstream label + proposed label + rule + notes.
+- Do NOT blindly overwrite anything downstream; ship as an auditable
+  relabel set that downstream code can opt into.
+
+**Success criteria:**
+
+- ≥ 10,000 new confident flips identified (scaling the fixture 20:1
+  ratio to the full corpus)
+- Per-rule precision spot-check: 50 random rows sampled per rule,
+  ≥ 95% of flipped rows agreed-with by human reviewer
+- Deliverable is a standalone artifact; no change to benchmark
+  pipelines or production code
+
+**Dependencies:** Access to the full SecretBench dataset; sprint-14
+fixture-level relabel already shipped.
+
+**Why this matters:** If we ever adopt SecretBench's non-sample rows
+into benchmarks (e.g., Q8 opaque-secret specialized classifier), we'll
+want the relabel available instead of discovering the label-noise issue
+again.
+
+### M5b — SecretBench native line-span evaluation harness
+
+**Status:** 🟡 queued
+**Priority:** P3 — useful for tool-alignment evaluation of our regex engine, but not blocking any current sprint work
+**Estimated time:** 1-2 weeks
+
+**Goal:** Build a second benchmark harness that uses SecretBench at its
+**intended** granularity: line-span alignment in source code files. Our
+current `family_accuracy_benchmark` asks "is this column's entity X?".
+SecretBench was built for "did a scanner correctly match at these file
+coordinates?". Both are valid questions; we only measure one of them.
+
+**What to build:**
+
+- Pull the 818 source repos referenced in SecretBench (via the
+  `repo_name` + `commit_id` + `file_path` fields) or use SecretBench's
+  provided BigQuery code-context snapshots.
+- For each file, run our regex engine over the file content (not via
+  ColumnInput; via a new `scan_text_file(path) -> list[Finding]` entry
+  point).
+- For each finding, check whether its span overlaps any SecretBench
+  entry for that file. Match labels.
+- Emit per-rule precision/recall at line-span granularity, separated
+  by scanner rule (our regex_engine, secret_scanner, etc.).
+
+**Success criteria:**
+
+- Harness produces sensible numbers on a 10-file smoke-test subset
+- Tool-alignment precision measurable per regex rule — which rules are
+  over/under-firing?
+- Output format complementary to family_accuracy_benchmark, committed
+  at `tests/benchmarks/secretbench_line_alignment_benchmark.py`
+
+**Dependencies:** M5a (full-corpus access).
+
+**Why this matters:** Gives us a principled way to evaluate which
+individual regex rules are precision-reducers vs recall-enablers —
+something the column-level benchmark can't tell us because it averages
+across rule firings.
+
+### M5c — Negative-lookalike corpus diversification
+
+**Status:** 🟡 queued
+**Priority:** P3 — only useful if we revisit a learned suppression gate; not blocking anything currently in flight
+**Estimated time:** 1-2 weeks
+
+**Goal:** The binary PII gate research (Sprint 14 item retired) showed
+that LOCO generalization is impossible with only three NEGATIVE-
+containing corpora because each encodes a fundamentally different
+concept of "not a secret":
+
+  - secretbench NEGs: credential-KV with human-readable values
+  - gitleaks NEGs: redactions and placeholders
+  - detect_secrets NEGs: 5 config-literal values resampled 30× each
+
+If a future architecture wants to ship a learned NEGATIVE suppressor,
+we need ≥5 structurally-distinct NEGATIVE sources.
+
+**What to build:**
+
+- Survey candidate corpora:
+  - GitHub noreply addresses / example patterns (MIT-licensed scanner
+    test suites like detect-secrets, SecretBench-FP subset)
+  - Documentation samples (README snippets with obvious example keys)
+  - Test fixture libraries (pytest/jest/gomock test data)
+  - Synthetic adversarial generation (LLM-generated "values that look
+    like secrets but are not", reviewed)
+  - Config-file samples (Kubernetes/Helm values.yaml with annotated
+    variable refs)
+- Each source targets ≥100 distinct values (no resampling to hit the
+  count).
+- Label at value-granularity (not provenance).
+- Commit as `tests/fixtures/corpora/negatives_v1/{source}.json`.
+
+**Success criteria:**
+
+- 5 new NEGATIVE corpora with ≥100 distinct values each
+- All values structurally confirmed not-a-credential via the F2
+  patterns OR via 2-reviewer human labeling
+- Documentation at `docs/research/NEGATIVE_CORPORA.md` describing
+  each source's character and coverage
+
+**Dependencies:** None directly. Triggered by a future decision to
+revisit a learned suppression gate.
+
+**Why this matters:** The binary PII gate's RED verdict was
+corpus-limited, not model-limited. If we ever want to revisit the
+learned-gate architecture with a fair chance, the corpora need to
+exist first.
+
 ## Structured opaque-token decoding (D1 track)
 
 **Rationale:** Sprint 13's `opaque_tokens` branch treats opaque strings
