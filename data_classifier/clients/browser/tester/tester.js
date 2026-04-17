@@ -44,7 +44,7 @@ async function loadStories() {
       opt.textContent = s.title;
       storiesEl.appendChild(opt);
     }
-    storiesRow.style.display = '';
+    storiesRow.style.display = 'block';
   } catch {
     // stories.jsonl not available
   }
