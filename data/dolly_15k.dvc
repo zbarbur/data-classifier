@@ -1,0 +1,6 @@
+outs:
+- md5: fdfcda3d6613793f48c20aaaae5d936e.dir
+  size: 7571964
+  nfiles: 1
+  hash: md5
+  path: dolly_15k

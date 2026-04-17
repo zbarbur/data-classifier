@@ -1,0 +1,6 @@
+outs:
+- md5: f9a7d68a5667613a3427a2184e1b5433.dir
+  size: 105934630
+  nfiles: 2
+  hash: md5
+  path: oasst2
