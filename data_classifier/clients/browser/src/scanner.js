@@ -6,7 +6,7 @@
 import { createPool } from './pool.js';
 
 function defaultSpawn() {
-  return new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+  return new Worker(new URL('./worker.esm.js', import.meta.url), { type: 'module' });
 }
 
 export function createScanner(opts = {}) {
