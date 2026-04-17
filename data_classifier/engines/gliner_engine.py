@@ -76,14 +76,11 @@ ENTITY_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
         "ip address",
         "IPv4 or IPv6 network addresses",
     ),
-}
-
-# ── Experimental labels (Sprint 13, 2026-04-17) ─────────────────────────
-# Entity types where regex has no value-level detection. Added to GLiNER
-# for evaluation — measure what fires on real data before promoting to
-# production labels. These extend ENTITY_LABEL_DESCRIPTIONS at runtime
-# so the model sees them during inference alongside the core 8 labels.
-EXPERIMENTAL_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
+    # ── Promoted from experimental (Sprint 14) ──────────────────────────
+    # These three labels were added as experimental in Sprint 13 and
+    # manually validated: AGE fires cleanly on HR data, HEALTH fires on
+    # medical notes, FINANCIAL fires on salary data.  DEMOGRAPHIC was
+    # removed — the GLiNER model is silent on all tested descriptions.
     "AGE": (
         "age",
         "A person's age in years, including phrases like '72 years old', 'age 45', or 'born in 1952'",
@@ -92,15 +89,20 @@ EXPERIMENTAL_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
         "medical condition",
         "Medical diagnoses, conditions, treatments, or medications such as diabetes, hypertension, or metformin",
     ),
-    "DEMOGRAPHIC": (
-        "demographic information",
-        "Race, ethnicity, gender, religion, or nationality of a person",
-    ),
     "FINANCIAL": (
         "financial information",
         "Salary, income, net worth, loan amounts, or account balances expressed in text",
     ),
 }
+
+# No experimental labels remain — all viable Sprint 13 candidates have
+# been promoted.  DEMOGRAPHIC was removed after testing 5 alternative
+# descriptions ("demographic information", "race ethnicity gender",
+# "demographic category", "population demographic data",
+# "census demographic classification") — the GLiNER model is silent on
+# all of them.  The entity type remains in standard.yaml for
+# column-name-only detection.
+EXPERIMENTAL_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {}
 
 # Merge experimental into the active label set.
 _ALL_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {**ENTITY_LABEL_DESCRIPTIONS, **EXPERIMENTAL_LABEL_DESCRIPTIONS}
@@ -120,10 +122,9 @@ _ENTITY_METADATA: dict[str, dict[str, Any]] = {
     "SSN": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA", "HIPAA"]},
     "EMAIL": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR", "CCPA"]},
     "IP_ADDRESS": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR"]},
-    # Experimental
+    # Promoted from experimental (Sprint 14)
     "AGE": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["HIPAA"]},
     "HEALTH": {"category": "Health", "sensitivity": "HIGH", "regulatory": ["HIPAA", "GDPR"]},
-    "DEMOGRAPHIC": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA"]},
     "FINANCIAL": {"category": "Financial", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA"]},
 }
 
