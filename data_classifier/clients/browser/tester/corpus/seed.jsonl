@@ -3,3 +3,23 @@
 {"id": "seed_03_json_aws_secret", "text": "{\"aws_secret_access_key\": \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\"}"}
 {"id": "seed_04_code_literal_password", "text": "db_password = \"S3cureP@ss!xyz\""}
 {"id": "seed_05_placeholder_only", "text": "export API_KEY=YOUR_API_KEY_HERE"}
+{"id": "seed_06_definitive_tier", "text": "secret_key = \"Kj9mNx2vRpLw4QzT\""}
+{"id": "seed_07_strong_tier_high_entropy", "text": "export MY_TOKEN=Xk7mRp2vNj9LwQz4Ty8B"}
+{"id": "seed_08_strong_tier_low_entropy", "text": "session_id = \"helloworld\""}
+{"id": "seed_09_contextual_tier", "text": "encryption_salt = \"aB3cD9eF2gH7jK4m\""}
+{"id": "seed_10_contextual_tier_low_diversity", "text": "nonce = \"83749201657483920165\""}
+{"id": "seed_11_aws_secret_valid", "text": "aws_secret_access_key = \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYzzzz\"}"}
+{"id": "seed_12_aws_secret_hex_only", "text": "commit_hash = \"a]1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b\""}
+{"id": "seed_13_random_password_valid", "text": "db_password = \"Tr0ub4dor&3x\""}
+{"id": "seed_14_random_password_too_short", "text": "db_password = \"ab!\""}
+{"id": "seed_15_placeholder_credential", "text": "secret_key = \"changeme\""}
+{"id": "seed_16_url_value", "text": "api_url = \"https://api.myservice.com/v1\""}
+{"id": "seed_17_date_value", "text": "password_changed = \"2024-01-15T08:00:00Z\""}
+{"id": "seed_18_config_value", "text": "secret_mode = \"production\""}
+{"id": "seed_19_prose_value", "text": "password_policy = \"must be at least eight characters long\""}
+{"id": "seed_20_anti_indicator", "text": "example_key = \"sk_live_abc123def456ghi789\""}
+{"id": "seed_21_multi_finding", "text": "export GITHUB_TOKEN=ghp_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\ndb_password = \"Vu8@wXq3!mNz\""}
+{"id": "seed_22_empty_text", "text": ""}
+{"id": "seed_23_no_kv_no_pattern", "text": "The quick brown fox jumps over the lazy dog near the river bank."}
+{"id": "seed_24_template_mustache", "text": "api_key = \"{{API_KEY}}\""}
+{"id": "seed_25_repeated_chars", "text": "token = \"aaaaaaaaaaaaaaaaaaaaaa\""}
