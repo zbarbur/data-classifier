@@ -19,6 +19,20 @@ import {
   scoreRelativeEntropy,
 } from './entropy.js';
 
+// Pre-compile word_boundary/suffix regexes for SECRET_KEY_NAMES once at
+// module init (one worker scope). Avoids O(pairs * 178) regex constructions
+// per scan — critical for staying within the 100ms worker kill budget.
+const COMPILED_KEY_NAMES = SECRET_KEY_NAMES.map((entry) => {
+  let compiledRe = null;
+  const escaped = entry.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (entry.match_type === 'word_boundary') {
+    compiledRe = new RegExp(`(^|[_\\-\\s.])${escaped}($|[_\\-\\s.])`);
+  } else if (entry.match_type === 'suffix') {
+    compiledRe = new RegExp(`[_\\-\\s.]${escaped}$`);
+  }
+  return { ...entry, compiledRe };
+});
+
 let backendCache = null;
 
 function getBackend(categoryFilter) {
@@ -127,8 +141,8 @@ function secretScannerPass(text, verbose, includeRaw) {
 function scoreKeyName(key) {
   const lower = key.toLowerCase();
   let best = { score: 0, tier: '', subtype: 'OPAQUE_SECRET' };
-  for (const entry of SECRET_KEY_NAMES) {
-    if (!matchKey(lower, entry.pattern, entry.match_type)) continue;
+  for (const entry of COMPILED_KEY_NAMES) {
+    if (!matchKey(lower, entry)) continue;
     if (entry.score > best.score) {
       best = { score: entry.score, tier: entry.tier, subtype: entry.subtype };
     }
@@ -136,20 +150,9 @@ function scoreKeyName(key) {
   return best;
 }
 
-function matchKey(keyLower, pattern, matchType) {
-  if (matchType === 'word_boundary') {
-    const re = new RegExp(`(^|[_\\-\\s.])${escapeRegex(pattern)}($|[_\\-\\s.])`);
-    return re.test(keyLower);
-  }
-  if (matchType === 'suffix') {
-    const re = new RegExp(`[_\\-\\s.]${escapeRegex(pattern)}$`);
-    return re.test(keyLower);
-  }
-  return keyLower.includes(pattern);
-}
-
-function escapeRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function matchKey(keyLower, entry) {
+  if (entry.compiledRe) return entry.compiledRe.test(keyLower);
+  return keyLower.includes(entry.pattern);
 }
 
 function tieredScore(keyScore, tier, value) {

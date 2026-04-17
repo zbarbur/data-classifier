@@ -7,6 +7,7 @@ export function createBackend(patterns, stopwordsSet, placeholderSet) {
   const compiled = patterns.map((p) => ({
     pattern: p,
     re: safeCompile(p.regex, p.name),
+    allowlistRes: precompileAllowlist(p),
     validator: resolveValidator(p.validator, {
       notPlaceholderCredential: makeNotPlaceholderCredential(placeholderSet),
     }),
@@ -14,12 +15,12 @@ export function createBackend(patterns, stopwordsSet, placeholderSet) {
 
   function iterate(text) {
     const out = [];
-    for (const { pattern, re, validator } of compiled) {
+    for (const { pattern, re, allowlistRes, validator } of compiled) {
       if (!re) continue;
       for (const m of text.matchAll(re)) {
         const value = m[0];
         if (valueIsStopword(value, pattern, stopwordsSet)) continue;
-        if (matchesAllowlist(value, pattern)) continue;
+        if (matchesPrecompiledAllowlist(value, allowlistRes)) continue;
         out.push({
           pattern,
           value,
@@ -37,7 +38,10 @@ export function createBackend(patterns, stopwordsSet, placeholderSet) {
 
 function safeCompile(regex, patternName) {
   try {
-    return new RegExp(regex, 'g');
+    // Strip Python (?i) inline flag and promote to JS 'i' flag
+    const hasInlineI = /\(\?i\)/.test(regex);
+    const cleaned = hasInlineI ? regex.replace(/\(\?i\)/g, '') : regex;
+    return new RegExp(cleaned, hasInlineI ? 'gi' : 'g');
   } catch (err) {
     console.warn(`[regex-backend] pattern '${patternName}' failed to compile; skipping. error: ${err.message}`);
     return null;
@@ -52,15 +56,24 @@ function valueIsStopword(value, pattern, globalStopwords) {
   return globalStopwords.has(lower);
 }
 
-function matchesAllowlist(value, pattern) {
-  for (const allow of pattern.allowlist_patterns || []) {
-    try {
-      if (new RegExp(allow).test(value)) return true;
-    } catch (err) {
-      console.warn(
-        `[regex-backend] pattern '${pattern.name}' has invalid allowlist regex ${JSON.stringify(allow)}; skipping. error: ${err.message}`
-      );
-    }
+function precompileAllowlist(pattern) {
+  return (pattern.allowlist_patterns || [])
+    .map((allow) => {
+      try {
+        return new RegExp(allow);
+      } catch (err) {
+        console.warn(
+          `[regex-backend] pattern '${pattern.name}' has invalid allowlist regex ${JSON.stringify(allow)}; skipping. error: ${err.message}`,
+        );
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function matchesPrecompiledAllowlist(value, allowlistRes) {
+  for (const re of allowlistRes) {
+    if (re.test(value)) return true;
   }
   return false;
 }
