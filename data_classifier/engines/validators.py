@@ -823,6 +823,22 @@ def swift_bic_country_code_check(value: str) -> bool:
     return country in _ISO_3166_ALPHA2
 
 
+def _openai_legacy_key_check(value: str) -> bool:
+    """Validate an OpenAI legacy key (sk-<48 chars>) has mixed case + digits.
+
+    Real keys are base62 (a-z, A-Z, 0-9) with high entropy. Rejects
+    values that are all-lowercase, all-uppercase, or all-hex — these
+    are likely hash suffixes or test data, not real keys.
+    """
+    # Strip the sk- prefix for the check
+    suffix = value[3:] if value.startswith("sk-") else value
+    has_upper = any(c.isupper() for c in suffix)
+    has_lower = any(c.islower() for c in suffix)
+    has_digit = any(c.isdigit() for c in suffix)
+    # Must have at least 2 of {upper, lower, digit} — real base62 keys always have all 3
+    return sum([has_upper, has_lower, has_digit]) >= 2
+
+
 # Registry mapping validator names to functions
 VALIDATORS: dict[str, typing.Callable] = {
     "luhn": luhn_check,
@@ -846,4 +862,5 @@ VALIDATORS: dict[str, typing.Callable] = {
     "not_placeholder_credential": not_placeholder_credential,
     # Sprint 13 S0
     "swift_bic_country_code": swift_bic_country_code_check,
+    "openai_legacy_key": _openai_legacy_key_check,
 }

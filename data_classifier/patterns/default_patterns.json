@@ -928,7 +928,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "OpenAI legacy API key (sk- prefix, 48-char suffix, no proj- infix)",
-      "validator": "not_placeholder_credential",
+      "validator": "openai_legacy_key",
       "examples_match": [],
       "examples_no_match": [],
       "stopwords": [

@@ -408,7 +408,10 @@ class Orchestrator:
                     per_value_inference_ms = int((time.monotonic() - t0) * 1000)
 
         # ── Sprint 13 Item C: entropy-based handler on opaque_tokens branch ──
-        if shape_detection is not None and shape_detection.shape == "opaque_tokens":
+        # Only add OPAQUE_SECRET when the cascade found nothing. If the cascade
+        # already identified the column (e.g., BITCOIN_ADDRESS, ETHEREUM_ADDRESS),
+        # the cascade's answer is more specific and should not be diluted.
+        if shape_detection is not None and shape_detection.shape == "opaque_tokens" and not result:
             try:
                 from data_classifier.orchestrator.opaque_token_handler import classify_opaque_tokens
 
