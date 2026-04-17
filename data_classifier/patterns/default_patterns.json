@@ -1269,7 +1269,7 @@
       "sensitivity": "MEDIUM",
       "confidence": 0.9,
       "description": "SWIFT/BIC bank code",
-      "validator": "",
+      "validator": "swift_bic_country_code",
       "examples_match": [
         "DEUTDEFF",
         "BNPAFRPPXXX"

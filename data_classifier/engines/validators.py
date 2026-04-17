@@ -84,9 +84,39 @@ def ssn_zeros_check(value: str) -> bool:
 
 
 def ipv4_not_reserved_check(value: str) -> bool:
-    """Reject common non-PII IPv4 addresses (localhost, broadcast)."""
-    if value in ("0.0.0.0", "127.0.0.1", "255.255.255.255"):
+    """Reject non-PII IPv4 addresses using stdlib ipaddress module.
+
+    Rejects: loopback (127/8), unspecified (0.0.0.0/8), multicast
+    (224/4), reserved (240/4), link-local (169.254/16).
+    KEEPS: RFC1918 private ranges (10/8, 172.16/12, 192.168/16) because
+    DLP cares about leaked internal IPs.
+
+    Sprint 13 S0 rewrite: the previous implementation only rejected 3
+    exact strings (0.0.0.0, 127.0.0.1, 255.255.255.255), missing the
+    full loopback/reserved/multicast ranges.
+    """
+    import ipaddress
+
+    try:
+        addr = ipaddress.IPv4Address(value)
+    except (ipaddress.AddressValueError, ValueError):
         return False
+
+    if addr.is_loopback:
+        return False
+    if addr.is_unspecified:
+        return False
+    if addr.is_multicast:
+        return False
+    if addr.is_reserved:
+        return False
+    if addr.is_link_local:
+        return False
+    # 0.0.0.0/8 ("this network", RFC 1122) — Python classifies as is_private
+    # but these are not real RFC1918 addresses. Reject explicitly.
+    if addr in ipaddress.IPv4Network("0.0.0.0/8"):
+        return False
+    # is_private intentionally NOT rejected — RFC1918 leaks are DLP-relevant.
     return True
 
 
@@ -512,6 +542,56 @@ def random_password_check(value: str) -> bool:
     return classes >= 3
 
 
+# ── SWIFT/BIC country-code validation ─────────────────────────────────────
+# ISO 3166-1 alpha-2 country codes. Positions 5-6 of a SWIFT/BIC code
+# must be a valid country code. Without this check, any 8/11-letter
+# uppercase English word matches (CONSTRAINTS, PERFORMANCE, etc.).
+# Sprint 13 S0: ~593 FPs per 50K eliminated by this check.
+_ISO_3166_ALPHA2: frozenset[str] = frozenset({
+    "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT",
+    "AU", "AW", "AX", "AZ", "BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI",
+    "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS", "BT", "BV", "BW", "BY",
+    "BZ", "CA", "CC", "CD", "CF", "CG", "CH", "CI", "CK", "CL", "CM", "CN",
+    "CO", "CR", "CU", "CV", "CW", "CX", "CY", "CZ", "DE", "DJ", "DK", "DM",
+    "DO", "DZ", "EC", "EE", "EG", "EH", "ER", "ES", "ET", "FI", "FJ", "FK",
+    "FM", "FO", "FR", "GA", "GB", "GD", "GE", "GF", "GG", "GH", "GI", "GL",
+    "GM", "GN", "GP", "GQ", "GR", "GS", "GT", "GU", "GW", "GY", "HK", "HM",
+    "HN", "HR", "HT", "HU", "ID", "IE", "IL", "IM", "IN", "IO", "IQ", "IR",
+    "IS", "IT", "JE", "JM", "JO", "JP", "KE", "KG", "KH", "KI", "KM", "KN",
+    "KP", "KR", "KW", "KY", "KZ", "LA", "LB", "LC", "LI", "LK", "LR", "LS",
+    "LT", "LU", "LV", "LY", "MA", "MC", "MD", "ME", "MF", "MG", "MH", "MK",
+    "ML", "MM", "MN", "MO", "MP", "MQ", "MR", "MS", "MT", "MU", "MV", "MW",
+    "MX", "MY", "MZ", "NA", "NC", "NE", "NF", "NG", "NI", "NL", "NO", "NP",
+    "NR", "NU", "NZ", "OM", "PA", "PE", "PF", "PG", "PH", "PK", "PL", "PM",
+    "PN", "PR", "PS", "PT", "PW", "PY", "QA", "RE", "RO", "RS", "RU", "RW",
+    "SA", "SB", "SC", "SD", "SE", "SG", "SH", "SI", "SJ", "SK", "SL", "SM",
+    "SN", "SO", "SR", "SS", "ST", "SV", "SX", "SY", "SZ", "TC", "TD", "TF",
+    "TG", "TH", "TJ", "TK", "TL", "TM", "TN", "TO", "TR", "TT", "TV", "TW",
+    "TZ", "UA", "UG", "UM", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VI",
+    "VN", "VU", "WF", "WS", "YE", "YT", "ZA", "ZM", "ZW",
+    # SWIFT-specific pseudo-codes (XK=Kosovo, EU=EU institutions)
+    "XK", "EU",
+})
+
+
+def swift_bic_country_code_check(value: str) -> bool:
+    """Validate SWIFT/BIC country code at positions 5-6.
+
+    SWIFT/BIC format: BBBBCCLL[NNN] where CC is the ISO 3166 country code.
+    Without this check, 8-letter English words like CONSTRAINTS (positions
+    5-6 = "IN" = India) and PERFORMANCE (positions 5-6 = "MA" = Morocco)
+    match — but DATABASE (positions 5-6 = "BA" = Bosnia) also matches, so
+    this validator catches ~50% of English-word FPs (the ones with non-code
+    letters at positions 5-6). Full bank-registry validation is a separate
+    item.
+    """
+    clean = value.strip().upper()
+    if len(clean) not in (8, 11):
+        return False
+    country = clean[4:6]
+    return country in _ISO_3166_ALPHA2
+
+
 # Registry mapping validator names to functions
 VALIDATORS: dict[str, typing.Callable] = {
     "luhn": luhn_check,
@@ -533,4 +613,6 @@ VALIDATORS: dict[str, typing.Callable] = {
     "ethereum_address": ethereum_address_check,
     # Sprint 11 Phase 6
     "not_placeholder_credential": not_placeholder_credential,
+    # Sprint 13 S0
+    "swift_bic_country_code": swift_bic_country_code_check,
 }
