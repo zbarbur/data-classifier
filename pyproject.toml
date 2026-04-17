@@ -73,6 +73,15 @@ research-llm = [
     # anthropic. Opt-in via ``pip install -e ".[research-llm]"``.
     "anthropic>=0.40",
 ]
+research-ml = [
+    # Research-only extra for binary PII gate model evaluation (Sprint 14
+    # backlog item ``research-binary-pii-gate-model-evaluation``) and any
+    # future ML-experiment arms that need XGBoost or SHAP. NOT a production
+    # runtime dep — nothing under ``data_classifier/`` imports xgboost or
+    # shap. Opt-in via ``pip install -e ".[research-ml]"``.
+    "xgboost>=2.0",
+    "shap>=0.45",
+]
 
 [tool.setuptools.packages.find]
 include = ["data_classifier*"]
