@@ -1,0 +1,51 @@
+{
+  "_metadata": {
+    "source": "secretlint (MIT)",
+    "source_commit": "3e58badf8f8b",
+    "notes": "Proposed upgrades to existing patterns based on secretlint coverage gaps"
+  },
+  "upgrades": [
+    {
+      "name": "github_token",
+      "current_regex": "\\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36}\\b",
+      "proposed_regex": "\\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36}\\b|\\bgithub_pat_[A-Za-z0-9_]{82}\\b",
+      "change_description": "Add fine-grained PAT format (github_pat_ prefix, 82-char body). Classic tokens unchanged.",
+      "new_examples_match": ["github_pat_11ABCDEF0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab"],
+      "secretlint_reference": "secretlint-rule-github"
+    },
+    {
+      "name": "slack_bot_token",
+      "current_regex": "\\bxoxb-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,}\\b",
+      "proposed_regex": "\\b(?:xoxb|xoxp|xapp|xoxa|xoxo|xoxr)-(?:[0-9]+-)?[a-zA-Z0-9]{1,40}(?:-[a-zA-Z0-9]{1,40})*\\b",
+      "change_description": "Unify all Slack token prefixes (xoxb/xoxp/xapp/xoxa/xoxo/xoxr) into one pattern. Current patterns split bot/user and miss xapp/xoxa/xoxr entirely. Consider renaming to 'slack_token' and retiring 'slack_user_token'.",
+      "new_examples_match": ["xapp-1-A0123456789-1234567890-abcdefabcdef", "xoxa-2-abcdef1234", "xoxr-refresh-token-value"],
+      "secretlint_reference": "secretlint-rule-slack"
+    },
+    {
+      "name": "openai_api_key",
+      "current_regex": "\\bsk-proj-[a-zA-Z0-9\\-_]{80,}\\b",
+      "proposed_regex": "\\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{58,80}T3BlbkFJ[A-Za-z0-9_-]{58,80}\\b",
+      "change_description": "Add svcacct and admin prefixes + require T3BlbkFJ magic bytes (base64 of 'OpenAI') for new-format keys. Legacy sk-* already covered by openai_legacy_key (Sprint 13). Verify: current regex may already match svcacct/admin if they share the sk-proj format.",
+      "new_examples_match": [],
+      "secretlint_reference": "secretlint-rule-openai",
+      "note": "VERIFY on main first — Sprint 13 may have broadened this. If sk-proj already matches svcacct/admin, only the T3BlbkFJ tightening is needed."
+    },
+    {
+      "name": "hashicorp_vault_token",
+      "current_regex": "\\bhvs\\.[A-Za-z0-9_-]{24,}\\b",
+      "proposed_regex": "\\b(?:hvs|hvb|hvr)\\.[A-Za-z0-9_-]{24,}\\b",
+      "change_description": "Add hvb (batch tokens, 138-300 chars) and hvr (recovery tokens, 90-120 chars) prefixes. Current regex only matches hvs (service tokens).",
+      "new_examples_match": ["xor:Miw4dBsbGxsbCxAwAzcUMxdoDDYWDRNvFx4xLhQeMjEXM2pvAB0UMhYONjYDMD1qFzcMMRcgPW8UPRsbGxgyIwANHDECaGMvOBI2PAMCGC0CaRAsOB0MPDsNCw==", "xor:MiwodBkbHwkTChZqNzlvHD8AFxMUHBgvIA0L"],
+      "secretlint_reference": "secretlint-rule-hashicorp-vault"
+    },
+    {
+      "name": "huggingface_token",
+      "current_regex": "\\bhf_[A-Za-z0-9]{20,}\\b",
+      "proposed_regex": "\\bhf_[a-zA-Z]{34}\\b",
+      "change_description": "Tighten: secretlint says HF tokens are exactly 34 alpha-only chars (no digits). Current regex is loose (20+ alphanumeric). Tighter regex reduces FPs. VERIFY: check real HF tokens to confirm alpha-only claim before adopting.",
+      "new_examples_match": ["xor:MjwFOzg5Pj88PTIzMDE2NzQ1KisoKS4vLC0iIyAbGBkeHxwdEg=="],
+      "secretlint_reference": "secretlint-rule-huggingface",
+      "note": "VERIFY alpha-only claim. If real tokens include digits, keep current regex but add length constraint."
+    }
+  ]
+}
