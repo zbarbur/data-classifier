@@ -73,6 +73,7 @@ btnEl.addEventListener('click', async () => {
   const opts = {
     verbose: verboseEl.checked,
     redactStrategy: strategyEl.value,
+    dangerouslyIncludeRawValues: true, // tester is a diagnostic tool — show what was matched
   };
   try {
     const { findings, redactedText, scannedMs } = await scanner.scan(text, opts);
@@ -128,11 +129,38 @@ function renderFindings(findings) {
     }
     card.appendChild(metaEl);
 
-    if (f.match && f.match.valueMasked) {
-      const evidenceEl = document.createElement('div');
-      evidenceEl.className = 'finding-evidence';
-      evidenceEl.textContent = `matched: ${f.match.valueMasked}`;
-      card.appendChild(evidenceEl);
+    if (f.match) {
+      const matchEl = document.createElement('div');
+      matchEl.className = 'finding-match';
+      const raw = f.match.valueRaw || f.match.valueMasked || '';
+      const label = document.createTextNode('matched: ');
+      const code = document.createElement('code');
+      code.className = 'finding-matched-value';
+      code.textContent = raw;
+      matchEl.appendChild(label);
+      matchEl.appendChild(code);
+      if (typeof f.match.start === 'number') {
+        matchEl.appendChild(document.createTextNode(` (offset ${f.match.start}–${f.match.end})`));
+      }
+      card.appendChild(matchEl);
+    }
+
+    if (f.details) {
+      const detailsEl = document.createElement('div');
+      detailsEl.className = 'finding-details';
+      const items = [`pattern: ${f.details.pattern}`, `validator: ${f.details.validator}`];
+      if (f.details.entropy) {
+        const e = f.details.entropy;
+        items.push(
+          `shannon: ${e.shannon.toFixed(2)}`,
+          `relative: ${e.relative.toFixed(2)}`,
+          `charset: ${e.charset}`,
+          `entropy score: ${e.score.toFixed(2)}`
+        );
+      }
+      if (f.details.tier) items.push(`tier: ${f.details.tier}`);
+      detailsEl.textContent = items.join(' | ');
+      card.appendChild(detailsEl);
     }
 
     findingsSummary.appendChild(card);
