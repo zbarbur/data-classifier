@@ -1,22 +1,41 @@
 title: "BQ vague column corpus \u2014 synthetic test corpus with generic column names\
   \ (description, data, field_1, value, notes) containing mixed PII content, validate\
   \ match_ratio semantics"
-status: backlog
+status: doing
 priority: P1
 category: chore
-sprint_target: null
+sprint_target: 14
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-17
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Create a synthetic test corpus with generic BQ column names (description, data,
+  field_1, value, notes, col1) containing mixed PII content, to validate the column-shape
+  router and match_ratio semantics on vague-named columns where column_name_engine
+  provides no signal
+complexity: S
+technical_specs:
+- "File: tests/fixtures/vague_column_corpus.json \u2014 synthetic corpus with generic\
+  \ column names"
+- "File: tests/test_vague_columns.py \u2014 parameterized golden-set tests against\
+  \ the corpus"
+- 'Columns should cover: single-type PII with vague names, mixed PII with vague names,
+  non-PII with vague names, edge cases (empty, nulls)'
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- Corpus has at least 20 columns with generic names spanning all 3 router branches
+  (structured_single, free_text_heterogeneous, opaque_tokens)
+- Each column has ground-truth labels for entity type and expected router branch
+- Parameterized test suite validates classification accuracy on the corpus
+- match_ratio semantics documented for cases where column name is uninformative
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_vague_columns.py: parameterized test per column in corpus'
+- Validate router branch assignment matches expected branch per column
+- Validate entity type classification matches ground truth
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []
