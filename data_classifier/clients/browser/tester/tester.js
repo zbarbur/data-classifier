@@ -223,9 +223,10 @@ const perfBarFill = document.getElementById('perf-bar-fill');
 const perfGrid = document.getElementById('perf-grid');
 const perfNote = document.getElementById('perf-note');
 
-const BENCH_ROUNDS = 10;
+const benchRoundsEl = document.getElementById('bench-rounds');
 
 benchBtn.addEventListener('click', async () => {
+  const BENCH_ROUNDS = parseInt(benchRoundsEl.value, 10) || 10;
   if (!stories.length) {
     perfNote.textContent = 'No stories loaded — cannot benchmark.';
     return;

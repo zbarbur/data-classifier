@@ -145,6 +145,16 @@
         Scans all loaded stories 10x each and reports latency statistics.
         First run includes worker cold-start; subsequent runs are warm cache.
       </p>
+      <label style="font-size:13px;color:#444;display:inline-flex;align-items:center;gap:6px;margin-right:12px">
+        Rounds:
+        <select id="bench-rounds" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:13px">
+          <option value="1">1</option>
+          <option value="10" selected>10</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="500">500</option>
+        </select>
+      </label>
       <button id="bench-btn">Run benchmark</button>
       <div class="perf-bar" id="perf-bar" style="display:none"><div class="perf-bar-fill" id="perf-bar-fill"></div></div>
       <div class="perf-grid" id="perf-grid" style="display:none"></div>
