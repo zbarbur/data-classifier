@@ -43,8 +43,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--model",
-        default="fastino/gliner2-base-v1",
-        help="HuggingFace model ID (default: fastino/gliner2-base-v1)",
+        default="urchade/gliner_multi_pii-v1",
+        help="HuggingFace model ID (default: urchade/gliner_multi_pii-v1)",
     )
     parser.add_argument(
         "--no-quantize",

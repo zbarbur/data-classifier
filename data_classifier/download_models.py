@@ -60,10 +60,9 @@ logger = logging.getLogger(__name__)
 #: the pinned model until someone bumps this constant deliberately.
 #:
 #: The literal value encodes the upstream HuggingFace model ID
-#: (``fastino/gliner2-base-v1``) with slashes replaced by dashes for
-#: filename compatibility. Future versions would look like
-#: ``fastino-gliner2-base-v2`` etc.
-DEFAULT_MODEL_VERSION = "fastino-gliner2-base-v1"
+#: (``urchade/gliner_multi_pii-v1``) with slashes replaced by dashes for
+#: filename compatibility.
+DEFAULT_MODEL_VERSION = "urchade-gliner_multi_pii-v1"
 
 #: Google Artifact Registry Generic repo URL template for the ONNX tarballs.
 #:
