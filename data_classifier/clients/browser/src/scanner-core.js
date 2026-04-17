@@ -24,7 +24,7 @@ let backendCache = null;
 function getBackend(categoryFilter) {
   const key = categoryFilter.join('|');
   if (backendCache && backendCache.key === key) return backendCache.backend;
-  const filtered = PATTERNS.filter((p) => categoryFilter.includes(p.category));
+  const filtered = PATTERNS.filter((p) => categoryFilter.includes(p.category) && !p.requires_column_hint);
   const backend = createBackend(filtered, STOPWORDS, PLACEHOLDER_VALUES);
   backendCache = { key, backend };
   return backend;
@@ -83,6 +83,7 @@ function secretScannerPass(text, verbose, includeRaw) {
     if (value.length < SECRET_SCANNER.minValueLength) continue;
     if (hasAntiIndicator(key, value)) continue;
     if (PLACEHOLDER_VALUES.has(value.toLowerCase())) continue;
+    if (isPlaceholderPattern(value)) continue;
     const { score, tier, subtype } = scoreKeyName(key);
     if (score <= 0) continue;
     const composite = tieredScore(score, tier, value);
@@ -179,6 +180,42 @@ function valueIsObviouslyNotSecret(value) {
     let alpha = 0;
     for (const c of value) if (/[A-Za-z]/.test(c)) alpha++;
     if (alpha / value.length > SECRET_SCANNER.proseAlphaThreshold) return true;
+  }
+  return false;
+}
+
+/**
+ * Port of Python's _is_placeholder_value — regex-based placeholder detection.
+ * Catches values like "ghp_aaaa...", "xxxxxxxxxxxx", "<your-token>",
+ * "YOUR_API_KEY_HERE", "{{VAR}}", "${VAR}", and common documentation examples.
+ */
+const _PLACEHOLDER_RES = [
+  /x{5,}/i,                                                // 5+ consecutive x/X
+  /(.)\1{7,}/,                                              // any char repeated 8+
+  /<[^>]{1,80}>/,                                           // <angle-bracket>
+  /your[_\-\s]?(api|access|auth|secret|token|private|aws|gcp|azure)?[_\-\s]?(key|token|secret|password|credential)/i,
+  /put[_\-\s]?your/i,
+  /insert[_\-\s]?your/i,
+  /replace[_\-\s]?(me|with|this)/i,
+  /placeholder/i,
+  /redacted/i,
+  /\bexample\b/i,
+  /^sample[_\-]/i,
+  /^dummy[_\-]?/i,
+  /\{\{.*\}\}/,                                             // {{VAR}}
+  /\$\{[A-Z_]+\}/,                                         // ${VAR}
+  /EXAMPLE$/,                                               // AWS doc keys
+  /(key|token|secret|password)[_\-\s]here/i,
+  /goes[_\-\s]here/i,
+  /\bchangeme\b/i,
+  /\bfoobar\b/i,
+  /\btodo\b/i,
+  /\bfixme\b/i,
+];
+
+function isPlaceholderPattern(value) {
+  for (const re of _PLACEHOLDER_RES) {
+    if (re.test(value)) return true;
   }
   return false;
 }
