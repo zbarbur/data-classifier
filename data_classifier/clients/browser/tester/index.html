@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>data_classifier browser tester</title>
+    <style>
+      body { font: 14px/1.4 system-ui, sans-serif; margin: 2em; max-width: 900px; }
+      textarea { width: 100%; height: 180px; font-family: ui-monospace, monospace; }
+      pre { background: #f5f5f5; padding: 1em; overflow: auto; max-height: 400px; }
+      .row { margin-bottom: 1em; }
+      button { padding: 0.5em 1em; }
+      label { display: block; margin-bottom: 0.25em; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>data_classifier — browser secret detector (tester)</h1>
+    <p>
+      Paste text below and click Scan. This page imports the built scanner from
+      <code>../dist/scanner.esm.js</code>. Run <code>npm run build</code> first if the page errors.
+    </p>
+
+    <div class="row">
+      <label for="input">Input text</label>
+      <textarea id="input" placeholder="export API_KEY=ghp_..."></textarea>
+    </div>
+
+    <div class="row">
+      <label><input type="checkbox" id="verbose" /> verbose (include details)</label>
+      <label>
+        Redact strategy:
+        <select id="strategy">
+          <option value="type-label">type-label (default)</option>
+          <option value="asterisk">asterisk</option>
+          <option value="placeholder">placeholder</option>
+          <option value="none">none</option>
+        </select>
+      </label>
+      <button id="scan-btn">Scan</button>
+    </div>
+
+    <div class="row">
+      <label>Redacted text</label>
+      <pre id="redacted-out"></pre>
+    </div>
+
+    <div class="row">
+      <label>Findings</label>
+      <pre id="findings-out"></pre>
+    </div>
+
+    <script type="module" src="./tester.js"></script>
+  </body>
+</html>
