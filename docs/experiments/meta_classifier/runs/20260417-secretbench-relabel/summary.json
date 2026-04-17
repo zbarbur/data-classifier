@@ -1,0 +1,16 @@
+{
+  "input_rows": 1068,
+  "upstream_true": 516,
+  "upstream_false": 552,
+  "confident_flips_true_to_false": 167,
+  "user_reviewed_flips_true_to_false": 11,
+  "total_flips_true_to_false": 178,
+  "final_true": 338,
+  "final_false": 730,
+  "outputs": {
+    "v2_fixture": "tests/fixtures/corpora/secretbench_sample_v2.json",
+    "v1_preserved": "docs/experiments/meta_classifier/runs/20260417-secretbench-relabel/secretbench_sample_v1_upstream.json",
+    "confident_relabels": "confident_relabels.jsonl",
+    "user_reviewed_flips": "user_reviewed_flips.jsonl"
+  }
+}
