@@ -37,7 +37,7 @@ from data_classifier.events.types import (
     TierEvent,
 )
 from data_classifier.orchestrator.calibration import calibrate_finding
-from data_classifier.orchestrator.meta_classifier import MetaClassifier
+from data_classifier.orchestrator.meta_classifier import MetaClassifier, MetaClassifierPrediction
 from data_classifier.orchestrator.shape_detector import detect_column_shape
 from data_classifier.orchestrator.table_profile import (
     TableProfile,
@@ -60,6 +60,18 @@ _COLLISION_PAIRS: list[tuple[str, str]] = [
 # Minimum confidence gap required to suppress the lower-confidence finding.
 # Below this threshold the column is genuinely ambiguous and both findings are kept.
 _COLLISION_GAP_THRESHOLD: float = 0.15
+
+# Directional suppression: when a *specific* numeric-format PII type co-occurs
+# with PHONE, PHONE is always the false positive (digit-heavy values like dates
+# and credit card numbers match the PHONE regex spuriously). Unlike symmetric
+# collision pairs above, the winner is pre-determined — PHONE is always
+# suppressed regardless of confidence gap.
+# Mapping: entity_type → set of entity types that PHONE should be suppressed in
+# favour of (i.e., if any of these co-occur with PHONE, drop PHONE).
+_PHONE_SUPPRESSION_WINNERS: set[str] = {
+    "DATE_OF_BIRTH",
+    "CREDIT_CARD",
+}
 
 # Confidence boost when a high-authority engine agrees with a lower-authority engine
 _AGREEMENT_BOOST: float = 0.05
@@ -221,6 +233,7 @@ class Orchestrator:
         *,
         mode: str = "structured",
         emitter: EventEmitter | None = None,
+        meta_classifier_directive: bool | None = None,
     ) -> None:
         self.mode = mode
         self.emitter = emitter or EventEmitter()
@@ -242,11 +255,109 @@ class Orchestrator:
         else:
             self._meta_classifier = MetaClassifier()
 
+        # Sprint 14: meta-classifier directive mode on structured_single columns.
+        # When True, the meta-classifier's prediction replaces the cascade output
+        # on structured_single columns instead of being shadow-only.
+        # Opt-OUT via DATA_CLASSIFIER_DISABLE_META_DIRECTIVE=1.
+        if meta_classifier_directive is not None:
+            self._meta_directive = meta_classifier_directive
+        else:
+            disable_directive = os.environ.get("DATA_CLASSIFIER_DISABLE_META_DIRECTIVE", "").lower()
+            self._meta_directive = disable_directive not in ("1", "true", "yes")
+
     def _find_engine_by_name(self, name: str) -> ClassificationEngine | None:
         for engine in self.engines:
             if engine.name == name:
                 return engine
         return None
+
+    @staticmethod
+    def _apply_meta_directive(
+        prediction: "MetaClassifierPrediction",
+        cascade_result: list[ClassificationFinding],
+        column: ColumnInput,
+        profile: ClassificationProfile,
+    ) -> list[ClassificationFinding] | None:
+        """Apply the meta-classifier directive: replace cascade output.
+
+        Returns a new result list with the meta-classifier's predicted
+        entity_type as the top finding, or ``None`` if the directive
+        cannot be applied (e.g. entity type has no metadata).
+
+        Strategy:
+        1. If the predicted entity_type matches the cascade's top finding,
+           no change needed — return ``None`` to keep cascade output as-is.
+        2. If a cascade finding already exists for the predicted entity_type,
+           promote it to the top by boosting its confidence.
+        3. Otherwise, construct a new finding using profile metadata.
+
+        Cascade findings are preserved as supporting evidence — the
+        meta-classifier only changes which entity_type is primary.
+        """
+        if not prediction.predicted_entity or prediction.predicted_entity == "NEGATIVE":
+            return None
+
+        # If cascade already agrees, no directive needed
+        if cascade_result:
+            top = max(cascade_result, key=lambda f: f.confidence)
+            if top.entity_type == prediction.predicted_entity:
+                return None
+
+        # Look for the predicted entity_type in existing cascade findings
+        existing = None
+        for f in cascade_result:
+            if f.entity_type == prediction.predicted_entity:
+                existing = f
+                break
+
+        if existing is not None:
+            # Promote existing finding: set its confidence to be the highest
+            top_conf = max((f.confidence for f in cascade_result), default=0.0)
+            promoted_conf = max(top_conf + 0.01, prediction.confidence)
+            promoted_conf = min(1.0, promoted_conf)
+            promoted = ClassificationFinding(
+                column_id=existing.column_id,
+                entity_type=existing.entity_type,
+                category=existing.category,
+                sensitivity=existing.sensitivity,
+                confidence=promoted_conf,
+                regulatory=existing.regulatory,
+                engine="meta_classifier",
+                evidence=f"Meta-classifier directive (promoted from {existing.engine}, "
+                f"cascade confidence={existing.confidence:.2f})",
+                sample_analysis=existing.sample_analysis,
+            )
+            # Replace the existing finding with the promoted one, keep others
+            new_result = [promoted] + [f for f in cascade_result if f.entity_type != prediction.predicted_entity]
+            return new_result
+
+        # Construct a new finding from profile metadata
+        rule_meta = None
+        for rule in profile.rules:
+            if rule.entity_type == prediction.predicted_entity:
+                rule_meta = rule
+                break
+
+        if rule_meta is None:
+            # No metadata for this entity type — cannot construct a finding
+            logger.debug(
+                "Meta-classifier directive: no profile metadata for %s; skipping",
+                prediction.predicted_entity,
+            )
+            return None
+
+        new_finding = ClassificationFinding(
+            column_id=column.column_id,
+            entity_type=prediction.predicted_entity,
+            category=rule_meta.category,
+            sensitivity=rule_meta.sensitivity,
+            confidence=prediction.confidence,
+            regulatory=list(rule_meta.regulatory),
+            engine="meta_classifier",
+            evidence=f"Meta-classifier directive (confidence={prediction.confidence:.2f})",
+        )
+        # Prepend the new finding, keep cascade findings as supporting data
+        return [new_finding] + list(cascade_result)
 
     def classify_column(
         self,
@@ -345,6 +456,11 @@ class Orchestrator:
         # Resolve known collision pairs before emitting results
         all_findings = self._resolve_collisions(all_findings)
 
+        # Directional PHONE suppression: numeric-format PII types (dates,
+        # credit cards) match PHONE regex spuriously. When a specific numeric
+        # PII type co-occurs with PHONE, PHONE is always the false positive.
+        all_findings = self._suppress_phone_on_numeric_pii(all_findings)
+
         # Suppress generic CREDENTIAL when more specific types are found
         all_findings = self._suppress_generic_credential(all_findings)
 
@@ -441,14 +557,21 @@ class Orchestrator:
                 )
             )
 
-        # Shadow inference (Sprint 6 Phase 3) — observability only.
+        # Meta-classifier inference (Sprint 6 Phase 3 shadow → Sprint 14 directive).
         # Sprint 13 Item A gates on shape detection. v5 is documented to
         # collapse on free_text_heterogeneous and opaque_tokens shapes
         # (see docs/research/meta_classifier/sprint12_safety_audit.md §3).
-        # Skip shadow emission on those branches to stop feeding wrong-
-        # class predictions into downstream telemetry.
-        should_emit_shadow = shape_detection is None or shape_detection.shape == "structured_single"
-        if self._meta_classifier is not None and should_emit_shadow:
+        # Skip emission on those branches to stop feeding wrong-class
+        # predictions into downstream telemetry.
+        #
+        # Sprint 14 directive flip: on structured_single columns, the
+        # meta-classifier prediction REPLACES the cascade output when
+        # _meta_directive is True. On other branches or when directive
+        # is disabled, behavior is shadow-only (observability).
+        is_structured_single = shape_detection is not None and shape_detection.shape == "structured_single"
+        should_run_meta = shape_detection is None or is_structured_single
+        use_directive = self._meta_directive and is_structured_single
+        if self._meta_classifier is not None and should_run_meta:
             try:
                 shadow = self._meta_classifier.predict_shadow(
                     result,
@@ -456,6 +579,17 @@ class Orchestrator:
                     engine_findings=engine_findings,
                 )
                 if shadow is not None:
+                    directive_applied = False
+                    if use_directive:
+                        directive_result = self._apply_meta_directive(
+                            shadow,
+                            result,
+                            column,
+                            profile,
+                        )
+                        if directive_result is not None:
+                            result = directive_result
+                            directive_applied = True
                     self.emitter.emit(
                         MetaClassifierEvent(
                             column_id=shadow.column_id or column.column_id,
@@ -463,11 +597,12 @@ class Orchestrator:
                             confidence=shadow.confidence,
                             live_entity=shadow.live_entity,
                             agreement=shadow.agreement,
+                            directive=directive_applied,
                             run_id=run_id or "",
                         )
                     )
             except Exception:
-                logger.debug("MetaClassifier shadow path failed", exc_info=True)
+                logger.debug("MetaClassifier inference path failed", exc_info=True)
 
         # Sprint 11 Phase 9: tier-1 credential pattern-hit gate.
         # Evaluation is pure and observability-only — the decision
@@ -759,6 +894,34 @@ class Orchestrator:
                         gap,
                     )
                     del findings[loser]
+        return findings
+
+    @staticmethod
+    def _suppress_phone_on_numeric_pii(
+        findings: dict[str, ClassificationFinding],
+    ) -> dict[str, ClassificationFinding]:
+        """Directional PHONE suppression for numeric-format PII collisions.
+
+        Numeric PII types (DATE_OF_BIRTH, CREDIT_CARD) contain digit-heavy
+        values that spuriously match PHONE regex patterns. Unlike symmetric
+        collision pairs, PHONE is *always* the false positive here — a column
+        of dates or credit card numbers is never actually phone numbers.
+
+        This suppression is unconditional (no confidence gap required) because
+        the structural overlap is deterministic: any column where DATE_OF_BIRTH
+        or CREDIT_CARD fires will also fire PHONE due to the digit patterns.
+        """
+        if "PHONE" not in findings:
+            return findings
+        winners = _PHONE_SUPPRESSION_WINNERS & findings.keys()
+        if winners:
+            winner_str = ", ".join(sorted(winners))
+            logger.debug(
+                "Directional PHONE suppression: dropping PHONE (%.2f) — %s present in findings",
+                findings["PHONE"].confidence,
+                winner_str,
+            )
+            del findings["PHONE"]
         return findings
 
     @staticmethod
