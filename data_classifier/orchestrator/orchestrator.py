@@ -38,6 +38,7 @@ from data_classifier.events.types import (
     TierEvent,
 )
 from data_classifier.orchestrator.calibration import calibrate_finding
+from data_classifier.orchestrator.credential_gate import filter_credential_noise
 from data_classifier.orchestrator.meta_classifier import MetaClassifier, MetaClassifierPrediction
 from data_classifier.orchestrator.shape_detector import _DICT_WORD_HETERO_MIN, detect_column_shape
 from data_classifier.orchestrator.table_profile import (
@@ -524,8 +525,11 @@ class Orchestrator:
         # Suppress IP_ADDRESS findings when every matched value is embedded in a URL
         all_findings = self._suppress_url_embedded_ips(all_findings)
 
-        # Emit classification event
-        result = list(all_findings.values())
+        # Sprint 14 F2: finding-level credential noise suppressor.
+        # Drop individual CREDENTIAL-family findings whose matched values
+        # are all config literals or placeholders, without killing other
+        # findings in the same column.
+        result = filter_credential_noise(list(all_findings.values()))
 
         # ── Sprint 13 Item A: column-shape detection ──────────────────────
         # Runs AFTER the merge passes so n_cascade_entities reflects the
