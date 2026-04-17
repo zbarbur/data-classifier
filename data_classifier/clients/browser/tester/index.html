@@ -63,6 +63,21 @@
       .raw-json pre { background: #f5f5f5; padding: 12px; border-radius: 6px; font-size: 12px; max-height: 300px; overflow: auto; margin: 0; }
 
       .error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; color: #991b1b; font-size: 13px; }
+
+      /* Performance */
+      .perf-section { margin-top: 2em; padding-top: 1.5em; border-top: 1px solid #e5e7eb; }
+      .perf-section h2 { font-size: 1.1em; margin: 0 0 8px 0; }
+      .perf-section .perf-subtitle { font-size: 12px; color: #888; margin-bottom: 12px; }
+      button#bench-btn { padding: 6px 16px; font-size: 13px; font-weight: 600; background: #059669; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin-bottom: 12px; }
+      button#bench-btn:hover { background: #047857; }
+      button#bench-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+      .perf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 12px; }
+      .perf-stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; text-align: center; }
+      .perf-stat .perf-value { font-size: 1.4em; font-weight: 700; color: #1a1a1a; }
+      .perf-stat .perf-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+      .perf-note { font-size: 11px; color: #9ca3af; font-style: italic; }
+      .perf-bar { height: 4px; background: #e5e7eb; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+      .perf-bar-fill { height: 100%; background: #059669; border-radius: 2px; transition: width 0.3s; }
     </style>
   </head>
   <body>
@@ -122,6 +137,18 @@
       <div class="raw-json" id="raw-json">
         <pre id="findings-json"></pre>
       </div>
+    </div>
+
+    <div class="perf-section">
+      <h2>Performance</h2>
+      <p class="perf-subtitle">
+        Scans all loaded stories 10x each and reports latency statistics.
+        First run includes worker cold-start; subsequent runs are warm cache.
+      </p>
+      <button id="bench-btn">Run benchmark</button>
+      <div class="perf-bar" id="perf-bar" style="display:none"><div class="perf-bar-fill" id="perf-bar-fill"></div></div>
+      <div class="perf-grid" id="perf-grid" style="display:none"></div>
+      <div class="perf-note" id="perf-note"></div>
     </div>
 
     <script type="module" src="./tester.js"></script>

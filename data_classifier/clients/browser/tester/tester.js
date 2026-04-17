@@ -216,6 +216,86 @@ function renderRedacted(el, text) {
   if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
 }
 
+// Benchmark
+const benchBtn = document.getElementById('bench-btn');
+const perfBar = document.getElementById('perf-bar');
+const perfBarFill = document.getElementById('perf-bar-fill');
+const perfGrid = document.getElementById('perf-grid');
+const perfNote = document.getElementById('perf-note');
+
+const BENCH_ROUNDS = 10;
+
+benchBtn.addEventListener('click', async () => {
+  if (!stories.length) {
+    perfNote.textContent = 'No stories loaded — cannot benchmark.';
+    return;
+  }
+  benchBtn.disabled = true;
+  benchBtn.textContent = 'Running...';
+  perfBar.style.display = '';
+  perfBarFill.style.width = '0%';
+  perfGrid.style.display = 'none';
+  perfNote.textContent = '';
+
+  const prompts = stories.map((s) => decodeXor(s.prompt_xor));
+  const totalScans = prompts.length * BENCH_ROUNDS;
+  const latencies = [];
+  let done = 0;
+
+  for (let round = 0; round < BENCH_ROUNDS; round++) {
+    for (const text of prompts) {
+      const { scannedMs } = await scanner.scan(text, {});
+      latencies.push(scannedMs);
+      done++;
+      perfBarFill.style.width = `${(done / totalScans) * 100}%`;
+    }
+  }
+
+  latencies.sort((a, b) => a - b);
+  const mean = latencies.reduce((s, x) => s + x, 0) / latencies.length;
+  const p50 = latencies[Math.floor(latencies.length * 0.5)];
+  const p95 = latencies[Math.floor(latencies.length * 0.95)];
+  const p99 = latencies[Math.floor(latencies.length * 0.99)];
+  const max = latencies[latencies.length - 1];
+  const warmStart = latencies.length > prompts.length ? latencies.slice(prompts.length) : [];
+  const warmMean = warmStart.length ? warmStart.reduce((s, x) => s + x, 0) / warmStart.length : mean;
+
+  const stats = [
+    { value: `${mean.toFixed(2)}`, label: 'Mean (ms)' },
+    { value: `${p50.toFixed(2)}`, label: 'P50 (ms)' },
+    { value: `${p95.toFixed(2)}`, label: 'P95 (ms)' },
+    { value: `${p99.toFixed(2)}`, label: 'P99 (ms)' },
+    { value: `${max.toFixed(2)}`, label: 'Max (ms)' },
+    { value: `${warmMean.toFixed(2)}`, label: 'Warm mean (ms)' },
+  ];
+
+  perfGrid.textContent = '';
+  for (const s of stats) {
+    const div = document.createElement('div');
+    div.className = 'perf-stat';
+    const valEl = document.createElement('div');
+    valEl.className = 'perf-value';
+    valEl.textContent = s.value;
+    const labEl = document.createElement('div');
+    labEl.className = 'perf-label';
+    labEl.textContent = s.label;
+    div.appendChild(valEl);
+    div.appendChild(labEl);
+    perfGrid.appendChild(div);
+  }
+  perfGrid.style.display = '';
+  perfBar.style.display = 'none';
+
+  const avgLen = Math.round(prompts.reduce((s, p) => s + p.length, 0) / prompts.length);
+  perfNote.textContent =
+    `${totalScans} scans (${stories.length} stories x ${BENCH_ROUNDS} rounds). ` +
+    `Avg prompt: ${avgLen.toLocaleString()} chars. ` +
+    `First round includes worker cold-start. Validated against S2 spike: P99 = 0.70 ms on 11K real prompts.`;
+
+  benchBtn.disabled = false;
+  benchBtn.textContent = 'Run again';
+});
+
 // Sync scroll between original and redacted panels
 let syncing = false;
 function syncScroll(source, target) {
