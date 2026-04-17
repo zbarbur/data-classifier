@@ -51,9 +51,10 @@ export function scanText(text, opts = {}) {
   const categoryFilter = opts.categoryFilter || ['Credential'];
   const redactStrategy = opts.redactStrategy || 'type-label';
 
-  const findings = [];
-  findings.push(...regexPass(text, categoryFilter, verbose, includeRaw));
-  findings.push(...secretScannerPass(text, verbose, includeRaw));
+  const raw = [];
+  raw.push(...regexPass(text, categoryFilter, verbose, includeRaw));
+  raw.push(...secretScannerPass(text, verbose, includeRaw));
+  const findings = dedup(raw);
 
   const redactedText = redact(text, findings, redactStrategy);
   return { findings, redactedText, scannedMs: performanceNowSafe() - t0 };
@@ -201,6 +202,20 @@ function isPlaceholderPattern(value) {
     if (re.test(value)) return true;
   }
   return false;
+}
+
+function dedup(findings) {
+  // Sort by confidence descending — keep the best finding per span.
+  const sorted = [...findings].sort((a, b) => b.confidence - a.confidence);
+  const kept = [];
+  for (const f of sorted) {
+    const s = f.match.start;
+    const e = f.match.end;
+    const overlaps = kept.some((k) => s < k.match.end && e > k.match.start);
+    if (!overlaps) kept.push(f);
+  }
+  // Restore position order for redaction (ascending by start).
+  return kept.sort((a, b) => a.match.start - b.match.start);
 }
 
 function hasAntiIndicator(key, value) {
