@@ -1,13 +1,14 @@
 import esbuild from 'esbuild';
 
 const watch = process.argv.includes('--watch');
+const dev = process.argv.includes('--dev');
 
 const shared = {
   bundle: true,
   format: 'esm',
   target: ['es2022'],
-  minify: !watch,
-  sourcemap: true,
+  minify: !watch && !dev,
+  sourcemap: dev,
   logLevel: 'info',
 };
 
@@ -27,7 +28,7 @@ const builds = [
 if (watch) {
   const ctxs = await Promise.all(builds.map((b) => esbuild.context(b)));
   await Promise.all(ctxs.map((c) => c.watch()));
-  console.log('esbuild: watching…');
+  console.log('esbuild: watching...');
 } else {
   await Promise.all(builds.map((b) => esbuild.build(b)));
   console.log('esbuild: done');
