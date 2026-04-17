@@ -82,11 +82,11 @@ class TestClassifyPerValue:
         assert sampled == 0
 
     def test_runs_one_inference_per_sampled_value(self):
-        def _predict(text, _labels, **_kwargs):
-            return [{"label": "email", "text": text[:10], "score": 0.9, "start": 0, "end": 10}]
+        def _extract(text, _spec, **_kwargs):
+            return {"entities": {"email": [{"text": text[:10], "confidence": 0.9, "start": 0, "end": 10}]}}
 
         stub = MagicMock()
-        stub.predict_entities.side_effect = _predict
+        stub.extract_entities.side_effect = _extract
 
         engine = _make_stub_engine(stub)
         column = ColumnInput(
@@ -96,7 +96,7 @@ class TestClassifyPerValue:
         )
         spans, sampled = engine.classify_per_value(column, sample_size=3)
 
-        assert stub.predict_entities.call_count == 3
+        assert stub.extract_entities.call_count == 3
         assert sampled == 3
         assert len(spans) == 3
         for row_spans in spans:
@@ -107,14 +107,14 @@ class TestClassifyPerValue:
     def test_per_value_inference_error_is_isolated(self):
         call_count = {"n": 0}
 
-        def _predict(text, _labels, **_kwargs):
+        def _extract(text, _spec, **_kwargs):
             call_count["n"] += 1
             if call_count["n"] == 2:
                 raise RuntimeError("OOM on row 2")
-            return [{"label": "email", "text": "x", "score": 0.8, "start": 0, "end": 1}]
+            return {"entities": {"email": [{"text": "x", "confidence": 0.8, "start": 0, "end": 1}]}}
 
         stub = MagicMock()
-        stub.predict_entities.side_effect = _predict
+        stub.extract_entities.side_effect = _extract
 
         engine = _make_stub_engine(stub)
         column = ColumnInput(
@@ -129,11 +129,11 @@ class TestClassifyPerValue:
         assert len(non_empty) == 2
 
     def test_unknown_label_skipped(self):
-        def _predict(text, _labels, **_kwargs):
-            return [{"label": "unknown_label", "text": "x", "score": 0.9, "start": 0, "end": 1}]
+        def _extract(text, _spec, **_kwargs):
+            return {"entities": {"unknown_label": [{"text": "x", "confidence": 0.9, "start": 0, "end": 1}]}}
 
         stub = MagicMock()
-        stub.predict_entities.side_effect = _predict
+        stub.extract_entities.side_effect = _extract
 
         engine = _make_stub_engine(stub)
         column = ColumnInput(column_id="c0", column_name="x", sample_values=["a"])
@@ -146,10 +146,10 @@ class TestClassifyPerValue:
         monkeypatch.setattr(gm, "_load_per_value_sample_size", lambda: 2)
 
         stub = MagicMock()
-        stub.predict_entities.return_value = []
+        stub.extract_entities.return_value = {"entities": {}}
 
         engine = _make_stub_engine(stub)
         column = ColumnInput(column_id="c0", column_name="x", sample_values=["a", "b", "c", "d"])
         _, sampled = engine.classify_per_value(column)
         assert sampled == 2
-        assert stub.predict_entities.call_count == 2
+        assert stub.extract_entities.call_count == 2

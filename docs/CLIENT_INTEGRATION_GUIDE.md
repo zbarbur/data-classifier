@@ -143,14 +143,14 @@ RUN pip install \
 
 `python -m data_classifier.download_models` is a lean CLI (stdlib-only — uses `urllib.request`, `hashlib`, `tarfile`, and `subprocess`; **no `torch`, `transformers`, `onnx`, or `requests`** in the import graph) that fetches the pre-exported GLiNER ONNX tarball from the `data-classifier-models` Google Artifact Registry Generic repo in `dag-bigquery-dev`, verifies its SHA-256 against a companion `.sha256` file, and unpacks it into `~/.cache/data_classifier/models/gliner_onnx/`. The `GLiNER2Engine` auto-discovers model files at that path via `_find_bundled_onnx_model()`, so no engine config is needed.
 
-**Model versioning is decoupled from `data_classifier` versioning.** The ONNX tarball is a separate build-time artifact derived from the upstream `urchade/gliner_multi_pii-v1` HuggingFace checkpoint. It does *not* rev when we ship a new `data_classifier` release — the same base model is used across many sprints, and re-exporting it on every library release would be pure waste (~10 min of `pip install [ml-full]` + re-running the same HF→ONNX conversion on unchanged upstream weights). When the upstream base model changes (rarely — at most once every few quarters), a human bumps `DEFAULT_MODEL_VERSION` in `data_classifier/download_models.py` and uploads a new tarball.
+**Model versioning is decoupled from `data_classifier` versioning.** The ONNX tarball is a separate build-time artifact derived from the upstream `fastino/gliner2-base-v1` HuggingFace checkpoint (switched from `urchade/gliner_multi_pii-v1` in Sprint 14). It does *not* rev when we ship a new `data_classifier` release — the same base model is used across many sprints, and re-exporting it on every library release would be pure waste (~10 min of `pip install [ml-full]` + re-running the same HF→ONNX conversion on unchanged upstream weights). When the upstream base model changes (rarely — at most once every few quarters), a human bumps `DEFAULT_MODEL_VERSION` in `data_classifier/download_models.py` and uploads a new tarball.
 
 **CLI flags:**
 
 | Flag | Default | Purpose |
 |---|---|---|
 | `--to PATH` | `~/.cache/data_classifier/models/gliner_onnx/` | Override the install location |
-| `--version VERSION` | `urchade-gliner-multi-pii-v1` (the pinned GLiNER model version — **not** the data_classifier version) | Fetch a different model release |
+| `--version VERSION` | `fastino-gliner2-base-v1` (the pinned GLiNER model version — **not** the data_classifier version) | Fetch a different model release |
 | `--url URL` | AR Generic REST endpoint derived from `--version` | Override the full tarball URL (mirrors, testing) |
 | `--checksum-url URL` | Derived from `--url` | Override the checksum URL independently |
 | `--access-token TOKEN` | Auto-discovered via metadata service or `gcloud` | Explicit GCP access token for AR authentication |
@@ -1244,7 +1244,7 @@ All multipliers and thresholds live in `config/engine_defaults.yaml` under `secr
 **Order:** 5 · **Authority:** 1 (default) · **Modes:** `structured`
 **Tier:** requires `pip install "data_classifier[ml]"` + bundled ONNX model
 
-**Purpose.** Run zero-shot Named Entity Recognition on sample values using the GLiNER2 model (`urchade/gliner_multi_pii-v1`, PII-tuned), with entity-type-specific natural-language descriptions that significantly improve accuracy over label-only matching. This is the engine that detects `PERSON_NAME`, `ADDRESS`, and `ORGANIZATION` when column names are generic or missing — the three entity types that have no reliable lexical fingerprint and therefore can't be caught by the regex engine.
+**Purpose.** Run zero-shot Named Entity Recognition on sample values using the GLiNER2 model (`fastino/gliner2-base-v1`, threshold 0.80, descriptions disabled), with label-list-only inference for higher precision. This is the engine that detects `PERSON_NAME`, `ADDRESS`, and `ORGANIZATION` when column names are generic or missing — the three entity types that have no reliable lexical fingerprint and therefore can't be caught by the regex engine.
 
 The engine also produces reinforcement signals for `EMAIL`, `PHONE`, `SSN`, `DATE_OF_BIRTH`, and `IP_ADDRESS` — these types are already well-covered by regex, but a matching GLiNER finding acts as independent corroboration and triggers the orchestrator's +0.05 agreement boost (§5A.6).
 

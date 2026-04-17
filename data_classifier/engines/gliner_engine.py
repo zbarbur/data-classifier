@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # ── GLiNER2 model configuration ────────────────────────────────────────────
 
 _MODEL_NAME = "gliner2-ner"
-_MODEL_ID = "urchade/gliner_multi_pii-v1"
+_MODEL_ID = "fastino/gliner2-base-v1"
 _REQUIRED_PACKAGES = ["gliner"]
 
 # ── Entity type mapping with descriptions ─────────────────────────────────
@@ -45,7 +45,7 @@ _REQUIRED_PACKAGES = ["gliner"]
 
 ENTITY_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
     "PERSON_NAME": (
-        "person",
+        "full name",
         "Names of people or individuals, including first and last names",
     ),
     "ADDRESS": (
@@ -65,7 +65,7 @@ ENTITY_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
         "Telephone numbers in any international format with country codes, dashes, dots, or spaces",
     ),
     "SSN": (
-        "national identification number",
+        "social security number",
         "Government-issued personal identification numbers such as SSN, national insurance, or tax ID",
     ),
     "EMAIL": (
@@ -129,7 +129,7 @@ _ENTITY_METADATA: dict[str, dict[str, Any]] = {
 }
 
 # Default confidence threshold for GLiNER2 predictions
-_DEFAULT_GLINER_THRESHOLD = 0.5
+_DEFAULT_GLINER_THRESHOLD = 0.80
 
 # Separator used when concatenating sample values
 _SAMPLE_SEPARATOR = " ; "
@@ -142,7 +142,7 @@ _NL_SAMPLE_SEPARATOR = ", "
 # Max samples per NER chunk — keeps text within model's context window
 _SAMPLE_CHUNK_SIZE = 50
 
-# GLiNER urchade v1 encoder max_len (transformer max sequence length in tokens).
+# GLiNER encoder max_len (transformer max sequence length in tokens).
 # The NL-wrapped prompt should stay comfortably inside this bound after
 # tokenization.  We enforce a character budget that is empirically safe:
 # at ~4 chars/token the 384-token transformer window fits ~1500 chars of input,
