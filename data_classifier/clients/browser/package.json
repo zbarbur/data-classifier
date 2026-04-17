@@ -7,13 +7,18 @@
   "engines": {
     "node": ">=20"
   },
+  "types": "./scanner.d.ts",
   "exports": {
-    ".": "./dist/scanner.esm.js",
+    ".": {
+      "types": "./scanner.d.ts",
+      "default": "./dist/scanner.esm.js"
+    },
     "./worker": "./dist/worker.esm.js",
     "./tester": "./tester/index.html"
   },
   "files": [
     "dist/*.js",
+    "scanner.d.ts",
     "tester/index.html",
     "tester/tester.js",
     "tester/corpus/stories.jsonl",
