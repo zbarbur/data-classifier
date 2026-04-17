@@ -2317,8 +2317,11 @@ permissive recall. A single prompt cannot satisfy both.
 
 ### M4d Phase 2 — router-labeler architecture (deferred, unblocks scale labeling)
 
-**Status:** ⏸ blocked on Sprint 13 router-branch decisions (column-shape
-taxonomy needs to stabilize before per-branch prompts can be tuned)
+**Status:** 🟡 unblocked 2026-04-17 — Sprint 13 Item A shipped the
+3-branch column-shape router (`backlog/sprint13-column-shape-router.yaml`,
+merged to main via PR #16 at commit `4d67646`). The `structured_single` /
+`free_text_heterogeneous` / `opaque_tokens` taxonomy is now stable; per-branch
+labeler prompts can be tuned against it. Ready to start.
 **Priority:** P2 — needed for Sprint 15+ scale-corpus research bet; not
 on Sprint 13 critical path
 **Estimated time:** ~3-5 days (once router branches are stable)
@@ -2452,7 +2455,11 @@ weeks sequential.
 
 ### D1a — JWT payload classifier
 
-**Status:** ⏸ blocked on Sprint 13 `opaque-token-branch-tuning` landing on main
+**Status:** 🟡 unblocked 2026-04-17 — Sprint 13 Item C shipped the
+entropy-based opaque-token handler (`backlog/sprint13-opaque-token-branch-tuning.yaml`,
+merged to main via PR #16 at commit `4d67646`). The dispatch site inside
+`data_classifier/orchestrator/opaque_token_handler.py` exists; JWT
+classifier can slot in as an enhancement for shape-gated `eyJ` prefixes.
 **Priority:** P2 — highest-value decoder but Sprint 13 router must ship first so the dispatch site exists
 **Estimated time:** ~4 days (design memo + reference impl + benchmark delta)
 
