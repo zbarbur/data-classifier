@@ -91,12 +91,30 @@ ALLOWED_ENTITIES: tuple[str, ...] = tuple(sorted(ENTITY_TYPE_TO_FAMILY.keys()))
 # ═══════════════════════════════════════════════════════════════════════════
 
 LABELER_INSTRUCTIONS = """
-TODO(guy.guzner): Write the instructions block here.
+Label this database column with every PII entity type that appears in at
+least one sample value. Use entity names exactly from the allowed list
+below — never invent new types or use subcomponents (use EMAIL, not
+DOMAIN or LOCAL_PART).
 
-~5-10 lines encoding the M4c annotation protocol — see the comment above
-for the required facets. The allowed entity types, few-shot examples, and
-response-schema anchor are appended automatically; focus your instructions
-on HOW to decide, not on listing allowed types.
+Rules:
+1. Prevalence floor is 1 — if a single value carries a confident entity,
+   include that label. One SSN in 100 chat rows still yields SSN.
+2. One label per value; the column's label list is the union across values.
+   If a value could be two types, pick the primary one.
+3. Return an empty list [] when no sample value carries real PII. CFPB
+   narratives redacted to XXXX are the canonical empty case — XXXX is
+   not evidence of a present entity.
+4. Skip placeholders and weak signals unless surrounding values establish
+   them as real: admin, password123, test, 0.0.0.0, 127.0.0.1,
+   example.com, foo@example.com.
+5. Label DATE_OF_BIRTH only when the date is explicitly a birth date
+   (dob=1985-03-17). Generic timestamps are not DOB.
+6. Base64-like payloads without semantic context are OPAQUE_SECRET, not
+   API_KEY. Government IDs require visible shape match (SSN = 9 digits in
+   XXX-XX-XXXX form), not just plausible length.
+
+When genuinely uncertain, leave the label out — under-labeling is
+recoverable, over-labeling skews downstream Jaccard.
 """.strip()
 
 # ═══════════════════════════════════════════════════════════════════════════

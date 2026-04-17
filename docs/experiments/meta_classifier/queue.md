@@ -2285,34 +2285,102 @@ Tier 7b discipline.
 - `tests/benchmarks/meta_classifier/heterogeneous_gold_set.jsonl`
 - `docs/research/multi_label_gold_set_annotator_guide.md` — 1-page annotator guideline
 
-### M4d — LLM-labeled multi-label scale corpus (500-1000 columns)
+### M4d Phase 1 — single-prompt labeler validation (COMPLETE, plateau finding)
 
-**Status:** ⏸ blocked on M4c (need gold set to validate labeler prompt)
-**Priority:** P2 — M4a + M4c + M4e are sufficient for Sprint 13 evaluation; M4d scales beyond hand-labeling for Sprint 15+ research-bet prerequisite
-**Estimated time:** ~1 week
+**Status:** ✅ complete 2026-04-17 — canonical baseline run committed
+**Priority:** done
+**Actual time:** ~1 day (scaffold + 3 prompt iterations)
+**Canonical artifact:** `docs/experiments/meta_classifier/runs/20260417-m4d-phase1-labeler-validation/`
+  — `result.md`, `predictions.jsonl`, `iteration_log.md`
 
-**Goal:** Scale evaluation beyond hand-labeling by using a strong LLM
-(Claude / GPT-4 class) as a multi-label annotator on 500-1000 columns
-from Tier 7b candidates. Measure LLM-vs-human agreement on M4c gold set
-as quality check.
+**Delivered:**
+
+- Claude Opus 4.7 multi-label labeler scaffold in
+  `tests/benchmarks/meta_classifier/llm_labeler.py` + driver
+  `scripts/run_m4d_labeler_validation.py`
+- `[research-llm]` extras group in `pyproject.toml` (anthropic SDK opt-in)
+- v1 canonical baseline: **Jaccard 0.7544, macro F1 0.758, micro F1 0.802**
+- Three-iteration ablation (v1 / v2 / v3) with full memo spanning the
+  precision/recall tradeoff space
+- Two gold-set corrections uncovered by the disagreement review
+  (`hn_comments_2019` +PERSON_NAME; `so_about_me_rep_100_1k_b` +AGE)
+
+**Plateau finding (key insight):**
+
+Single-prompt labeling has a ~0.72-0.75 Jaccard ceiling on heterogeneous
+50-row gold sets. Tightening rules (v2) pushes precision up (0.79) at
+the cost of recall on columns where the rules are too strict; loosening
+(v3) re-introduces the FPs. The structural conflict: free-text
+heterogeneous columns (SO / HN / CFPB) need strict precision, while
+structured single-label columns (location, Sprint 12 fixtures) need
+permissive recall. A single prompt cannot satisfy both.
+
+### M4d Phase 2 — router-labeler architecture (deferred, unblocks scale labeling)
+
+**Status:** ⏸ blocked on Sprint 13 router-branch decisions (column-shape
+taxonomy needs to stabilize before per-branch prompts can be tuned)
+**Priority:** P2 — needed for Sprint 15+ scale-corpus research bet; not
+on Sprint 13 critical path
+**Estimated time:** ~3-5 days (once router branches are stable)
+
+**Goal:** Replace the single-prompt labeler with a **router-labeler**
+that picks branch-specific instructions + few-shot examples based on
+each column's `true_shape` (or inferred shape at scale time). Target
+Jaccard ≥ 0.8 on the M4c gold set so Phase 3 scale labeling produces
+labels trustworthy enough to seed M4e's multi-label ground truth.
 
 **Methodology:**
 
-1. Design labeler prompt with explicit multi-label output shape
-2. Run on M4c gold set (50 columns); compute Jaccard agreement vs human
-3. Iterate prompt until agreement ≥ 0.8 Jaccard (tunable)
-4. Once validated, run at scale on Tier 7b candidates (CFPB volume, SO users at scale, HN comments at scale)
+1. Define per-branch LABELER_INSTRUCTIONS for the three Sprint 13 router
+   branches (`structured_single`, `free_text_heterogeneous`, `opaque_tokens`)
+2. Add branch-specific few-shot examples (the current 3 generic examples
+   mix shapes; separate them per branch)
+3. Route each column to its branch via `true_shape` (M4c) or a shape
+   classifier (at scale)
+4. Run the M4c gold set through the router; each column uses its own
+   branch's prompt
+5. Compute per-branch Jaccard + combined macro Jaccard; iterate on
+   whichever branch is lagging
+
+**Output:**
+
+- `tests/benchmarks/meta_classifier/llm_labeler_router.py` — new
+  per-branch labeler module
+- `docs/experiments/meta_classifier/runs/<date>-m4d-phase2-router/` —
+  result memo + predictions
+
+**Success criteria:**
+
+- Combined macro Jaccard ≥ 0.8 on M4c gold set
+- Per-branch Jaccard ≥ 0.7 on each of the three branches (so one
+  branch doesn't carry the average)
+- Branch-specific prompts reproducible from committed memo
+- Zero regressions on rows the Phase 1 single-prompt labeler already
+  matched perfectly (29/50 rows)
+
+### M4d Phase 3 — scale labeling (500-1000 columns)
+
+**Status:** ⏸ blocked on Phase 2 router-labeler passing its gate
+**Priority:** P2
+**Estimated time:** ~1 week
+
+**Goal:** Run the validated router-labeler on Tier 7b candidates (CFPB
+volume, SO users at scale, HN comments at scale) to produce
+`corpora/bq_public_multilabel/labeled.jsonl` — the multi-label scale
+corpus that seeds M4e's ground truth at volume.
 
 **Output:**
 
 - `corpora/bq_public_multilabel/labeled.jsonl` — LLM-labeled volume corpus
-- `docs/research/llm_labeler_prompt_evaluation.md` — prompt iteration log with agreement numbers
+- `docs/experiments/meta_classifier/runs/<date>-m4d-phase3-scale/` —
+  scale-run memo with per-branch volume, cost, and spot-check sample
 
 **Success criteria:**
 
-- LLM-vs-human Jaccard agreement ≥ 0.8 on the M4c gold set
 - 500-1000 columns committed with per-column multi-label annotations
-- Labeler prompt reproducible from committed memo
+- Human spot-check of 50 random rows shows ≥ 0.8 Jaccard to labeler
+  output (confirming scale-run matches Phase 2 gold-set validation)
+- Labels ingested by M4e without taxonomy drift
 
 ### M4e — Dual-report harness (Sprint 11 single-label + Sprint 13+ multi-label)
 
