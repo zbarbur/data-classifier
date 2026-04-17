@@ -163,9 +163,11 @@ All four checks must pass. If any fails, go to **Rollback** below.
 python -c "from data_classifier.orchestrator.meta_classifier import FEATURE_SCHEMA_VERSION, FEATURE_DIM; print(f'schema v{FEATURE_SCHEMA_VERSION}, dim={FEATURE_DIM}')"
 ```
 
-Expected output format: `schema v{N}, dim={M}`. As of Sprint 11 the
-values are `schema v3, dim=46`. Bump the expected values in this
-runbook whenever main ships a new `FEATURE_SCHEMA_VERSION`.
+Expected output format: `schema v{N}, dim={M}`. As of Sprint 13 the
+values are `schema v5, dim=49` (bumped from v3/46 in Sprint 11 via
+Sprint 12 v4 and Sprint 13's Option A train/serve-skew fix). Bump the
+expected values in this runbook whenever main ships a new
+`FEATURE_SCHEMA_VERSION`.
 
 Failure here means research's Python path has not picked up main's
 schema changes — usually a stale `.pyc` or an editable install pointing
@@ -192,8 +194,13 @@ get smoked in 4d.
 #### 4d. Family benchmark smoke run
 
 ```bash
-python -m tests.benchmarks.family_accuracy_benchmark --limit 50
+python -m tests.benchmarks.family_accuracy_benchmark --limit 50 \
+    --out /tmp/sync-bench.jsonl --summary /tmp/sync-bench.json
 ```
+
+(As of Sprint 13, `--out` and `--summary` are required positional-ish
+args. The `/tmp/` paths are throwaway — the sync validation only cares
+that the benchmark runs without errors.)
 
 Expected: completes without errors. We do **not** gate on the accuracy
 number at this stage — that's the experiment designer's job. We gate
@@ -350,4 +357,16 @@ Update this runbook when:
 *Append findings here as the ritual gets run. Each entry: date, sprint
 number, what went wrong, what to do next time.*
 
-(empty — to be populated as the ritual is exercised)
+- **2026-04-17, Sprint 13 sync.** Step 2 drift check flagged 13 `-`
+  lines in the queue.md diff. All 13 were research's own `**Status:** 🟡
+  queued` → `✅ complete`/`⏸ blocked` rewrites on experiment entries
+  research owns — not main adding content research hadn't seen. The
+  merge resolved cleanly with no manual `checkout --ours` needed
+  because git's three-way merge saw the surrounding context match.
+  Next time: when drift shows `-` lines, run `grep -E '^-[^-]'` on
+  the diff — if every `-` line is a `**Status:**` line, it's research's
+  own status updates and is safe to proceed. Only stop if `-` lines
+  carry actual entry content (text outside the status field).
+- **2026-04-17, Sprint 13 sync.** `family_accuracy_benchmark` now
+  requires `--out` and `--summary` args (previously optional). Updated
+  Step 4d invocation.
