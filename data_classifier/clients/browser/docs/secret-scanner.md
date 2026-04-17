@@ -11,14 +11,14 @@ The scanner runs two passes over the input text:
    stopwords and allowlists, and emitted as a finding.
 
 2. **Secret-scanner pass** — parses key-value pairs (JSON, env files, code
-   literals), scores each key against 178 known secret-key patterns, and
+   literals), scores each key against 271 known secret-key patterns, and
    applies a tiered entropy gate to the value.
 
 Findings from both passes are merged, redacted, and returned.
 
 ## Regex pass
 
-For each Credential pattern (41 of 77 total):
+For each Credential pattern (123 of 159 total):
 
 1. Compile the regex once (at worker init, not per-scan)
 2. `text.matchAll(compiledRe)` yields all matches with offsets
@@ -60,7 +60,7 @@ For each KV pair, reject if:
 
 ### Step 3: Score the key name
 
-Iterate 178 key-name patterns. Each has:
+Iterate 271 key-name patterns. Each has:
 
 - **pattern** — the string to match (e.g., `password`, `access_token`)
 - **match_type** — `substring` (default), `word_boundary`, or `suffix`

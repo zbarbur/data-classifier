@@ -20,7 +20,7 @@ import {
 } from './entropy.js';
 
 // Pre-compile word_boundary/suffix regexes for SECRET_KEY_NAMES once at
-// module init (one worker scope). Avoids O(pairs * 178) regex constructions
+// module init (one worker scope). Avoids O(pairs * N) regex constructions
 // per scan — critical for staying within the 100ms worker kill budget.
 const COMPILED_KEY_NAMES = SECRET_KEY_NAMES.map((entry) => {
   let compiledRe = null;

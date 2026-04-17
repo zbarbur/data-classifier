@@ -5,7 +5,7 @@ Client-side secret detection engine, ported from the Python
 about to be sent to a chat AI) and returns findings + a redacted
 version.
 
-**12.5 KB gzipped.** No runtime dependencies. ES module.
+**19 KB gzipped.** No runtime dependencies. ES module.
 
 > Scaffold — tracking `sprint14/browser-poc-secret`. Full pattern
 > coverage arrives in subsequent sprint items.
@@ -76,8 +76,9 @@ npm run serve
 # open http://localhost:4173/tester/
 ```
 
-The tester page includes 12 real-world examples from the WildChat
-corpus. Select one from the dropdown to see the scanner in action.
+The tester page includes 17 real-world credential stories from the
+WildChat corpus. Select one from the dropdown and click **Scan** to see
+findings with highlighted secrets, redacted output, and detection metadata.
 
 ## Development
 
@@ -91,6 +92,7 @@ npm run serve         # generate + build + http-server on :4173
 npm run test:unit     # Vitest (75 tests)
 npm run test:e2e      # Playwright (smoke + timeout + differential)
 npm run bench         # 1K-prompt latency benchmark
+npm run package       # assemble standalone delivery folder (dist-package/)
 ```
 
 ## Raw-value escape hatch
@@ -117,11 +119,21 @@ and differential-test diagnostics.
 ./scripts/ci_browser_parity.sh --strict-validators  # also fail on stubs
 ```
 
+## Standalone delivery
+
+Run `npm run package` to create a `dist-package/` folder with everything
+a consumer needs — scanner bundles, TypeScript declarations, tester page,
+docs. No repo checkout required. Hand off the folder or zip it.
+
 ## Documentation
 
-- [Pattern reference](docs/patterns.md) — all 77 patterns with validators and descriptions
+- [API reference](docs/api.md) — all methods, parameters, return types, error handling
+- [Pattern reference](docs/patterns.md) — 123 Credential patterns + 271 key-name entries
 - [Secret detection logic](docs/secret-scanner.md) — how the scanner works
-- [Real-world stories](docs/stories.md) — 12 annotated examples from WildChat
+- [Real-world stories](docs/stories.md) — 9 annotated examples from WildChat
+
+TypeScript declarations are at `scanner.d.ts` (auto-resolved via the
+`types` field in `package.json`).
 
 ## Architecture
 
@@ -141,8 +153,8 @@ and differential-test diagnostics.
 
 | Component | Raw | Gzipped | In extension? |
 |-----------|-----|---------|---------------|
-| scanner.esm.js | 1.5 KB | 0.8 KB | Yes |
-| worker.esm.js | 77 KB | 11.7 KB | Yes |
-| **Extension total** | **78.5 KB** | **12.5 KB** | |
-| Tester + stories + docs | ~55 KB | ~10 KB | No |
-| **npm package total** | ~135 KB | ~25 KB | |
+| scanner.esm.js | 1.5 KB | 0.7 KB | Yes |
+| worker.esm.js | 130.5 KB | 18.2 KB | Yes |
+| **Extension total** | **132 KB** | **19 KB** | |
+| Tester + stories + docs | ~160 KB | ~55 KB | No |
+| **Delivery package total** | ~292 KB | ~74 KB | |

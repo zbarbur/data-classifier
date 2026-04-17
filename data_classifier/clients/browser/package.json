@@ -38,6 +38,7 @@
     "pretest:e2e": "npm run generate && npm run build",
     "test:e2e": "playwright test",
     "bench": "playwright test tests/e2e/bench.spec.js",
+    "package": "npm run dist && node scripts/package.js",
     "format": "prettier --write 'src/**/*.js' 'tests/**/*.js' 'tester/**/*.js' 'tester/**/*.html'",
     "format:check": "prettier --check 'src/**/*.js' 'tests/**/*.js' 'tester/**/*.js' 'tester/**/*.html'"
   },

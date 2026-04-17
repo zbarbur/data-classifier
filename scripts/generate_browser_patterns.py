@@ -3,8 +3,8 @@
 Emits six files into data_classifier/clients/browser/src/generated/:
 
   * constants.js           - scoring thresholds + PYTHON_LOGIC_VERSION SHA
-  * patterns.js            - 77 patterns, examples stripped
-  * secret-key-names.js    - 178 key-name entries
+  * patterns.js            - regex patterns, examples stripped
+  * secret-key-names.js    - key-name entries
   * stopwords.js           - decoded stopwords set
   * placeholder-values.js  - placeholder-value set
   * fixtures.json          - seed-corpus expected findings, version-stamped
