@@ -151,6 +151,26 @@ class SampleAnalysis:
     """First N matching values as evidence.  Masked when ``mask_samples=True``."""
 
 
+@dataclass(frozen=True)
+class SpanDetection:
+    """One entity span detected by a per-value NER call."""
+
+    text: str
+    """The detected entity text."""
+
+    entity_type: str
+    """The entity type (e.g., EMAIL, SSN, CREDENTIAL)."""
+
+    confidence: float
+    """Detection confidence 0.0-1.0."""
+
+    start: int
+    """Start position in the source text."""
+
+    end: int
+    """End position in the source text."""
+
+
 @dataclass
 class ClassificationFinding:
     """Result of classifying a single column."""
