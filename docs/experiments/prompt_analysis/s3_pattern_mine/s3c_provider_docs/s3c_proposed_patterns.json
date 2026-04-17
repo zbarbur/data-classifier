@@ -1,0 +1,155 @@
+{
+  "_metadata": {
+    "source": "provider documentation (public / factual)",
+    "pulled_date": "2026-04-16",
+    "translator": "S3-C research session",
+    "notes": "All formats sourced from official provider documentation or authoritative secondary sources (GitGuardian detectors, Heroku Dev Center). No license concern \u2014 factual format descriptions are not copyrightable. Only prefixed formats with low FP risk included."
+  },
+  "patterns": [
+    {
+      "name": "okta_api_token",
+      "regex": "\\b00[A-Za-z0-9-]{40}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.9,
+      "description": "Okta SSWS API token \u2014 starts with '00', 42 chars total, alphanumeric + hyphens. Used in Authorization: SSWS <token> header.",
+      "validator": "",
+      "examples_match": [
+        "xor:amoLGTAbNm4XNgx3DQoCFzs4OT4/PD0yMzAxNjc0NSorKCkuLywtIiMgams="
+      ],
+      "examples_no_match": [
+        "00short",
+        "000QCjAl4MlV-WPXM"
+      ],
+      "context_words_boost": [
+        "okta",
+        "SSWS",
+        "OKTA_API_TOKEN",
+        "okta_token"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": true,
+      "column_hint_keywords": [
+        "okta",
+        "ssws",
+        "token",
+        "api_key"
+      ]
+    },
+    {
+      "name": "postman_api_key",
+      "regex": "\\bPMAK-[0-9a-f]{24}-[0-9a-f]{34}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Postman API key (PMAK- prefix, 24-hex ID segment + hyphen + 34-hex secret segment, total ~63 chars after prefix)",
+      "validator": "",
+      "examples_match": [
+        "xor:ChcbEXdsaW88O2tuO2tqPGJuOGtoYztuaGptb293Y2lub2Njajlvbm4+bm1pYzltbWtpb25vPDtibWlsbmhqbQ=="
+      ],
+      "examples_no_match": [
+        "PMAK-short",
+        "PMAK-",
+        "pmak-635fa14a10f84b129a420755-9345990c544d4739c7713545fa87364207"
+      ],
+      "context_words_boost": [
+        "postman",
+        "POSTMAN_API_KEY",
+        "postman_key"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    },
+    {
+      "name": "airtable_pat",
+      "regex": "\\bpat[A-Za-z0-9]{14}\\.[a-zA-Z0-9]{32,64}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Airtable Personal Access Token \u2014 'pat' prefix + 14-char token ID + dot separator + 32-64 char secret body",
+      "validator": "",
+      "examples_match": [
+        "xor:KjsuGxgZHh8cHRITEBEWFxR0Ozg5Pj88PTIzMDE2NzQ1KisoKS4vLC0iIyBraGlub2w="
+      ],
+      "examples_no_match": [
+        "pat_short.abc",
+        "patABCDEFGHIJKLMN",
+        "patABCDEFGHIJKLMN.tooshort"
+      ],
+      "context_words_boost": [
+        "airtable",
+        "AIRTABLE_PAT",
+        "AIRTABLE_TOKEN"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    },
+    {
+      "name": "heroku_api_key",
+      "regex": "\\bHRKU-[A-Za-z0-9_-]{60}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Heroku OAuth access token (HRKU- prefix, 65 chars total including prefix). New format since April 2025; pre-2025 tokens are UUID format without prefix.",
+      "validator": "",
+      "examples_match": [
+        "xor:EggRD3cbGxYQGQMIbQkIIAoxMGMFGB0rMjNrMBsTaxBvCm4NPB5sEw4fFCw+DCM+GwoZNBQ5GzYoFxc7MhIoDjU="
+      ],
+      "examples_no_match": [
+        "HRKU-short",
+        "HRKU-",
+        "hrku-AALJCYR7SRzPkj9_BGqhi1jAI1J5P4WfD6ITENvdVydAPCnNcAlrMMahHrTo"
+      ],
+      "context_words_boost": [
+        "heroku",
+        "HEROKU_API_KEY",
+        "heroku_token"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    },
+    {
+      "name": "render_api_key",
+      "regex": "\\brnd_[A-Za-z0-9]{32,64}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.9,
+      "description": "Render.com API key (rnd_ prefix). Format documented on render.com API authentication page.",
+      "validator": "",
+      "examples_match": [
+        "xor:KDQ+BRsYGR4fHB0SExARFhcUFQoLCAkODwwNAgMAOzg5Pj88"
+      ],
+      "examples_no_match": [
+        "rnd_short",
+        "rnd_",
+        "rnd_x"
+      ],
+      "context_words_boost": [
+        "render",
+        "RENDER_API_KEY",
+        "render_token"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    }
+  ]
+}

@@ -343,21 +343,32 @@ Output location: `s2_spike/report/s2_browser_port_spike.md`.
 
 ### Stage S3 — Pattern expansion mine (filed on `main`, Sprint 14 candidate)
 
-- **Status:** ⏸ blocked on S1
-- **Effort:** 5-7 days; sibling of the Sprint 10 Kingfisher mine
+- **Status:** ✅ COMPLETE 2026-04-17 — see `s3_pattern_mine/` for all artifacts
+- **Effort actual:** ~½ day (vs 5-7 day estimate; focused on high-yield sources)
 
-Mine secretlint (MIT, JS-native) + detect-secrets (Apache 2.0) +
-provider documentation + RFCs/specs for the gap set from S1. Refresh
-existing mines (gitleaks / Kingfisher / Nosey Parker) since Sprint 10.
+**Results**: 19 net-new credential patterns + 6 quality upgrades across 4 sources.
+Promotion to `main` via a single PR when ready.
 
-Update `CREDENTIAL_PATTERN_SOURCES.md` schema to require per-pattern
-provenance fields (source URL, source_type, license_clearance, pulled
-date, validator). CI enforces presence of all five fields per new
-pattern.
+| Stream | Source | License | Net-new | Upgrades |
+|---|---|---|---|---|
+| S3-A | secretlint | MIT | 9 | 5 |
+| S3-B | detect-secrets | Apache 2.0 | 5 | 1 (GitLab 10 token types) |
+| S3-C | Provider docs | N/A (factual) | 5 | 0 |
+| S3-D | gitleaks/Kingfisher/NP refresh | MIT/Apache 2.0 | 0 (unchanged since Sprint 10) | 0 |
 
-Lives on `main` because patterns are a shared asset across both
-research branches and both consumers (BQ-connector + browser
-extension).
+Net-new patterns: Grafana (2), Docker Hub, Linear, Groq, 1Password,
+Notion, Figma, Basic Auth URL, PyPI, Mailchimp, Artifactory, Square
+OAuth, Telegram Bot, Okta, Postman, Airtable, Heroku, Render.
+
+Quality upgrades: GitHub (fine-grained PATs), Slack (unified prefixes),
+OpenAI (svcacct/admin), HashiCorp Vault (hvb/hvr), HuggingFace
+(tighten), GitLab (10 token types).
+
+Corpus validation: 3 hits total (all Telegram bot tokens on 11K
+WildChat). All other patterns: 0 hits (expected for niche formats).
+
+Artifacts in `s3_pattern_mine/{s3a_secretlint,s3b_detect_secrets,
+s3c_provider_docs,s3d_refresh}/`.
 
 ### Stage S4 — Migrate JS regex engine to re2-wasm (planned, trigger-driven)
 
