@@ -175,16 +175,82 @@ def emit_placeholder_values() -> None:
 
 
 def emit_fixtures(version: str) -> None:
-    from data_classifier.core.types import ColumnInput
-    from data_classifier.engines.regex_engine import RegexEngine
+    """Generate expected findings using text-level matching (not column-level).
+
+    The JS browser scanner operates on free text, not database columns.
+    It iterates regex matches per-substring (not per-sample-value), so
+    stopword checks apply to the matched substring, not the entire input.
+    Column-hint-gated patterns are excluded (no column context in-browser).
+
+    This function replicates that text-level logic using the Python source
+    patterns and validators so the differential test can assert parity.
+    """
+    import re2
+
+    from data_classifier.engines.regex_engine import _get_global_stopwords
     from data_classifier.engines.secret_scanner import SecretScannerEngine
+    from data_classifier.engines.validators import aws_secret_not_hex, not_placeholder_credential
+    from data_classifier.patterns import load_default_patterns
     from data_classifier.profiles import load_profile
 
     profile = load_profile()
-    regex_engine = RegexEngine()
-    regex_engine.startup()
+    patterns = load_default_patterns()
+    stopwords = _get_global_stopwords()
     scanner_engine = SecretScannerEngine()
     scanner_engine.startup()
+
+    # Validator dispatch — mirrors JS resolveValidator
+    VALIDATOR_FNS: dict[str, callable] = {
+        "aws_secret_not_hex": aws_secret_not_hex,
+        "not_placeholder_credential": not_placeholder_credential,
+    }
+
+    def _text_level_regex_findings(text: str) -> list[dict]:
+        """Run credential patterns over text at the match-substring level."""
+        seen: set[str] = set()
+        out: list[dict] = []
+        for p in patterns:
+            if p.category != "Credential":
+                continue
+            if p.requires_column_hint:
+                continue
+            try:
+                for m in re2.finditer(p.regex, text):
+                    value = m.group(0)
+                    lower = value.lower().strip()
+                    # Pattern-specific stopwords
+                    if p.stopwords and lower in {s.lower() for s in p.stopwords}:
+                        continue
+                    # Global stopwords
+                    if lower in stopwords:
+                        continue
+                    # Validator
+                    vfn = VALIDATOR_FNS.get(p.validator)
+                    if vfn and not vfn(value):
+                        continue
+                    triple = f"{p.entity_type}:Credential:regex"
+                    if triple not in seen:
+                        seen.add(triple)
+                        out.append({"entity_type": p.entity_type, "category": "Credential", "engine": "regex"})
+            except Exception:
+                pass  # (?i) patterns fail in RE2, same as JS
+        return out
+
+    def _text_level_secret_scanner_findings(text: str) -> list[dict]:
+        """Run secret_scanner at text level via the Python engine.
+
+        The Python SecretScannerEngine already operates on individual
+        sample values (parsing KV pairs from each value), so we can use
+        classify_column with a single-value column to approximate
+        text-level behaviour.
+        """
+        from data_classifier.core.types import ColumnInput
+
+        col = ColumnInput(column_id="fixture", column_name="prompt", sample_values=[text])
+        out = []
+        for f in scanner_engine.classify_column(col, profile=profile, min_confidence=0.3):
+            out.append({"entity_type": f.entity_type, "category": f.category, "engine": "secret_scanner"})
+        return out
 
     fixtures = {"python_logic_version": version, "cases": []}
     if not SEED_PATH.exists():
@@ -195,15 +261,10 @@ def emit_fixtures(version: str) -> None:
             if not line:
                 continue
             case = json.loads(line)
-            col = ColumnInput(column_id=case["id"], column_name="prompt", sample_values=[case["text"]])
-            findings = []
-            for f in regex_engine.classify_column(col, profile=profile, min_confidence=0.3):
-                if f.category == "Credential":
-                    findings.append({"entity_type": f.entity_type, "category": f.category, "engine": "regex"})
-            for f in scanner_engine.classify_column(col, profile=profile, min_confidence=0.3):
-                findings.append({"entity_type": f.entity_type, "category": f.category, "engine": "secret_scanner"})
+            text = case["text"]
+            findings = _text_level_regex_findings(text) + _text_level_secret_scanner_findings(text)
             findings.sort(key=lambda f: (f["engine"], f["entity_type"]))
-            fixtures["cases"].append({"id": case["id"], "text": case["text"], "findings": findings})
+            fixtures["cases"].append({"id": case["id"], "text": text, "findings": findings})
 
     (GENERATED_DIR / "fixtures.json").write_text(json.dumps(fixtures, indent=2))
     log.info("wrote fixtures.json (%d cases)", len(fixtures["cases"]))
