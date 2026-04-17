@@ -1,0 +1,67 @@
+{
+  "date": "2026-04-17",
+  "source_predictions": "/tmp/bench.predictions.jsonl",
+  "rescore_method": "multi-label-relaxed: family counts as correct if predicted=gt_family OR family is structurally present in shard values",
+  "families_analyzed": [
+    "CREDENTIAL",
+    "URL",
+    "CONTACT"
+  ],
+  "structural_presence_patterns": {
+    "URL": "any value matching http(s)://... or ftp://...",
+    "EMAIL": "any value matching email regex",
+    "CREDENTIAL": "\u226510% of values matching credential-keyword+token OR provider-shape"
+  },
+  "original": {
+    "CREDENTIAL": {
+      "TP": 707,
+      "FP": 267,
+      "FN": 43,
+      "precision": 0.7258726899383984,
+      "recall": 0.9426666666666667,
+      "f1": 0.820185614849188
+    },
+    "URL": {
+      "TP": 210,
+      "FP": 111,
+      "FN": 0,
+      "precision": 0.6542056074766355,
+      "recall": 1.0,
+      "f1": 0.7909604519774012
+    },
+    "CONTACT": {
+      "TP": 510,
+      "FP": 22,
+      "FN": 0,
+      "precision": 0.9586466165413534,
+      "recall": 1.0,
+      "f1": 0.9788867562380038
+    }
+  },
+  "rescored": {
+    "CREDENTIAL": {
+      "TP": 894,
+      "FP": 80,
+      "FN": 150,
+      "precision": 0.917864476386037,
+      "recall": 0.8563218390804598,
+      "f1": 0.886025768087215
+    },
+    "URL": {
+      "TP": 321,
+      "FP": 0,
+      "FN": 449,
+      "precision": 1.0,
+      "recall": 0.41688311688311686,
+      "f1": 0.5884509624197983
+    },
+    "CONTACT": {
+      "TP": 510,
+      "FP": 22,
+      "FN": 0,
+      "precision": 0.9586466165413534,
+      "recall": 1.0,
+      "f1": 0.9788867562380038
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "date": "2026-04-17",
+  "f2_rules": {
+    "R2_config_literal": 0.3,
+    "R3_placeholder": 0.15
+  },
+  "original_single_label": {
+    "TP": 707,
+    "FP": 267,
+    "TP_suppressed": 2,
+    "FP_suppressed": 132,
+    "FP_suppression_rate": 0.4943820224719101,
+    "TP_loss_rate": 0.002828854314002829
+  },
+  "rescored_multi_label": {
+    "TP": 894,
+    "FP": 80,
+    "TP_suppressed": 59,
+    "FP_suppressed": 75,
+    "FP_suppression_rate": 0.9375,
+    "TP_loss_rate": 0.06599552572706935
+  },
+  "mixed_column_tps_suppressed": 57,
+  "interpretation": "Under multi-label scoring, F2 suppresses a smaller absolute number of FPs but also wrongly kills credential-true-positives on mixed-entity columns. The ship decision shifts."
+}

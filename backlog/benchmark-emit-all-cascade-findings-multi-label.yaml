@@ -1,0 +1,112 @@
+title: "Benchmark: emit all cascade findings per column (multi-label scoring)"
+status: backlog
+priority: P1
+category: benchmark
+sprint_target: 14
+created: 2026-04-17
+updated: 2026-04-17
+depends_on:
+- cascade-suppress-short-circuit-on-heterogeneous-shape
+tags:
+- sprint14
+- benchmark
+- multi-label
+- measurement-honesty
+- prompt-analysis-driver
+goal: >
+  The family benchmark currently scores each column against a single
+  winner-takes-all prediction, which systematically mismeasures mixed-
+  entity columns. Change the harness to emit ALL cascade findings per
+  column (not just the top prediction) and score each family against the
+  set of entities structurally present in the shard's values. Research on
+  research/meta-classifier produced numbers showing URL recall is
+  overstated at 1.000 when it's really 0.417, and CREDENTIAL precision is
+  understated at 0.726 when it's really 0.918.
+complexity: M
+technical_specs:
+- "Rescore definition (from research/meta-classifier@8de9d31 companion run):
+    For each family F and each shard S:
+      F is_present_in(S) := any value in S matches F's structural pattern
+        (URL: regex for http(s)://, ftp://; CREDENTIAL: keyword+high-entropy
+         or provider-shape; EMAIL: email regex; etc.)
+      F is_predicted_in(S) := any cascade finding in S has family F
+      TP(F) := shards where is_predicted_in(S) AND is_present_in(S)
+      FP(F) := shards where is_predicted_in(S) AND NOT is_present_in(S)
+      FN(F) := shards where is_present_in(S) AND NOT is_predicted_in(S)"
+- "Implementation point: family_accuracy_benchmark.py currently reads the
+  winner-takes-all prediction via ColumnPrediction.predicted. Change to
+  read the full findings list (ColumnPrediction.findings) and score each
+  finding's family independently. Backwards-compat: keep single-label
+  metrics as a secondary table in the summary."
+- "New metrics to add to summary.json:
+    - per_family_multilabel: {precision, recall, f1, tp, fp, fn}
+    - multilabel_macro_f1: average over families
+    - single_vs_multi_delta: per-family delta for diagnostic"
+- "Shadow pipeline should get the same treatment — shadow_findings
+  (not shadow_predicted) as the evaluation basis."
+- "The rescored 2026-04-17 baseline numbers are the new reference:
+    CREDENTIAL: precision 0.918, recall 0.856, F1 0.886
+    URL:        precision 1.000, recall 0.417, F1 0.588
+    CONTACT:    precision 0.959, recall 1.000, F1 0.979
+  Sprint 14 CI gate should regress against these, not the single-label
+  numbers from Sprint 13."
+description: |
+  Surfaced 2026-04-17 from research/meta-classifier investigation of the
+  273 CREDENTIAL FPs. Full context + diagnosis at
+  docs/research/meta_classifier/binary_pii_gate_evaluation_memo.md.
+
+  The single-label benchmark is a measurement artifact, not a detection
+  quality measurement. Three failure modes, all fixed by this change:
+
+    1. Double-penalty on NEGATIVE shards with noisy URL/cred content
+       (curl commands, config dumps): both URL and CREDENTIAL count as
+       FPs under single-label; only the structurally-wrong predictions
+       count under multi-label.
+
+    2. Winner-takes-all on mixed shards: columns with legitimate
+       URL+CREDENTIAL content get whichever has higher confidence; the
+       other silently disappears. Under multi-label both are recorded.
+
+    3. Cascade short-circuit on column-name confidence: when column_name
+       engine gives high-confidence CREDENTIAL, per-value regex doesn't
+       run — URLs embedded in values are invisible. Multi-label scoring
+       alone doesn't fix this; also need Sprint 14 item to emit all
+       fired-engine findings (see sibling backlog item
+       cascade-suppress-short-circuit-on-heterogeneous-shape).
+
+acceptance_criteria:
+- family_accuracy_benchmark.py emits multi-label metrics alongside
+  single-label metrics in summary.json
+- CI gate uses multilabel_macro_f1 as the authoritative regression metric
+- Historical Sprint 11/12/13 baselines re-run under multi-label scoring
+  and committed as the new reference (old single-label numbers preserved
+  in a deprecation note)
+- Benchmark README documents the semantic distinction between single-label
+  family_macro_f1 and multilabel_macro_f1
+test_plan:
+- "Unit test: synthetic shard with known entities URL+CREDENTIAL+EMAIL,
+  verify all three families score as TP when structurally present"
+- "Regression test: 2026-04-17 rescored baseline numbers reproduce
+  exactly on the saved predictions.jsonl"
+- "Comparison test: single-label family_macro_f1 should be different
+  from multilabel_macro_f1 by at least 0.05 on the Sprint 13 dataset
+  (if numbers match exactly, multi-label scoring isn't actually doing
+  anything)"
+notes: |
+  Artifact: docs/experiments/meta_classifier/runs/20260417-multilabel-rescore/
+  - summary.json: per-family original vs rescored counts
+  - f2_gate_rescored.json: F2 heuristic gate numbers under multi-label
+
+  This change is primarily a scoring change, not a detection change. The
+  cascade already produces the URL findings on many of the 449 "missed"
+  URL columns (regex engine fires on 291 of them); they're just getting
+  aggregated away.
+
+  Also motivates the companion item
+  cascade-suppress-short-circuit-on-heterogeneous-shape — scoring alone
+  doesn't help when the engine never runs.
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
