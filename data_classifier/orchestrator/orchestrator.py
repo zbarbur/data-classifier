@@ -187,6 +187,25 @@ def _evaluate_tier1_gate(
     )
 
 
+def _union_findings(
+    cascade: list[ClassificationFinding],
+    additions: list[ClassificationFinding],
+) -> list[ClassificationFinding]:
+    """Union cascade findings with per-value aggregated additions.
+
+    Dedup on (column_id, entity_type) — keep the higher-confidence finding.
+    Cascade findings are never dropped; additions add entity types the
+    cascade did not express.
+    """
+    by_key: dict[tuple[str, str], ClassificationFinding] = {(f.column_id, f.entity_type): f for f in cascade}
+    for f in additions:
+        key = (f.column_id, f.entity_type)
+        existing = by_key.get(key)
+        if existing is None or f.confidence > existing.confidence:
+            by_key[key] = f
+    return list(by_key.values())
+
+
 class Orchestrator:
     """Coordinates the engine cascade for column classification.
 
@@ -222,6 +241,12 @@ class Orchestrator:
             self._meta_classifier = None
         else:
             self._meta_classifier = MetaClassifier()
+
+    def _find_engine_by_name(self, name: str) -> ClassificationEngine | None:
+        for engine in self.engines:
+            if engine.name == name:
+                return engine
+        return None
 
     def classify_column(
         self,
@@ -353,12 +378,36 @@ class Orchestrator:
             )
         )
 
-        # ── Sprint 13 Item A: emit ColumnShapeEvent ──────────────────────
-        # Observability event carries the routing decision + signals. The
-        # per_value_inference_ms and sampled_row_count fields are None on
-        # the structured_single and opaque_tokens branches; Item B's
-        # per-value handler populates them on free_text_heterogeneous
-        # columns once that item lands.
+        # ── Sprint 13 Item B: per-value GLiNER on heterogeneous branch ────
+        per_value_inference_ms: int | None = None
+        sampled_row_count: int | None = None
+        if shape_detection is not None and shape_detection.shape == "free_text_heterogeneous":
+            gliner = self._find_engine_by_name("gliner2")
+            if gliner is not None:
+                t0 = time.monotonic()
+                try:
+                    per_value_spans, sampled = gliner.classify_per_value(column)
+                    if sampled > 0:
+                        from data_classifier.orchestrator.per_value_aggregator import (
+                            aggregate_per_value_spans,
+                        )
+
+                        aggregated = aggregate_per_value_spans(
+                            per_value_spans,
+                            n_samples=sampled,
+                            column_id=column.column_id,
+                        )
+                        result = _union_findings(result, aggregated)
+                        sampled_row_count = sampled
+                except Exception:
+                    logger.exception(
+                        "Per-value GLiNER handler failed for column %s; falling back to cascade output",
+                        column.column_id,
+                    )
+                finally:
+                    per_value_inference_ms = int((time.monotonic() - t0) * 1000)
+
+        # ── Sprint 13 Item A: emit ColumnShapeEvent (moved after Item B) ──
         if shape_detection is not None:
             self.emitter.emit(
                 ColumnShapeEvent(
@@ -369,6 +418,8 @@ class Orchestrator:
                     cardinality_ratio=shape_detection.cardinality_ratio,
                     n_cascade_entities=shape_detection.n_cascade_entities,
                     column_name_hint_applied=shape_detection.column_name_hint_applied,
+                    per_value_inference_ms=per_value_inference_ms,
+                    sampled_row_count=sampled_row_count,
                     run_id=run_id or "",
                 )
             )
