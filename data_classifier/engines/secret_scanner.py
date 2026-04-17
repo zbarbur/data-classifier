@@ -31,6 +31,7 @@ from data_classifier.core.types import (
 from data_classifier.engines.heuristic_engine import compute_char_class_diversity, compute_shannon_entropy
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.engines.parsers import parse_key_values
+from data_classifier.engines.structural_parsers import detect_structural_secrets
 
 logger = logging.getLogger(__name__)
 
@@ -539,8 +540,34 @@ class SecretScannerEngine(ClassificationEngine):
                         display_value = _mask_value(value) if mask_samples else value
                         matched_evidence.append(f"{key}={display_value}")
 
+        # ── Structural parsers (Layer 3) ──────────────────────────────
+        # Run structural parsers on each sample to detect credentials
+        # embedded in SQL, HTTP headers, CLI args, connection strings.
+        # These catch secrets that the KV parser misses because the
+        # credential is only identifiable by its structural context.
+        structural_findings: list[ClassificationFinding] = []
+        for idx, sample in enumerate(column.sample_values):
+            if not sample or idx in matched_sample_indices:
+                continue
+            s_findings = detect_structural_secrets(sample, column_id=column.column_id)
+            for sf in s_findings:
+                if sf.confidence >= min_confidence:
+                    structural_findings.append(sf)
+                    matched_sample_indices.add(idx)
+                    if sf.confidence > best_confidence:
+                        best_confidence = sf.confidence
+                        best_subtype = sf.entity_type
+                        best_evidence = sf.evidence
+                    break  # one finding per sample is enough
+
         if best_confidence <= 0.0 or best_confidence < min_confidence:
-            return []
+            return structural_findings if structural_findings else []
+
+        # If structural parsers found something but KV scoring didn't,
+        # return the structural findings directly (they carry their own
+        # SampleAnalysis).
+        if structural_findings and not matched_evidence:
+            return structural_findings
 
         samples_matched = len(matched_sample_indices)
         sample_analysis = SampleAnalysis(
