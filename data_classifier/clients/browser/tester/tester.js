@@ -64,11 +64,26 @@ btnEl.addEventListener('click', async () => {
   };
   try {
     const { findings, redactedText, scannedMs } = await scanner.scan(text, opts);
-    redactedOut.textContent = redactedText;
+    renderRedacted(redactedOut, redactedText);
     findingsOut.textContent = JSON.stringify({ scannedMs, findings }, null, 2);
   } catch (err) {
     findingsOut.textContent = 'error: ' + ((err && err.message) || err);
   }
 });
+
+function renderRedacted(el, text) {
+  el.textContent = '';
+  const re = /\[REDACTED:[^\]]+\]|\*{3,}|\u00ABsecret\u00BB/g;
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index > last) el.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const span = document.createElement('span');
+    span.className = 'redacted';
+    span.textContent = m[0];
+    el.appendChild(span);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+}
 
 loadStories();
