@@ -27,6 +27,7 @@ from data_classifier.core.types import (
     ClassificationProfile,
     ColumnInput,
 )
+from data_classifier.engines.heuristic_engine import compute_dictionary_word_ratio
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.events.emitter import EventEmitter
 from data_classifier.events.types import (
@@ -38,7 +39,7 @@ from data_classifier.events.types import (
 )
 from data_classifier.orchestrator.calibration import calibrate_finding
 from data_classifier.orchestrator.meta_classifier import MetaClassifier, MetaClassifierPrediction
-from data_classifier.orchestrator.shape_detector import detect_column_shape
+from data_classifier.orchestrator.shape_detector import _DICT_WORD_HETERO_MIN, detect_column_shape
 from data_classifier.orchestrator.table_profile import (
     TableProfile,
     build_table_profile,
@@ -109,6 +110,20 @@ _AUTHORITY_GAP_MIN: int = 3
 _GATE_REGEX_CONFIDENCE_MIN: float = 0.85
 _GATE_REGEX_MATCH_RATIO_MIN: float = 0.30
 _GATE_SECRET_SCANNER_CONFIDENCE_MIN: float = 0.50
+
+
+def _is_likely_heterogeneous(values: list[str]) -> bool:
+    """Lightweight pre-check: is this column likely free_text_heterogeneous?
+
+    Uses the same dictionary-word-ratio threshold as the full shape detector
+    (``_DICT_WORD_HETERO_MIN``). This check runs before authority-based
+    suppression so the orchestrator can preserve multi-entity findings on
+    heterogeneous columns. The full ``detect_column_shape`` still runs later
+    and is authoritative for event emission and downstream routing.
+    """
+    if not values:
+        return False
+    return compute_dictionary_word_ratio(values) >= _DICT_WORD_HETERO_MIN
 
 
 @dataclass
@@ -473,13 +488,27 @@ class Orchestrator:
 
         total_ms = (time.monotonic() - t_start) * 1000
 
+        # Sprint 14: lightweight pre-check — is this column likely
+        # free_text_heterogeneous? If so, skip authority-based suppression
+        # so that secondary entity types (URLs, emails) found by lower-
+        # authority engines survive alongside the column_name engine's
+        # primary finding. The full shape detection still runs later and
+        # is authoritative for event emission and downstream routing.
+        likely_hetero = _is_likely_heterogeneous(column.sample_values)
+
         # Post-processing merges run on ALL shapes — deterministic dedup +
         # FP suppression is valuable regardless of shape. Only the v5
         # shadow emission below is gated by the detected shape.
-        all_findings = self._apply_engine_weighting(all_findings, finding_authority, engine_findings)
+        # Sprint 14: skip authority suppression on heterogeneous columns
+        # so multi-entity findings survive.
+        if not likely_hetero:
+            all_findings = self._apply_engine_weighting(all_findings, finding_authority, engine_findings)
 
-        # Suppress ML-only findings when a non-ML engine already has a strong match
-        all_findings = self._suppress_ml_when_strong_match(all_findings, engine_findings)
+        # Suppress ML-only findings when a non-ML engine already has a strong match.
+        # Sprint 14: skip on heterogeneous columns — ML may find additional
+        # entity types that are genuinely present in multi-entity values.
+        if not likely_hetero:
+            all_findings = self._suppress_ml_when_strong_match(all_findings, engine_findings)
 
         # Resolve known collision pairs before emitting results
         all_findings = self._resolve_collisions(all_findings)
