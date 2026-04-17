@@ -1,0 +1,8 @@
+{
+  "original_q3_log": ["API_KEY", "EMAIL", "IP_ADDRESS", "URL"],
+  "apache_access_log": ["IP_ADDRESS"],
+  "json_event_log": ["EMAIL", "IP_ADDRESS"],
+  "base64_encoded_payloads": [],
+  "support_chat_messages": ["EMAIL", "PHONE"],
+  "kafka_event_stream": ["EMAIL", "IP_ADDRESS", "URL"]
+}
