@@ -150,7 +150,7 @@ RUN pip install \
 | Flag | Default | Purpose |
 |---|---|---|
 | `--to PATH` | `~/.cache/data_classifier/models/gliner_onnx/` | Override the install location |
-| `--version VERSION` | `fastino-gliner2-base-v1` (the pinned GLiNER model version — **not** the data_classifier version) | Fetch a different model release |
+| `--version VERSION` | `urchade-gliner_multi_pii-v1` (the pinned GLiNER model version — **not** the data_classifier version) | Fetch a different model release |
 | `--url URL` | AR Generic REST endpoint derived from `--version` | Override the full tarball URL (mirrors, testing) |
 | `--checksum-url URL` | Derived from `--url` | Override the checksum URL independently |
 | `--access-token TOKEN` | Auto-discovered via metadata service or `gcloud` | Explicit GCP access token for AR authentication |
@@ -1244,7 +1244,7 @@ All multipliers and thresholds live in `config/engine_defaults.yaml` under `secr
 **Order:** 5 · **Authority:** 1 (default) · **Modes:** `structured`
 **Tier:** requires `pip install "data_classifier[ml]"` + bundled ONNX model
 
-**Purpose.** Run zero-shot Named Entity Recognition on sample values using the GLiNER2 model (`fastino/gliner2-base-v1`, threshold 0.80, descriptions disabled), with label-list-only inference for higher precision. This is the engine that detects `PERSON_NAME`, `ADDRESS`, and `ORGANIZATION` when column names are generic or missing — the three entity types that have no reliable lexical fingerprint and therefore can't be caught by the regex engine.
+**Purpose.** Run zero-shot Named Entity Recognition on sample values using the GLiNER model (`urchade/gliner_multi_pii-v1`, threshold 0.50, descriptions enabled), with description-enhanced inference for higher accuracy. This is the engine that detects `PERSON_NAME`, `ADDRESS`, and `ORGANIZATION` when column names are generic or missing — the three entity types that have no reliable lexical fingerprint and therefore can't be caught by the regex engine.
 
 The engine also produces reinforcement signals for `EMAIL`, `PHONE`, `SSN`, `DATE_OF_BIRTH`, and `IP_ADDRESS` — these types are already well-covered by regex, but a matching GLiNER finding acts as independent corroboration and triggers the orchestrator's +0.05 agreement boost (§5A.6).
 

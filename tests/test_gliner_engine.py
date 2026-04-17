@@ -1,7 +1,7 @@
 """Tests for GLiNER2 classification engine.
 
 ALL tests use mock models — no ML dependencies required in CI.
-The gliner2 package is never imported; we mock the model's extract_entities method.
+The gliner package is never imported; we mock the model's predict_entities method.
 """
 
 from __future__ import annotations
@@ -58,9 +58,9 @@ def mock_registry():
 
 @pytest.fixture()
 def mock_gliner_model():
-    """Create a mock GLiNER2 v2 model with extract_entities."""
+    """Create a mock GLiNER v1 model with predict_entities."""
     model = MagicMock()
-    model.extract_entities = MagicMock(return_value={"entities": {}})
+    model.predict_entities = MagicMock(return_value=[])
     return model
 
 
@@ -68,8 +68,8 @@ def mock_gliner_model():
 def engine_with_mock(mock_registry, mock_gliner_model):
     """Create a GLiNER2Engine with a mock model pre-loaded in the registry.
 
-    Uses the default model (fastino/gliner2-base-v1, v2 API) with threshold
-    lowered to 0.5 for test convenience (the production default is 0.80).
+    Uses the default model (urchade/gliner_multi_pii-v1, v1 API) with threshold
+    at the production default of 0.50.
     Tests that need to verify threshold behavior should construct their own
     engine with the desired threshold.
     """
@@ -79,7 +79,7 @@ def engine_with_mock(mock_registry, mock_gliner_model):
     mock_registry.register(
         "gliner2-ner",
         loader=lambda: mock_gliner_model,
-        model_class="gliner2.GLiNER2",
+        model_class="gliner.GLiNER",
         requires=[],
     )
     engine._registered = True
@@ -118,9 +118,9 @@ class TestPersonNameDetection:
 
     def test_detects_person_names(self, engine_with_mock, mock_gliner_model, name_column):
         """Engine should detect PERSON_NAME from name samples."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "full name": [("John Smith", 0.92), ("Maria Garcia", 0.89), ("Wei Zhang", 0.87)],
+                "person": [("John Smith", 0.92), ("Maria Garcia", 0.89), ("Wei Zhang", 0.87)],
             }
         )
 
@@ -135,9 +135,9 @@ class TestPersonNameDetection:
 
     def test_person_name_evidence(self, engine_with_mock, mock_gliner_model, name_column):
         """Finding should include matched name texts in evidence."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "full name": [("John Smith", 0.92), ("Maria Garcia", 0.89)],
+                "person": [("John Smith", 0.92), ("Maria Garcia", 0.89)],
             }
         )
 
@@ -150,9 +150,9 @@ class TestPersonNameDetection:
 
     def test_person_name_regulatory(self, engine_with_mock, mock_gliner_model, name_column):
         """PERSON_NAME findings should include GDPR and CCPA."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "full name": [("John Smith", 0.92)],
+                "person": [("John Smith", 0.92)],
             }
         )
 
@@ -171,7 +171,7 @@ class TestAddressDetection:
 
     def test_detects_addresses(self, engine_with_mock, mock_gliner_model, address_column):
         """Engine should detect ADDRESS from address samples."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "street address": [
                     ("123 Main St, Springfield IL 62704", 0.85),
@@ -189,7 +189,7 @@ class TestAddressDetection:
 
     def test_address_sample_analysis(self, engine_with_mock, mock_gliner_model, address_column):
         """ADDRESS finding should have correct sample analysis."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "street address": [("123 Main St, Springfield IL 62704", 0.85)],
             }
@@ -212,9 +212,9 @@ class TestClassifyBatch:
 
     def test_batch_processes_multiple_columns(self, engine_with_mock, mock_gliner_model, name_column, address_column):
         """classify_batch should process multiple columns."""
-        mock_gliner_model.extract_entities.side_effect = [
-            _gliner2_predictions({"full name": [("John Smith", 0.92)]}),
-            _gliner2_predictions({"street address": [("123 Main St", 0.85)]}),
+        mock_gliner_model.predict_entities.side_effect = [
+            _gliner_predictions({"person": [("John Smith", 0.92)]}),
+            _gliner_predictions({"street address": [("123 Main St", 0.85)]}),
         ]
 
         results = engine_with_mock.classify_batch([name_column, address_column])
@@ -229,9 +229,9 @@ class TestClassifyBatch:
         """classify_batch should handle columns without samples."""
         empty_col = ColumnInput(column_name="empty", column_id="col_empty", sample_values=[])
         name_col = ColumnInput(column_name="name", column_id="col_name", sample_values=["John Smith"])
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "full name": [("John Smith", 0.92)],
+                "person": [("John Smith", 0.92)],
             }
         )
 
@@ -335,7 +335,7 @@ class TestEntityTypeMapping:
 
     def test_unknown_label_ignored(self, engine_with_mock, mock_gliner_model):
         """Predictions with unknown labels should be silently ignored."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "unknown_type": [("some text", 0.99)],
             }
@@ -346,7 +346,7 @@ class TestEntityTypeMapping:
 
     def test_organization_detection(self, engine_with_mock, mock_gliner_model):
         """Engine should detect ORGANIZATION from predictions."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "organization": [("Acme Corp", 0.88), ("Google LLC", 0.91)],
             }
@@ -363,7 +363,7 @@ class TestEntityTypeMapping:
 
     def test_date_of_birth_detection(self, engine_with_mock, mock_gliner_model):
         """Engine should detect DATE_OF_BIRTH from predictions."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "date of birth": [("January 15, 1990", 0.78)],
             }
@@ -387,9 +387,9 @@ class TestConfidenceThreshold:
 
     def test_low_confidence_predictions_filtered(self, engine_with_mock, mock_gliner_model):
         """Predictions below min_confidence should not produce findings."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "full name": [("John Smith", 0.3)],
+                "person": [("John Smith", 0.3)],
             }
         )
         column = ColumnInput(column_name="name", column_id="c1", sample_values=["John Smith"])
@@ -399,9 +399,9 @@ class TestConfidenceThreshold:
 
     def test_high_confidence_predictions_pass(self, engine_with_mock, mock_gliner_model):
         """Predictions above min_confidence should produce findings."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "full name": [
+                "person": [
                     ("John Smith", 0.95),
                     ("Maria Garcia", 0.92),
                     ("Wei Zhang", 0.88),
@@ -452,16 +452,16 @@ class TestEngineProperties:
 
     def test_no_predictions_returns_empty(self, engine_with_mock, mock_gliner_model):
         """No NER predictions should return empty findings."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions({})
+        mock_gliner_model.predict_entities.return_value = []
         column = ColumnInput(column_name="test", column_id="c1", sample_values=["some data"])
         findings = engine_with_mock.classify_column(column)
         assert findings == []
 
     def test_mask_samples_redacts_evidence(self, engine_with_mock, mock_gliner_model):
         """mask_samples=True should redact evidence text."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "full name": [("John Smith", 0.92)],
+                "person": [("John Smith", 0.92)],
             }
         )
         column = ColumnInput(column_name="name", column_id="c1", sample_values=["John Smith"])
@@ -487,7 +487,7 @@ class TestEngineProperties:
         engine._registered = True
 
         assert engine._entity_types == ["PERSON_NAME"]
-        assert "full name" in engine._gliner_labels
+        assert "person" in engine._gliner_labels
 
 
 # ── Test: Multiple entity types in one column ──────────────────────────────
@@ -498,9 +498,9 @@ class TestMultipleEntityTypes:
 
     def test_mixed_entity_predictions(self, engine_with_mock, mock_gliner_model):
         """Column with mixed entity types should produce findings for both."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "full name": [("John Smith", 0.92)],
+                "person": [("John Smith", 0.92)],
                 "street address": [("123 Main St", 0.85)],
             }
         )
@@ -518,18 +518,18 @@ class TestMultipleEntityTypes:
     def test_confidence_scaling_by_count(self, engine_with_mock, mock_gliner_model):
         """More predictions should increase confidence."""
         # Single prediction
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "full name": [("John Smith", 0.90)],
+                "person": [("John Smith", 0.90)],
             }
         )
         col1 = ColumnInput(column_name="name", column_id="c1", sample_values=["John Smith"])
         findings_single = engine_with_mock.classify_column(col1, min_confidence=0.0)
 
         # Multiple predictions
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "full name": [
+                "person": [
                     ("John Smith", 0.90),
                     ("Maria Garcia", 0.88),
                     ("Wei Zhang", 0.92),
@@ -557,10 +557,10 @@ class TestDeduplication:
 
     def test_address_suppresses_person_name(self, engine_with_mock, mock_gliner_model):
         """When both ADDRESS and PERSON_NAME found, ADDRESS should win."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "street address": [("Preston Road", 0.85)],
-                "full name": [("Preston", 0.70)],
+                "person": [("Preston", 0.70)],
             }
         )
         column = ColumnInput(column_name="col_0", column_id="c1", sample_values=["Preston Road"])
@@ -572,7 +572,7 @@ class TestDeduplication:
 
     def test_same_specificity_both_kept(self, engine_with_mock, mock_gliner_model):
         """Findings at the same specificity level are both kept."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "email": [("john@test.com", 0.95)],
                 "phone number": [("555-1234", 0.90)],
@@ -693,7 +693,7 @@ class TestV2InferencePathThresholdPlumbing:
         AND forwards the configured threshold to extract_entities."""
         mock_model = MagicMock()
         mock_model.extract_entities = MagicMock(
-            return_value={"entities": {"full name": [{"text": "Jane Doe", "confidence": 0.91}]}}
+            return_value={"entities": {"person": [{"text": "Jane Doe", "confidence": 0.91}]}}
         )
         engine = self._make_v2_engine(mock_registry, mock_model, gliner_threshold=0.80)
 
@@ -709,7 +709,7 @@ class TestV2InferencePathThresholdPlumbing:
         assert isinstance(entity_spec, list), (
             f"Expected list[str] when descriptions_enabled=False, got {type(entity_spec).__name__}"
         )
-        assert "full name" in entity_spec
+        assert "person" in entity_spec
         # Threshold must be forwarded — this is the latent bug the fix closes.
         assert call.kwargs.get("threshold") == 0.80
 
@@ -733,9 +733,9 @@ class TestV2InferencePathThresholdPlumbing:
         assert isinstance(entity_spec, dict), (
             f"Expected dict[str, str] when descriptions_enabled=True, got {type(entity_spec).__name__}"
         )
-        assert "full name" in entity_spec
+        assert "person" in entity_spec
         # Descriptions must be non-empty in the dict form.
-        assert entity_spec["full name"]
+        assert entity_spec["person"]
         assert call.kwargs.get("threshold") == 0.65
 
 
@@ -911,11 +911,11 @@ class TestBuildNerPrompt:
 
 
 class TestS1PromptIntegratesWithInference:
-    """Integration check: ``extract_entities`` receives the NL-wrapped text."""
+    """Integration check: ``predict_entities`` receives the NL-wrapped text."""
 
-    def test_extract_entities_receives_nl_prefixed_text(self, engine_with_mock, mock_gliner_model):
+    def test_predict_entities_receives_nl_prefixed_text(self, engine_with_mock, mock_gliner_model):
         """When column has metadata, GLiNER sees the NL-wrapped prompt."""
-        mock_gliner_model.extract_entities.return_value = {"entities": {}}
+        mock_gliner_model.predict_entities.return_value = []
         column = ColumnInput(
             column_name="full_name",
             column_id="c1",
@@ -925,17 +925,17 @@ class TestS1PromptIntegratesWithInference:
         )
         engine_with_mock.classify_column(column)
 
-        assert mock_gliner_model.extract_entities.called
-        call = mock_gliner_model.extract_entities.call_args
+        assert mock_gliner_model.predict_entities.called
+        call = mock_gliner_model.predict_entities.call_args
         text_arg = call.args[0]
         assert "Column 'full_name'" in text_arg
         assert "from table 'employees'" in text_arg
         assert "Description: Employee legal name" in text_arg
         assert "Sample values: John Smith, Maria Garcia" in text_arg
 
-    def test_extract_entities_receives_legacy_text_when_no_metadata(self, engine_with_mock, mock_gliner_model):
+    def test_predict_entities_receives_legacy_text_when_no_metadata(self, engine_with_mock, mock_gliner_model):
         """With no metadata the engine still emits the pre-S1 legacy shape."""
-        mock_gliner_model.extract_entities.return_value = {"entities": {}}
+        mock_gliner_model.predict_entities.return_value = []
         column = ColumnInput(
             column_name="",
             column_id="c1",
@@ -943,8 +943,8 @@ class TestS1PromptIntegratesWithInference:
         )
         engine_with_mock.classify_column(column)
 
-        assert mock_gliner_model.extract_entities.called
-        call = mock_gliner_model.extract_entities.call_args
+        assert mock_gliner_model.predict_entities.called
+        call = mock_gliner_model.predict_entities.call_args
         text_arg = call.args[0]
         assert text_arg == "alpha ; beta"
         assert "Column '" not in text_arg
@@ -976,27 +976,23 @@ class TestOrgOverfireRegression:
 
         mock_model = MagicMock()
 
-        def _simulate_baseline_org_overfire(text, entity_spec, threshold=0.5, include_confidence=True):
+        def _simulate_baseline_org_overfire(text, labels, threshold=0.5):
             # Baseline: raw " ; "-joined numeric-dash string triggers ORG.
             # S1: the NL-wrapped prompt with column/table metadata does not.
             if "Column 'ssn'" in text or "from table 'users'" in text:
-                return {"entities": {}}
-            return {
-                "entities": {
-                    "organization": [
-                        {"text": "123-45-6789", "confidence": 0.87},
-                        {"text": "987-65-4321", "confidence": 0.85},
-                    ]
-                }
-            }
+                return []
+            return [
+                {"text": "123-45-6789", "label": "organization", "score": 0.87, "start": 0, "end": 11},
+                {"text": "987-65-4321", "label": "organization", "score": 0.85, "start": 14, "end": 25},
+            ]
 
-        mock_model.extract_entities = MagicMock(side_effect=_simulate_baseline_org_overfire)
+        mock_model.predict_entities = MagicMock(side_effect=_simulate_baseline_org_overfire)
 
         engine = GLiNER2Engine(registry=mock_registry, gliner_threshold=0.8)
         mock_registry.register(
             "gliner2-ner",
             loader=lambda: mock_model,
-            model_class="gliner2.GLiNER2",
+            model_class="gliner.GLiNER",
             requires=[],
         )
         engine._registered = True
@@ -1076,8 +1072,8 @@ class TestDataTypePrefilter:
         findings = engine_with_mock.classify_column(column)
 
         assert findings == []
-        assert not mock_gliner_model.extract_entities.called
-        assert not mock_gliner_model.extract_entities.called
+        assert not mock_gliner_model.predict_entities.called
+        assert not mock_gliner_model.predict_entities.called
 
     @pytest.mark.parametrize("data_type", ["integer", "Integer", "INTEGER", "iNtEgEr"])
     def test_case_insensitive(self, engine_with_mock, mock_gliner_model, data_type):
@@ -1092,12 +1088,12 @@ class TestDataTypePrefilter:
         findings = engine_with_mock.classify_column(column)
 
         assert findings == []
-        assert not mock_gliner_model.extract_entities.called
+        assert not mock_gliner_model.predict_entities.called
 
     @pytest.mark.parametrize("data_type", ["", "STRING", "TEXT", "VARCHAR", "UNKNOWN_TYPE"])
     def test_text_types_fall_through(self, engine_with_mock, mock_gliner_model, data_type):
         """Text types and empty string still invoke the model."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions({"full name": [("John Smith", 0.92)]})
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("John Smith", 0.92)]})
         column = ColumnInput(
             column_name="full_name",
             column_id="c1",
@@ -1107,7 +1103,7 @@ class TestDataTypePrefilter:
 
         engine_with_mock.classify_column(column)
 
-        assert mock_gliner_model.extract_entities.called
+        assert mock_gliner_model.predict_entities.called
 
     @pytest.mark.parametrize("data_type", ["string", "String", "text", "Text", "varchar"])
     def test_case_insensitive_fallthrough(self, engine_with_mock, mock_gliner_model, data_type):
@@ -1116,7 +1112,7 @@ class TestDataTypePrefilter:
         Belt-and-suspenders: any data_type not in the non-text frozenset
         (after upper-casing) goes to the model regardless of case.
         """
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions({"full name": [("John Smith", 0.92)]})
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("John Smith", 0.92)]})
         column = ColumnInput(
             column_name="full_name",
             column_id="c1",
@@ -1126,11 +1122,11 @@ class TestDataTypePrefilter:
 
         engine_with_mock.classify_column(column)
 
-        assert mock_gliner_model.extract_entities.called
+        assert mock_gliner_model.predict_entities.called
 
     def test_batch_skip(self, engine_with_mock, mock_gliner_model):
         """classify_batch applies the skip per-column in the correct output order."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions({"full name": [("John Smith", 0.92)]})
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("John Smith", 0.92)]})
 
         text_col = ColumnInput(
             column_name="full_name",
@@ -1171,7 +1167,7 @@ class TestDataTypePrefilter:
 
         # Model was called exactly twice — once per text column, zero on
         # the non-text columns.
-        assert mock_gliner_model.extract_entities.call_count == 2
+        assert mock_gliner_model.predict_entities.call_count == 2
 
     def test_batch_mixed_with_empty_samples(self, engine_with_mock, mock_gliner_model):
         """Empty-sample non-text columns still yield [] without calling the model."""
@@ -1191,7 +1187,7 @@ class TestDataTypePrefilter:
         results = engine_with_mock.classify_batch([int_col_no_samples, text_col_no_samples])
 
         assert results == [[], []]
-        assert not mock_gliner_model.extract_entities.called
+        assert not mock_gliner_model.predict_entities.called
 
 
 # ── Test: Sprint 14 promoted labels (AGE, HEALTH, FINANCIAL) ──────────────
@@ -1202,7 +1198,7 @@ class TestAgeDetection:
 
     def test_detects_age_values(self, engine_with_mock, mock_gliner_model):
         """Engine should detect AGE from age-containing samples."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "age": [("72 years old", 0.88), ("age 45", 0.85), ("54 years old", 0.90)],
             }
@@ -1220,7 +1216,7 @@ class TestAgeDetection:
 
     def test_age_metadata(self, engine_with_mock, mock_gliner_model):
         """AGE findings should have correct category, sensitivity, and regulatory."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "age": [("age 45", 0.85), ("72 years old", 0.88)],
             }
@@ -1238,7 +1234,7 @@ class TestAgeDetection:
 
     def test_age_sample_analysis(self, engine_with_mock, mock_gliner_model):
         """AGE finding should have correct sample analysis counts."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "age": [("72 years old", 0.88), ("age 45", 0.85)],
             }
@@ -1257,7 +1253,7 @@ class TestAgeDetection:
 
     def test_age_negative_numeric_ids(self, engine_with_mock, mock_gliner_model):
         """Purely numeric IDs should not trigger AGE detection."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions({})
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
         column = ColumnInput(
             column_name="record_id",
             column_id="col_id",
@@ -1268,7 +1264,7 @@ class TestAgeDetection:
 
     def test_age_negative_dates(self, engine_with_mock, mock_gliner_model):
         """Date strings should not trigger AGE detection."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions({})
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
         column = ColumnInput(
             column_name="created_at",
             column_id="col_date",
@@ -1283,7 +1279,7 @@ class TestHealthDetection:
 
     def test_detects_medical_conditions(self, engine_with_mock, mock_gliner_model):
         """Engine should detect HEALTH from medical condition samples."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "medical condition": [
                     ("Type 2 diabetes", 0.92),
@@ -1305,7 +1301,7 @@ class TestHealthDetection:
 
     def test_health_metadata(self, engine_with_mock, mock_gliner_model):
         """HEALTH findings should have correct category, sensitivity, and regulatory."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "medical condition": [("diabetes", 0.90), ("asthma", 0.87)],
             }
@@ -1324,7 +1320,7 @@ class TestHealthDetection:
 
     def test_health_sample_analysis(self, engine_with_mock, mock_gliner_model):
         """HEALTH finding should include matched condition texts."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "medical condition": [("Type 2 diabetes", 0.92)],
             }
@@ -1340,7 +1336,7 @@ class TestHealthDetection:
 
     def test_health_negative_person_names(self, engine_with_mock, mock_gliner_model):
         """Person names should not trigger HEALTH detection."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions({})
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
         column = ColumnInput(
             column_name="doctor_name",
             column_id="col_doc",
@@ -1351,7 +1347,7 @@ class TestHealthDetection:
 
     def test_health_negative_status_codes(self, engine_with_mock, mock_gliner_model):
         """Generic status values should not trigger HEALTH detection."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions({})
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
         column = ColumnInput(
             column_name="status",
             column_id="col_status",
@@ -1366,7 +1362,7 @@ class TestFinancialDetection:
 
     def test_detects_financial_values(self, engine_with_mock, mock_gliner_model):
         """Engine should detect FINANCIAL from salary/income samples."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "financial information": [
                     ("$85,000 annual salary", 0.91),
@@ -1394,7 +1390,7 @@ class TestFinancialDetection:
 
     def test_financial_metadata(self, engine_with_mock, mock_gliner_model):
         """FINANCIAL findings should have correct category, sensitivity, and regulatory."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "financial information": [("$85,000", 0.91), ("$120,000", 0.88)],
             }
@@ -1413,7 +1409,7 @@ class TestFinancialDetection:
 
     def test_financial_sample_analysis(self, engine_with_mock, mock_gliner_model):
         """FINANCIAL finding should have correct sample analysis."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions(
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
                 "financial information": [
                     ("$85,000 annual salary", 0.91),
@@ -1435,7 +1431,7 @@ class TestFinancialDetection:
 
     def test_financial_negative_phone_numbers(self, engine_with_mock, mock_gliner_model):
         """Phone numbers with digits should not trigger FINANCIAL detection."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions({})
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
         column = ColumnInput(
             column_name="phone",
             column_id="col_phone",
@@ -1446,7 +1442,7 @@ class TestFinancialDetection:
 
     def test_financial_negative_zip_codes(self, engine_with_mock, mock_gliner_model):
         """Zip codes should not trigger FINANCIAL detection."""
-        mock_gliner_model.extract_entities.return_value = _gliner2_predictions({})
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
         column = ColumnInput(
             column_name="postal_code",
             column_id="col_zip",
