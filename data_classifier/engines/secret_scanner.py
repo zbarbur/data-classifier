@@ -204,6 +204,43 @@ def _is_placeholder_value(value: str) -> bool:
     return False
 
 
+# Sprint 13 S0: compound-name suffixes that indicate the key is NOT a
+# credential. These are identifiers, UI fields, blockchain addresses, etc.
+# The key "token_address" contains "token" (a secret-bearing word) but the
+# full compound name means "blockchain wallet address" (public by design).
+# Suffixes deliberately conservative — _token, _secret, _key are NOT here.
+_NON_SECRET_SUFFIXES: tuple[str, ...] = (
+    "_address",
+    "_field",
+    "_id",
+    "_name",
+    "_input",
+    "_label",
+    "_placeholder",
+    "_url",
+    "_endpoint",
+)
+
+# Explicit allowlist: compound names ending with a stoplist suffix that ARE
+# actually sensitive. session_id and auth_id carry session tokens which are
+# credentials in DLP context.
+_NON_SECRET_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "session_id",
+        "auth_id",
+        "client_id",
+    }
+)
+
+
+def _is_compound_non_secret(key: str) -> bool:
+    """Return True if the key name is a compound that typically does NOT hold a secret."""
+    lower = key.lower().strip()
+    if lower in _NON_SECRET_ALLOWLIST:
+        return False
+    return any(lower.endswith(suffix) for suffix in _NON_SECRET_SUFFIXES)
+
+
 def _has_secret_indicators(value: str) -> bool:
     """Return True if a value shows any structural hint of carrying a secret.
 
@@ -468,6 +505,12 @@ class SecretScannerEngine(ClassificationEngine):
                 # Gitleaks placeholder pattern suppression (sprint 6):
                 # e.g. "xxxxxxxxxxxx", "YOUR_API_KEY", "<your-token>".
                 if _is_placeholder_value(value):
+                    continue
+
+                # Sprint 13 S0: compound-name stoplist. Key names ending
+                # with these suffixes are typically NOT credentials (they're
+                # identifiers, UI fields, blockchain addresses, etc.).
+                if _is_compound_non_secret(key):
                     continue
 
                 # Score the key name (returns score, tier, and credential subtype)

@@ -1,0 +1,119 @@
+title: "Research: Binary PII gate — model evaluation (LR vs tree vs MLP on NEGATIVE suppression)"
+status: backlog
+priority: P1
+category: research
+sprint_target: 14
+created: 2026-04-17
+updated: 2026-04-17
+depends_on: []
+tags:
+- sprint14
+- research
+- meta-classifier
+- precision
+- negative-suppression
+- prompt-analysis-driver
+goal: >
+  Evaluate 3+ model families (LR, LR+interactions, XGBoost, MLP) as a
+  binary "is this real PII?" gate on the existing 49-feature vector.
+  Target: suppress the 273 NEGATIVE FPs from Sprint 13 family benchmark
+  without regressing true-positive recall. Run on research/meta-classifier
+  branch, produce a comparison memo, promote winner to Sprint 14 production
+  item if LOCO passes.
+complexity: M
+technical_specs:
+- "Training target: y = (ground_truth != 'NEGATIVE'). Binary, not multi-class.
+  Reuse the existing extract_features pipeline — same 49 features v5 uses."
+- "Arms to evaluate:
+    G0_LR: LogisticRegression(C=1.0, class_weight='balanced')
+    G1_LR_interactions: LR + top-5 pairwise interaction features (same as v5 A2)
+    G2_XGBoost: XGBClassifier(n_estimators=100, max_depth=4, scale_pos_weight=auto)
+    G3_MLP: MLPClassifier(hidden_layer_sizes=(32,), max_iter=500)
+  All arms use same StratifiedGroupKFold(n_splits=5) CV and LOCO evaluation."
+- "Metrics per arm:
+    - CV: mean_f1, std_f1, mean_precision, mean_recall, AUC-ROC, Brier score
+    - LOCO: per-corpus F1, with emphasis on secretbench (the corpus with NEGATIVE shards)
+    - Threshold sweep: precision-recall curve, find threshold where recall >= 0.99 on
+      true positives and measure FP suppression rate at that threshold
+    - Feature importance: which features drive the NEGATIVE decision? (coefficients for
+      LR, SHAP for XGBoost/MLP)"
+- "Key evaluation question: does the gate generalize across corpora (LOCO), or does it
+  overfit to secretbench's specific adversarial patterns? If LOCO secretbench F1 is
+  high but LOCO on other corpora regresses, the gate is memorizing secretbench not
+  learning general 'not a secret' signals."
+- "Output: docs/research/meta_classifier/binary_pii_gate_evaluation_memo.md with
+  arm comparison table, threshold recommendation, LOCO analysis, and promotion
+  decision (GREEN = promote to Sprint 14 production item, YELLOW = needs more data,
+  RED = gate not viable on current features)."
+- "Branch: research/meta-classifier. Script: scripts/train_binary_pii_gate.py.
+  Reuse the existing training infrastructure (load_jsonl, LoadedDataset, LOCO splits)."
+description: |
+  Surfaced from Sprint 13 family benchmark investigation (2026-04-17).
+  The cascade produces 273 FPs on 450 NEGATIVE shards (61% FP rate on
+  adversarial negative-control fixtures from secretbench). The FPs are
+  structurally valid pattern matches (values contain "password=",
+  "BEGIN PRIVATE KEY", "sk-", etc.) but the actual content is variable
+  references, prose, template markers, or deliberately readable strings.
+
+  The user observed that none of these FPs have the high-entropy /
+  character-distribution signature of real secrets. The existing v5
+  feature vector already captures entropy, dictionary_word_ratio, and
+  char_class_diversity — the signal is there, just not used for
+  NEGATIVE suppression.
+
+  v5 can't suppress FPs because it's a multi-class softmax over
+  positive entity types — no NEGATIVE class. A separate binary gate
+  ("is this real PII?") on the same features is the natural
+  architecture. LR is the expected winner (same feature count, same
+  data size, same domain as v5), but XGBoost may capture non-linear
+  interactions that LR misses (e.g., "high entropy AND short = hash
+  not secret" vs "high entropy AND long = real key").
+
+  Research track (not sprint scope) because:
+    1. Model comparison needs multiple arms + LOCO, not a one-shot impl
+    2. Threshold selection is empirical — needs a precision-recall sweep
+    3. LOCO generalization is the key risk (secretbench overfitting)
+    4. Deployment policy (shadow vs gate) is a product decision
+
+acceptance_criteria:
+- At least 4 model arms evaluated (G0 LR, G1 LR+interactions, G2 XGBoost, G3 MLP)
+- CV metrics (F1, precision, recall, AUC-ROC, Brier) reported per arm
+- LOCO metrics per corpus, especially secretbench
+- Threshold sweep with precision-recall curve
+- Feature importance analysis for the winning arm
+- Evaluation memo with GREEN/YELLOW/RED promotion decision
+- All work on research/meta-classifier branch, no production code changes
+
+test_plan:
+- "CV: 5-fold stratified grouped cross-validation on the full training set"
+- "LOCO: leave-one-corpus-out on all 6 corpora"
+- "Threshold sweep: 20+ threshold points between 0.5 and 0.99"
+- "Sanity: winning gate applied to the family benchmark predictions — does it
+  reduce CREDENTIAL FPs without dropping CREDENTIAL TPs?"
+
+notes: |
+  Expected effort: ~2 days on research branch.
+
+  The 273 NEGATIVE FPs decompose as:
+    OPAQUE_SECRET: 161 (secret_scanner on negative fixtures with KV structure)
+    API_KEY: 71 (regex patterns matching sk-, ghp_ prefixes in adversarial data)
+    PRIVATE_KEY: 41 (regex matching BEGIN PRIVATE KEY headers without key body)
+    EMAIL: 14 (regex matching email-like strings in prose)
+    URL: 88 (regex matching URLs embedded in prose)
+
+  If the binary gate works, it would be the first production use of ML
+  for SUPPRESSION (saying "the cascade is wrong") rather than PREDICTION
+  (saying "the answer is X"). This is architecturally significant —
+  it means the meta-classifier pipeline has two stages:
+    Stage 1: binary gate (suppress or allow)
+    Stage 2: entity classifier (which entity type, if allowed)
+
+  The gate infrastructure already exists (GateRoutingEvent from Sprint 11
+  Phase 9, currently hand-coded for tier-1 credentials). The research
+  question is whether a learned gate generalizes.
+
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

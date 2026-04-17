@@ -99,3 +99,45 @@ class GateRoutingEvent:
     secret_scanner_confidence: float
     run_id: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+@dataclass
+class ColumnShapeEvent:
+    """Emitted by the Sprint 13 column-shape router for every classification.
+
+    The router inspects the engine-cascade output and column-level
+    statistics to decide which downstream handler a column should route
+    to (``structured_single`` → current v5 shadow + 7-pass merge;
+    ``free_text_heterogeneous`` → per-value GLiNER aggregation landing in
+    Sprint 13 Item B; ``opaque_tokens`` → tuned secret_scanner landing
+    in Sprint 13 Item C). The event carries the detection signals so
+    BQ telemetry can measure the real shape distribution in production
+    and so Item B's per-value latency shows up in the same stream.
+
+    ``per_value_inference_ms`` and ``sampled_row_count`` are ``None`` on
+    the ``structured_single`` and ``opaque_tokens`` branches. They are
+    populated by Item B's per-value handler on the
+    ``free_text_heterogeneous`` branch once that item lands.
+    """
+
+    column_id: str
+    shape: str
+    """One of ``structured_single``, ``free_text_heterogeneous``, ``opaque_tokens``."""
+
+    avg_len_normalized: float
+    dict_word_ratio: float
+    cardinality_ratio: float
+    n_cascade_entities: int
+    column_name_hint_applied: bool
+    """True iff the column-name tiebreaker fired to resolve an ambiguous
+    middle-band content signal. Always False on unambiguous decisions.
+    """
+
+    per_value_inference_ms: int | None = None
+    """Populated only on the ``free_text_heterogeneous`` branch (Item B)."""
+
+    sampled_row_count: int | None = None
+    """Populated only on the ``free_text_heterogeneous`` branch (Item B)."""
+
+    run_id: str = ""
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

@@ -33,3 +33,6 @@ secret_scanner:
 
 collision_resolution:
   gap_threshold: 0.15         # minimum confidence gap to suppress lower finding
+
+gliner_engine:
+  per_value_sample_size: 60

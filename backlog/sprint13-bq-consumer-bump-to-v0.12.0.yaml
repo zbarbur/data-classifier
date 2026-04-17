@@ -1,17 +1,18 @@
-title: 'Sprint 13: BQ connector consumer bump to v0.12.0 (external coordination)'
+title: 'Sprint 14: BQ connector consumer bump to v0.12.0 (external coordination)'
 status: backlog
 priority: P1
 category: chore
-sprint_target: 13
+sprint_target: 14
 created: 2026-04-16
 updated: 2026-04-16
 depends_on:
 - sprint12-v0.12.0-wheel-release
 tags:
-- sprint13
+- sprint14
 - bq-coordination
 - release-ops
 - external-team
+- sprint13-out-of-scope
 goal: >
   Coordinate with the BigQuery connector team to bump their
   data_classifier dependency from v0.8.0 to v0.12.0. First BQ-facing
@@ -47,6 +48,13 @@ notes: |
   because wheel-publish (Sprint 12 scope, ~2h of writing) and BQ
   consumer-bump (external team, ~1 day of their capacity) are distinct
   actions blocking on different parties.
+
+  Deferred out of Sprint 13 scope (2026-04-16 scoping discussion): the BQ
+  team will pick up the v0.12.0 bump on their own cadence. data_classifier
+  v0.12.0 is published and available; no further action required from the
+  library side until BQ files their consumer-bump PR. Retagged sprint14 as
+  a tracking placeholder; may not actually execute in Sprint 14 either if
+  BQ completes the bump on their own timeline first.
 
   The risk surface is much smaller than the original composite item
   anticipated: v0.12.0 is a shadow-only release from the consumer

@@ -316,8 +316,16 @@ def test_meta_classifier_event_emitted(standard_profile: ClassificationProfile) 
 
     classify_columns([_email_column("c1"), _ip_column("c2")], standard_profile, event_emitter=emitter)
     meta_events = [e for e in events if isinstance(e, MetaClassifierEvent)]
-    # One event per column
+    # Sprint 13 Item A Task 8 fix: shape detection now runs AFTER the 5 merge passes.
+    # _email_column is structured_single → emits shadow.
+    # _ip_column: pre-merge had ADDRESS + IP_ADDRESS (n=2, misrouted to opaque_tokens).
+    # Post-merge: authority resolution suppresses IP_ADDRESS in favour of ADDRESS (n=1)
+    # → classified as structured_single → shadow now correctly emits for c2 as well.
+    # Both columns are genuinely structured; 2 MetaClassifierEvents is correct behavior.
     assert len(meta_events) == 2
+    column_ids = {e.column_id for e in meta_events}
+    assert "c1" in column_ids
+    assert "c2" in column_ids
     for ev in meta_events:
         assert ev.column_id != ""
         assert ev.predicted_entity != ""

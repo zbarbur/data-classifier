@@ -736,6 +736,27 @@ def _audit_single_fixture(
         engine_findings[en_name] = list(engine_result)
         flat_findings.extend(engine_result)
 
+    # Sprint 13 Item A router gate: mirror production behavior.
+    # The orchestrator suppresses v5 shadow on non-structured shapes;
+    # the audit bypasses the orchestrator, so we replicate the gate
+    # here. A "router_deflected" outcome is the new GREEN-bucket
+    # verdict — the pathology of "collapse to wrong class" cannot
+    # happen on columns where v5 is never consulted.
+    from data_classifier.orchestrator.shape_detector import detect_column_shape
+
+    shape_detection = detect_column_shape(column, list(live_findings))
+    if shape_detection.shape != "structured_single":
+        return {
+            "fixture": name,
+            "fixture_size": len(sample_values),
+            "live_findings": live_findings_summary,
+            "num_live_findings": len(live_findings_summary),
+            "live_distinct_entities": sorted(live_distinct),
+            "shadow_prediction": None,
+            "collapse_verdict": "router_deflected",
+            "router_shape": shape_detection.shape,
+        }
+
     try:
         shadow = mc.predict_shadow(flat_findings, sample_values, engine_findings=engine_findings)
     except Exception as exc:
@@ -832,10 +853,30 @@ def q3_heterogeneous_audit() -> dict[str, Any]:
     mc = MetaClassifier()
     profile = load_profile("standard")
 
+    # Sprint 13 Item B: temporarily enable ML so classify_columns
+    # includes GLiNER2 in the engine list. The per-value handler on
+    # the heterogeneous branch needs GLiNER to fire for the union
+    # checks. Q1/Q2 run above with ML disabled — restore after Q3.
+    #
+    # The module-level _DEFAULT_ENGINES in data_classifier.__init__
+    # was built at import time with DISABLE_ML=1, so unsetting the
+    # env var alone is insufficient. We must rebuild the engine list
+    # by monkey-patching the module-level cache.
+    _ml_was_disabled = os.environ.pop("DATA_CLASSIFIER_DISABLE_ML", None)
+    import data_classifier as _dc
+
+    _original_engines = _dc._DEFAULT_ENGINES
+    _dc._DEFAULT_ENGINES = _dc._build_default_engines()
+
     fixtures = _build_heterogeneous_fixtures()
     per_fixture: list[dict[str, Any]] = []
-    for name, samples in fixtures.items():
-        per_fixture.append(_audit_single_fixture(name, samples, profile, engines, mc))
+    try:
+        for name, samples in fixtures.items():
+            per_fixture.append(_audit_single_fixture(name, samples, profile, engines, mc))
+    finally:
+        _dc._DEFAULT_ENGINES = _original_engines
+        if _ml_was_disabled is not None:
+            os.environ["DATA_CLASSIFIER_DISABLE_ML"] = _ml_was_disabled
 
     # Worst-case aggregate verdict. The enumeration order below is
     # worst-first; first-match wins.
@@ -847,6 +888,7 @@ def q3_heterogeneous_audit() -> dict[str, Any]:
         "collapsed_high_confidence_one_of_live",
         "collapsed_medium_confidence_one_of_live",
         "graceful_degradation",
+        "router_deflected",  # Sprint 13 Item A: shape router deflected away from v5
     ]
     all_verdicts = [r["collapse_verdict"] for r in per_fixture]
     aggregate_verdict = next((s for s in severity_order if s in all_verdicts), "graceful_degradation")
@@ -863,6 +905,50 @@ def q3_heterogeneous_audit() -> dict[str, Any]:
         if len(r.get("live_distinct_entities", [])) > 1 and "wrong_class" in r.get("collapse_verdict", "")
     )
 
+    # ── Sprint 13 Item B: union-design checks ────────────────────────
+    # Verify that the per-value GLiNER additions preserve the cascade
+    # floor and contribute real lift.
+    _cascade_baseline_path = Path(__file__).parent / "sprint13_q3_cascade_baseline.json"
+    _plausible_entities: dict[str, set[str]] = {
+        "original_q3_log": {"EMAIL", "IP_ADDRESS", "URL", "API_KEY", "PERSON_NAME", "ORGANIZATION"},
+        "apache_access_log": {"IP_ADDRESS", "URL", "PERSON_NAME"},
+        "json_event_log": {"EMAIL", "IP_ADDRESS", "URL", "PERSON_NAME"},
+        "base64_encoded_payloads": set(),
+        "support_chat_messages": {"EMAIL", "PHONE", "PERSON_NAME", "ORGANIZATION", "DATE_OF_BIRTH"},
+        "kafka_event_stream": {"EMAIL", "IP_ADDRESS", "URL", "PERSON_NAME"},
+    }
+    try:
+        with open(_cascade_baseline_path) as _f:
+            _cascade_baseline = json.load(_f)
+    except FileNotFoundError:
+        _cascade_baseline = {}
+
+    n_regressions = 0
+    n_with_lift = 0
+    n_with_hallucinations = 0
+    for r in per_fixture:
+        fname = r.get("fixture", "")
+        emitted = set(r.get("live_distinct_entities", []))
+        baseline = set(_cascade_baseline.get(fname, []))
+        plausible = _plausible_entities.get(fname, emitted)
+
+        missing = baseline - emitted
+        lift = emitted - baseline
+        hallucinated = emitted - plausible
+
+        r["union_cascade_baseline"] = sorted(baseline)
+        r["union_missing_from_cascade"] = sorted(missing)
+        r["union_gliner_only_types"] = sorted(lift)
+        r["union_has_lift"] = bool(lift)
+        r["union_hallucinated_types"] = sorted(hallucinated)
+
+        if missing:
+            n_regressions += 1
+        if lift:
+            n_with_lift += 1
+        if hallucinated:
+            n_with_hallucinations += 1
+
     n_fixtures = len(per_fixture)
     n_high_conf_wrong = verdict_counts.get("collapsed_high_confidence_wrong_class", 0)
     n_med_conf_wrong = verdict_counts.get("collapsed_medium_confidence_wrong_class", 0)
@@ -871,6 +957,12 @@ def q3_heterogeneous_audit() -> dict[str, Any]:
         f"({n_high_conf_wrong}/{n_fixtures} high-conf-wrong, "
         f"{n_med_conf_wrong}/{n_fixtures} med-conf-wrong, "
         f"{live_multi_vs_shadow_collapse}/{n_fixtures} live-multi-vs-collapse)",
+        file=sys.stderr,
+    )
+    print(
+        f"  union checks: {n_regressions} regressions, "
+        f"{n_with_lift}/{n_fixtures} with GLiNER lift, "
+        f"{n_with_hallucinations} with hallucinations",
         file=sys.stderr,
     )
 
@@ -882,6 +974,9 @@ def q3_heterogeneous_audit() -> dict[str, Any]:
         "n_high_confidence_wrong_class": n_high_conf_wrong,
         "n_medium_confidence_wrong_class": n_med_conf_wrong,
         "n_live_multi_vs_shadow_collapse": live_multi_vs_shadow_collapse,
+        "n_cascade_regressions": n_regressions,
+        "n_fixtures_with_gliner_lift": n_with_lift,
+        "n_fixtures_with_hallucinations": n_with_hallucinations,
         # Legacy compat: the top-level ``collapse_verdict`` key is
         # the aggregate for the verdict logic below.
         "collapse_verdict": aggregate_verdict,
@@ -938,8 +1033,14 @@ def compute_verdict(q1: dict[str, Any], q2: dict[str, Any], q3: dict[str, Any]) 
     # not present in the live findings blocks GREEN — a medium-confidence
     # wrong-class collapse is still the flat-classifier pathology, just
     # less loud than the high-confidence version.
-    q3_clean = q3_verdict in {
-        "graceful_degradation",
+    # The GREEN bucket accepts: graceful_degradation OR router_deflected.
+    # Both indicate the flat classifier did not produce a collapse-wrong
+    # prediction on a heterogeneous column. router_deflected means the
+    # Sprint 13 router stopped the shadow call; graceful_degradation
+    # means the shadow ran but produced a low-confidence output.
+    q3_green_bucket = {"graceful_degradation", "router_deflected"}
+    q3_green = q3_verdict in q3_green_bucket
+    q3_clean = q3_green or q3_verdict in {
         "collapsed_medium_confidence_one_of_live",
         "collapsed_high_confidence_one_of_live",
     }
@@ -956,7 +1057,9 @@ def compute_verdict(q1: dict[str, Any], q2: dict[str, Any], q3: dict[str, Any]) 
             f"Q1 LOCO unweighted = {q1_loco:.4f} >= {LOCO_GREEN_MIN:.2f} (weighted = {winner_loco_weighted:.4f})"
         )
         reasons.append(f"Q2 hard-gated delta = {q2_delta:+.4f} < {ARCH_GREEN_MAX_DELTA:.2f}")
-        reasons.append(f"Q3 column output = {q3_verdict} (no collapse)")
+        reasons.append(
+            f"Q3 column output = {q3_verdict} (no collapse — {'router deflected v5' if q3_verdict == 'router_deflected' else 'graceful degradation'})"
+        )
         return Verdict(level="GREEN", reasons=reasons, mitigations=[])
 
     # YELLOW — at least one threshold is in the grey zone but none are red
@@ -992,7 +1095,7 @@ def compute_verdict(q1: dict[str, Any], q2: dict[str, Any], q3: dict[str, Any]) 
             "fall back to live cascade output for this column. Preserves current live "
             "quality on log-shaped columns without inheriting flat-classifier collapse."
         )
-    elif q3_verdict == "graceful_degradation":
+    elif q3_verdict in {"graceful_degradation", "router_deflected"}:
         reasons.append(
             "Q3 column output degraded to a single low-confidence finding — flat classifier "
             "does not fail loudly on mixed content, but also does not represent it correctly"

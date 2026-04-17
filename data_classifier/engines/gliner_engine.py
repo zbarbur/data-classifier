@@ -14,14 +14,17 @@ then maps results back to our entity taxonomy.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Any
 
+from data_classifier.config import load_engine_config
 from data_classifier.core.types import (
     ClassificationFinding,
     ClassificationProfile,
     ColumnInput,
     SampleAnalysis,
+    SpanDetection,
 )
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.registry import ModelRegistry
@@ -75,9 +78,36 @@ ENTITY_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
     ),
 }
 
+# ── Experimental labels (Sprint 13, 2026-04-17) ─────────────────────────
+# Entity types where regex has no value-level detection. Added to GLiNER
+# for evaluation — measure what fires on real data before promoting to
+# production labels. These extend ENTITY_LABEL_DESCRIPTIONS at runtime
+# so the model sees them during inference alongside the core 8 labels.
+EXPERIMENTAL_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {
+    "AGE": (
+        "age",
+        "A person's age in years, including phrases like '72 years old', 'age 45', or 'born in 1952'",
+    ),
+    "HEALTH": (
+        "medical condition",
+        "Medical diagnoses, conditions, treatments, or medications such as diabetes, hypertension, or metformin",
+    ),
+    "DEMOGRAPHIC": (
+        "demographic information",
+        "Race, ethnicity, gender, religion, or nationality of a person",
+    ),
+    "FINANCIAL": (
+        "financial information",
+        "Salary, income, net worth, loan amounts, or account balances expressed in text",
+    ),
+}
+
+# Merge experimental into the active label set.
+_ALL_LABEL_DESCRIPTIONS: dict[str, tuple[str, str]] = {**ENTITY_LABEL_DESCRIPTIONS, **EXPERIMENTAL_LABEL_DESCRIPTIONS}
+
 # Reverse mapping: GLiNER2 label -> our entity type
 GLINER_LABEL_TO_ENTITY: dict[str, str] = {
-    label: entity_type for entity_type, (label, _) in ENTITY_LABEL_DESCRIPTIONS.items()
+    label: entity_type for entity_type, (label, _) in _ALL_LABEL_DESCRIPTIONS.items()
 }
 
 # Entity metadata for findings
@@ -90,6 +120,11 @@ _ENTITY_METADATA: dict[str, dict[str, Any]] = {
     "SSN": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA", "HIPAA"]},
     "EMAIL": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR", "CCPA"]},
     "IP_ADDRESS": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["GDPR"]},
+    # Experimental
+    "AGE": {"category": "PII", "sensitivity": "MEDIUM", "regulatory": ["HIPAA"]},
+    "HEALTH": {"category": "Health", "sensitivity": "HIGH", "regulatory": ["HIPAA", "GDPR"]},
+    "DEMOGRAPHIC": {"category": "PII", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA"]},
+    "FINANCIAL": {"category": "Financial", "sensitivity": "HIGH", "regulatory": ["GDPR", "CCPA"]},
 }
 
 # Default confidence threshold for GLiNER2 predictions
@@ -261,6 +296,39 @@ def _find_bundled_onnx_model() -> str | None:
     return None
 
 
+_DEFAULT_PER_VALUE_SAMPLE_SIZE: int = 60
+
+
+def _load_per_value_sample_size() -> int:
+    """Read the per-value sample-size cap from engine_defaults.yaml."""
+    try:
+        cfg = load_engine_config().get("gliner_engine", {}) or {}
+        value = cfg.get("per_value_sample_size", _DEFAULT_PER_VALUE_SAMPLE_SIZE)
+        if isinstance(value, int) and value > 0:
+            return value
+    except Exception:
+        logger.exception("Failed to load per_value_sample_size; falling back to default")
+    return _DEFAULT_PER_VALUE_SAMPLE_SIZE
+
+
+def _stable_subsample(values: list[str], *, n: int) -> list[str]:
+    """Deterministically pick up to n values by stable hash.
+
+    SHA-1 of the UTF-8-encoded value as the sort key. Output is
+    insertion-order-independent: two orchestrators that receive the same
+    set of values in different orders produce the same sampled set.
+    """
+    if n <= 0 or not values:
+        return []
+    if len(values) <= n:
+        return list(values)
+
+    def _key(v: str) -> bytes:
+        return hashlib.sha1(v.encode("utf-8", errors="replace")).digest()
+
+    return sorted(values, key=_key)[:n]
+
+
 class GLiNER2Engine(ClassificationEngine):
     """GLiNER2-based NER classification engine.
 
@@ -351,11 +419,13 @@ class GLiNER2Engine(ClassificationEngine):
             descriptions_enabled = not self._is_v2
         self._descriptions_enabled = descriptions_enabled
 
-        # Filter to requested entity types (must be in our mapping)
+        # Filter to requested entity types (must be in our mapping).
+        # Uses _ALL_LABEL_DESCRIPTIONS (core + experimental) so the model
+        # sees the experimental labels during inference.
         if entity_types is not None:
-            self._entity_types = [et for et in entity_types if et in ENTITY_LABEL_DESCRIPTIONS]
+            self._entity_types = [et for et in entity_types if et in _ALL_LABEL_DESCRIPTIONS]
         else:
-            self._entity_types = list(ENTITY_LABEL_DESCRIPTIONS.keys())
+            self._entity_types = list(_ALL_LABEL_DESCRIPTIONS.keys())
 
         # Build labels.
         #
@@ -365,10 +435,10 @@ class GLiNER2Engine(ClassificationEngine):
         # (no descriptions) or dict[str, str] (label -> description).
         # Prepare BOTH forms and pick at inference time based on
         # ``self._descriptions_enabled``.
-        self._gliner_labels: list[str] = [ENTITY_LABEL_DESCRIPTIONS[et][0] for et in self._entity_types]
+        self._gliner_labels: list[str] = [_ALL_LABEL_DESCRIPTIONS[et][0] for et in self._entity_types]
         if self._is_v2:
             self._gliner_labels_v2: dict[str, str] = {
-                ENTITY_LABEL_DESCRIPTIONS[et][0]: ENTITY_LABEL_DESCRIPTIONS[et][1] for et in self._entity_types
+                _ALL_LABEL_DESCRIPTIONS[et][0]: _ALL_LABEL_DESCRIPTIONS[et][1] for et in self._entity_types
             }
 
     def startup(self) -> None:
@@ -512,6 +582,85 @@ class GLiNER2Engine(ClassificationEngine):
             else []
             for col in columns
         ]
+
+    def classify_per_value(
+        self,
+        column: ColumnInput,
+        *,
+        sample_size: int | None = None,
+    ) -> tuple[list[list[SpanDetection]], int]:
+        """Run GLiNER per-value on a deterministic subsample of the column.
+
+        Returns (per_value_spans, sampled_row_count). Per-value failures
+        are isolated to the affected row. Total model-load failure propagates.
+        """
+        if column.data_type and column.data_type.upper() in _NON_TEXT_DATA_TYPES:
+            return [], 0
+        if not column.sample_values:
+            return [], 0
+
+        if sample_size is None:
+            sample_size = _load_per_value_sample_size()
+
+        sampled = _stable_subsample(column.sample_values, n=sample_size)
+        if not sampled:
+            return [], 0
+
+        model = self._get_model()
+
+        per_value_spans: list[list[SpanDetection]] = []
+        for value in sampled:
+            text = _build_ner_prompt(column, [value])
+            row_spans: list[SpanDetection] = []
+            try:
+                if self._is_v2:
+                    v2_entity_spec: list[str] | dict[str, str] = (
+                        self._gliner_labels_v2 if self._descriptions_enabled else self._gliner_labels
+                    )
+                    result = model.extract_entities(
+                        text,
+                        v2_entity_spec,
+                        threshold=self._gliner_threshold,
+                        include_confidence=True,
+                    )
+                    for gliner_label, matches in result.get("entities", {}).items():
+                        entity_type = GLINER_LABEL_TO_ENTITY.get(gliner_label)
+                        if entity_type is None:
+                            continue
+                        for match in matches:
+                            if isinstance(match, dict):
+                                row_spans.append(
+                                    SpanDetection(
+                                        text=str(match.get("text", "")),
+                                        entity_type=entity_type,
+                                        confidence=float(match.get("confidence", 0.5)),
+                                        start=int(match.get("start", 0)),
+                                        end=int(match.get("end", 0)),
+                                    )
+                                )
+                else:
+                    preds = model.predict_entities(text, self._gliner_labels, threshold=self._gliner_threshold)
+                    for pred in preds:
+                        entity_type = GLINER_LABEL_TO_ENTITY.get(pred.get("label", ""))
+                        if entity_type is None:
+                            continue
+                        row_spans.append(
+                            SpanDetection(
+                                text=str(pred.get("text", "")),
+                                entity_type=entity_type,
+                                confidence=float(pred.get("score", 0.0)),
+                                start=int(pred.get("start", 0)),
+                                end=int(pred.get("end", 0)),
+                            )
+                        )
+            except Exception:
+                logger.exception(
+                    "GLiNER per-value inference failed on one value for column %s",
+                    column.column_id,
+                )
+            per_value_spans.append(row_spans)
+
+        return per_value_spans, len(sampled)
 
     def _run_ner_on_samples(
         self,

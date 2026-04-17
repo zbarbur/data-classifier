@@ -1,17 +1,18 @@
-title: 'Sprint 13: Meta-classifier v4 retrain — drop DATE_OF_BIRTH_EU class label'
+title: 'Sprint 14: Meta-classifier v4 retrain — drop DATE_OF_BIRTH_EU class label'
 status: backlog
 priority: P3
 category: ml
-sprint_target: 13
+sprint_target: 14
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-16
 depends_on:
 - sprint12-retire-date-of-birth-eu-subtype
 tags:
-- sprint13
+- sprint14
 - meta-classifier
 - taxonomy
 - technical-debt
+- sprint13-deferred
 goal: 'Retrain the meta-classifier as v4 with DATE_OF_BIRTH_EU collapsed into
   DATE_OF_BIRTH in the training data, bump FEATURE_SCHEMA_VERSION 3 → 4, drop
   the orphan input-feature slot, and remove the compatibility alias in
@@ -74,8 +75,7 @@ description: "Sprint 12's DATE_OF_BIRTH_EU retirement (item\nsprint12-retire-dat
   \ artifact (CV macro F1 0.569, test macro\n     F1 0.X on 2034 rows); v4 is a new\
   \ untested artifact that\n     needs its own benchmark delta analysis.\n\nNot urgent\
   \ \u2014 the Sprint 12 compat alias is stable and the\ntechnical debt is narrow\
-  \ (3 lines of code + one test flip). Should\nland early in Sprint 13 to close the\
-  \ loop cleanly before any other\nmeta-classifier work.\n"
+  \ (3 lines of code + one test flip). Deferred\nfrom Sprint 13 to Sprint 14 per the Sprint 13 scoping Q4 decision\n(2026-04-16): Sprint 13 at 3 router items + observability is already\n~3 weeks of capacity; retrain is hygiene, not critical path.\n"
 acceptance_criteria:
 - meta_classifier_v4.pkl + meta_classifier_v4.metadata.json exist and load cleanly
   via MetaClassifier.
