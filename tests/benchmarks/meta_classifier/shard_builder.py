@@ -177,7 +177,7 @@ def _credential_corpus_pool(corpus_name: str) -> dict[str, list[str]]:
     pool: dict[str, list[str]] = {"CREDENTIAL": [], NEGATIVE_GROUND_TRUTH: []}
 
     filename = {
-        "secretbench": "secretbench_sample.json",
+        "secretbench": "secretbench_sample_v2.json",
         "gitleaks": "gitleaks_fixtures.json",
         "detect_secrets": "detect_secrets_fixtures.json",
     }[corpus_name]
