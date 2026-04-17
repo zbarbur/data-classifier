@@ -4,7 +4,7 @@
 // by redaction.js to splice without re-searching.
 
 const ENV_RE =
-  /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))\s*$/gm;
+  /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s()\[\]{},]+))\s*$/gm;
 
 const CODE_RE =
   /([A-Za-z_][A-Za-z0-9_]*)\s*(?::=|:|=)\s*(?:"([^"]{1,500})"|'([^']{1,500})')/g;
