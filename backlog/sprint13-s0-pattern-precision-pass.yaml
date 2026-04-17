@@ -1,10 +1,11 @@
-title: 'Sprint 13: S0-driven pattern precision pass — SWIFT_BIC validator + IPv4 validator/boundary'
-status: doing
+title: "Sprint 13: S0-driven pattern precision pass \u2014 SWIFT_BIC validator + IPv4\
+  \ validator/boundary"
+status: done
 priority: P1
-category: bugfix
+category: chore
 sprint_target: 13
 created: 2026-04-16
-updated: 2026-04-16
+updated: 2026-04-17
 depends_on: []
 tags:
 - sprint13
@@ -13,67 +14,47 @@ tags:
 - regex-engine
 - s0-finding
 - prompt-analysis-driver
-goal: 'Fix two precision bugs surfaced by S0 prevalence scan (research/prompt-analysis docs/experiments/prompt_analysis/s0_artifacts):
-  SWIFT_BIC has empty validator and accepts English words like CONSTRAINTS/DATABASE/PERFORMANCE/RESPONSE; IPv4''s ipv4_not_reserved_check
-  rejects only 3 exact strings, missing all reserved/private/loopback/link-local/multicast ranges. Both bugs are repro''d
-  from real WildChat prompts and have known fixes.
+goal: 'Fix two precision bugs surfaced by S0 prevalence scan (research/prompt-analysis
+  docs/experiments/prompt_analysis/s0_artifacts): SWIFT_BIC has empty validator and
+  accepts English words like CONSTRAINTS/DATABASE/PERFORMANCE/RESPONSE; IPv4''s ipv4_not_reserved_check
+  rejects only 3 exact strings, missing all reserved/private/loopback/link-local/multicast
+  ranges. Both bugs are repro''d from real WildChat prompts and have known fixes.
 
   '
 complexity: S
 technical_specs:
-- 'SWIFT_BIC validator: add new validator function swift_bic_country_code_check in data_classifier/engines/regex_engine.py
-  that extracts positions 5-6 of the matched value and rejects if not in ISO 3166-1 alpha-2 country codes. Bundle the ~250-entry
-  country code list as a constant in the same module (or in data_classifier/patterns/country_codes.py if cleaner). Update
-  default_patterns.json swift_bic entry: validator: "swift_bic_country_code_check".'
-- 'IPv4 validator rewrite: replace ipv4_not_reserved_check with ipaddress.IPv4Address(value)-based check that rejects: is_loopback,
-  is_unspecified, is_multicast, is_reserved, is_link_local. KEEP is_private (RFC1918) as TRUE-meaning-detect (DLP cares about
-  leaked internal IPs).'
-- 'IPv4 regex boundary tightening: change \\b to (?<![\\d.]) at start and (?![\\d.]) at end. Prevents matching the last 4
-  octets of N-octet strings like 256.0.0.18.105.'
-- 'Tests: add tests/test_regex_engine_precision.py with the S0 repro fixtures: swift_bic FPs (CONSTRAINTS, DATABASE, RESPONSE,
-  PERFORMANCE, COMMANDS, SERVQUAL) — must NOT match. swift_bic real codes (DEUTDEFF, BARCGB22) — must match. ipv4 FPs (0.0.18.105,
-  127.0.0.5, 192.168.1.1 if config keeps RFC1918 detect, 169.254.1.1, 224.0.0.1) — assert correct accept/reject per spec.
-  ipv4 boundary FP (256.0.0.18.105 → 0.0.18.105 should NOT match) — must reject.'
-description: 'Surfaced from research/prompt-analysis S0 (WildChat-1M prevalence scan,
-
-  500-prompt smoke 2026-04-16). Both bugs reduce engine precision
-
-  in single-sample mode (single prompt = single column with 1 value)
-
-  because the prevalence-threshold and column-name-context guards that
-
-  normally suppress these FPs in multi-sample columns don''t apply.
-
-
-  These are also production-relevant for BQ: any column that happens to
-
-  contain a single English word matching a SWIFT_BIC shape, or a single
-
-  partial-IP substring, will currently produce a false-positive finding.
-
-
-  The S0 evidence is committed to research/prompt-analysis at
-
-  docs/experiments/prompt_analysis/s0_artifacts/ — repro fixtures
-
-  decode-able via data_classifier.patterns._decoder.
-
-
-  Note: full fix for SWIFT_BIC requires bank-registry validation
-
-  (~11K SWIFT codes) — that''s a separate, larger backlog item. This
-
-  item is the cheap precision win (country-code only, ~30 LOC + ~250
-
-  entry list). Country-code alone catches PERFORMANCE/RESPONSE/SERVQUAL
-
-  but misses CONSTRAINTS/DATABASE (TR=Turkey, BA=Bosnia are real codes).
-
-  Estimated 50% FP reduction from this item; full fix deferred to a
-
-  bank-registry-validation item.
-
-  '
+- 'SWIFT_BIC validator: add new validator function swift_bic_country_code_check in
+  data_classifier/engines/regex_engine.py that extracts positions 5-6 of the matched
+  value and rejects if not in ISO 3166-1 alpha-2 country codes. Bundle the ~250-entry
+  country code list as a constant in the same module (or in data_classifier/patterns/country_codes.py
+  if cleaner). Update default_patterns.json swift_bic entry: validator: "swift_bic_country_code_check".'
+- 'IPv4 validator rewrite: replace ipv4_not_reserved_check with ipaddress.IPv4Address(value)-based
+  check that rejects: is_loopback, is_unspecified, is_multicast, is_reserved, is_link_local.
+  KEEP is_private (RFC1918) as TRUE-meaning-detect (DLP cares about leaked internal
+  IPs).'
+- 'IPv4 regex boundary tightening: change \\b to (?<![\\d.]) at start and (?![\\d.])
+  at end. Prevents matching the last 4 octets of N-octet strings like 256.0.0.18.105.'
+- "Tests: add tests/test_regex_engine_precision.py with the S0 repro fixtures: swift_bic\
+  \ FPs (CONSTRAINTS, DATABASE, RESPONSE, PERFORMANCE, COMMANDS, SERVQUAL) \u2014\
+  \ must NOT match. swift_bic real codes (DEUTDEFF, BARCGB22) \u2014 must match. ipv4\
+  \ FPs (0.0.18.105, 127.0.0.5, 192.168.1.1 if config keeps RFC1918 detect, 169.254.1.1,\
+  \ 224.0.0.1) \u2014 assert correct accept/reject per spec. ipv4 boundary FP (256.0.0.18.105\
+  \ \u2192 0.0.18.105 should NOT match) \u2014 must reject."
+description: "Surfaced from research/prompt-analysis S0 (WildChat-1M prevalence scan,\n\
+  500-prompt smoke 2026-04-16). Both bugs reduce engine precision\nin single-sample\
+  \ mode (single prompt = single column with 1 value)\nbecause the prevalence-threshold\
+  \ and column-name-context guards that\nnormally suppress these FPs in multi-sample\
+  \ columns don't apply.\n\nThese are also production-relevant for BQ: any column\
+  \ that happens to\ncontain a single English word matching a SWIFT_BIC shape, or\
+  \ a single\npartial-IP substring, will currently produce a false-positive finding.\n\
+  \nThe S0 evidence is committed to research/prompt-analysis at\ndocs/experiments/prompt_analysis/s0_artifacts/\
+  \ \u2014 repro fixtures\ndecode-able via data_classifier.patterns._decoder.\n\n\
+  Note: full fix for SWIFT_BIC requires bank-registry validation\n(~11K SWIFT codes)\
+  \ \u2014 that's a separate, larger backlog item. This\nitem is the cheap precision\
+  \ win (country-code only, ~30 LOC + ~250\nentry list). Country-code alone catches\
+  \ PERFORMANCE/RESPONSE/SERVQUAL\nbut misses CONSTRAINTS/DATABASE (TR=Turkey, BA=Bosnia\
+  \ are real codes).\nEstimated 50% FP reduction from this item; full fix deferred\
+  \ to a\nbank-registry-validation item.\n"
 acceptance_criteria:
 - New validator swift_bic_country_code_check exists in regex_engine VALIDATORS
 - swift_bic pattern in default_patterns.json references the new validator
@@ -83,21 +64,25 @@ acceptance_criteria:
 - Lint + format clean, full test suite green
 - Family benchmark (tests/benchmarks/family_accuracy_benchmark.py) does not regress
 test_plan:
-- 'Unit tests on the 6 swift_bic FP English words: CONSTRAINTS, DATABASE, RESPONSE, PERFORMANCE, COMMANDS, SERVQUAL — must
-  NOT match'
-- Unit tests on real BIC codes (DEUTDEFF, BARCGB22) — must match
-- 'Unit tests on ipv4 reserved ranges per RFC: 0.0.0.0/8 (0.0.18.105), 127/8 (127.0.0.5), 169.254/16 (link-local), 224/4 (multicast),
-  240/4 (reserved). Assert validator rejects all of these.'
-- 'Unit test ipv4 boundary FP: search 256.0.0.18.105 should produce zero matches (currently produces 1 match for 0.0.18.105)'
-- 'Integration: re-run S0 smoke (50K) on research/prompt-analysis after fix, confirm SWIFT_BIC English-word hits drop from
-  7 to 0 (or <2)'
+- "Unit tests on the 6 swift_bic FP English words: CONSTRAINTS, DATABASE, RESPONSE,\
+  \ PERFORMANCE, COMMANDS, SERVQUAL \u2014 must NOT match"
+- "Unit tests on real BIC codes (DEUTDEFF, BARCGB22) \u2014 must match"
+- 'Unit tests on ipv4 reserved ranges per RFC: 0.0.0.0/8 (0.0.18.105), 127/8 (127.0.0.5),
+  169.254/16 (link-local), 224/4 (multicast), 240/4 (reserved). Assert validator rejects
+  all of these.'
+- 'Unit test ipv4 boundary FP: search 256.0.0.18.105 should produce zero matches (currently
+  produces 1 match for 0.0.18.105)'
+- 'Integration: re-run S0 smoke (50K) on research/prompt-analysis after fix, confirm
+  SWIFT_BIC English-word hits drop from 7 to 0 (or <2)'
 - Family benchmark regression check
-notes: "Estimated 1 day total (~150 LOC + tests).\n\nSurfaced 2026-04-16 by research/prompt-analysis S0 smoke run on\n500\
-  \ WildChat prompts. Detailed analysis in\ndocs/experiments/prompt_analysis/s0_artifacts/ (after S0 memo lands).\n\nFollow-up\
-  \ items not in this scope:\n  - SWIFT_BIC bank-registry lookup (~11K codes, ~80KB data, ~5 LOC validator)\n  - Phone pattern:\
-  \ minimum digit-count guard (currently +10 matches int_phone\n    regex; phone_number validator catches the FP at engine\
-  \ level, but the\n    regex itself is loose). Probably not worth fixing if validator works.\n  - Pattern profile concept\
-  \ for \"single_value_mode\" with stricter guards. Long-term.\n"
+notes: "Estimated 1 day total (~150 LOC + tests).\n\nSurfaced 2026-04-16 by research/prompt-analysis\
+  \ S0 smoke run on\n500 WildChat prompts. Detailed analysis in\ndocs/experiments/prompt_analysis/s0_artifacts/\
+  \ (after S0 memo lands).\n\nFollow-up items not in this scope:\n  - SWIFT_BIC bank-registry\
+  \ lookup (~11K codes, ~80KB data, ~5 LOC validator)\n  - Phone pattern: minimum\
+  \ digit-count guard (currently +10 matches int_phone\n    regex; phone_number validator\
+  \ catches the FP at engine level, but the\n    regex itself is loose). Probably\
+  \ not worth fixing if validator works.\n  - Pattern profile concept for \"single_value_mode\"\
+  \ with stricter guards. Long-term.\n"
 phase: review
 design_reviewed: false
 code_reviewed: false

@@ -1,10 +1,10 @@
 title: "Sprint 13 Item A: column-shape router \u2014 heuristic gate + 3-branch routing"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 13
 created: 2026-04-16
-updated: 2026-04-16
+updated: 2026-04-17
 depends_on: []
 tags:
 - sprint13

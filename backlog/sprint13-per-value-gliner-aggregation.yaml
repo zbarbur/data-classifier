@@ -1,6 +1,6 @@
 title: 'Sprint 13 Item B: per-value GLiNER span extraction + column-level multi-label
   aggregation for the free_text_heterogeneous branch'
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 13

@@ -1,6 +1,6 @@
 title: 'Sprint 13 Item C: opaque-token branch tuning (secret_scanner + entropy features
   for base64 / JWT / hash columns)'
-status: doing
+status: done
 priority: P2
 category: feature
 sprint_target: 13
