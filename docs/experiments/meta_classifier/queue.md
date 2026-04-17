@@ -2346,6 +2346,160 @@ extend.
 
 **Deliverable:** `tests/benchmarks/meta_classifier/family_accuracy_benchmark.py` extended + new `tests/test_multi_label_metrics_benchmark_parity.py` for regression guarding.
 
+## Structured opaque-token decoding (D1 track)
+
+**Rationale:** Sprint 13's `opaque_tokens` branch treats opaque strings
+as-is and hands them to `secret_scanner`. This is correct for the
+common case — API keys, PATs, bearer tokens are opaque-by-design;
+decoding defeats the classification. But a narrow subset of opaque
+tokens are *structured*: JWTs carry JSON claims with real PII (email,
+sub, phone_number), data URIs carry labeled text payloads, and a small
+fraction of production columns are explicitly base64-encoded blobs
+advertised via column metadata. A shape-gated decoder can surface PII
+that currently hides inside opaque-looking values — without reviving
+the entropy-only false-positive problem that Sprint 1 already ruled
+out.
+
+**Explicit scope guardrail** (recorded here so future sessions don't
+drift into the wrong shape):
+
+- ✅ Shape-gated decode — specific prefix, protocol signature, or column-context signal
+- ❌ Generic "alphabet + entropy → decode" — low precision, recreates the Sprint 1 entropy-alone mistake one layer up
+- ❌ Decoding tokens that `secret_scanner` recognizes as opaque-by-design (AWS keys, GitHub PATs) — opaque classification is the *correct* output; decoding is anti-signal
+
+See the 2026-04-17 "base64 detector + decoder?" chat decision for the
+full trade-off analysis.
+
+**Research-vs-production contract:** the research track produces
+design memos, reference implementation in
+`docs/experiments/meta_classifier/runs/...`, and benchmark deltas.
+Production landing goes via Sprint 14+ backlog items (new engine
+module under `data_classifier/engines/`, `api_change:yes` on D1a
+because findings' `source` field gains new enum values). Same
+pattern as Sprint 8 Item A (CREDENTIAL split).
+
+Filed as three sub-items (D1a-D1c). Critical-path: **D1a alone** —
+highest-value wedge, works without D1b/D1c. Full-track effort ~2
+weeks sequential.
+
+### D1a — JWT payload classifier
+
+**Status:** ⏸ blocked on Sprint 13 `opaque-token-branch-tuning` landing on main
+**Priority:** P2 — highest-value decoder but Sprint 13 router must ship first so the dispatch site exists
+**Estimated time:** ~4 days (design memo + reference impl + benchmark delta)
+
+**Goal:** When `secret_scanner` fires a JWT detection (shape: `eyJ`
+prefix + three `.`-separated base64url segments — gate already in
+`secret_scanner.py:133`), decode the payload segment (segment 2),
+parse as JSON, and re-classify the resulting field *values* through
+the existing engine cascade. Emit findings with a distinct `source`
+so provenance is preserved through multi-label aggregation.
+
+**Why JWT specifically** (the precision case):
+
+- Only opaque-token format where the decoded payload is reliably structured JSON
+- Claims like `email`, `sub`, `phone_number`, `given_name`, `family_name` are standard (RFC 7519 + OIDC core §5.1)
+- Shape gate already exists — no new detector needed
+- Reference implementation is small (~30 lines: base64url decode + `json.loads` + per-field dispatch)
+
+**Deliverables:**
+
+- `docs/experiments/meta_classifier/runs/<ts>-d1a-jwt-decoder/result.md` — design memo + benchmark delta
+- Reference implementation: `docs/experiments/meta_classifier/runs/<ts>-d1a-jwt-decoder/jwt_decoder_reference.py`
+- 10 synthetic-JWT test fixtures covering typical OIDC claim sets (nominal, over-signed, malformed, encrypted-payload — last two must fall through silently)
+- Proposed Sprint 14 backlog item draft: `jwt-payload-classifier.yaml` (written as a candidate, not filed from research branch)
+
+**Success criteria:**
+
+- Reference impl emits structured findings with distinct `source="jwt_payload"` when decode succeeds
+- Malformed b64 / invalid JSON / non-claims shape: silent fall-through, zero exceptions, zero spurious findings
+- Benchmark delta on a corpus with JWTs (build from Tier 7b survey hits + synthetic) shows non-zero PII recovery without FP regression on the Sprint 11 baseline
+- Zero single-label family benchmark regression (the existing quality gate)
+
+### D1b — Data-URI text-MIME decoder
+
+**Status:** ⏸ blocked on D1a landing (scaffolding reused)
+**Priority:** P3
+**Estimated time:** ~2 days
+
+**Goal:** For values matching the `data:<mime>;base64,<body>` URI
+scheme where `<mime>` starts with `text/`, decode the body and
+re-classify the resulting text through the existing
+`free_text_heterogeneous` branch. MIME-type gate keeps precision
+high: `image/*`, `application/octet-stream`, and other binary MIME
+types are skipped without attempting decode.
+
+**Deliverables:**
+
+- Extension of the D1a reference impl (sibling dispatcher)
+- 5 synthetic data-URI fixtures: `text/plain` with email, `text/csv` with phone + ID columns, `text/html` with embedded PII, `image/png` (negative control — must skip), malformed (must fall through)
+- Run memo at `docs/experiments/meta_classifier/runs/<ts>-d1b-data-uri/result.md`
+
+**Success criteria:**
+
+- Only `text/*` MIME types trigger decode
+- Binary MIMEs skipped entirely (no attempted base64 decode)
+- Decoded text payload flows through heterogeneous-column branch with correct provenance
+- Zero FP regression on columns containing non-data-URI base64 blobs
+
+### D1c — Column-context-gated base64 decoder
+
+**Status:** ⏸ blocked on D1a + BQ column-context signal density survey
+**Priority:** P3 — most speculative of the three; may drop entirely depending on survey
+**Estimated time:** ~3 days (survey + decision + optional implementation)
+
+**Goal:** When column metadata (via BQ context fields — populated
+since Sprint 10, see `project_bq_context_fields_populated.md` memo)
+signals "this column contains base64-encoded text," decode values
+as a preprocessing step before per-value classification. Signal
+shape: column name matches one of `*_b64`, `*_encoded`, `payload`,
+`body_base64`, or description contains the literal substring
+`base64` or `b64`.
+
+**Pre-requisite spike (must run *before* implementation work):**
+
+Tier 7 / Tier 7b corpus survey measuring real column-name / description
+signal density for the above patterns. If the signal is present in
+<1% of real production columns surveyed, D1c is negative-EV — the FP
+risk from attempting decode on non-text binary payloads (images,
+protobuf dumps) outweighs the recall benefit on the rare match.
+Drop the sub-item in that case.
+
+**Deliverables:**
+
+- **Survey first**: `docs/experiments/meta_classifier/runs/<ts>-d1c-corpus-survey/result.md` with the signal-density measurement and ship/drop decision
+- **If shipped**: reference impl extending D1a dispatcher + fixtures + run memo
+- **If dropped**: the survey memo stands as the reason-to-defer record so future sessions don't re-open the question without new data
+
+**Success criteria:**
+
+- Signal-density measurement published before any implementation work begins
+- Ship decision predicated on ≥1% of real BQ-surveyed production columns matching the column-name / description signal
+- If shipped: exact gate match (no fuzzy matching on column names) and zero FP regression on non-matching columns
+
+### Open questions (resolve before D1a starts)
+
+These shape the production promotion contract; defer until a
+dedicated decision pass rather than settle them in-passing:
+
+1. **Finding provenance.** Should decoded-payload findings carry a
+   distinct `source` value (e.g., `jwt_payload`, `data_uri_text`,
+   `column_context_b64`) or inherit the parent engine's source?
+   (Leaning: distinct — helps debug when a JWT-claim-sourced email
+   causes downstream FP.)
+
+2. **Augment vs replace.** When JWT decode surfaces an email claim,
+   does the JWT's `CREDENTIAL` finding stay, or is it replaced by
+   the decoded findings? (Leaning: augment. A column of JWTs
+   containing email claims is honestly *both* a CREDENTIAL and an
+   EMAIL column. Multi-label philosophy §6 supports this.)
+
+3. **Prevalence rollup.** When 1 JWT per 100 column values decodes
+   to reveal an email, does the column's EMAIL prevalence become
+   0.01, or does the JWT-sub-finding prevalence roll up separately
+   as a nested-finding surface? (Unresolved — M4b / multi-label
+   metrics work may inform; revisit after M4b lands.)
+
 ## Workflow for completed experiments
 
 When a parallel session finishes an experiment:
