@@ -98,7 +98,7 @@ notes: "Estimated 1 day total (~150 LOC + tests).\n\nSurfaced 2026-04-16 by rese
   \ minimum digit-count guard (currently +10 matches int_phone\n    regex; phone_number validator catches the FP at engine\
   \ level, but the\n    regex itself is loose). Probably not worth fixing if validator works.\n  - Pattern profile concept\
   \ for \"single_value_mode\" with stricter guards. Long-term.\n"
-phase: build
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

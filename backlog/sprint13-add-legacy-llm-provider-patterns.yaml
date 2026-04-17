@@ -13,98 +13,89 @@ tags:
 - s0-finding
 - prompt-analysis-driver
 - coverage-gap
-goal: >
-  Add two missing patterns surfaced by S0 coverage spike: OpenAI legacy
-  sk-* keys (no proj- prefix) and Anthropic sk-ant-api03-* keys.
-  Both are dominant LLM provider key formats with zero coverage in our
-  current pattern set. The browser PoC client (Chrome extension over
-  ChatGPT) will see these regularly — current scanner would miss them.
+goal: 'Add two missing patterns surfaced by S0 coverage spike: OpenAI legacy sk-* keys (no proj- prefix) and Anthropic sk-ant-api03-*
+  keys. Both are dominant LLM provider key formats with zero coverage in our current pattern set. The browser PoC client (Chrome
+  extension over ChatGPT) will see these regularly — current scanner would miss them.
+
+  '
 complexity: S
 technical_specs:
-- 'Add OpenAI legacy pattern (entity_type=API_KEY, name=openai_legacy_key):
-  regex \bsk-[a-zA-Z0-9]{48}\b. Validator: not_placeholder_credential
-  (existing). Modern sk-proj-* keys have their own pattern (openai_api_key,
-  already exists, requires 80+ char suffix). Legacy keys are 48 chars after
-  the sk- prefix. Stopwords: existing default placeholder list.'
-- 'Add Anthropic pattern (entity_type=API_KEY, name=anthropic_api_key):
-  regex \bsk-ant-(api[0-9]+|admin[0-9]+)-[a-zA-Z0-9_-]{93,}(?:-[a-zA-Z0-9]{2})?\b.
-  Validator: not_placeholder_credential. Per Anthropic docs, current keys
-  use sk-ant-api03- prefix; admin keys use sk-ant-admin01-. Format may
-  evolve so the (api[0-9]+|admin[0-9]+) group is conservative.'
-- 'Both patterns: confidence 0.95, sensitivity CRITICAL, family CREDENTIAL.
-  Add provenance entry to docs/process/CREDENTIAL_PATTERN_SOURCES.md per
-  the per-pattern provenance schema (source: provider documentation,
-  license_clearance: factual-no-IP, pulled date, validator).'
-- 'Tests: add fixtures to tests/test_regex_engine.py (or new
-  tests/test_llm_provider_keys.py) covering: real-shape OpenAI legacy
-  (cryptographically random 48-char suffix), real-shape Anthropic (95+
-  char suffix), placeholder rejection (sk-test-..., sk-ant-api03-EXAMPLE...),
-  bare-prefix-only rejection (sk- alone), URL-embedded extraction,
-  JSON-embedded extraction.'
-- 'Source URLs to cite in CREDENTIAL_PATTERN_SOURCES.md:
-  https://platform.openai.com/docs/api-reference/authentication
-  https://docs.anthropic.com/en/api/getting-started'
-description: |
-  Surfaced from research/prompt-analysis S0 coverage spike (2026-04-16).
+- 'Add OpenAI legacy pattern (entity_type=API_KEY, name=openai_legacy_key): regex \bsk-[a-zA-Z0-9]{48}\b. Validator: not_placeholder_credential
+  (existing). Modern sk-proj-* keys have their own pattern (openai_api_key, already exists, requires 80+ char suffix). Legacy
+  keys are 48 chars after the sk- prefix. Stopwords: existing default placeholder list.'
+- 'Add Anthropic pattern (entity_type=API_KEY, name=anthropic_api_key): regex \bsk-ant-(api[0-9]+|admin[0-9]+)-[a-zA-Z0-9_-]{93,}(?:-[a-zA-Z0-9]{2})?\b.
+  Validator: not_placeholder_credential. Per Anthropic docs, current keys use sk-ant-api03- prefix; admin keys use sk-ant-admin01-.
+  Format may evolve so the (api[0-9]+|admin[0-9]+) group is conservative.'
+- 'Both patterns: confidence 0.95, sensitivity CRITICAL, family CREDENTIAL. Add provenance entry to docs/process/CREDENTIAL_PATTERN_SOURCES.md
+  per the per-pattern provenance schema (source: provider documentation, license_clearance: factual-no-IP, pulled date, validator).'
+- 'Tests: add fixtures to tests/test_regex_engine.py (or new tests/test_llm_provider_keys.py) covering: real-shape OpenAI
+  legacy (cryptographically random 48-char suffix), real-shape Anthropic (95+ char suffix), placeholder rejection (sk-test-...,
+  sk-ant-api03-EXAMPLE...), bare-prefix-only rejection (sk- alone), URL-embedded extraction, JSON-embedded extraction.'
+- 'Source URLs to cite in CREDENTIAL_PATTERN_SOURCES.md: https://platform.openai.com/docs/api-reference/authentication https://docs.anthropic.com/en/api/getting-started'
+description: 'Surfaced from research/prompt-analysis S0 coverage spike (2026-04-16).
+
   Spike tested 17 canonical secret formats against the current scanner;
+
   OpenAI legacy and Anthropic both produced zero matches.
 
+
   These are not bugs in existing patterns — they are coverage gaps. The
+
   fix is to add new patterns derived from provider documentation (per the
+
   trufflehog-excluded source policy: provider docs are factual, no IP
+
   exposure).
 
+
   Scope rationale: this item adds the TWO most-glaring LLM provider gaps
+
   identified by S0. The broader S3 pattern-mine item (Sprint 14) will
+
   handle the rest of the LLM provider landscape (Gemini, Mistral,
+
   Perplexity, Cohere, Together, Replicate, Groq) plus crypto/cloud-DB/
+
   webhook/mobile-CI gaps. Splitting these two off lets us ship them in
+
   Sprint 13 without waiting for the larger mine.
 
+
   Browser PoC consideration: the Chrome extension client sees ChatGPT
+
   prompts. Users pasting their OpenAI or Anthropic keys into a chat
+
   prompt is exactly the leakage scenario the product is for. Shipping
+
   these two patterns before the PoC ships meaningfully improves catch
+
   rate on the highest-volume failure modes.
+
+  '
 acceptance_criteria:
-- 'New pattern entries in data_classifier/patterns/default_patterns.json:
-  openai_legacy_key + anthropic_api_key'
-- "Both patterns load via load_default_patterns() with regex+entity_type set"
-- "CREDENTIAL_PATTERN_SOURCES.md entries with full provenance fields"
-- "Test fixtures: each pattern has (a) real-shape match, (b) placeholder
-  rejection, (c) bare-prefix rejection, (d) URL/JSON embedded extraction"
+- 'New pattern entries in data_classifier/patterns/default_patterns.json: openai_legacy_key + anthropic_api_key'
+- Both patterns load via load_default_patterns() with regex+entity_type set
+- CREDENTIAL_PATTERN_SOURCES.md entries with full provenance fields
+- 'Test fixtures: each pattern has (a) real-shape match, (b) placeholder rejection, (c) bare-prefix rejection, (d) URL/JSON
+  embedded extraction'
 - All existing tests still pass; new tests pass
 - Family benchmark does not regress
 test_plan:
-- 'Unit tests on real-shape inputs (cryptographically random suffixes) — must match'
-- 'Unit tests on placeholder forms (sk-EXAMPLE..., sk-ant-api03-test...) — must
-  not match (placeholder validator rejects)'
-- 'Unit tests on bare-prefix-only (sk- alone, sk-ant- alone) — must not match'
-- 'Integration: re-run S0 smoke (50K) on research/prompt-analysis after
-  patterns land, check API_KEY count goes up if real OpenAI/Anthropic keys
-  exist in WildChat'
-- 'Family benchmark regression check'
-notes: |
-  Estimated 0.5 day total (~50 LOC + tests).
-
-  Surfaced 2026-04-16 by research/prompt-analysis S0 coverage spike on
-  17 canonical secret formats. Detailed analysis in
-  docs/experiments/prompt_analysis/queue.md §"Secret detection track"
-  Stage S1 (gap audit).
-
-  Why these two are split off from the larger S3 pattern-mine item:
-    1. They're high-impact (LLM keys are the dominant secret format
-       users would paste into a chat prompt extension)
-    2. They're well-documented by providers (no research time needed)
-    3. They unblock the browser PoC catch rate before S3 lands
-
-  Format details verified from provider docs 2026-04-16:
-    - OpenAI legacy: sk-<48 char base62> (older format, still in active use)
-    - OpenAI project: sk-proj-<160+ char base62 with _ and ->
-      (already covered by openai_api_key pattern)
-    - Anthropic: sk-ant-(api|admin)NN-<95+ char base62 with - and _>(-XX)
-      (XX is optional 2-char checksum suffix)
-phase: build
+- Unit tests on real-shape inputs (cryptographically random suffixes) — must match
+- Unit tests on placeholder forms (sk-EXAMPLE..., sk-ant-api03-test...) — must not match (placeholder validator rejects)
+- Unit tests on bare-prefix-only (sk- alone, sk-ant- alone) — must not match
+- 'Integration: re-run S0 smoke (50K) on research/prompt-analysis after patterns land, check API_KEY count goes up if real
+  OpenAI/Anthropic keys exist in WildChat'
+- Family benchmark regression check
+notes: "Estimated 0.5 day total (~50 LOC + tests).\n\nSurfaced 2026-04-16 by research/prompt-analysis S0 coverage spike on\n\
+  17 canonical secret formats. Detailed analysis in\ndocs/experiments/prompt_analysis/queue.md §\"Secret detection track\"\
+  \nStage S1 (gap audit).\n\nWhy these two are split off from the larger S3 pattern-mine item:\n  1. They're high-impact (LLM\
+  \ keys are the dominant secret format\n     users would paste into a chat prompt extension)\n  2. They're well-documented\
+  \ by providers (no research time needed)\n  3. They unblock the browser PoC catch rate before S3 lands\n\nFormat details\
+  \ verified from provider docs 2026-04-16:\n  - OpenAI legacy: sk-<48 char base62> (older format, still in active use)\n\
+  \  - OpenAI project: sk-proj-<160+ char base62 with _ and ->\n    (already covered by openai_api_key pattern)\n  - Anthropic:\
+  \ sk-ant-(api|admin)NN-<95+ char base62 with - and _>(-XX)\n    (XX is optional 2-char checksum suffix)\n"
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
