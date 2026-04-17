@@ -4,20 +4,20 @@
   "live": {
     "overall": {
       "family": {
-        "cross_family_errors": 1168,
-        "cross_family_rate": 0.1183,
-        "within_family_mislabels": 591,
+        "cross_family_errors": 1167,
+        "cross_family_rate": 0.1182,
+        "within_family_mislabels": 592,
         "n_shards": 9870,
         "family_macro_f1": 0.8566,
         "per_family": {
           "CONTACT": {
             "precision": 0.9852,
-            "recall": 0.7191,
-            "f1": 0.8314,
+            "recall": 0.7186,
+            "f1": 0.8311,
             "support": 2040,
-            "tp": 1467,
+            "tp": 1466,
             "fp": 22,
-            "fn": 573
+            "fn": 574
           },
           "CREDENTIAL": {
             "precision": 0.8161,
@@ -47,22 +47,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.9939,
+            "precision": 0.9946,
             "recall": 0.9966,
-            "f1": 0.9952,
+            "f1": 0.9956,
             "support": 1470,
             "tp": 1465,
-            "fp": 9,
+            "fp": 8,
             "fn": 5
           },
           "GOVERNMENT_ID": {
             "precision": 0.9848,
-            "recall": 0.9937,
-            "f1": 0.9892,
+            "recall": 0.9955,
+            "f1": 0.9901,
             "support": 1110,
-            "tp": 1103,
+            "tp": 1105,
             "fp": 17,
-            "fn": 7
+            "fn": 5
           },
           "HEALTHCARE": {
             "precision": 0.9451,
@@ -120,35 +120,35 @@
           }
         },
         "cross_family_rate_emitted": 0.0879,
-        "family_macro_f1_emitted": 0.8825,
-        "n_shards_emitted": 7985,
-        "router_suppressed_count": 1885,
-        "router_suppression_rate": 0.191,
+        "family_macro_f1_emitted": 0.8826,
+        "n_shards_emitted": 7978,
+        "router_suppressed_count": 1892,
+        "router_suppression_rate": 0.1917,
         "suppressed_by_shape": {
-          "opaque_tokens": 765,
+          "opaque_tokens": 772,
           "free_text_heterogeneous": 1120
         }
       },
       "family_multilabel": {
-        "multilabel_macro_f1": 0.8194,
+        "multilabel_macro_f1": 0.8664,
         "per_family_multilabel": {
           "CONTACT": {
-            "precision": 0.8223,
-            "recall": 0.7216,
-            "f1": 0.7687,
-            "support": 2040,
-            "tp": 1472,
-            "fp": 318,
+            "precision": 0.9274,
+            "recall": 0.7451,
+            "f1": 0.8263,
+            "support": 2228,
+            "tp": 1660,
+            "fp": 130,
             "fn": 568
           },
           "CREDENTIAL": {
-            "precision": 0.7164,
-            "recall": 0.98,
-            "f1": 0.8277,
-            "support": 750,
-            "tp": 735,
-            "fp": 291,
-            "fn": 15
+            "precision": 0.8431,
+            "recall": 0.9763,
+            "f1": 0.9048,
+            "support": 886,
+            "tp": 865,
+            "fp": 161,
+            "fn": 21
           },
           "CRYPTO": {
             "precision": 1.0,
@@ -169,22 +169,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.9905,
+            "precision": 0.9912,
             "recall": 0.9966,
-            "f1": 0.9936,
+            "f1": 0.9939,
             "support": 1470,
             "tp": 1465,
-            "fp": 14,
+            "fp": 13,
             "fn": 5
           },
           "GOVERNMENT_ID": {
             "precision": 0.9728,
-            "recall": 0.9973,
-            "f1": 0.9849,
+            "recall": 0.9991,
+            "f1": 0.9858,
             "support": 1110,
-            "tp": 1107,
+            "tp": 1109,
             "fp": 31,
-            "fn": 3
+            "fn": 1
           },
           "HEALTHCARE": {
             "precision": 0.9333,
@@ -223,13 +223,13 @@
             "fn": 0
           },
           "URL": {
-            "precision": 0.3017,
-            "recall": 1.0,
-            "f1": 0.4636,
-            "support": 210,
-            "tp": 210,
-            "fp": 486,
-            "fn": 0
+            "precision": 0.8391,
+            "recall": 0.9511,
+            "f1": 0.8916,
+            "support": 614,
+            "tp": 584,
+            "fp": 112,
+            "fn": 30
           },
           "VEHICLE": {
             "precision": 1.0,
@@ -247,9 +247,9 @@
         "macro_f1": 0.8518,
         "per_class": {
           "ABA_ROUTING": {
-            "precision": 0.9825,
+            "precision": 0.9844,
             "recall": 0.9902,
-            "f1": 0.9863,
+            "f1": 0.9873,
             "support": 510
           },
           "ADDRESS": {
@@ -386,8 +386,8 @@
           },
           "PHONE": {
             "precision": 1.0,
-            "recall": 0.8627,
-            "f1": 0.9263,
+            "recall": 0.8608,
+            "f1": 0.9252,
             "support": 510
           },
           "PRIVATE_KEY": {
@@ -398,8 +398,8 @@
           },
           "SSN": {
             "precision": 0.9765,
-            "recall": 0.9765,
-            "f1": 0.9765,
+            "recall": 0.9784,
+            "f1": 0.9775,
             "support": 510
           },
           "SWIFT_BIC": {
@@ -551,25 +551,25 @@
         }
       },
       "family_multilabel": {
-        "multilabel_macro_f1": 0.8387,
+        "multilabel_macro_f1": 0.8841,
         "per_family_multilabel": {
           "CONTACT": {
-            "precision": 0.8479,
+            "precision": 0.926,
             "recall": 1.0,
-            "f1": 0.9177,
-            "support": 1020,
-            "tp": 1020,
-            "fp": 183,
+            "f1": 0.9616,
+            "support": 1114,
+            "tp": 1114,
+            "fp": 89,
             "fn": 0
           },
           "CREDENTIAL": {
-            "precision": 0.7225,
-            "recall": 1.0,
-            "f1": 0.8389,
-            "support": 375,
-            "tp": 375,
-            "fp": 144,
-            "fn": 0
+            "precision": 0.8478,
+            "recall": 0.9932,
+            "f1": 0.9148,
+            "support": 443,
+            "tp": 440,
+            "fp": 79,
+            "fn": 3
           },
           "CRYPTO": {
             "precision": 1.0,
@@ -644,13 +644,13 @@
             "fn": 0
           },
           "URL": {
-            "precision": 0.2933,
-            "recall": 1.0,
-            "f1": 0.4536,
-            "support": 105,
-            "tp": 105,
-            "fp": 253,
-            "fn": 0
+            "precision": 0.8156,
+            "recall": 0.9511,
+            "f1": 0.8782,
+            "support": 307,
+            "tp": 292,
+            "fp": 66,
+            "fn": 15
           },
           "VEHICLE": {
             "precision": 1.0,
@@ -840,20 +840,20 @@
     },
     "blind": {
       "family": {
-        "cross_family_errors": 923,
-        "cross_family_rate": 0.187,
-        "within_family_mislabels": 308,
+        "cross_family_errors": 922,
+        "cross_family_rate": 0.1868,
+        "within_family_mislabels": 309,
         "n_shards": 4935,
-        "family_macro_f1": 0.8265,
+        "family_macro_f1": 0.8267,
         "per_family": {
           "CONTACT": {
-            "precision": 0.9846,
-            "recall": 0.4382,
-            "f1": 0.6065,
+            "precision": 0.9845,
+            "recall": 0.4373,
+            "f1": 0.6056,
             "support": 1020,
-            "tp": 447,
+            "tp": 446,
             "fp": 7,
-            "fn": 573
+            "fn": 574
           },
           "CREDENTIAL": {
             "precision": 0.7725,
@@ -883,22 +883,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.9878,
+            "precision": 0.9892,
             "recall": 0.9932,
-            "f1": 0.9905,
+            "f1": 0.9912,
             "support": 735,
             "tp": 730,
-            "fp": 9,
+            "fp": 8,
             "fn": 5
           },
           "GOVERNMENT_ID": {
-            "precision": 0.9699,
-            "recall": 0.9874,
-            "f1": 0.9786,
+            "precision": 0.97,
+            "recall": 0.991,
+            "f1": 0.9804,
             "support": 555,
-            "tp": 548,
+            "tp": 550,
             "fp": 17,
-            "fn": 7
+            "fn": 5
           },
           "HEALTHCARE": {
             "precision": 0.8959,
@@ -956,35 +956,35 @@
           }
         },
         "cross_family_rate_emitted": 0.1601,
-        "family_macro_f1_emitted": 0.8493,
-        "n_shards_emitted": 3916,
-        "router_suppressed_count": 1019,
-        "router_suppression_rate": 0.2065,
+        "family_macro_f1_emitted": 0.8495,
+        "n_shards_emitted": 3909,
+        "router_suppressed_count": 1026,
+        "router_suppression_rate": 0.2079,
         "suppressed_by_shape": {
-          "opaque_tokens": 464,
+          "opaque_tokens": 471,
           "free_text_heterogeneous": 555
         }
       },
       "family_multilabel": {
-        "multilabel_macro_f1": 0.7946,
+        "multilabel_macro_f1": 0.8439,
         "per_family_multilabel": {
           "CONTACT": {
-            "precision": 0.77,
-            "recall": 0.4431,
-            "f1": 0.5625,
-            "support": 1020,
-            "tp": 452,
-            "fp": 135,
+            "precision": 0.9302,
+            "recall": 0.4901,
+            "f1": 0.642,
+            "support": 1114,
+            "tp": 546,
+            "fp": 41,
             "fn": 568
           },
           "CREDENTIAL": {
-            "precision": 0.7101,
-            "recall": 0.96,
-            "f1": 0.8163,
-            "support": 375,
-            "tp": 360,
-            "fp": 147,
-            "fn": 15
+            "precision": 0.8383,
+            "recall": 0.9594,
+            "f1": 0.8947,
+            "support": 443,
+            "tp": 425,
+            "fp": 82,
+            "fn": 18
           },
           "CRYPTO": {
             "precision": 1.0,
@@ -1005,22 +1005,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.9812,
+            "precision": 0.9825,
             "recall": 0.9932,
-            "f1": 0.9872,
+            "f1": 0.9878,
             "support": 735,
             "tp": 730,
-            "fp": 14,
+            "fp": 13,
             "fn": 5
           },
           "GOVERNMENT_ID": {
-            "precision": 0.9534,
-            "recall": 0.9946,
-            "f1": 0.9735,
+            "precision": 0.9535,
+            "recall": 0.9982,
+            "f1": 0.9754,
             "support": 555,
-            "tp": 552,
+            "tp": 554,
             "fp": 27,
-            "fn": 3
+            "fn": 1
           },
           "HEALTHCARE": {
             "precision": 0.875,
@@ -1059,13 +1059,13 @@
             "fn": 0
           },
           "URL": {
-            "precision": 0.3107,
-            "recall": 1.0,
-            "f1": 0.474,
-            "support": 105,
-            "tp": 105,
-            "fp": 233,
-            "fn": 0
+            "precision": 0.8639,
+            "recall": 0.9511,
+            "f1": 0.9054,
+            "support": 307,
+            "tp": 292,
+            "fp": 46,
+            "fn": 15
           },
           "VEHICLE": {
             "precision": 1.0,
@@ -1083,9 +1083,9 @@
         "macro_f1": 0.7888,
         "per_class": {
           "ABA_ROUTING": {
-            "precision": 0.9653,
+            "precision": 0.969,
             "recall": 0.9804,
-            "f1": 0.9728,
+            "f1": 0.9747,
             "support": 255
           },
           "ADDRESS": {
@@ -1222,8 +1222,8 @@
           },
           "PHONE": {
             "precision": 1.0,
-            "recall": 0.7255,
-            "f1": 0.8409,
+            "recall": 0.7216,
+            "f1": 0.8383,
             "support": 255
           },
           "PRIVATE_KEY": {
@@ -1233,9 +1233,9 @@
             "support": 0
           },
           "SSN": {
-            "precision": 0.9529,
-            "recall": 0.9529,
-            "f1": 0.9529,
+            "precision": 0.9531,
+            "recall": 0.9569,
+            "f1": 0.955,
             "support": 255
           },
           "SWIFT_BIC": {
@@ -1263,20 +1263,20 @@
   "shadow": {
     "overall": {
       "family": {
-        "cross_family_errors": 1984,
-        "cross_family_rate": 0.201,
-        "within_family_mislabels": 0,
+        "cross_family_errors": 1987,
+        "cross_family_rate": 0.2013,
+        "within_family_mislabels": 1,
         "n_shards": 9870,
         "family_macro_f1": 0.7717,
         "per_family": {
           "CONTACT": {
             "precision": 0.9994,
-            "recall": 0.8853,
-            "f1": 0.9389,
+            "recall": 0.8843,
+            "f1": 0.9384,
             "support": 2040,
-            "tp": 1806,
+            "tp": 1804,
             "fp": 1,
-            "fn": 234
+            "fn": 236
           },
           "CREDENTIAL": {
             "precision": 0.9928,
@@ -1306,22 +1306,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.942,
+            "precision": 0.9444,
             "recall": 0.9939,
-            "f1": 0.9672,
+            "f1": 0.9685,
             "support": 1470,
             "tp": 1461,
-            "fp": 90,
+            "fp": 86,
             "fn": 9
           },
           "GOVERNMENT_ID": {
             "precision": 1.0,
-            "recall": 0.8324,
-            "f1": 0.9086,
+            "recall": 0.8315,
+            "f1": 0.908,
             "support": 1110,
-            "tp": 924,
+            "tp": 923,
             "fp": 0,
-            "fn": 186
+            "fn": 187
           },
           "HEALTHCARE": {
             "precision": 1.0,
@@ -1378,36 +1378,36 @@
             "fn": 0
           }
         },
-        "cross_family_rate_emitted": 0.0124,
-        "family_macro_f1_emitted": 0.9912,
-        "n_shards_emitted": 7985,
-        "router_suppressed_count": 1885,
-        "router_suppression_rate": 0.191,
+        "cross_family_rate_emitted": 0.0119,
+        "family_macro_f1_emitted": 0.9915,
+        "n_shards_emitted": 7978,
+        "router_suppressed_count": 1892,
+        "router_suppression_rate": 0.1917,
         "suppressed_by_shape": {
-          "opaque_tokens": 765,
+          "opaque_tokens": 772,
           "free_text_heterogeneous": 1120
         }
       },
       "family_multilabel": {
-        "multilabel_macro_f1": 0.7717,
+        "multilabel_macro_f1": 0.7407,
         "per_family_multilabel": {
           "CONTACT": {
             "precision": 0.9994,
-            "recall": 0.8853,
-            "f1": 0.9389,
-            "support": 2040,
-            "tp": 1806,
+            "recall": 0.8097,
+            "f1": 0.8946,
+            "support": 2228,
+            "tp": 1804,
             "fp": 1,
-            "fn": 234
+            "fn": 424
           },
           "CREDENTIAL": {
             "precision": 0.9928,
-            "recall": 0.3667,
-            "f1": 0.5355,
-            "support": 750,
+            "recall": 0.3104,
+            "f1": 0.4729,
+            "support": 886,
             "tp": 275,
             "fp": 2,
-            "fn": 475
+            "fn": 611
           },
           "CRYPTO": {
             "precision": 0.0,
@@ -1428,22 +1428,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.942,
+            "precision": 0.9444,
             "recall": 0.9939,
-            "f1": 0.9672,
+            "f1": 0.9685,
             "support": 1470,
             "tp": 1461,
-            "fp": 90,
+            "fp": 86,
             "fn": 9
           },
           "GOVERNMENT_ID": {
             "precision": 1.0,
-            "recall": 0.8324,
-            "f1": 0.9086,
+            "recall": 0.8315,
+            "f1": 0.908,
             "support": 1110,
-            "tp": 924,
+            "tp": 923,
             "fp": 0,
-            "fn": 186
+            "fn": 187
           },
           "HEALTHCARE": {
             "precision": 1.0,
@@ -1483,12 +1483,12 @@
           },
           "URL": {
             "precision": 1.0,
-            "recall": 0.2857,
-            "f1": 0.4444,
-            "support": 210,
+            "recall": 0.0977,
+            "f1": 0.178,
+            "support": 614,
             "tp": 60,
             "fp": 0,
-            "fn": 150
+            "fn": 554
           },
           "VEHICLE": {
             "precision": 1.0,
@@ -1502,19 +1502,19 @@
         }
       },
       "subtype": {
-        "accuracy": 0.799,
-        "macro_f1": 0.8301,
+        "accuracy": 0.7986,
+        "macro_f1": 0.83,
         "per_class": {
           "ABA_ROUTING": {
-            "precision": 0.8487,
+            "precision": 0.8545,
             "recall": 0.9902,
-            "f1": 0.914,
+            "f1": 0.9173,
             "support": 510
           },
           "ADDRESS": {
-            "precision": 0.9966,
+            "precision": 0.9933,
             "recall": 0.5784,
-            "f1": 0.732,
+            "f1": 0.7311,
             "support": 510
           },
           "BANK_ACCOUNT": {
@@ -1627,20 +1627,20 @@
           },
           "PERSON_NAME": {
             "precision": 1.0,
-            "recall": 1.0,
-            "f1": 1.0,
+            "recall": 0.998,
+            "f1": 0.999,
             "support": 510
           },
           "PHONE": {
             "precision": 1.0,
-            "recall": 0.9686,
-            "f1": 0.9841,
+            "recall": 0.9647,
+            "f1": 0.982,
             "support": 510
           },
           "SSN": {
             "precision": 1.0,
-            "recall": 0.6353,
-            "f1": 0.777,
+            "recall": 0.6333,
+            "f1": 0.7755,
             "support": 510
           },
           "SWIFT_BIC": {
@@ -1792,25 +1792,25 @@
         }
       },
       "family_multilabel": {
-        "multilabel_macro_f1": 0.786,
+        "multilabel_macro_f1": 0.7548,
         "per_family_multilabel": {
           "CONTACT": {
             "precision": 1.0,
-            "recall": 0.8922,
-            "f1": 0.943,
-            "support": 1020,
+            "recall": 0.8169,
+            "f1": 0.8992,
+            "support": 1114,
             "tp": 910,
             "fp": 0,
-            "fn": 110
+            "fn": 204
           },
           "CREDENTIAL": {
             "precision": 0.9864,
-            "recall": 0.3867,
-            "f1": 0.5556,
-            "support": 375,
+            "recall": 0.3273,
+            "f1": 0.4915,
+            "support": 443,
             "tp": 145,
             "fp": 2,
-            "fn": 230
+            "fn": 298
           },
           "CRYPTO": {
             "precision": 0.0,
@@ -1886,12 +1886,12 @@
           },
           "URL": {
             "precision": 1.0,
-            "recall": 0.2857,
-            "f1": 0.4444,
-            "support": 105,
+            "recall": 0.0977,
+            "f1": 0.178,
+            "support": 307,
             "tp": 30,
             "fp": 0,
-            "fn": 75
+            "fn": 277
           },
           "VEHICLE": {
             "precision": 1.0,
@@ -2069,20 +2069,20 @@
     },
     "blind": {
       "family": {
-        "cross_family_errors": 1116,
-        "cross_family_rate": 0.2261,
-        "within_family_mislabels": 0,
+        "cross_family_errors": 1119,
+        "cross_family_rate": 0.2267,
+        "within_family_mislabels": 1,
         "n_shards": 4935,
         "family_macro_f1": 0.756,
         "per_family": {
           "CONTACT": {
             "precision": 0.9989,
-            "recall": 0.8784,
-            "f1": 0.9348,
+            "recall": 0.8765,
+            "f1": 0.9337,
             "support": 1020,
-            "tp": 896,
+            "tp": 894,
             "fp": 1,
-            "fn": 124
+            "fn": 126
           },
           "CREDENTIAL": {
             "precision": 1.0,
@@ -2112,22 +2112,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.8897,
+            "precision": 0.8941,
             "recall": 0.9878,
-            "f1": 0.9362,
+            "f1": 0.9386,
             "support": 735,
             "tp": 726,
-            "fp": 90,
+            "fp": 86,
             "fn": 9
           },
           "GOVERNMENT_ID": {
             "precision": 1.0,
-            "recall": 0.6649,
-            "f1": 0.7987,
+            "recall": 0.6631,
+            "f1": 0.7974,
             "support": 555,
-            "tp": 369,
+            "tp": 368,
             "fp": 0,
-            "fn": 186
+            "fn": 187
           },
           "HEALTHCARE": {
             "precision": 1.0,
@@ -2184,36 +2184,36 @@
             "fn": 0
           }
         },
-        "cross_family_rate_emitted": 0.0248,
-        "family_macro_f1_emitted": 0.983,
-        "n_shards_emitted": 3916,
-        "router_suppressed_count": 1019,
-        "router_suppression_rate": 0.2065,
+        "cross_family_rate_emitted": 0.0238,
+        "family_macro_f1_emitted": 0.9837,
+        "n_shards_emitted": 3909,
+        "router_suppressed_count": 1026,
+        "router_suppression_rate": 0.2079,
         "suppressed_by_shape": {
-          "opaque_tokens": 464,
+          "opaque_tokens": 471,
           "free_text_heterogeneous": 555
         }
       },
       "family_multilabel": {
-        "multilabel_macro_f1": 0.756,
+        "multilabel_macro_f1": 0.7251,
         "per_family_multilabel": {
           "CONTACT": {
             "precision": 0.9989,
-            "recall": 0.8784,
-            "f1": 0.9348,
-            "support": 1020,
-            "tp": 896,
+            "recall": 0.8025,
+            "f1": 0.89,
+            "support": 1114,
+            "tp": 894,
             "fp": 1,
-            "fn": 124
+            "fn": 220
           },
           "CREDENTIAL": {
             "precision": 1.0,
-            "recall": 0.3467,
-            "f1": 0.5149,
-            "support": 375,
+            "recall": 0.2935,
+            "f1": 0.4538,
+            "support": 443,
             "tp": 130,
             "fp": 0,
-            "fn": 245
+            "fn": 313
           },
           "CRYPTO": {
             "precision": 0.0,
@@ -2234,22 +2234,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.8897,
+            "precision": 0.8941,
             "recall": 0.9878,
-            "f1": 0.9362,
+            "f1": 0.9386,
             "support": 735,
             "tp": 726,
-            "fp": 90,
+            "fp": 86,
             "fn": 9
           },
           "GOVERNMENT_ID": {
             "precision": 1.0,
-            "recall": 0.6649,
-            "f1": 0.7987,
+            "recall": 0.6631,
+            "f1": 0.7974,
             "support": 555,
-            "tp": 369,
+            "tp": 368,
             "fp": 0,
-            "fn": 186
+            "fn": 187
           },
           "HEALTHCARE": {
             "precision": 1.0,
@@ -2289,12 +2289,12 @@
           },
           "URL": {
             "precision": 1.0,
-            "recall": 0.2857,
-            "f1": 0.4444,
-            "support": 105,
+            "recall": 0.0977,
+            "f1": 0.178,
+            "support": 307,
             "tp": 30,
             "fp": 0,
-            "fn": 75
+            "fn": 277
           },
           "VEHICLE": {
             "precision": 1.0,
@@ -2308,19 +2308,19 @@
         }
       },
       "subtype": {
-        "accuracy": 0.7739,
-        "macro_f1": 0.8083,
+        "accuracy": 0.773,
+        "macro_f1": 0.808,
         "per_class": {
           "ABA_ROUTING": {
-            "precision": 0.7353,
+            "precision": 0.744,
             "recall": 0.9804,
-            "f1": 0.8403,
+            "f1": 0.846,
             "support": 255
           },
           "ADDRESS": {
-            "precision": 0.9934,
+            "precision": 0.9868,
             "recall": 0.5882,
-            "f1": 0.7389,
+            "f1": 0.7371,
             "support": 255
           },
           "BANK_ACCOUNT": {
@@ -2433,20 +2433,20 @@
           },
           "PERSON_NAME": {
             "precision": 1.0,
-            "recall": 1.0,
-            "f1": 1.0,
+            "recall": 0.9961,
+            "f1": 0.998,
             "support": 255
           },
           "PHONE": {
             "precision": 1.0,
-            "recall": 0.9373,
-            "f1": 0.9676,
+            "recall": 0.9294,
+            "f1": 0.9634,
             "support": 255
           },
           "SSN": {
             "precision": 1.0,
-            "recall": 0.2706,
-            "f1": 0.4259,
+            "recall": 0.2667,
+            "f1": 0.4211,
             "support": 255
           },
           "SWIFT_BIC": {
