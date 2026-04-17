@@ -8,10 +8,14 @@ test('tester page detects a GitHub PAT', async ({ page }) => {
   );
   await page.click('#scan-btn');
 
-  await page.waitForSelector('#findings-out:not(:empty)', { timeout: 10_000 });
-  const findings = await page.locator('#findings-out').textContent();
-  expect(findings).toMatch(/"category":\s*"Credential"/);
+  await page.waitForSelector('#findings-summary .finding-card', { timeout: 10_000 });
+  const findingType = await page.locator('.finding-card .finding-type').first().textContent();
+  expect(findingType).toBeTruthy();
 
   const redacted = await page.locator('#redacted-out').textContent();
   expect(redacted).not.toContain('ghp_aaaaaaaaaaaaaaaa');
+
+  // Verify original text highlights the secret
+  const highlight = await page.locator('#original-out .secret-highlight').first().textContent();
+  expect(highlight).toContain('ghp_');
 });

@@ -8,7 +8,7 @@ test('worker terminate on pathological input under fail-open', async ({ page }) 
   await page.fill('#input', pathological);
   await page.click('#scan-btn');
 
-  await page.waitForSelector('#findings-out:not(:empty)', { timeout: 10_000 });
-  const findings = await page.locator('#findings-out').textContent();
-  expect(findings).toContain('scannedMs');
+  await page.waitForSelector('#results', { state: 'visible', timeout: 10_000 });
+  const scanTime = await page.locator('#scan-time').textContent();
+  expect(scanTime).toContain('ms');
 });
