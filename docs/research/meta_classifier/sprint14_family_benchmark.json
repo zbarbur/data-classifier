@@ -4,29 +4,29 @@
   "live": {
     "overall": {
       "family": {
-        "cross_family_errors": 1146,
-        "cross_family_rate": 0.1161,
-        "within_family_mislabels": 609,
+        "cross_family_errors": 1168,
+        "cross_family_rate": 0.1183,
+        "within_family_mislabels": 591,
         "n_shards": 9870,
-        "family_macro_f1": 0.8563,
+        "family_macro_f1": 0.8566,
         "per_family": {
           "CONTACT": {
-            "precision": 0.9912,
+            "precision": 0.9852,
             "recall": 0.7191,
-            "f1": 0.8335,
+            "f1": 0.8314,
             "support": 2040,
             "tp": 1467,
-            "fp": 13,
+            "fp": 22,
             "fn": 573
           },
           "CREDENTIAL": {
-            "precision": 0.7542,
-            "recall": 0.9573,
-            "f1": 0.8437,
+            "precision": 0.8161,
+            "recall": 0.9347,
+            "f1": 0.8713,
             "support": 750,
-            "tp": 718,
-            "fp": 234,
-            "fn": 32
+            "tp": 701,
+            "fp": 158,
+            "fn": 49
           },
           "CRYPTO": {
             "precision": 1.0,
@@ -47,22 +47,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.9959,
+            "precision": 0.9939,
             "recall": 0.9966,
-            "f1": 0.9963,
+            "f1": 0.9952,
             "support": 1470,
             "tp": 1465,
-            "fp": 6,
+            "fp": 9,
             "fn": 5
           },
           "GOVERNMENT_ID": {
             "precision": 0.9848,
-            "recall": 0.9955,
-            "f1": 0.9901,
+            "recall": 0.9937,
+            "f1": 0.9892,
             "support": 1110,
-            "tp": 1105,
+            "tp": 1103,
             "fp": 17,
-            "fn": 5
+            "fn": 7
           },
           "HEALTHCARE": {
             "precision": 0.9451,
@@ -101,13 +101,13 @@
             "fn": 6
           },
           "URL": {
-            "precision": 0.5915,
-            "recall": 1.0,
-            "f1": 0.7434,
+            "precision": 0.5702,
+            "recall": 0.9857,
+            "f1": 0.7225,
             "support": 210,
-            "tp": 210,
-            "fp": 145,
-            "fn": 0
+            "tp": 207,
+            "fp": 156,
+            "fn": 3
           },
           "VEHICLE": {
             "precision": 1.0,
@@ -119,24 +119,137 @@
             "fn": 75
           }
         },
-        "cross_family_rate_emitted": 0.0876,
-        "family_macro_f1_emitted": 0.8719,
-        "n_shards_emitted": 7991,
-        "router_suppressed_count": 1879,
-        "router_suppression_rate": 0.1904,
+        "cross_family_rate_emitted": 0.0879,
+        "family_macro_f1_emitted": 0.8825,
+        "n_shards_emitted": 7985,
+        "router_suppressed_count": 1885,
+        "router_suppression_rate": 0.191,
         "suppressed_by_shape": {
-          "opaque_tokens": 769,
-          "free_text_heterogeneous": 1110
+          "opaque_tokens": 765,
+          "free_text_heterogeneous": 1120
+        }
+      },
+      "family_multilabel": {
+        "multilabel_macro_f1": 0.8194,
+        "per_family_multilabel": {
+          "CONTACT": {
+            "precision": 0.8223,
+            "recall": 0.7216,
+            "f1": 0.7687,
+            "support": 2040,
+            "tp": 1472,
+            "fp": 318,
+            "fn": 568
+          },
+          "CREDENTIAL": {
+            "precision": 0.7164,
+            "recall": 0.98,
+            "f1": 0.8277,
+            "support": 750,
+            "tp": 735,
+            "fp": 291,
+            "fn": 15
+          },
+          "CRYPTO": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 600,
+            "tp": 600,
+            "fp": 0,
+            "fn": 0
+          },
+          "DATE": {
+            "precision": 0.8644,
+            "recall": 1.0,
+            "f1": 0.9273,
+            "support": 510,
+            "tp": 510,
+            "fp": 80,
+            "fn": 0
+          },
+          "FINANCIAL": {
+            "precision": 0.9905,
+            "recall": 0.9966,
+            "f1": 0.9936,
+            "support": 1470,
+            "tp": 1465,
+            "fp": 14,
+            "fn": 5
+          },
+          "GOVERNMENT_ID": {
+            "precision": 0.9728,
+            "recall": 0.9973,
+            "f1": 0.9849,
+            "support": 1110,
+            "tp": 1107,
+            "fp": 31,
+            "fn": 3
+          },
+          "HEALTHCARE": {
+            "precision": 0.9333,
+            "recall": 1.0,
+            "f1": 0.9655,
+            "support": 1050,
+            "tp": 1050,
+            "fp": 75,
+            "fn": 0
+          },
+          "NEGATIVE": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 450,
+            "tp": 0,
+            "fp": 0,
+            "fn": 450
+          },
+          "NETWORK": {
+            "precision": 0.985,
+            "recall": 1.0,
+            "f1": 0.9924,
+            "support": 720,
+            "tp": 720,
+            "fp": 11,
+            "fn": 0
+          },
+          "PAYMENT_CARD": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 510,
+            "tp": 510,
+            "fp": 0,
+            "fn": 0
+          },
+          "URL": {
+            "precision": 0.3017,
+            "recall": 1.0,
+            "f1": 0.4636,
+            "support": 210,
+            "tp": 210,
+            "fp": 486,
+            "fn": 0
+          },
+          "VEHICLE": {
+            "precision": 1.0,
+            "recall": 0.8333,
+            "f1": 0.9091,
+            "support": 450,
+            "tp": 375,
+            "fp": 0,
+            "fn": 75
+          }
         }
       },
       "subtype": {
-        "accuracy": 0.8222,
-        "macro_f1": 0.8485,
+        "accuracy": 0.8218,
+        "macro_f1": 0.8518,
         "per_class": {
           "ABA_ROUTING": {
-            "precision": 0.9883,
+            "precision": 0.9825,
             "recall": 0.9902,
-            "f1": 0.9892,
+            "f1": 0.9863,
             "support": 510
           },
           "ADDRESS": {
@@ -200,9 +313,9 @@
             "support": 300
           },
           "EMAIL": {
-            "precision": 0.9751,
+            "precision": 0.9586,
             "recall": 1.0,
-            "f1": 0.9874,
+            "f1": 0.9789,
             "support": 510
           },
           "ETHEREUM_ADDRESS": {
@@ -260,9 +373,9 @@
             "support": 300
           },
           "OPAQUE_SECRET": {
-            "precision": 0.1828,
+            "precision": 0.284,
             "recall": 0.7667,
-            "f1": 0.2953,
+            "f1": 0.4144,
             "support": 150
           },
           "PERSON_NAME": {
@@ -285,8 +398,8 @@
           },
           "SSN": {
             "precision": 0.9765,
-            "recall": 0.9784,
-            "f1": 0.9775,
+            "recall": 0.9765,
+            "f1": 0.9765,
             "support": 510
           },
           "SWIFT_BIC": {
@@ -296,9 +409,9 @@
             "support": 360
           },
           "URL": {
-            "precision": 0.5915,
-            "recall": 1.0,
-            "f1": 0.7434,
+            "precision": 0.5702,
+            "recall": 0.9857,
+            "f1": 0.7225,
             "support": 210
           },
           "VIN": {
@@ -312,29 +425,29 @@
     },
     "named": {
       "family": {
-        "cross_family_errors": 225,
-        "cross_family_rate": 0.0456,
-        "within_family_mislabels": 300,
+        "cross_family_errors": 245,
+        "cross_family_rate": 0.0496,
+        "within_family_mislabels": 283,
         "n_shards": 4935,
-        "family_macro_f1": 0.8795,
+        "family_macro_f1": 0.8807,
         "per_family": {
           "CONTACT": {
-            "precision": 0.9942,
+            "precision": 0.9855,
             "recall": 1.0,
-            "f1": 0.9971,
+            "f1": 0.9927,
             "support": 1020,
             "tp": 1020,
-            "fp": 6,
+            "fp": 15,
             "fn": 0
           },
           "CREDENTIAL": {
-            "precision": 0.7396,
-            "recall": 1.0,
-            "f1": 0.8503,
+            "precision": 0.8627,
+            "recall": 0.9547,
+            "f1": 0.9063,
             "support": 375,
-            "tp": 375,
-            "fp": 132,
-            "fn": 0
+            "tp": 358,
+            "fp": 57,
+            "fn": 17
           },
           "CRYPTO": {
             "precision": 1.0,
@@ -409,13 +522,13 @@
             "fn": 0
           },
           "URL": {
-            "precision": 0.5469,
-            "recall": 1.0,
-            "f1": 0.7071,
+            "precision": 0.51,
+            "recall": 0.9714,
+            "f1": 0.6689,
             "support": 105,
-            "tp": 105,
-            "fp": 87,
-            "fn": 0
+            "tp": 102,
+            "fp": 98,
+            "fn": 3
           },
           "VEHICLE": {
             "precision": 1.0,
@@ -428,18 +541,131 @@
           }
         },
         "cross_family_rate_emitted": 0.0184,
-        "family_macro_f1_emitted": 0.8909,
-        "n_shards_emitted": 4079,
-        "router_suppressed_count": 856,
-        "router_suppression_rate": 0.1735,
+        "family_macro_f1_emitted": 0.9091,
+        "n_shards_emitted": 4069,
+        "router_suppressed_count": 866,
+        "router_suppression_rate": 0.1755,
         "suppressed_by_shape": {
-          "free_text_heterogeneous": 555,
+          "free_text_heterogeneous": 565,
           "opaque_tokens": 301
         }
       },
+      "family_multilabel": {
+        "multilabel_macro_f1": 0.8387,
+        "per_family_multilabel": {
+          "CONTACT": {
+            "precision": 0.8479,
+            "recall": 1.0,
+            "f1": 0.9177,
+            "support": 1020,
+            "tp": 1020,
+            "fp": 183,
+            "fn": 0
+          },
+          "CREDENTIAL": {
+            "precision": 0.7225,
+            "recall": 1.0,
+            "f1": 0.8389,
+            "support": 375,
+            "tp": 375,
+            "fp": 144,
+            "fn": 0
+          },
+          "CRYPTO": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 300,
+            "tp": 300,
+            "fp": 0,
+            "fn": 0
+          },
+          "DATE": {
+            "precision": 0.7751,
+            "recall": 1.0,
+            "f1": 0.8733,
+            "support": 255,
+            "tp": 255,
+            "fp": 74,
+            "fn": 0
+          },
+          "FINANCIAL": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 735,
+            "tp": 735,
+            "fp": 0,
+            "fn": 0
+          },
+          "GOVERNMENT_ID": {
+            "precision": 0.9928,
+            "recall": 1.0,
+            "f1": 0.9964,
+            "support": 555,
+            "tp": 555,
+            "fp": 4,
+            "fn": 0
+          },
+          "HEALTHCARE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 525,
+            "tp": 525,
+            "fp": 0,
+            "fn": 0
+          },
+          "NEGATIVE": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 225,
+            "tp": 0,
+            "fp": 0,
+            "fn": 225
+          },
+          "NETWORK": {
+            "precision": 0.9704,
+            "recall": 1.0,
+            "f1": 0.985,
+            "support": 360,
+            "tp": 360,
+            "fp": 11,
+            "fn": 0
+          },
+          "PAYMENT_CARD": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 255,
+            "tp": 255,
+            "fp": 0,
+            "fn": 0
+          },
+          "URL": {
+            "precision": 0.2933,
+            "recall": 1.0,
+            "f1": 0.4536,
+            "support": 105,
+            "tp": 105,
+            "fp": 253,
+            "fn": 0
+          },
+          "VEHICLE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 225,
+            "tp": 225,
+            "fp": 0,
+            "fn": 0
+          }
+        }
+      },
       "subtype": {
-        "accuracy": 0.8936,
-        "macro_f1": 0.8837,
+        "accuracy": 0.893,
+        "macro_f1": 0.8894,
         "per_class": {
           "ABA_ROUTING": {
             "precision": 1.0,
@@ -508,9 +734,9 @@
             "support": 150
           },
           "EMAIL": {
-            "precision": 0.977,
+            "precision": 0.9444,
             "recall": 1.0,
-            "f1": 0.9884,
+            "f1": 0.9714,
             "support": 255
           },
           "ETHEREUM_ADDRESS": {
@@ -562,9 +788,9 @@
             "support": 150
           },
           "OPAQUE_SECRET": {
-            "precision": 0.1638,
+            "precision": 0.3191,
             "recall": 1.0,
-            "f1": 0.2814,
+            "f1": 0.4839,
             "support": 75
           },
           "PERSON_NAME": {
@@ -598,9 +824,9 @@
             "support": 180
           },
           "URL": {
-            "precision": 0.5469,
-            "recall": 1.0,
-            "f1": 0.7071,
+            "precision": 0.51,
+            "recall": 0.9714,
+            "f1": 0.6689,
             "support": 105
           },
           "VIN": {
@@ -614,11 +840,11 @@
     },
     "blind": {
       "family": {
-        "cross_family_errors": 921,
-        "cross_family_rate": 0.1866,
-        "within_family_mislabels": 309,
+        "cross_family_errors": 923,
+        "cross_family_rate": 0.187,
+        "within_family_mislabels": 308,
         "n_shards": 4935,
-        "family_macro_f1": 0.8268,
+        "family_macro_f1": 0.8265,
         "per_family": {
           "CONTACT": {
             "precision": 0.9846,
@@ -630,12 +856,12 @@
             "fn": 573
           },
           "CREDENTIAL": {
-            "precision": 0.7708,
+            "precision": 0.7725,
             "recall": 0.9147,
-            "f1": 0.8366,
+            "f1": 0.8376,
             "support": 375,
             "tp": 343,
-            "fp": 102,
+            "fp": 101,
             "fn": 32
           },
           "CRYPTO": {
@@ -657,22 +883,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.9918,
+            "precision": 0.9878,
             "recall": 0.9932,
-            "f1": 0.9925,
+            "f1": 0.9905,
             "support": 735,
             "tp": 730,
-            "fp": 6,
+            "fp": 9,
             "fn": 5
           },
           "GOVERNMENT_ID": {
-            "precision": 0.97,
-            "recall": 0.991,
-            "f1": 0.9804,
+            "precision": 0.9699,
+            "recall": 0.9874,
+            "f1": 0.9786,
             "support": 555,
-            "tp": 550,
+            "tp": 548,
             "fp": 17,
-            "fn": 5
+            "fn": 7
           },
           "HEALTHCARE": {
             "precision": 0.8959,
@@ -729,24 +955,137 @@
             "fn": 75
           }
         },
-        "cross_family_rate_emitted": 0.1598,
-        "family_macro_f1_emitted": 0.8494,
-        "n_shards_emitted": 3912,
-        "router_suppressed_count": 1023,
-        "router_suppression_rate": 0.2073,
+        "cross_family_rate_emitted": 0.1601,
+        "family_macro_f1_emitted": 0.8493,
+        "n_shards_emitted": 3916,
+        "router_suppressed_count": 1019,
+        "router_suppression_rate": 0.2065,
         "suppressed_by_shape": {
-          "opaque_tokens": 468,
+          "opaque_tokens": 464,
           "free_text_heterogeneous": 555
         }
       },
+      "family_multilabel": {
+        "multilabel_macro_f1": 0.7946,
+        "per_family_multilabel": {
+          "CONTACT": {
+            "precision": 0.77,
+            "recall": 0.4431,
+            "f1": 0.5625,
+            "support": 1020,
+            "tp": 452,
+            "fp": 135,
+            "fn": 568
+          },
+          "CREDENTIAL": {
+            "precision": 0.7101,
+            "recall": 0.96,
+            "f1": 0.8163,
+            "support": 375,
+            "tp": 360,
+            "fp": 147,
+            "fn": 15
+          },
+          "CRYPTO": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 300,
+            "tp": 300,
+            "fp": 0,
+            "fn": 0
+          },
+          "DATE": {
+            "precision": 0.977,
+            "recall": 1.0,
+            "f1": 0.9884,
+            "support": 255,
+            "tp": 255,
+            "fp": 6,
+            "fn": 0
+          },
+          "FINANCIAL": {
+            "precision": 0.9812,
+            "recall": 0.9932,
+            "f1": 0.9872,
+            "support": 735,
+            "tp": 730,
+            "fp": 14,
+            "fn": 5
+          },
+          "GOVERNMENT_ID": {
+            "precision": 0.9534,
+            "recall": 0.9946,
+            "f1": 0.9735,
+            "support": 555,
+            "tp": 552,
+            "fp": 27,
+            "fn": 3
+          },
+          "HEALTHCARE": {
+            "precision": 0.875,
+            "recall": 1.0,
+            "f1": 0.9333,
+            "support": 525,
+            "tp": 525,
+            "fp": 75,
+            "fn": 0
+          },
+          "NEGATIVE": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 225,
+            "tp": 0,
+            "fp": 0,
+            "fn": 225
+          },
+          "NETWORK": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 360,
+            "tp": 360,
+            "fp": 0,
+            "fn": 0
+          },
+          "PAYMENT_CARD": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 255,
+            "tp": 255,
+            "fp": 0,
+            "fn": 0
+          },
+          "URL": {
+            "precision": 0.3107,
+            "recall": 1.0,
+            "f1": 0.474,
+            "support": 105,
+            "tp": 105,
+            "fp": 233,
+            "fn": 0
+          },
+          "VEHICLE": {
+            "precision": 1.0,
+            "recall": 0.6667,
+            "f1": 0.8,
+            "support": 225,
+            "tp": 150,
+            "fp": 0,
+            "fn": 75
+          }
+        }
+      },
       "subtype": {
-        "accuracy": 0.7508,
-        "macro_f1": 0.789,
+        "accuracy": 0.7506,
+        "macro_f1": 0.7888,
         "per_class": {
           "ABA_ROUTING": {
-            "precision": 0.9766,
+            "precision": 0.9653,
             "recall": 0.9804,
-            "f1": 0.9785,
+            "f1": 0.9728,
             "support": 255
           },
           "ADDRESS": {
@@ -870,9 +1209,9 @@
             "support": 150
           },
           "OPAQUE_SECRET": {
-            "precision": 0.2339,
+            "precision": 0.2353,
             "recall": 0.5333,
-            "f1": 0.3252,
+            "f1": 0.3265,
             "support": 75
           },
           "PERSON_NAME": {
@@ -894,9 +1233,9 @@
             "support": 0
           },
           "SSN": {
-            "precision": 0.9531,
-            "recall": 0.9569,
-            "f1": 0.955,
+            "precision": 0.9529,
+            "recall": 0.9529,
+            "f1": 0.9529,
             "support": 255
           },
           "SWIFT_BIC": {
@@ -924,29 +1263,29 @@
   "shadow": {
     "overall": {
       "family": {
-        "cross_family_errors": 1976,
-        "cross_family_rate": 0.2002,
+        "cross_family_errors": 1984,
+        "cross_family_rate": 0.201,
         "within_family_mislabels": 0,
         "n_shards": 9870,
-        "family_macro_f1": 0.7724,
+        "family_macro_f1": 0.7717,
         "per_family": {
           "CONTACT": {
             "precision": 0.9994,
-            "recall": 0.8873,
-            "f1": 0.94,
+            "recall": 0.8853,
+            "f1": 0.9389,
             "support": 2040,
-            "tp": 1810,
+            "tp": 1806,
             "fp": 1,
-            "fn": 230
+            "fn": 234
           },
           "CREDENTIAL": {
-            "precision": 0.9894,
-            "recall": 0.3733,
-            "f1": 0.5421,
+            "precision": 0.9928,
+            "recall": 0.3667,
+            "f1": 0.5355,
             "support": 750,
-            "tp": 280,
-            "fp": 3,
-            "fn": 470
+            "tp": 275,
+            "fp": 2,
+            "fn": 475
           },
           "CRYPTO": {
             "precision": 0.0,
@@ -967,22 +1306,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.9438,
+            "precision": 0.942,
             "recall": 0.9939,
-            "f1": 0.9682,
+            "f1": 0.9672,
             "support": 1470,
             "tp": 1461,
-            "fp": 87,
+            "fp": 90,
             "fn": 9
           },
           "GOVERNMENT_ID": {
             "precision": 1.0,
-            "recall": 0.8315,
-            "f1": 0.908,
+            "recall": 0.8324,
+            "f1": 0.9086,
             "support": 1110,
-            "tp": 923,
+            "tp": 924,
             "fp": 0,
-            "fn": 187
+            "fn": 186
           },
           "HEALTHCARE": {
             "precision": 1.0,
@@ -1039,30 +1378,143 @@
             "fn": 0
           }
         },
-        "cross_family_rate_emitted": 0.0121,
+        "cross_family_rate_emitted": 0.0124,
         "family_macro_f1_emitted": 0.9912,
-        "n_shards_emitted": 7991,
-        "router_suppressed_count": 1879,
-        "router_suppression_rate": 0.1904,
+        "n_shards_emitted": 7985,
+        "router_suppressed_count": 1885,
+        "router_suppression_rate": 0.191,
         "suppressed_by_shape": {
-          "opaque_tokens": 769,
-          "free_text_heterogeneous": 1110
+          "opaque_tokens": 765,
+          "free_text_heterogeneous": 1120
+        }
+      },
+      "family_multilabel": {
+        "multilabel_macro_f1": 0.7717,
+        "per_family_multilabel": {
+          "CONTACT": {
+            "precision": 0.9994,
+            "recall": 0.8853,
+            "f1": 0.9389,
+            "support": 2040,
+            "tp": 1806,
+            "fp": 1,
+            "fn": 234
+          },
+          "CREDENTIAL": {
+            "precision": 0.9928,
+            "recall": 0.3667,
+            "f1": 0.5355,
+            "support": 750,
+            "tp": 275,
+            "fp": 2,
+            "fn": 475
+          },
+          "CRYPTO": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 600,
+            "tp": 0,
+            "fp": 0,
+            "fn": 600
+          },
+          "DATE": {
+            "precision": 0.9884,
+            "recall": 1.0,
+            "f1": 0.9942,
+            "support": 510,
+            "tp": 510,
+            "fp": 6,
+            "fn": 0
+          },
+          "FINANCIAL": {
+            "precision": 0.942,
+            "recall": 0.9939,
+            "f1": 0.9672,
+            "support": 1470,
+            "tp": 1461,
+            "fp": 90,
+            "fn": 9
+          },
+          "GOVERNMENT_ID": {
+            "precision": 1.0,
+            "recall": 0.8324,
+            "f1": 0.9086,
+            "support": 1110,
+            "tp": 924,
+            "fp": 0,
+            "fn": 186
+          },
+          "HEALTHCARE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 1050,
+            "tp": 1050,
+            "fp": 0,
+            "fn": 0
+          },
+          "NEGATIVE": {
+            "precision": 1.0,
+            "recall": 0.3267,
+            "f1": 0.4925,
+            "support": 450,
+            "tp": 147,
+            "fp": 0,
+            "fn": 303
+          },
+          "NETWORK": {
+            "precision": 1.0,
+            "recall": 0.9708,
+            "f1": 0.9852,
+            "support": 720,
+            "tp": 699,
+            "fp": 0,
+            "fn": 21
+          },
+          "PAYMENT_CARD": {
+            "precision": 1.0,
+            "recall": 0.9882,
+            "f1": 0.9941,
+            "support": 510,
+            "tp": 504,
+            "fp": 0,
+            "fn": 6
+          },
+          "URL": {
+            "precision": 1.0,
+            "recall": 0.2857,
+            "f1": 0.4444,
+            "support": 210,
+            "tp": 60,
+            "fp": 0,
+            "fn": 150
+          },
+          "VEHICLE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 450,
+            "tp": 450,
+            "fp": 0,
+            "fn": 0
+          }
         }
       },
       "subtype": {
-        "accuracy": 0.7998,
-        "macro_f1": 0.831,
+        "accuracy": 0.799,
+        "macro_f1": 0.8301,
         "per_class": {
           "ABA_ROUTING": {
-            "precision": 0.853,
+            "precision": 0.8487,
             "recall": 0.9902,
-            "f1": 0.9165,
+            "f1": 0.914,
             "support": 510
           },
           "ADDRESS": {
-            "precision": 0.9967,
-            "recall": 0.5882,
-            "f1": 0.7398,
+            "precision": 0.9966,
+            "recall": 0.5784,
+            "f1": 0.732,
             "support": 510
           },
           "BANK_ACCOUNT": {
@@ -1168,9 +1620,9 @@
             "support": 300
           },
           "OPAQUE_SECRET": {
-            "precision": 0.9924,
-            "recall": 0.8667,
-            "f1": 0.9253,
+            "precision": 1.0,
+            "recall": 0.8333,
+            "f1": 0.9091,
             "support": 150
           },
           "PERSON_NAME": {
@@ -1181,14 +1633,14 @@
           },
           "PHONE": {
             "precision": 1.0,
-            "recall": 0.9667,
-            "f1": 0.9831,
+            "recall": 0.9686,
+            "f1": 0.9841,
             "support": 510
           },
           "SSN": {
             "precision": 1.0,
-            "recall": 0.6333,
-            "f1": 0.7755,
+            "recall": 0.6353,
+            "f1": 0.777,
             "support": 510
           },
           "SWIFT_BIC": {
@@ -1214,29 +1666,29 @@
     },
     "named": {
       "family": {
-        "cross_family_errors": 858,
-        "cross_family_rate": 0.1739,
+        "cross_family_errors": 868,
+        "cross_family_rate": 0.1759,
         "within_family_mislabels": 0,
         "n_shards": 4935,
-        "family_macro_f1": 0.7873,
+        "family_macro_f1": 0.786,
         "per_family": {
           "CONTACT": {
             "precision": 1.0,
-            "recall": 0.8971,
-            "f1": 0.9457,
+            "recall": 0.8922,
+            "f1": 0.943,
             "support": 1020,
-            "tp": 915,
+            "tp": 910,
             "fp": 0,
-            "fn": 105
+            "fn": 110
           },
           "CREDENTIAL": {
-            "precision": 0.9868,
-            "recall": 0.4,
-            "f1": 0.5693,
+            "precision": 0.9864,
+            "recall": 0.3867,
+            "f1": 0.5556,
             "support": 375,
-            "tp": 150,
+            "tp": 145,
             "fp": 2,
-            "fn": 225
+            "fn": 230
           },
           "CRYPTO": {
             "precision": 0.0,
@@ -1330,18 +1782,131 @@
           }
         },
         "cross_family_rate_emitted": 0.0005,
-        "family_macro_f1_emitted": 0.9982,
-        "n_shards_emitted": 4079,
-        "router_suppressed_count": 856,
-        "router_suppression_rate": 0.1735,
+        "family_macro_f1_emitted": 0.9981,
+        "n_shards_emitted": 4069,
+        "router_suppressed_count": 866,
+        "router_suppression_rate": 0.1755,
         "suppressed_by_shape": {
-          "free_text_heterogeneous": 555,
+          "free_text_heterogeneous": 565,
           "opaque_tokens": 301
         }
       },
+      "family_multilabel": {
+        "multilabel_macro_f1": 0.786,
+        "per_family_multilabel": {
+          "CONTACT": {
+            "precision": 1.0,
+            "recall": 0.8922,
+            "f1": 0.943,
+            "support": 1020,
+            "tp": 910,
+            "fp": 0,
+            "fn": 110
+          },
+          "CREDENTIAL": {
+            "precision": 0.9864,
+            "recall": 0.3867,
+            "f1": 0.5556,
+            "support": 375,
+            "tp": 145,
+            "fp": 2,
+            "fn": 230
+          },
+          "CRYPTO": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 300,
+            "tp": 0,
+            "fp": 0,
+            "fn": 300
+          },
+          "DATE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 255,
+            "tp": 255,
+            "fp": 0,
+            "fn": 0
+          },
+          "FINANCIAL": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 735,
+            "tp": 735,
+            "fp": 0,
+            "fn": 0
+          },
+          "GOVERNMENT_ID": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 555,
+            "tp": 555,
+            "fp": 0,
+            "fn": 0
+          },
+          "HEALTHCARE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 525,
+            "tp": 525,
+            "fp": 0,
+            "fn": 0
+          },
+          "NEGATIVE": {
+            "precision": 1.0,
+            "recall": 0.3244,
+            "f1": 0.4899,
+            "support": 225,
+            "tp": 73,
+            "fp": 0,
+            "fn": 152
+          },
+          "NETWORK": {
+            "precision": 1.0,
+            "recall": 0.9972,
+            "f1": 0.9986,
+            "support": 360,
+            "tp": 359,
+            "fp": 0,
+            "fn": 1
+          },
+          "PAYMENT_CARD": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 255,
+            "tp": 255,
+            "fp": 0,
+            "fn": 0
+          },
+          "URL": {
+            "precision": 1.0,
+            "recall": 0.2857,
+            "f1": 0.4444,
+            "support": 105,
+            "tp": 30,
+            "fp": 0,
+            "fn": 75
+          },
+          "VEHICLE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 225,
+            "tp": 225,
+            "fp": 0,
+            "fn": 0
+          }
+        }
+      },
       "subtype": {
-        "accuracy": 0.8261,
-        "macro_f1": 0.8489,
+        "accuracy": 0.8241,
+        "macro_f1": 0.847,
         "per_class": {
           "ABA_ROUTING": {
             "precision": 1.0,
@@ -1351,8 +1916,8 @@
           },
           "ADDRESS": {
             "precision": 1.0,
-            "recall": 0.5882,
-            "f1": 0.7407,
+            "recall": 0.5686,
+            "f1": 0.725,
             "support": 255
           },
           "BANK_ACCOUNT": {
@@ -1459,8 +2024,8 @@
           },
           "OPAQUE_SECRET": {
             "precision": 1.0,
-            "recall": 1.0,
-            "f1": 1.0,
+            "recall": 0.9333,
+            "f1": 0.9655,
             "support": 75
           },
           "PERSON_NAME": {
@@ -1504,28 +2069,28 @@
     },
     "blind": {
       "family": {
-        "cross_family_errors": 1118,
-        "cross_family_rate": 0.2265,
+        "cross_family_errors": 1116,
+        "cross_family_rate": 0.2261,
         "within_family_mislabels": 0,
         "n_shards": 4935,
-        "family_macro_f1": 0.7559,
+        "family_macro_f1": 0.756,
         "per_family": {
           "CONTACT": {
             "precision": 0.9989,
-            "recall": 0.8775,
-            "f1": 0.9342,
+            "recall": 0.8784,
+            "f1": 0.9348,
             "support": 1020,
-            "tp": 895,
+            "tp": 896,
             "fp": 1,
-            "fn": 125
+            "fn": 124
           },
           "CREDENTIAL": {
-            "precision": 0.9924,
+            "precision": 1.0,
             "recall": 0.3467,
-            "f1": 0.5138,
+            "f1": 0.5149,
             "support": 375,
             "tp": 130,
-            "fp": 1,
+            "fp": 0,
             "fn": 245
           },
           "CRYPTO": {
@@ -1547,22 +2112,22 @@
             "fn": 0
           },
           "FINANCIAL": {
-            "precision": 0.893,
+            "precision": 0.8897,
             "recall": 0.9878,
-            "f1": 0.938,
+            "f1": 0.9362,
             "support": 735,
             "tp": 726,
-            "fp": 87,
+            "fp": 90,
             "fn": 9
           },
           "GOVERNMENT_ID": {
             "precision": 1.0,
-            "recall": 0.6631,
-            "f1": 0.7974,
+            "recall": 0.6649,
+            "f1": 0.7987,
             "support": 555,
-            "tp": 368,
+            "tp": 369,
             "fp": 0,
-            "fn": 187
+            "fn": 186
           },
           "HEALTHCARE": {
             "precision": 1.0,
@@ -1619,24 +2184,137 @@
             "fn": 0
           }
         },
-        "cross_family_rate_emitted": 0.0243,
+        "cross_family_rate_emitted": 0.0248,
         "family_macro_f1_emitted": 0.983,
-        "n_shards_emitted": 3912,
-        "router_suppressed_count": 1023,
-        "router_suppression_rate": 0.2073,
+        "n_shards_emitted": 3916,
+        "router_suppressed_count": 1019,
+        "router_suppression_rate": 0.2065,
         "suppressed_by_shape": {
-          "opaque_tokens": 468,
+          "opaque_tokens": 464,
           "free_text_heterogeneous": 555
         }
       },
+      "family_multilabel": {
+        "multilabel_macro_f1": 0.756,
+        "per_family_multilabel": {
+          "CONTACT": {
+            "precision": 0.9989,
+            "recall": 0.8784,
+            "f1": 0.9348,
+            "support": 1020,
+            "tp": 896,
+            "fp": 1,
+            "fn": 124
+          },
+          "CREDENTIAL": {
+            "precision": 1.0,
+            "recall": 0.3467,
+            "f1": 0.5149,
+            "support": 375,
+            "tp": 130,
+            "fp": 0,
+            "fn": 245
+          },
+          "CRYPTO": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 300,
+            "tp": 0,
+            "fp": 0,
+            "fn": 300
+          },
+          "DATE": {
+            "precision": 0.977,
+            "recall": 1.0,
+            "f1": 0.9884,
+            "support": 255,
+            "tp": 255,
+            "fp": 6,
+            "fn": 0
+          },
+          "FINANCIAL": {
+            "precision": 0.8897,
+            "recall": 0.9878,
+            "f1": 0.9362,
+            "support": 735,
+            "tp": 726,
+            "fp": 90,
+            "fn": 9
+          },
+          "GOVERNMENT_ID": {
+            "precision": 1.0,
+            "recall": 0.6649,
+            "f1": 0.7987,
+            "support": 555,
+            "tp": 369,
+            "fp": 0,
+            "fn": 186
+          },
+          "HEALTHCARE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 525,
+            "tp": 525,
+            "fp": 0,
+            "fn": 0
+          },
+          "NEGATIVE": {
+            "precision": 1.0,
+            "recall": 0.3289,
+            "f1": 0.495,
+            "support": 225,
+            "tp": 74,
+            "fp": 0,
+            "fn": 151
+          },
+          "NETWORK": {
+            "precision": 1.0,
+            "recall": 0.9444,
+            "f1": 0.9714,
+            "support": 360,
+            "tp": 340,
+            "fp": 0,
+            "fn": 20
+          },
+          "PAYMENT_CARD": {
+            "precision": 1.0,
+            "recall": 0.9765,
+            "f1": 0.9881,
+            "support": 255,
+            "tp": 249,
+            "fp": 0,
+            "fn": 6
+          },
+          "URL": {
+            "precision": 1.0,
+            "recall": 0.2857,
+            "f1": 0.4444,
+            "support": 105,
+            "tp": 30,
+            "fp": 0,
+            "fn": 75
+          },
+          "VEHICLE": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "support": 225,
+            "tp": 225,
+            "fp": 0,
+            "fn": 0
+          }
+        }
+      },
       "subtype": {
-        "accuracy": 0.7735,
-        "macro_f1": 0.808,
+        "accuracy": 0.7739,
+        "macro_f1": 0.8083,
         "per_class": {
           "ABA_ROUTING": {
-            "precision": 0.7418,
+            "precision": 0.7353,
             "recall": 0.9804,
-            "f1": 0.8446,
+            "f1": 0.8403,
             "support": 255
           },
           "ADDRESS": {
@@ -1748,9 +2426,9 @@
             "support": 150
           },
           "OPAQUE_SECRET": {
-            "precision": 0.9821,
+            "precision": 1.0,
             "recall": 0.7333,
-            "f1": 0.8397,
+            "f1": 0.8462,
             "support": 75
           },
           "PERSON_NAME": {
@@ -1761,14 +2439,14 @@
           },
           "PHONE": {
             "precision": 1.0,
-            "recall": 0.9333,
-            "f1": 0.9655,
+            "recall": 0.9373,
+            "f1": 0.9676,
             "support": 255
           },
           "SSN": {
             "precision": 1.0,
-            "recall": 0.2667,
-            "f1": 0.4211,
+            "recall": 0.2706,
+            "f1": 0.4259,
             "support": 255
           },
           "SWIFT_BIC": {
