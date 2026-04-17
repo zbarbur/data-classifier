@@ -31,10 +31,11 @@ Only docs 01-05 are relevant for iteration 1 (regex engine).
 ## Commands
 
 ### Testing & Quality
-- **Run tests**: `pytest tests/ -v`
+- **Run tests**: `.venv/bin/python -m pytest tests/ -v`
 - **Lint**: `ruff check . && ruff format --check .`
 - **Format**: `ruff check --fix . && ruff format .`
-- **Full CI**: `ruff check . && ruff format --check . && pytest tests/ -v`
+- **Full CI**: `ruff check . && ruff format --check . && .venv/bin/python -m pytest tests/ -v`
+- **IMPORTANT**: Always use `.venv/bin/python` — homebrew python3 is missing ML deps (gliner2, torch). Never use bare `pytest` or `python3`.
 
 ### Development
 - **Install (editable)**: `pip install -e ".[dev]"`
