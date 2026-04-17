@@ -1,0 +1,474 @@
+{
+  "q1_capacity": {
+    "arms": {
+      "A0_LR": {
+        "cv": {
+          "cv_mean_macro_f1": 0.9943211782836456,
+          "cv_std_macro_f1": 0.0013772338155867926,
+          "cv_fold_f1s": [
+            0.9938861398864453,
+            0.9925983789603019,
+            0.9966468952650314,
+            0.9949093687737408,
+            0.9935651085327085
+          ],
+          "cv_mean_brier": 0.010688782855267889,
+          "cv_std_brier": 0.0019722585060635055,
+          "interaction_feature_indices": null
+        },
+        "loco": {
+          "per_corpus": {
+            "detect_secrets": {
+              "n_test": 300.0,
+              "macro_f1": 0.004405286343612335
+            },
+            "gitleaks": {
+              "n_test": 300.0,
+              "macro_f1": 0.266503888587448
+            },
+            "gretel_en": {
+              "n_test": 1800.0,
+              "macro_f1": 0.5802054154995331
+            },
+            "gretel_finance": {
+              "n_test": 1800.0,
+              "macro_f1": 0.7106593696759127
+            },
+            "nemotron": {
+              "n_test": 1950.0,
+              "macro_f1": 0.5740480934270671
+            },
+            "secretbench": {
+              "n_test": 300.0,
+              "macro_f1": 0.46474052580871295
+            }
+          },
+          "loco_mean_weighted": 0.5680070241427155,
+          "loco_mean_unweighted": 0.4334270965570477,
+          "loco_pooled_entity_macro_f1": 0.62100732755812,
+          "loco_pooled_family_macro_f1": 0.6998621172154444
+        }
+      },
+      "A1_MLP": {
+        "cv": {
+          "cv_mean_macro_f1": 0.9932264132154408,
+          "cv_std_macro_f1": 0.003363232448019814,
+          "cv_fold_f1s": [
+            0.9895133609122156,
+            0.9887291526891389,
+            0.9961762171542075,
+            0.9959146878172315,
+            0.9957986475044105
+          ],
+          "cv_mean_brier": 0.012404604897107976,
+          "cv_std_brier": 0.006575672506657303,
+          "interaction_feature_indices": null
+        },
+        "loco": {
+          "per_corpus": {
+            "detect_secrets": {
+              "n_test": 300.0,
+              "macro_f1": 0.005405405405405406
+            },
+            "gitleaks": {
+              "n_test": 300.0,
+              "macro_f1": 0.2955353789736453
+            },
+            "gretel_en": {
+              "n_test": 1800.0,
+              "macro_f1": 0.553921568627451
+            },
+            "gretel_finance": {
+              "n_test": 1800.0,
+              "macro_f1": 0.6993345868464762
+            },
+            "nemotron": {
+              "n_test": 1950.0,
+              "macro_f1": 0.6027145150050112
+            },
+            "secretbench": {
+              "n_test": 300.0,
+              "macro_f1": 0.32933997827614847
+            }
+          },
+          "loco_mean_weighted": 0.5612773043270388,
+          "loco_mean_unweighted": 0.4143752388556896,
+          "loco_pooled_entity_macro_f1": 0.5874625565483439,
+          "loco_pooled_family_macro_f1": 0.7016282851522869
+        }
+      },
+      "A2_LR_interactions": {
+        "cv": {
+          "cv_mean_macro_f1": 0.9942237822553865,
+          "cv_std_macro_f1": 0.001322519167577506,
+          "cv_fold_f1s": [
+            0.9938896592097729,
+            0.9925983789603019,
+            0.9966468952650314,
+            0.994071919216937,
+            0.9939120586248895
+          ],
+          "cv_mean_brier": 0.009826178537447331,
+          "cv_std_brier": 0.0019421428916624164,
+          "interaction_feature_indices": [
+            9,
+            0,
+            1,
+            6,
+            7
+          ]
+        },
+        "loco": {
+          "per_corpus": {
+            "detect_secrets": {
+              "n_test": 300.0,
+              "macro_f1": 0.0022222222222222222
+            },
+            "gitleaks": {
+              "n_test": 300.0,
+              "macro_f1": 0.266503888587448
+            },
+            "gretel_en": {
+              "n_test": 1800.0,
+              "macro_f1": 0.618767507002801
+            },
+            "gretel_finance": {
+              "n_test": 1800.0,
+              "macro_f1": 0.7131377564422252
+            },
+            "nemotron": {
+              "n_test": 1950.0,
+              "macro_f1": 0.6190039171661608
+            },
+            "secretbench": {
+              "n_test": 300.0,
+              "macro_f1": 0.7047772410091251
+            }
+          },
+          "loco_mean_weighted": 0.6041144369334418,
+          "loco_mean_unweighted": 0.4874020887383304,
+          "loco_pooled_entity_macro_f1": 0.6324895031238146,
+          "loco_pooled_family_macro_f1": 0.7205969418486063
+        }
+      }
+    },
+    "winner_by_cv_plus_loco": "A2_LR_interactions",
+    "winner_loco_unweighted": 0.4874020887383304
+  },
+  "q2_architecture": {
+    "per_branch": {
+      "CREDENTIAL": {
+        "n_total_rows": 750,
+        "per_corpus": {
+          "detect_secrets": {
+            "n_test": 150.0,
+            "macro_f1": 0.025974025974025976
+          },
+          "gitleaks": {
+            "n_test": 150.0,
+            "macro_f1": 1.0
+          },
+          "gretel_finance": {
+            "n_test": 150.0,
+            "macro_f1": 0.0
+          },
+          "secretbench": {
+            "n_test": 150.0,
+            "macro_f1": 0.3181818181818182
+          }
+        },
+        "loco_weighted": 0.336038961038961,
+        "loco_unweighted": 0.336038961038961,
+        "pooled_support": 600
+      },
+      "non_CREDENTIAL": {
+        "n_total_rows": 9120,
+        "per_corpus": {
+          "detect_secrets": {
+            "n_test": 150.0,
+            "macro_f1": 0.0
+          },
+          "gitleaks": {
+            "n_test": 150.0,
+            "macro_f1": 0.19496855345911948
+          },
+          "gretel_en": {
+            "n_test": 1800.0,
+            "macro_f1": 0.6330532212885153
+          },
+          "gretel_finance": {
+            "n_test": 1650.0,
+            "macro_f1": 0.8288152761937696
+          },
+          "nemotron": {
+            "n_test": 1800.0,
+            "macro_f1": 0.744492744084013
+          },
+          "secretbench": {
+            "n_test": 150.0,
+            "macro_f1": 1.0
+          }
+        },
+        "loco_weighted": 0.7063812677910769,
+        "loco_unweighted": 0.5668882991709029,
+        "pooled_support": 5700
+      }
+    },
+    "single_model_loco_weighted": 0.5680070241427155,
+    "hard_gated_loco_weighted": 0.671110571909923,
+    "delta": 0.10310354776720743
+  },
+  "q3_heterogeneous": {
+    "per_fixture": [
+      {
+        "fixture": "original_q3_log",
+        "fixture_size": 50,
+        "live_findings": [
+          {
+            "entity_type": "EMAIL",
+            "category": "PII",
+            "confidence": 0.9974999999999999,
+            "engine": "regex"
+          },
+          {
+            "entity_type": "IP_ADDRESS",
+            "category": "PII",
+            "confidence": 0.9450000000000001,
+            "engine": "regex"
+          },
+          {
+            "entity_type": "URL",
+            "category": "PII",
+            "confidence": 0.855,
+            "engine": "regex"
+          },
+          {
+            "entity_type": "API_KEY",
+            "category": "Credential",
+            "confidence": 0.8,
+            "engine": "regex"
+          }
+        ],
+        "num_live_findings": 4,
+        "live_distinct_entities": [
+          "API_KEY",
+          "EMAIL",
+          "IP_ADDRESS",
+          "URL"
+        ],
+        "shadow_prediction": null,
+        "collapse_verdict": "router_deflected",
+        "router_shape": "free_text_heterogeneous",
+        "union_cascade_baseline": [
+          "API_KEY",
+          "EMAIL",
+          "IP_ADDRESS",
+          "URL"
+        ],
+        "union_missing_from_cascade": [],
+        "union_gliner_only_types": [],
+        "union_has_lift": false,
+        "union_hallucinated_types": []
+      },
+      {
+        "fixture": "apache_access_log",
+        "fixture_size": 50,
+        "live_findings": [
+          {
+            "entity_type": "IP_ADDRESS",
+            "category": "PII",
+            "confidence": 0.9450000000000001,
+            "engine": "regex"
+          },
+          {
+            "entity_type": "PERSON_NAME",
+            "category": "PII",
+            "confidence": 0.6973,
+            "engine": "gliner2"
+          }
+        ],
+        "num_live_findings": 2,
+        "live_distinct_entities": [
+          "IP_ADDRESS",
+          "PERSON_NAME"
+        ],
+        "shadow_prediction": null,
+        "collapse_verdict": "router_deflected",
+        "router_shape": "free_text_heterogeneous",
+        "union_cascade_baseline": [
+          "IP_ADDRESS"
+        ],
+        "union_missing_from_cascade": [],
+        "union_gliner_only_types": [
+          "PERSON_NAME"
+        ],
+        "union_has_lift": true,
+        "union_hallucinated_types": []
+      },
+      {
+        "fixture": "json_event_log",
+        "fixture_size": 50,
+        "live_findings": [
+          {
+            "entity_type": "IP_ADDRESS",
+            "category": "PII",
+            "confidence": 0.9987,
+            "engine": "gliner2"
+          },
+          {
+            "entity_type": "EMAIL",
+            "category": "PII",
+            "confidence": 0.9974999999999999,
+            "engine": "regex"
+          }
+        ],
+        "num_live_findings": 2,
+        "live_distinct_entities": [
+          "EMAIL",
+          "IP_ADDRESS"
+        ],
+        "shadow_prediction": null,
+        "collapse_verdict": "router_deflected",
+        "router_shape": "free_text_heterogeneous",
+        "union_cascade_baseline": [
+          "EMAIL",
+          "IP_ADDRESS"
+        ],
+        "union_missing_from_cascade": [],
+        "union_gliner_only_types": [],
+        "union_has_lift": false,
+        "union_hallucinated_types": []
+      },
+      {
+        "fixture": "base64_encoded_payloads",
+        "fixture_size": 50,
+        "live_findings": [],
+        "num_live_findings": 0,
+        "live_distinct_entities": [],
+        "shadow_prediction": null,
+        "collapse_verdict": "router_deflected",
+        "router_shape": "opaque_tokens",
+        "union_cascade_baseline": [],
+        "union_missing_from_cascade": [],
+        "union_gliner_only_types": [],
+        "union_has_lift": false,
+        "union_hallucinated_types": []
+      },
+      {
+        "fixture": "support_chat_messages",
+        "fixture_size": 50,
+        "live_findings": [
+          {
+            "entity_type": "EMAIL",
+            "category": "PII",
+            "confidence": 0.95,
+            "engine": "regex"
+          },
+          {
+            "entity_type": "PHONE",
+            "category": "PII",
+            "confidence": 0.95,
+            "engine": "regex"
+          }
+        ],
+        "num_live_findings": 2,
+        "live_distinct_entities": [
+          "EMAIL",
+          "PHONE"
+        ],
+        "shadow_prediction": null,
+        "collapse_verdict": "router_deflected",
+        "router_shape": "free_text_heterogeneous",
+        "union_cascade_baseline": [
+          "EMAIL",
+          "PHONE"
+        ],
+        "union_missing_from_cascade": [],
+        "union_gliner_only_types": [],
+        "union_has_lift": false,
+        "union_hallucinated_types": []
+      },
+      {
+        "fixture": "kafka_event_stream",
+        "fixture_size": 50,
+        "live_findings": [
+          {
+            "entity_type": "EMAIL",
+            "category": "PII",
+            "confidence": 0.95,
+            "engine": "regex"
+          },
+          {
+            "entity_type": "IP_ADDRESS",
+            "category": "PII",
+            "confidence": 0.9,
+            "engine": "regex"
+          },
+          {
+            "entity_type": "URL",
+            "category": "PII",
+            "confidence": 0.855,
+            "engine": "regex"
+          },
+          {
+            "entity_type": "PERSON_NAME",
+            "category": "PII",
+            "confidence": 0.6631,
+            "engine": "gliner2"
+          }
+        ],
+        "num_live_findings": 4,
+        "live_distinct_entities": [
+          "EMAIL",
+          "IP_ADDRESS",
+          "PERSON_NAME",
+          "URL"
+        ],
+        "shadow_prediction": null,
+        "collapse_verdict": "router_deflected",
+        "router_shape": "free_text_heterogeneous",
+        "union_cascade_baseline": [
+          "EMAIL",
+          "IP_ADDRESS",
+          "URL"
+        ],
+        "union_missing_from_cascade": [],
+        "union_gliner_only_types": [
+          "PERSON_NAME"
+        ],
+        "union_has_lift": true,
+        "union_hallucinated_types": []
+      }
+    ],
+    "aggregate_verdict": "router_deflected",
+    "verdict_counts": {
+      "router_deflected": 6
+    },
+    "n_fixtures": 6,
+    "n_high_confidence_wrong_class": 0,
+    "n_medium_confidence_wrong_class": 0,
+    "n_live_multi_vs_shadow_collapse": 0,
+    "n_cascade_regressions": 0,
+    "n_fixtures_with_gliner_lift": 2,
+    "n_fixtures_with_hallucinations": 0,
+    "collapse_verdict": "router_deflected"
+  },
+  "verdict": {
+    "level": "YELLOW",
+    "reasons": [
+      "Q2 hard-gated delta = +0.1031 is between GREEN 0.10 and RED 0.15 \u2014 soft-gating leaves some headroom on the table",
+      "Q3 column output degraded to a single low-confidence finding \u2014 flat classifier does not fail loudly on mixed content, but also does not represent it correctly"
+    ],
+    "mitigations": [
+      "Proceed with soft-gated directive but file Sprint 13 item to revisit hard gating if the in-production LOCO measurement drifts.",
+      "Heterogeneous-column fallback to live cascade when directive confidence < 0.80 on columns with high heuristic_distinct_ratio (>0.9) \u2014 conservative but preserves current live quality on log-shaped columns."
+    ]
+  },
+  "thresholds": {
+    "loco_green_min": 0.3,
+    "loco_red_max": 0.2,
+    "arch_green_max_delta": 0.1,
+    "arch_red_min_delta": 0.15,
+    "hetero_collapse_confidence": 0.8
+  }
+}

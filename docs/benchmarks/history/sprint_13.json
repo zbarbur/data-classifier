@@ -1,0 +1,58 @@
+{
+  "accuracy": [
+    {
+      "corpus": "nemotron",
+      "fn_count": 0,
+      "fp_count": 0,
+      "macro_f1": 1.0,
+      "micro_f1": 1.0,
+      "mode": "named",
+      "precision": 1.0,
+      "primary_label_pct": 1.0,
+      "recall": 1.0,
+      "tp_count": 14
+    },
+    {
+      "corpus": "nemotron",
+      "fn_count": 2,
+      "fp_count": 2,
+      "macro_f1": 0.8333,
+      "micro_f1": 0.8571,
+      "mode": "blind",
+      "precision": 0.8571,
+      "primary_label_pct": 0.8571,
+      "recall": 0.8571,
+      "tp_count": 12
+    },
+    {
+      "corpus": "gretel_en",
+      "fn_count": 1,
+      "fp_count": 2,
+      "macro_f1": 0.9167,
+      "micro_f1": 0.88,
+      "mode": "named",
+      "precision": 0.8462,
+      "primary_label_pct": 0.9167,
+      "recall": 0.9167,
+      "tp_count": 11
+    },
+    {
+      "corpus": "gretel_en",
+      "fn_count": 4,
+      "fp_count": 4,
+      "macro_f1": 0.6111,
+      "micro_f1": 0.6667,
+      "mode": "blind",
+      "precision": 0.6667,
+      "primary_label_pct": 0.6667,
+      "recall": 0.6667,
+      "tp_count": 8
+    }
+  ],
+  "date": "2026-04-17",
+  "git_sha": "5beae81",
+  "note": null,
+  "perf": null,
+  "schema_version": 1,
+  "sprint": 13
+}

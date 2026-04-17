@@ -74,6 +74,38 @@ def compute_cardinality_ratio(values: list[str]) -> float:
     return ratio
 
 
+def compute_avg_length_normalized(values: list[str]) -> float:
+    """Average character length of sample values, normalized to [0.0, 1.0].
+
+    Divides the mean sample length by a reference of 100 characters and
+    clamps to [0.0, 1.0]. Chosen empirically from the Sprint 12 safety
+    audit fixture statistics: homogeneous single-entity columns land at
+    0.11-0.16 (11-16 chars), log-shaped heterogeneous columns at
+    0.51-0.90 (51-90 chars), and longer payloads at 1.0.
+
+    This is the ``avg_len_normalized`` signal consumed by the Sprint 13
+    column-shape router and the meta-classifier feature extractor. The
+    normalization is NOT per-column; it is a project-wide constant so
+    training and inference agree.
+
+    Args:
+        values: Sample values from the column.
+
+    Returns:
+        Float in [0.0, 1.0].
+    """
+    if not values:
+        return 0.0
+    total = sum(len(v) for v in values)
+    mean = total / len(values)
+    normalized = mean / 100.0
+    if normalized < 0.0:
+        return 0.0
+    if normalized > 1.0:
+        return 1.0
+    return normalized
+
+
 def compute_shannon_entropy(value: str) -> float:
     """Compute Shannon entropy in bits per character for a single value.
 

@@ -645,3 +645,33 @@ class TestCollisionResolution:
         }
         result = orchestrator._resolve_collisions(findings)
         assert set(result.keys()) == {"EMAIL", "PHONE"}
+
+
+def test_compute_avg_length_normalized_empty_returns_zero():
+    from data_classifier.engines.heuristic_engine import compute_avg_length_normalized
+
+    assert compute_avg_length_normalized([]) == 0.0
+
+
+def test_compute_avg_length_normalized_short_values_below_half():
+    from data_classifier.engines.heuristic_engine import compute_avg_length_normalized
+
+    # Length 12 — typical homogeneous single-entity column (email prefix)
+    result = compute_avg_length_normalized(["alice@ex.com"] * 10)
+    assert 0.11 <= result <= 0.13
+
+
+def test_compute_avg_length_normalized_log_lines_above_half():
+    from data_classifier.engines.heuristic_engine import compute_avg_length_normalized
+
+    # Length 85 — typical log line
+    result = compute_avg_length_normalized(["x" * 85] * 10)
+    assert result == 0.85
+
+
+def test_compute_avg_length_normalized_clamps_to_one():
+    from data_classifier.engines.heuristic_engine import compute_avg_length_normalized
+
+    # Length 500 — should clamp to 1.0
+    result = compute_avg_length_normalized(["x" * 500] * 10)
+    assert result == 1.0

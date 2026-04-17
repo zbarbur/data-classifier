@@ -31,12 +31,14 @@ from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.events.emitter import EventEmitter
 from data_classifier.events.types import (
     ClassificationEvent,
+    ColumnShapeEvent,
     GateRoutingEvent,
     MetaClassifierEvent,
     TierEvent,
 )
 from data_classifier.orchestrator.calibration import calibrate_finding
 from data_classifier.orchestrator.meta_classifier import MetaClassifier
+from data_classifier.orchestrator.shape_detector import detect_column_shape
 from data_classifier.orchestrator.table_profile import (
     TableProfile,
     build_table_profile,
@@ -185,6 +187,25 @@ def _evaluate_tier1_gate(
     )
 
 
+def _union_findings(
+    cascade: list[ClassificationFinding],
+    additions: list[ClassificationFinding],
+) -> list[ClassificationFinding]:
+    """Union cascade findings with per-value aggregated additions.
+
+    Dedup on (column_id, entity_type) — keep the higher-confidence finding.
+    Cascade findings are never dropped; additions add entity types the
+    cascade did not express.
+    """
+    by_key: dict[tuple[str, str], ClassificationFinding] = {(f.column_id, f.entity_type): f for f in cascade}
+    for f in additions:
+        key = (f.column_id, f.entity_type)
+        existing = by_key.get(key)
+        if existing is None or f.confidence > existing.confidence:
+            by_key[key] = f
+    return list(by_key.values())
+
+
 class Orchestrator:
     """Coordinates the engine cascade for column classification.
 
@@ -220,6 +241,12 @@ class Orchestrator:
             self._meta_classifier = None
         else:
             self._meta_classifier = MetaClassifier()
+
+    def _find_engine_by_name(self, name: str) -> ClassificationEngine | None:
+        for engine in self.engines:
+            if engine.name == name:
+                return engine
+        return None
 
     def classify_column(
         self,
@@ -307,7 +334,9 @@ class Orchestrator:
 
         total_ms = (time.monotonic() - t_start) * 1000
 
-        # Apply engine priority weighting: suppress/boost based on cross-engine agreement
+        # Post-processing merges run on ALL shapes — deterministic dedup +
+        # FP suppression is valuable regardless of shape. Only the v5
+        # shadow emission below is gated by the detected shape.
         all_findings = self._apply_engine_weighting(all_findings, finding_authority, engine_findings)
 
         # Suppress ML-only findings when a non-ML engine already has a strong match
@@ -324,6 +353,20 @@ class Orchestrator:
 
         # Emit classification event
         result = list(all_findings.values())
+
+        # ── Sprint 13 Item A: column-shape detection ──────────────────────
+        # Runs AFTER the merge passes so n_cascade_entities reflects the
+        # deduped/resolved entity types, not the noisy pre-merge count that
+        # is inflated by engine collisions on homogeneous columns (e.g., an
+        # ABA_ROUTING column triggers both column_name_engine → ABA_ROUTING
+        # and regex_engine → SSN pre-merge — authority resolution drops SSN,
+        # leaving 1 entity type post-merge). The structured_single route's
+        # n_cascade <= 1 guard requires the post-merge count.
+        try:
+            shape_detection = detect_column_shape(column, result)
+        except Exception:
+            logger.debug("Shape detection failed; defaulting to structured_single behavior", exc_info=True)
+            shape_detection = None
         self.emitter.emit(
             ClassificationEvent(
                 column_id=column.column_id,
@@ -335,12 +378,77 @@ class Orchestrator:
             )
         )
 
+        # ── Sprint 13 Item B: per-value GLiNER on heterogeneous branch ────
+        per_value_inference_ms: int | None = None
+        sampled_row_count: int | None = None
+        if shape_detection is not None and shape_detection.shape == "free_text_heterogeneous":
+            gliner = self._find_engine_by_name("gliner2")
+            if gliner is not None:
+                t0 = time.monotonic()
+                try:
+                    per_value_spans, sampled = gliner.classify_per_value(column)
+                    if sampled > 0:
+                        from data_classifier.orchestrator.per_value_aggregator import (
+                            aggregate_per_value_spans,
+                        )
+
+                        aggregated = aggregate_per_value_spans(
+                            per_value_spans,
+                            n_samples=sampled,
+                            column_id=column.column_id,
+                        )
+                        result = _union_findings(result, aggregated)
+                        sampled_row_count = sampled
+                except Exception:
+                    logger.exception(
+                        "Per-value GLiNER handler failed for column %s; falling back to cascade output",
+                        column.column_id,
+                    )
+                finally:
+                    per_value_inference_ms = int((time.monotonic() - t0) * 1000)
+
+        # ── Sprint 13 Item C: entropy-based handler on opaque_tokens branch ──
+        # Only add OPAQUE_SECRET when the cascade found nothing. If the cascade
+        # already identified the column (e.g., BITCOIN_ADDRESS, ETHEREUM_ADDRESS),
+        # the cascade's answer is more specific and should not be diluted.
+        if shape_detection is not None and shape_detection.shape == "opaque_tokens" and not result:
+            try:
+                from data_classifier.orchestrator.opaque_token_handler import classify_opaque_tokens
+
+                opaque_findings = classify_opaque_tokens(column.column_id, column.sample_values)
+                if opaque_findings:
+                    result = _union_findings(result, opaque_findings)
+            except Exception:
+                logger.exception(
+                    "Opaque-token handler failed for column %s; falling back to cascade output",
+                    column.column_id,
+                )
+
+        # ── Sprint 13 Item A: emit ColumnShapeEvent (moved after Item B) ──
+        if shape_detection is not None:
+            self.emitter.emit(
+                ColumnShapeEvent(
+                    column_id=column.column_id,
+                    shape=shape_detection.shape,
+                    avg_len_normalized=shape_detection.avg_len_normalized,
+                    dict_word_ratio=shape_detection.dict_word_ratio,
+                    cardinality_ratio=shape_detection.cardinality_ratio,
+                    n_cascade_entities=shape_detection.n_cascade_entities,
+                    column_name_hint_applied=shape_detection.column_name_hint_applied,
+                    per_value_inference_ms=per_value_inference_ms,
+                    sampled_row_count=sampled_row_count,
+                    run_id=run_id or "",
+                )
+            )
+
         # Shadow inference (Sprint 6 Phase 3) — observability only.
-        # The shadow path must NEVER mutate ``result`` or raise. All
-        # failure modes inside predict_shadow already return None, but
-        # we belt-and-suspenders with a broad try/except so no bug in
-        # the shadow path can ever break the live classification API.
-        if self._meta_classifier is not None:
+        # Sprint 13 Item A gates on shape detection. v5 is documented to
+        # collapse on free_text_heterogeneous and opaque_tokens shapes
+        # (see docs/research/meta_classifier/sprint12_safety_audit.md §3).
+        # Skip shadow emission on those branches to stop feeding wrong-
+        # class predictions into downstream telemetry.
+        should_emit_shadow = shape_detection is None or shape_detection.shape == "structured_single"
+        if self._meta_classifier is not None and should_emit_shadow:
             try:
                 shadow = self._meta_classifier.predict_shadow(
                     result,

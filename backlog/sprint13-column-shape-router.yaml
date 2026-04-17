@@ -1,10 +1,10 @@
-title: 'Sprint 13 Item A: column-shape router — heuristic gate + 3-branch routing'
-status: backlog
+title: "Sprint 13 Item A: column-shape router \u2014 heuristic gate + 3-branch routing"
+status: done
 priority: P1
 category: feature
 sprint_target: 13
 created: 2026-04-16
-updated: 2026-04-16
+updated: 2026-04-17
 depends_on: []
 tags:
 - sprint13
@@ -13,112 +13,114 @@ tags:
 - multi-label
 - critical-path
 - sprint12-deferred-followup
-goal: >
-  Implement a deterministic column-shape detector in the orchestrator that
-  routes each column to one of three existing handlers based on its
-  structural shape. This replaces the retired
-  gated-meta-classifier-architecture-q8-continuation item (see its
-  retired_reason) with a simpler, no-new-model-training design that preserves
-  the cascade's natural multi-label output structure while still using v5
-  on the subset of columns where its softmax assumption holds.
+goal: 'Implement a deterministic column-shape detector in the orchestrator that routes
+  each column to one of three existing handlers based on its structural shape. This
+  replaces the retired gated-meta-classifier-architecture-q8-continuation item (see
+  its retired_reason) with a simpler, no-new-model-training design that preserves
+  the cascade''s natural multi-label output structure while still using v5 on the
+  subset of columns where its softmax assumption holds.
+
+  '
 complexity: M
 technical_specs:
-- 'New helper: data_classifier/orchestrator/shape_detector.py with a pure
-  function ``detect_column_shape(column: ColumnInput, engine_findings: dict)
-  -> Literal["structured_single", "free_text_heterogeneous", "opaque_tokens"]``.
-  Uses these signals: avg_len_normalized (pure function of sample_values),
-  dictionary_word_ratio (pure function, reuse the existing
-  compute_dictionary_word_ratio helper from heuristic_engine), distinct_cardinality_ratio
-  (Chao-1, reuse compute_cardinality_ratio), plus the count of distinct
-  entity_types in the cascade''s engine_findings.'
-- 'Routing logic (from the safety audit memo §6):
-  if avg_len_norm < 0.3 AND n_cascade_entities <= 1: structured_single
-  elif dict_word_ratio >= 0.1: free_text_heterogeneous
-  else: opaque_tokens'
-- 'Orchestrator wiring: call detect_column_shape after the engine cascade
-  has produced engine_findings but BEFORE the 7-pass merge pipeline. Use the
-  detected shape to route downstream:
-    structured_single -> current 7-pass merge + v5 shadow (preserve Sprint 11
-      behavior for this shape)
-    free_text_heterogeneous -> per-value GLiNER aggregation (Item B, separate
-      backlog item) — falls back to current cascade output until Item B lands
-    opaque_tokens -> tuned secret_scanner output (Item C, separate backlog
-      item) — falls back to current cascade output until Item C lands'
-- 'Observability: emit a ColumnShapeEvent from the orchestrator per
-  classification with the detected shape. Useful for Sprint 14+ production
-  column-shape statistics from BQ customers.'
-- 'Testing: add tests/test_column_shape_detector.py with the 6 heterogeneous
-  fixtures from sprint12_safety_audit.py plus 4+ homogeneous-structured
-  fixtures (emails, SSNs, credit cards, phone numbers) plus 2+ opaque-token
-  fixtures (base64 payloads, JWT-like tokens). Assert correct shape detection
-  on each.'
-- 'Integration: re-run tests/benchmarks/meta_classifier/sprint12_safety_audit.py
-  after the router lands. Q3 verdict should drop to GREEN because
-  heterogeneous fixtures are now routed away from v5 and the "v5 collapses
-  on heterogeneous" pathology stops happening.'
-description: |
-  Reframed Sprint 13 brief Item A. Original framing (retired) was "build a
-  gate classifier + 3 specialized stage-2 classifiers". New framing is "build
-  a heuristic shape detector + route to 3 existing tools". The difference:
-
-  - No new model training
-  - No new training data
-  - No new type-system surface (all branches emit list[ClassificationFinding])
-  - Reuses existing infrastructure (cascade, v5, GLiNER, secret_scanner)
-  - Preserves Sprint 11 v5 wins on homogeneous columns
-
-  The routing design is evidence-backed: the 6-fixture Q3 analysis in the
-  Sprint 12 safety audit (docs/research/meta_classifier/sprint12_safety_audit.md
-  §3) shows that column-level statistics (avg_length, dict_word_ratio,
-  cascade entity count) cleanly separate structured / free-text / opaque
-  shapes. Homogeneous single-entity columns have avg_len 0.11-0.16; log-shaped
-  columns have avg_len 0.51-0.90; base64 tokens have dict_word_ratio ~0.
-  Separability is strong enough that a simple heuristic gate works.
-
-  This item is the foundational piece for Items B and C — it establishes
-  the routing framework and the structured_single branch (which is the
-  current system, preserved). Items B and C then fill in the other two
-  branches with better handlers.
+- 'New helper: data_classifier/orchestrator/shape_detector.py with a pure function
+  ``detect_column_shape(column: ColumnInput, engine_findings: dict) -> Literal["structured_single",
+  "free_text_heterogeneous", "opaque_tokens"]``. Uses these signals: avg_len_normalized
+  (pure function of sample_values), dictionary_word_ratio (pure function, reuse the
+  existing compute_dictionary_word_ratio helper from heuristic_engine), distinct_cardinality_ratio
+  (Chao-1, reuse compute_cardinality_ratio), plus the count of distinct entity_types
+  in the cascade''s engine_findings.'
+- "Routing logic (from the safety audit memo \xA76): if avg_len_norm < 0.3 AND n_cascade_entities\
+  \ <= 1: structured_single elif dict_word_ratio >= 0.1: free_text_heterogeneous else:\
+  \ opaque_tokens"
+- "Column-name tiebreaker (Sprint 13 scoping Q1 decision, 2026-04-16): when content\
+  \ signals land in the ambiguous middle band (avg_len_norm in [0.3, 0.45] AND dict_word_ratio\
+  \ in [0.05, 0.15]), consult ColumnInput.column_name against the 673-entry variant\
+  \ dictionary already maintained by ColumnNameEngine. Names matching log/event/message/trace\
+  \ hint toward free_text_heterogeneous; names matching email/ssn/phone/address/etc\
+  \ hint toward structured_single. Used only as a tiebreaker with low weight \u2014\
+  \ content signals remain authoritative. If applied, the decision is recorded in\
+  \ the ColumnShapeEvent payload (column_name_hint_applied=true) so mis-routing on\
+  \ mislabeled columns is observable in telemetry."
+- "Orchestrator wiring: call detect_column_shape after the engine cascade has produced\
+  \ engine_findings but BEFORE the 7-pass merge pipeline. Use the detected shape to\
+  \ route downstream: structured_single -> current 7-pass merge + v5 shadow (preserve\
+  \ Sprint 11 behavior for this shape) free_text_heterogeneous -> per-value GLiNER\
+  \ aggregation (Item B, separate backlog item) \u2014 falls back to current cascade\
+  \ output until Item B lands opaque_tokens -> tuned secret_scanner output (Item C,\
+  \ separate backlog item) \u2014 falls back to current cascade output until Item\
+  \ C lands"
+- "Observability (Sprint 13 scoping Q3 decision \u2014 hard prerequisite, 2026-04-16):\
+  \ emit a ColumnShapeEvent from the orchestrator per classification with payload\
+  \ {shape, avg_len_normalized, dict_word_ratio, cardinality_ratio, n_cascade_entities,\
+  \ column_name_hint_applied: bool, per_value_inference_ms: int | null, sampled_row_count:\
+  \ int | null}. The latency + sample-count fields are populated by Item B's per-value\
+  \ handler when the free_text_heterogeneous branch is taken; null on other branches.\
+  \ Rationale: one telemetry stream answers both \"what's the real shape distribution\
+  \ in BQ production?\" and \"what's Item B's tail latency cost?\" \u2014 coordinating\
+  \ Item A + Item B observability under one event. Gates Item A closure (see acceptance_criteria)."
+- 'Testing: add tests/test_column_shape_detector.py with the 6 heterogeneous fixtures
+  from sprint12_safety_audit.py plus 4+ homogeneous-structured fixtures (emails, SSNs,
+  credit cards, phone numbers) plus 2+ opaque-token fixtures (base64 payloads, JWT-like
+  tokens). Assert correct shape detection on each.'
+- 'Integration: re-run tests/benchmarks/meta_classifier/sprint12_safety_audit.py after
+  the router lands. Q3 verdict should drop to GREEN because heterogeneous fixtures
+  are now routed away from v5 and the "v5 collapses on heterogeneous" pathology stops
+  happening.'
+description: "Reframed Sprint 13 brief Item A. Original framing (retired) was \"build\
+  \ a\ngate classifier + 3 specialized stage-2 classifiers\". New framing is \"build\n\
+  a heuristic shape detector + route to 3 existing tools\". The difference:\n\n- No\
+  \ new model training\n- No new training data\n- No new type-system surface (all\
+  \ branches emit list[ClassificationFinding])\n- Reuses existing infrastructure (cascade,\
+  \ v5, GLiNER, secret_scanner)\n- Preserves Sprint 11 v5 wins on homogeneous columns\n\
+  \nThe routing design is evidence-backed: the 6-fixture Q3 analysis in the\nSprint\
+  \ 12 safety audit (docs/research/meta_classifier/sprint12_safety_audit.md\n\xA7\
+  3) shows that column-level statistics (avg_length, dict_word_ratio,\ncascade entity\
+  \ count) cleanly separate structured / free-text / opaque\nshapes. Homogeneous single-entity\
+  \ columns have avg_len 0.11-0.16; log-shaped\ncolumns have avg_len 0.51-0.90; base64\
+  \ tokens have dict_word_ratio ~0.\nSeparability is strong enough that a simple heuristic\
+  \ gate works.\n\nThis item is the foundational piece for Items B and C \u2014 it\
+  \ establishes\nthe routing framework and the structured_single branch (which is\
+  \ the\ncurrent system, preserved). Items B and C then fill in the other two\nbranches\
+  \ with better handlers.\n"
 acceptance_criteria:
 - data_classifier/orchestrator/shape_detector.py exists with ``detect_column_shape``
   as a public function
-- Orchestrator wiring calls ``detect_column_shape`` before the 7-pass merge
-  and branches based on the result
+- Orchestrator wiring calls ``detect_column_shape`` before the 7-pass merge and branches
+  based on the result
 - tests/test_column_shape_detector.py has at least 12 test cases (6 heterogeneous
   from safety audit fixtures + 4 homogeneous + 2 opaque) and all pass
-- Re-running tests/benchmarks/meta_classifier/sprint12_safety_audit.py with
-  the router in place produces Q3 aggregate verdict = GREEN (no more wrong-class
-  collapses on heterogeneous fixtures because they are no longer routed to v5)
-- Family benchmark (tests/benchmarks/family_accuracy_benchmark.py) does not
-  regress on structured_single columns (which is the current test distribution)
+- Re-running tests/benchmarks/meta_classifier/sprint12_safety_audit.py with the router
+  in place produces Q3 aggregate verdict = GREEN (no more wrong-class collapses on
+  heterogeneous fixtures because they are no longer routed to v5)
+- Family benchmark (tests/benchmarks/family_accuracy_benchmark.py) does not regress
+  on structured_single columns (which is the current test distribution)
+- ColumnShapeEvent is plumbed through the event emitter for every classify_columns
+  call with the full payload schema defined in technical_specs; at least one integration
+  test asserts emission and payload shape on each of the 3 branches (hard prerequisite
+  per Sprint 13 scoping Q3)
 - Lint + format clean, full test suite green
 test_plan:
-- 'Unit tests on shape detection across 12+ fixtures covering all 3 shapes (6
-  heterogeneous + 4 homogeneous + 2 opaque)'
-- 'Integration via safety audit re-run — Q3 verdict should drop to GREEN'
-- 'Regression check on family benchmark re-run — no regression on structured
-  columns (the current test distribution)'
-- 'Manual spot-check on 5 real-looking columns, inspect detected shape is
-  sensible'
-notes: |
-  Estimated ~1 week of implementation. Depends on a clean baseline (Sprint 12
-  shadow-only artifacts + this item's branch). Item B (per-value GLiNER) and
-  Item C (opaque-token tuning) can proceed in parallel once Item A's routing
-  framework lands.
-
-  The gate itself is ~5 lines of code (the routing logic above). The bulk of
-  the work is: (a) wiring the orchestrator to call the detector, (b) keeping
-  the current 7-pass merge for structured_single only, (c) adding the fallback-
-  to-cascade-output stubs for the other two branches until Items B/C land,
-  (d) tests, (e) the observability event.
-
-  Follow-up research questions (for the research branch):
-    1. Is the simple heuristic gate robust on edge cases (long IBAN columns,
-       short UUIDs, mixed-case GUIDs, emoji/CJK text)? Build a larger
-       synthetic corpus + measure misclassification.
-    2. What fraction of real BQ columns fall in each shape bucket? Requires
-       BQ integration team to share anonymized column-shape statistics.
-phase: plan
+- Unit tests on shape detection across 12+ fixtures covering all 3 shapes (6 heterogeneous
+  + 4 homogeneous + 2 opaque)
+- "Integration via safety audit re-run \u2014 Q3 verdict should drop to GREEN"
+- "Regression check on family benchmark re-run \u2014 no regression on structured\
+  \ columns (the current test distribution)"
+- Manual spot-check on 5 real-looking columns, inspect detected shape is sensible
+notes: "Estimated ~1 week of implementation. Depends on a clean baseline (Sprint 12\n\
+  shadow-only artifacts + this item's branch). Item B (per-value GLiNER) and\nItem\
+  \ C (opaque-token tuning) can proceed in parallel once Item A's routing\nframework\
+  \ lands.\n\nThe gate itself is ~5 lines of code (the routing logic above). The bulk\
+  \ of\nthe work is: (a) wiring the orchestrator to call the detector, (b) keeping\n\
+  the current 7-pass merge for structured_single only, (c) adding the fallback-\n\
+  to-cascade-output stubs for the other two branches until Items B/C land,\n(d) tests,\
+  \ (e) the observability event.\n\nFollow-up research questions (for the research\
+  \ branch):\n  1. Is the simple heuristic gate robust on edge cases (long IBAN columns,\n\
+  \     short UUIDs, mixed-case GUIDs, emoji/CJK text)? Build a larger\n     synthetic\
+  \ corpus + measure misclassification.\n  2. What fraction of real BQ columns fall\
+  \ in each shape bucket? Requires\n     BQ integration team to share anonymized column-shape\
+  \ statistics.\n"
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
