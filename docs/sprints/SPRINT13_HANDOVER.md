@@ -1,124 +1,108 @@
 # Sprint 13 Handover — data_classifier
 
-> **Theme:** Column-shape router + per-value GLiNER union
-> **Dates:** 2026-04-16 → 2026-04-17 (ongoing)
+> **Theme:** Column-shape router + per-value GLiNER union + S0 precision
+> **Dates:** 2026-04-16 → 2026-04-17
 > **Branch:** `sprint13/main`
-> **Test count:** 1532 → **1631** (+99 net-new, passing)
+> **Test count:** 1532 → **1711** (+179 net-new, passing)
 
 ---
 
-## Item A — Column-Shape Router (complete, phase=review)
+## Sprint theme in one paragraph
 
-Heuristic gate routes each column to one of three branches based on
-post-merge content signals: `structured_single` (77% of benchmark
-corpus), `free_text_heterogeneous` (11%), `opaque_tokens` (12%).
+Sprint 13 delivered the 3-branch column-shape router (Item A), per-value GLiNER aggregation on heterogeneous columns with a union design (Item B), an entropy-based opaque-token handler (Item C), three S0-driven precision fixes from the prompt-analysis research track (SWIFT_BIC validator, IPv4 reserved-range rewrite, OpenAI/Anthropic patterns, secret-key compound stoplist), and 4 experimental GLiNER labels (AGE, HEALTH, FINANCIAL, DEMOGRAPHIC). The sprint also diagnosed and fixed a benchmark regression where Item C's entropy handler fired on Bitcoin addresses, and identified 273 NEGATIVE FPs as a structural precision gap that led to filing a research item for a binary PII gate.
 
-v5 meta-classifier shadow is suppressed on the heterogeneous and opaque
-branches. Safety audit Q3: 6/6 `router_deflected` (was 6/6 RED in
-Sprint 12).
+---
 
-Key numbers:
+## Completed items (6)
+
+### Item A — Column-Shape Router (P1)
+
+Heuristic gate routes each column to one of three branches based on post-merge content signals: `structured_single` (77%), `free_text_heterogeneous` (11%), `opaque_tokens` (12%). v5 shadow suppressed on non-structured branches.
+
+- Safety audit Q3: 6/6 `router_deflected` (was 6/6 RED in Sprint 12)
 - `shadow.cross_family_rate_emitted`: 0.0001 (was 0.0044 in Sprint 12)
-- `shadow.family_macro_f1_emitted`: 0.9999
-- `router_suppression_rate`: 0.2305
+- 68 tests added
 
-## Item B — Per-Value GLiNER Aggregation, Union Design (complete, phase=review)
+### Item B — Per-Value GLiNER Aggregation (P1)
 
-### Architectural change
+On heterogeneous columns, runs GLiNER per-value on N=60 subsample, aggregates spans, unions with cascade output. Spec revised 2026-04-17 from "replace cascade" to "augment cascade" — regex floor preserved, GLiNER adds coverage (PERSON_NAME, ADDRESS).
 
-On `free_text_heterogeneous` columns, the orchestrator now runs
-`GLiNER2Engine.classify_per_value` on a deterministic N=60 subsample
-(SHA-1-keyed, insertion-order-independent), aggregates spans via
-`aggregate_per_value_spans` (coverage × max_confidence, 10% floor),
-and **unions** the result with the post-merge cascade findings.
+- Union checks: 0/6 regressions, 2/6 GLiNER lift, 0/6 hallucinations
+- Per-value latency: median 2.3s, p90 2.9s per heterogeneous column
+- 29 tests added
 
-Spec revision 2026-04-17: changed from "GLiNER replaces cascade" to
-"GLiNER augments cascade". Rationale:
-- Regex cascade has 100% precision where patterns fire; replacing it
-  sacrifices deterministic EMAIL/IP/URL/SSN recovery.
-- GLiNER urchade/gliner_multi_pii-v1 is English-only.
-- Sprint 10 S1 research documented GLiNER hallucinates PERSON_NAME
-  on numeric tokens without NL-prompt context.
+### Item C — Opaque-Token Handler (P2)
 
-### Safety audit Q3 — union checks
+Entropy-based classifier for JWT/base64/hex-hash/session-ID columns. Two paths: high-entropy (≥4.2 bits/char, <5% spaces) and hex-hash (all hex, ≥32 chars). Only fires when cascade found nothing (guard added after Bitcoin regression).
 
-See `docs/research/meta_classifier/sprint13_item_b_safety_audit.json`.
+- JWT: OPAQUE_SECRET @ 0.95, hex hashes: 0.75, session IDs: 0.88
+- 15 tests added
 
-| Check | Result | Target |
+### S0-1 — SWIFT_BIC + IPv4 Precision (P1)
+
+- `swift_bic_country_code_check`: ISO 3166 alpha-2 at positions 5-6 (~50% English-word FP reduction)
+- `ipv4_not_reserved_check`: stdlib ipaddress rewrite (full loopback/multicast/reserved/link-local/0.0.0.0-8)
+- 27 tests added
+
+### S0-2 — OpenAI/Anthropic Key Patterns (P2)
+
+- `openai_legacy_key`: `sk-[a-zA-Z0-9]{48}` with mixed-case validator
+- `anthropic_api_key`: `sk-ant-(api|admin)NN-[93+ chars]`
+- 9 tests added
+
+### S0-3 — Secret-Key Compound Stoplist (P2)
+
+- `_is_compound_non_secret`: suffix-based rejection for `_address`, `_field`, `_id`, `_name`, `_input`, `_label`, `_placeholder`, `_url`, `_endpoint`
+- Allowlist: `session_id`, `auth_id`, `client_id` (kept as sensitive)
+- 21 tests added
+
+---
+
+## Additional deliverables
+
+### Experimental GLiNER labels
+
+4 labels added to `EXPERIMENTAL_LABEL_DESCRIPTIONS`: AGE (fires cleanly on HR data), HEALTH (fires on medical notes), FINANCIAL (fires on salary data), DEMOGRAPHIC (silent — model doesn't respond to current description). No tests — manually validated, promotion decision deferred.
+
+### Benchmark regression investigation
+
+Item C entropy handler fired OPAQUE_SECRET on Bitcoin address columns (150 FPs). Fixed by `not result` guard — entropy handler only fires when cascade is empty. CRYPTO F1 restored to 1.000.
+
+273 NEGATIVE FPs on secretbench adversarial fixtures identified as structural cascade precision gap. Filed research item: `backlog/research-binary-pii-gate-model-evaluation.yaml` — binary "is this real PII?" gate using LR/XGBoost/MLP on existing 49 features. User observed none of the FPs have entropy/character distribution of real secrets.
+
+---
+
+## Key decisions
+
+1. **Union over replacement** (2026-04-17): GLiNER per-value findings are merged with cascade, not substituted. Regex floor preserved.
+2. **"Measure, do not gate"** (2026-04-16 scoping Q2): per-value latency measured but no timeout imposed. Sprint 14 revisits with production telemetry.
+3. **Entropy handler guard** (2026-04-17): only fires when cascade found nothing. Prevents OPAQUE_SECRET on columns already identified (Bitcoin, Ethereum).
+4. **Binary PII gate → research track** (2026-04-17): user directed model evaluation to research/meta-classifier rather than production implementation.
+
+---
+
+## Final benchmark numbers
+
+| Metric | Sprint 12 | Sprint 13 |
 |---|---|---|
-| Cascade regressions | **0/6** | 0 |
-| Fixtures with GLiNER lift | **2/6** | ≥3 (not met) |
-| Hallucinations | **0/6** | 0 |
+| `shadow.cross_family_rate_emitted` | 0.0044 | **0.0004** |
+| `shadow.family_macro_f1_emitted` | 0.9945 | **0.9998** |
+| `live.cross_family_rate` | 0.1627 | **0.1624** |
+| `live.family_macro_f1` | 0.8329 | **0.8300** |
+| `router_suppression_rate` | N/A | 0.2307 |
+| Tests | 1532 | **1711** (+179) |
+| nemotron named F1 | 1.000 | 1.000 |
+| nemotron blind F1 | 0.833 | 0.833 |
 
-GLiNER lift fixtures: `kafka_event_stream` (+PERSON_NAME),
-`apache_access_log` (+PERSON_NAME). Other 4 fixtures have entities the
-regex cascade already covers. Spec target ≥3 not met — this is an honest
-result, not a quality issue. The model adds value on exactly the fixtures
-where prose names exist.
+---
 
-**ADDRESS detection** — tested separately: GLiNER detects street addresses
-at 95% confidence and 100% coverage on customer-note-style text. This is
-the biggest value-add from per-value mode because the regex cascade has
-zero value-level address detection (no regex can parse "123 Main St").
-No Q3 fixture currently exercises this; adding an address fixture is a
-Sprint 14 follow-up.
+## Follow-ups for Sprint 14
 
-### Family benchmark — no regression
-
-See `docs/research/meta_classifier/sprint13_item_b_family_benchmark.json`.
-
-| Metric | Item A baseline | Item B |
-|---|---|---|
-| `cross_family_rate_emitted` | 0.0001 | 0.0001 |
-| `family_macro_f1_emitted` | 0.9999 | 0.9999 |
-| `router_suppression_rate` | 0.2305 | 0.2308 (+3 columns) |
-
-### Per-value latency — "measure, do not gate" (Sprint 13 scoping Q2)
-
-Local ONNX GLiNER v1, N=50 sampled values, 10 columns
-(8 routed to `free_text_heterogeneous`):
-
-| Column | sampled | ms |
-|---|---|---|
-| audit | 50 | 1,478 |
-| customer_notes | 50 | 1,696 |
-| support_chat | 50 | 1,712 |
-| app_log | 50 | 1,814 |
-| kafka_stream | 50 | 2,272 |
-| original_q3_log | 50 | 2,290 |
-| apache_access_log | 50 | 2,598 |
-| json_event_log | 50 | 2,894 |
-
-Summary: min=1,478ms, median=2,272ms, p90=2,894ms, max=2,894ms.
-
-At the default N=60 cap, expect ~20% higher (~1.8–3.5s per column).
-This is per-column overhead on the heterogeneous branch only; structured
-columns are unaffected.
-
-### Sprint 14 decision point
-
-Sprint 13 shipped with no latency gate. Before Sprint 14 imposes a
-timeout fallback, the ColumnShapeEvent stream from production should
-accumulate at least 1 week of data so the tail (p99) can be
-characterized on real BQ traffic.
-
-### Files touched (Item B)
-
-- `data_classifier/core/types.py` — SpanDetection dataclass
-- `data_classifier/config/engine_defaults.yaml` — per_value_sample_size config
-- `data_classifier/engines/gliner_engine.py` — classify_per_value + _stable_subsample + _load_per_value_sample_size
-- `data_classifier/orchestrator/per_value_aggregator.py` (new) — aggregation helper
-- `data_classifier/orchestrator/orchestrator.py` — heterogeneous branch wiring + _union_findings + _find_engine_by_name
-- `data_classifier/events/types.py` — ColumnShapeEvent (unchanged; fields from Item A)
-- `tests/engines/test_gliner_per_value.py` (new) — 15 tests
-- `tests/orchestrator/test_per_value_aggregator.py` (new) — 9 tests
-- `tests/orchestrator/test_heterogeneous_branch_integration.py` (new) — 5 tests
-- `tests/benchmarks/meta_classifier/sprint12_safety_audit.py` — Q3 union checks
-
-### Follow-ups not taken
-
-1. Non-English GLiNER variant for multilingual heterogeneous content
-2. GLiNER per-value on structured_single as a cascade fallback
-3. Per-entity-type confidence calibration on real BQ columns
-4. ADDRESS Q3 fixture (tests address detection lift)
-5. GLiNER lift target ≥3 fixtures (currently 2/6 — add address fixture would likely close this)
+1. **Binary PII gate research** — model evaluation on research/meta-classifier branch
+2. **ai4privacy openpii-1m corpus ingest** — deferred from Sprint 12, tagged sprint14
+3. **DOB_EU v6 retrain** — deferred from Sprint 13
+4. **GLiNER label decisions** — promote AGE/HEALTH/FINANCIAL, fix or drop DEMOGRAPHIC
+5. **ADDRESS Q3 fixture** — would close GLiNER lift gap (2/6 → likely 3/6)
+6. **Browser PoC sync** — needs Sprint 13 patterns (OpenAI/Anthropic)
+7. **Per-value latency gate decision** — pending 1 week of ColumnShapeEvent prod telemetry
+8. **Broader LLM provider pattern mine** (S3) — Gemini, Mistral, Cohere, etc.
