@@ -188,4 +188,17 @@ function renderRedacted(el, text) {
   if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
 }
 
+// Sync scroll between original and redacted panels
+let syncing = false;
+function syncScroll(source, target) {
+  if (syncing) return;
+  syncing = true;
+  const maxScroll = source.scrollHeight - source.clientHeight;
+  const ratio = maxScroll > 0 ? source.scrollTop / maxScroll : 0;
+  target.scrollTop = ratio * (target.scrollHeight - target.clientHeight);
+  syncing = false;
+}
+originalOut.addEventListener('scroll', () => syncScroll(originalOut, redactedOut));
+redactedOut.addEventListener('scroll', () => syncScroll(redactedOut, originalOut));
+
 loadStories();
