@@ -1,0 +1,646 @@
+{
+  "_metadata": {
+    "source": "gitleaks (MIT)",
+    "source_repo": "https://github.com/gitleaks/gitleaks",
+    "source_commit": "8863af47d64c3681422523e36837957c74d4af4b",
+    "pulled_date": "2026-04-16",
+    "notes": "Provider keywords from context-only gitleaks rules not already in secret_key_names.json (178 entries)",
+    "score_rubric": {
+      "0.70": "well-known providers (facebook, twitter, dropbox, coinbase, datadog, linkedin)",
+      "0.65": "moderate providers (plaid, mapbox, confluent, algolia, zendesk, bitbucket, asana)",
+      "0.60": "niche providers (beamer, finicity, bittrex, kraken, kucoin, flickr, nytimes)"
+    }
+  },
+  "proposed_keywords": [
+    {
+      "pattern": "facebook",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "facebook-access-token",
+        "facebook-secret"
+      ]
+    },
+    {
+      "pattern": "facebook_token",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "facebook-access-token"
+      ]
+    },
+    {
+      "pattern": "twitter_token",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "twitter-access-token",
+        "twitter-api-key"
+      ]
+    },
+    {
+      "pattern": "twitter_api_key",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "twitter-api-key"
+      ]
+    },
+    {
+      "pattern": "twitter_bearer_token",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "twitter-bearer-token"
+      ]
+    },
+    {
+      "pattern": "twitter_consumer_secret",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "twitter-api-secret"
+      ]
+    },
+    {
+      "pattern": "dropbox_token",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "dropbox-api-token",
+        "dropbox-long-lived-api-token",
+        "dropbox-short-lived-api-token"
+      ]
+    },
+    {
+      "pattern": "dropbox_api_key",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "dropbox-api-token"
+      ]
+    },
+    {
+      "pattern": "coinbase_api_key",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "coinbase-access-token"
+      ]
+    },
+    {
+      "pattern": "linkedin_client_id",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "linkedin-client-id"
+      ]
+    },
+    {
+      "pattern": "linkedin_client_secret",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "linkedin-client-secret"
+      ]
+    },
+    {
+      "pattern": "adafruit_key",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "adafruit-api-key"
+      ]
+    },
+    {
+      "pattern": "adobe_client_id",
+      "score": 0.7,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong",
+      "gitleaks_rules": [
+        "adobe-client-id"
+      ]
+    },
+    {
+      "pattern": "plaid_api_key",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "plaid-api-token",
+        "plaid-secret-key"
+      ]
+    },
+    {
+      "pattern": "plaid_client_id",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "plaid-client-id"
+      ]
+    },
+    {
+      "pattern": "plaid_secret",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "plaid-secret-key"
+      ]
+    },
+    {
+      "pattern": "mapbox_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "mapbox-api-token"
+      ]
+    },
+    {
+      "pattern": "confluent_api_key",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "confluent-access-token"
+      ]
+    },
+    {
+      "pattern": "confluent_secret",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "confluent-secret-key"
+      ]
+    },
+    {
+      "pattern": "algolia_api_key",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "algolia-api-key"
+      ]
+    },
+    {
+      "pattern": "snyk_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "snyk-api-token"
+      ]
+    },
+    {
+      "pattern": "sonar_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "sonar-api-token"
+      ]
+    },
+    {
+      "pattern": "launchdarkly_api_key",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "launchdarkly-access-token"
+      ]
+    },
+    {
+      "pattern": "zendesk_api_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "zendesk-secret-key"
+      ]
+    },
+    {
+      "pattern": "squarespace_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "squarespace-access-token"
+      ]
+    },
+    {
+      "pattern": "intercom_api_key",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "intercom-api-key"
+      ]
+    },
+    {
+      "pattern": "freshbooks_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "freshbooks-access-token"
+      ]
+    },
+    {
+      "pattern": "twitch_api_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "twitch-api-token"
+      ]
+    },
+    {
+      "pattern": "yandex_api_key",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "yandex-api-key",
+        "yandex-access-token"
+      ]
+    },
+    {
+      "pattern": "looker_api_key",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "looker-client-id",
+        "looker-client-secret"
+      ]
+    },
+    {
+      "pattern": "mattermost_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "mattermost-access-token"
+      ]
+    },
+    {
+      "pattern": "beamer_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "beamer-api-token"
+      ]
+    },
+    {
+      "pattern": "finicity_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "finicity-api-token",
+        "finicity-client-secret"
+      ]
+    },
+    {
+      "pattern": "finnhub_token",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "finnhub-access-token"
+      ]
+    },
+    {
+      "pattern": "flickr_token",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "flickr-access-token"
+      ]
+    },
+    {
+      "pattern": "bittrex_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "bittrex-access-key"
+      ]
+    },
+    {
+      "pattern": "bittrex_secret",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "bittrex-secret-key"
+      ]
+    },
+    {
+      "pattern": "kraken_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "kraken-access-token"
+      ]
+    },
+    {
+      "pattern": "kucoin_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "kucoin-access-token",
+        "kucoin-secret-key"
+      ]
+    },
+    {
+      "pattern": "etsy_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "etsy-access-token"
+      ]
+    },
+    {
+      "pattern": "rapidapi_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "rapidapi-access-token"
+      ]
+    },
+    {
+      "pattern": "nytimes_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "nytimes-access-token"
+      ]
+    },
+    {
+      "pattern": "sumologic_access_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "sumologic-access-id",
+        "sumologic-access-token"
+      ]
+    },
+    {
+      "pattern": "gocardless_token",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "gocardless-api-token"
+      ]
+    },
+    {
+      "pattern": "travisci_token",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "travisci-access-token"
+      ]
+    },
+    {
+      "pattern": "droneci_token",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "droneci-access-token"
+      ]
+    },
+    {
+      "pattern": "fastly_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "fastly-api-token"
+      ]
+    },
+    {
+      "pattern": "messagebird_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "messagebird-api-token",
+        "messagebird-client-id"
+      ]
+    },
+    {
+      "pattern": "sendbird_token",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "sendbird-access-token",
+        "sendbird-access-id"
+      ]
+    },
+    {
+      "pattern": "cisco_meraki_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "cisco-meraki-api-key"
+      ]
+    },
+    {
+      "pattern": "privateai_api_key",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "privateai-api-token"
+      ]
+    },
+    {
+      "pattern": "cohere_api_key",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "cohere-api-token"
+      ]
+    },
+    {
+      "pattern": "asana_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "asana-client-id",
+        "asana-client-secret"
+      ]
+    },
+    {
+      "pattern": "bitbucket_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "bitbucket-client-id",
+        "bitbucket-client-secret"
+      ]
+    },
+    {
+      "pattern": "contentful_token",
+      "score": 0.6,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "contentful-delivery-api-token"
+      ]
+    },
+    {
+      "pattern": "dynatrace_token",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual",
+      "gitleaks_rules": [
+        "dynatrace-api-token"
+      ]
+    }
+  ]
+}
