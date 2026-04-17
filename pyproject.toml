@@ -66,6 +66,13 @@ bench-compare = [
     "presidio-analyzer>=2.2",
     "spacy>=3.7",
 ]
+research-llm = [
+    # Research-only extra for M4d (LLM-as-oracle multi-label labeler) and
+    # any future research work that calls Claude / Anthropic SDK. NOT a
+    # production runtime dep — nothing under ``data_classifier/`` imports
+    # anthropic. Opt-in via ``pip install -e ".[research-llm]"``.
+    "anthropic>=0.40",
+]
 
 [tool.setuptools.packages.find]
 include = ["data_classifier*"]
