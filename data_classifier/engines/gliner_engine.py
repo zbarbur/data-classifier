@@ -14,6 +14,7 @@ then maps results back to our entity taxonomy.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Any
 
@@ -275,6 +276,24 @@ def _load_per_value_sample_size() -> int:
     except Exception:
         logger.exception("Failed to load per_value_sample_size; falling back to default")
     return _DEFAULT_PER_VALUE_SAMPLE_SIZE
+
+
+def _stable_subsample(values: list[str], *, n: int) -> list[str]:
+    """Deterministically pick up to n values by stable hash.
+
+    SHA-1 of the UTF-8-encoded value as the sort key. Output is
+    insertion-order-independent: two orchestrators that receive the same
+    set of values in different orders produce the same sampled set.
+    """
+    if n <= 0 or not values:
+        return []
+    if len(values) <= n:
+        return list(values)
+
+    def _key(v: str) -> bytes:
+        return hashlib.sha1(v.encode("utf-8", errors="replace")).digest()
+
+    return sorted(values, key=_key)[:n]
 
 
 class GLiNER2Engine(ClassificationEngine):
