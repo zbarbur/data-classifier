@@ -1,6 +1,6 @@
 title: "Research: Binary PII gate \u2014 model evaluation (LR vs tree vs MLP on NEGATIVE\
   \ suppression)"
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 14
