@@ -72,6 +72,21 @@ See the "Python → JS sync" section of the design spec. In short:
   constants. If Python's logic changes, the differential test fails
   until the JS port follows.
 
+### CI integration
+
+After Python tests pass, run:
+
+```
+./scripts/ci_browser_parity.sh
+```
+
+With `--strict-validators`, the script also fails if any pattern
+references a validator not yet ported to JS:
+
+```
+./scripts/ci_browser_parity.sh --strict-validators
+```
+
 ## Architecture pointers
 
 - `src/scanner.js` — public API.
