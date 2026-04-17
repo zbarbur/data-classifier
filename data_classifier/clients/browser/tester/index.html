@@ -10,14 +10,25 @@
       .row { margin-bottom: 1em; }
       button { padding: 0.5em 1em; }
       label { display: block; margin-bottom: 0.25em; font-weight: 600; }
+      select { max-width: 500px; }
+      .annotation { background: #fffbe6; border-left: 3px solid #f0c040; padding: 0.75em 1em; margin-top: 0.5em; font-size: 13px; display: none; }
     </style>
   </head>
   <body>
     <h1>data_classifier — browser secret detector (tester)</h1>
     <p>
-      Paste text below and click Scan. This page imports the built scanner from
+      Paste text below and click Scan, or pick a real-world example from the
+      stories dropdown. This page imports the built scanner from
       <code>../dist/scanner.esm.js</code>. Run <code>npm run build</code> first if the page errors.
     </p>
+
+    <div class="row" id="stories-row" style="display:none">
+      <label for="stories">Real-world examples</label>
+      <select id="stories">
+        <option value="">(paste your own text)</option>
+      </select>
+      <div class="annotation" id="annotation"></div>
+    </div>
 
     <div class="row">
       <label for="input">Input text</label>
