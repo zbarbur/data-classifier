@@ -71,6 +71,8 @@ def emit_constants(version: str) -> None:
     from data_classifier.engines.secret_scanner import (
         _CONFIG_VALUES,
         _DATE_LIKE,
+        _NON_SECRET_ALLOWLIST,
+        _NON_SECRET_SUFFIXES,
         _PLACEHOLDER_PATTERNS,
         _URL_LIKE,
     )
@@ -118,6 +120,8 @@ export const SECRET_SCANNER = {{
   placeholderPatterns: {json.dumps(placeholder_patterns)},
   urlLikePattern: {json.dumps(url_like)},
   dateLikePattern: {json.dumps(date_like)},
+  nonSecretSuffixes: {json.dumps(sorted(_NON_SECRET_SUFFIXES))},
+  nonSecretAllowlist: {json.dumps(sorted(_NON_SECRET_ALLOWLIST))},
 }};
 """
     (GENERATED_DIR / "constants.js").write_text(js)

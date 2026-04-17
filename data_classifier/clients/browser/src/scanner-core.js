@@ -99,6 +99,7 @@ function secretScannerPass(text, verbose, includeRaw) {
     if (hasAntiIndicator(key, value)) continue;
     if (PLACEHOLDER_VALUES.has(value.toLowerCase())) continue;
     if (isPlaceholderPattern(value)) continue;
+    if (isCompoundNonSecret(key)) continue;
     const { score, tier, subtype } = scoreKeyName(key);
     if (score <= 0) continue;
     const composite = tieredScore(score, tier, value);
@@ -196,6 +197,23 @@ const _PLACEHOLDER_RES = SECRET_SCANNER.placeholderPatterns.map(
 // Compiled from Python's _URL_LIKE / _DATE_LIKE via generator
 const _URL_LIKE_RE = new RegExp(SECRET_SCANNER.urlLikePattern.pattern, SECRET_SCANNER.urlLikePattern.flags);
 const _DATE_LIKE_RE = new RegExp(SECRET_SCANNER.dateLikePattern.pattern, SECRET_SCANNER.dateLikePattern.flags);
+
+// Port of Python's _is_compound_non_secret (Sprint 13).
+// Keys like "token_address" contain a secret-bearing word ("token") but the
+// compound name means something non-secret. The allowlist preserves keys
+// like "session_id" that ARE sensitive despite ending with a suffix.
+const _NON_SECRET_ALLOWLIST = new Set(
+  (SECRET_SCANNER.nonSecretAllowlist || []).map((s) => s.toLowerCase())
+);
+
+function isCompoundNonSecret(key) {
+  const lower = key.toLowerCase().trim();
+  if (_NON_SECRET_ALLOWLIST.has(lower)) return false;
+  for (const suffix of SECRET_SCANNER.nonSecretSuffixes || []) {
+    if (lower.endsWith(suffix)) return true;
+  }
+  return false;
+}
 
 function isPlaceholderPattern(value) {
   for (const re of _PLACEHOLDER_RES) {

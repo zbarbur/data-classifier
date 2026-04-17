@@ -55,7 +55,7 @@ storiesEl.addEventListener('change', () => {
   if (story) {
     inputEl.value = decodeXor(story.prompt_xor);
     annotationEl.textContent = story.annotation;
-    annotationEl.style.display = '';
+    annotationEl.style.display = 'block';
   } else {
     inputEl.value = '';
     annotationEl.style.display = 'none';
