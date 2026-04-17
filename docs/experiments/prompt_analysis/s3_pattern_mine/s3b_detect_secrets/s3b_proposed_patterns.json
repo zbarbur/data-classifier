@@ -1,0 +1,156 @@
+{
+  "_metadata": {
+    "source": "detect-secrets (Apache 2.0)",
+    "source_commit": "5e141933554a0b74e7341841f318be21e895339c",
+    "pulled_date": "2026-04-17",
+    "translator": "S3-B research session",
+    "notes": "RE2-compatible translations from detect-secrets plugin regexes"
+  },
+  "patterns": [
+    {
+      "name": "pypi_token",
+      "regex": "\\bpypi-(?:AgEIcHlwaS5vcmc|AgENdGVzdC5weXBpLm9yZw)[A-Za-z0-9_-]{70,}",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "PyPI upload token (pypi- prefix with static base64-encoded pypi.org or test.pypi.org identifier)",
+      "validator": "",
+      "examples_match": [
+        "xor:cik/P3oCFQh3PzQ5NT4/PnouPykuej47Ljt6uNrOeiooPzwzInoqIyozdxs9HxM5EjYtOwlvLDk3OXpxem1qejs2NC83ejkyOygpcw=="
+      ],
+      "examples_no_match": [
+        "pypi-short",
+        "pypi-AgEIcHlwaS5vcmc_tooshort"
+      ],
+      "context_words_boost": [
+        "pypi",
+        "upload",
+        "twine",
+        "PYPI_TOKEN",
+        "PYPI_API_TOKEN"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    },
+    {
+      "name": "mailchimp_api_key",
+      "regex": "\\b[0-9a-f]{32}-us[0-9]{1,2}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.9,
+      "description": "Mailchimp API key (32 hex chars + datacenter suffix -usN)",
+      "validator": "",
+      "examples_match": [
+        "xor:Ozg5Pj88a2hpbm9sbWJjajs4OT4/PGtoaW5vbG1iY2p3Lylr",
+        "xor:ampqampqampqampqampqampqampqampqampqampqamp3LylraA=="
+      ],
+      "examples_no_match": [
+        "abcdef1234567890abcdef1234567890-eu1",
+        "shortkey-us1",
+        "abcdef1234567890abcdef1234567890-us"
+      ],
+      "context_words_boost": [
+        "mailchimp",
+        "MAILCHIMP_API_KEY",
+        "MC_API_KEY"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    },
+    {
+      "name": "artifactory_api_token",
+      "regex": "\\bAKC[a-zA-Z0-9]{10,}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.9,
+      "description": "JFrog Artifactory API token (AKC prefix)",
+      "validator": "",
+      "examples_match": [
+        "xor:GxEZKmI3GDw4HzAfYjsoNTFvGxgZHh8cHRITEBE=",
+        "AKCabcdefghij"
+      ],
+      "examples_no_match": [
+        "AKC_tooshort",
+        "AKC123456789"
+      ],
+      "context_words_boost": [
+        "artifactory",
+        "jfrog",
+        "ARTIFACTORY_TOKEN",
+        "ARTIFACTORY_API_KEY"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    },
+    {
+      "name": "square_oauth_secret",
+      "regex": "\\bsq0csp-[0-9A-Za-z_-]{43}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Square OAuth application secret (sq0csp- prefix, 43-char body)",
+      "validator": "",
+      "examples_match": [
+        "xor:KStqOSkqdxsYGR4fHB0SExARFhcUFQoLCAkODwwNAgMAOzg5Pj88PTIzMDE2NzQ1"
+      ],
+      "examples_no_match": [
+        "sq0csp-tooshort",
+        "sq0csp-",
+        "sq0csp-toolong_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+      ],
+      "context_words_boost": [
+        "square",
+        "oauth",
+        "SQUARE_SECRET",
+        "SQUARE_APPLICATION_SECRET"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    },
+    {
+      "name": "telegram_bot_token",
+      "regex": "\\b[0-9]{8,10}:[0-9A-Za-z_-]{35}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "HIGH",
+      "confidence": 0.85,
+      "description": "Telegram bot token (numeric bot ID + colon + 35-char alphanumeric token)",
+      "validator": "",
+      "examples_match": [
+        "xor:a2hpbm9sbWJjamAbGBkeHxwdEhMQERYXFBUKCwgJDg8MDQIDADs4OT4/PD0yMw=="
+      ],
+      "examples_no_match": [
+        "12345678:tooshort",
+        "1234567:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi",
+        "12345678901:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi"
+      ],
+      "context_words_boost": [
+        "telegram",
+        "bot",
+        "TELEGRAM_TOKEN",
+        "TELEGRAM_BOT_TOKEN"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    }
+  ]
+}

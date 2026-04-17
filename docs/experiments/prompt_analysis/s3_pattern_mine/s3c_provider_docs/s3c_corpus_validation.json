@@ -1,0 +1,32 @@
+{
+  "corpus_size": 11000,
+  "pattern_count": 5,
+  "elapsed_seconds": 1.6,
+  "results": {
+    "okta_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "postman_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "airtable_pat": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "heroku_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "render_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    }
+  }
+}

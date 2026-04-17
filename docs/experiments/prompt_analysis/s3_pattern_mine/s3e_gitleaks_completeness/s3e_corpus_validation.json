@@ -1,0 +1,252 @@
+{
+  "corpus_size": 11000,
+  "pattern_count": 49,
+  "elapsed_seconds": 15.6,
+  "results": {
+    "1password_secret_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "1password_service_account_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "adobe_client_secret": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "age_secret_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "alibaba_access_key_id": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "artifactory_api_key_structured": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "atlassian_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "authress_service_client_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "aws_access_key_id_extended": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "azure_ad_client_secret": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "clojars_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "doppler_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "duffel_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "dynatrace_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "easypost_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "easypost_test_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "facebook_access_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "flutterwave_secret_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "flutterwave_public_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "frameio_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "gcp_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "gitlab_token_extended": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "harness_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "hashicorp_terraform_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "heroku_api_key_v2": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "infracost_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "microsoft_teams_webhook": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "new_relic_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "new_relic_insert_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "new_relic_browser_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "notion_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "openshift_user_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "perplexity_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "planetscale_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "planetscale_password": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "prefect_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "readme_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "rubygems_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "scalingo_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "sendinblue_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "sentry_user_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "settlemint_access_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "shippo_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "slack_app_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "slack_config_refresh_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "sourcegraph_access_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "typeform_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "hashicorp_vault_token_extended": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "mapbox_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    }
+  }
+}

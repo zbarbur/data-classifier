@@ -1,0 +1,54 @@
+{
+  "corpus_size": 11000,
+  "pattern_count": 5,
+  "elapsed_seconds": 1.5,
+  "results": {
+    "pypi_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "mailchimp_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "artifactory_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "square_oauth_secret": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "telegram_bot_token": {
+      "hits": 3,
+      "hit_rate_pct": 0.0273,
+      "samples": [
+        {
+          "fingerprint": "818ab6dacbb67586",
+          "length": 10766,
+          "bucket": "random",
+          "match_count": 1,
+          "first_match_snippet": "\u0430 \u0431\u043e\u0442\u0430\nbot_token = \"5828712341:AAG5HJa37u32SHLytWm5poFrWI0aPsA68A8\"\nbot = telebot.Tele"
+        },
+        {
+          "fingerprint": "3d05ceb25699599b",
+          "length": 12354,
+          "bucket": "random",
+          "match_count": 1,
+          "first_match_snippet": "\u0430 \u0431\u043e\u0442\u0430\nbot_token = \"5828712341:AAG5HJa37u32SHLytWm5poFrWI0aPsA68A8\"\nbot = telebot.Tele"
+        },
+        {
+          "fingerprint": "024eb7f3571a3f34",
+          "length": 9755,
+          "bucket": "long",
+          "match_count": 1,
+          "first_match_snippet": "\u0430 \u0431\u043e\u0442\u0430\nbot_token = '5828712341:AAG5HJa37u32SHLytWm5poFrWI0aPsA68A8'\nbot = telebot.Tele"
+        }
+      ]
+    }
+  }
+}
