@@ -89,6 +89,33 @@ except ImportError:  # pragma: no cover — older checkouts
 # ── Per-shard classification ────────────────────────────────────────────────
 
 
+# M4b ground-truth shape heuristic: independent of the router's own
+# predictions so gate accuracy is measurable. Grounded in "does this column
+# need multi-engine cascade to classify correctly?":
+#   * Scanner corpora (secretbench / gitleaks / detect_secrets) — values are
+#     KV config-line fragments with entities embedded inside structural
+#     wrappers; need column_name + regex + secret_scanner. → heterogeneous.
+#   * Opaque-by-design ground truths (BITCOIN_ADDRESS / ETHEREUM_ADDRESS /
+#     OPAQUE_SECRET) — values are single high-entropy blobs. → opaque_tokens.
+#   * Everything else — clean single-entity columns, one engine suffices. →
+#     structured_single.
+#
+# Documented disagreements with router-predicted shape are the data M4b
+# is designed to surface (e.g., router over-routing clean single-entity
+# address columns to heterogeneous). Do NOT align this heuristic to the
+# router — that would make gate accuracy trivially 100%.
+_OPAQUE_GROUND_TRUTHS = frozenset({"BITCOIN_ADDRESS", "ETHEREUM_ADDRESS", "OPAQUE_SECRET"})
+_SCANNER_CORPORA = frozenset({"secretbench", "gitleaks", "detect_secrets"})
+
+
+def _derive_true_shape(corpus: str, ground_truth: str) -> str:
+    if corpus in _SCANNER_CORPORA:
+        return "free_text_heterogeneous"
+    if ground_truth in _OPAQUE_GROUND_TRUTHS:
+        return "opaque_tokens"
+    return "structured_single"
+
+
 def _top_finding(findings):
     if not findings:
         return None
@@ -144,6 +171,7 @@ def _run_one_shard(shard, profile) -> dict:
         "shadow_confidence": shadow_confidence,
         "shadow_agrees_with_live": shadow_agreement,
         "shape": shape,
+        "true_shape": _derive_true_shape(shard.corpus, shard.ground_truth),
         "shadow_suppressed_by_router": shape is not None and shape != "structured_single",
     }
 
@@ -398,6 +426,126 @@ def _compute_multi_label_metrics(predictions: list[dict], pred_field: str) -> di
     }
 
 
+# ── M4b gate + per-branch surfaces ──────────────────────────────────────────
+
+
+_SHAPE_LABELS: tuple[str, ...] = (
+    "structured_single",
+    "free_text_heterogeneous",
+    "opaque_tokens",
+)
+
+
+def _compute_gate_accuracy(predictions: list[dict]) -> dict:
+    """Router gate accuracy: confusion matrix + per-shape P/R/F1.
+
+    Measures whether the shape router's predicted ``shape`` matches the
+    ground-truth ``true_shape`` (derived from the M4b heuristic). This
+    is the first of the three M4b surfaces — does the router route
+    columns to the correct branch? Orthogonal to whether the downstream
+    cascade then classifies the column correctly.
+
+    Columns where the router emitted no shape (``shape is None``) are
+    counted under a synthetic ``"no_shape"`` predicted class so the total
+    always balances against ``n_shards``.
+    """
+    confusion: dict[str, dict[str, int]] = {
+        true: {pred: 0 for pred in (*_SHAPE_LABELS, "no_shape")} for true in _SHAPE_LABELS
+    }
+    per_true: dict[str, int] = {true: 0 for true in _SHAPE_LABELS}
+    per_pred: dict[str, int] = {pred: 0 for pred in (*_SHAPE_LABELS, "no_shape")}
+
+    for p in predictions:
+        true = p.get("true_shape")
+        pred = p.get("shape") or "no_shape"
+        if true not in _SHAPE_LABELS:
+            continue
+        if pred not in confusion[true]:
+            continue
+        confusion[true][pred] += 1
+        per_true[true] += 1
+        per_pred[pred] += 1
+
+    per_shape: dict[str, dict] = {}
+    for shape in _SHAPE_LABELS:
+        tp = confusion[shape][shape]
+        fn = per_true[shape] - tp
+        fp = per_pred[shape] - tp
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+        per_shape[shape] = {
+            "support_true": per_true[shape],
+            "support_pred": per_pred[shape],
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "precision": round(precision, 4),
+            "recall": round(recall, 4),
+            "f1": round(f1, 4),
+        }
+
+    total_matched = sum(confusion[s][s] for s in _SHAPE_LABELS)
+    total_rows = sum(per_true[s] for s in _SHAPE_LABELS)
+    overall_accuracy = total_matched / total_rows if total_rows > 0 else 0.0
+
+    return {
+        "overall_accuracy": round(overall_accuracy, 4),
+        "n_rows_scored": total_rows,
+        "n_rows_no_shape": per_pred["no_shape"],
+        "confusion": confusion,
+        "per_shape": per_shape,
+    }
+
+
+def _compute_per_branch_accuracy(predictions: list[dict], pred_field: str) -> dict:
+    """Per-branch downstream accuracy (oracle-routed by true_shape).
+
+    For each shape, select shards whose ground-truth shape is that
+    branch, then score the cascade's output with a branch-appropriate
+    metric:
+
+      * ``structured_single``: family-level cross-family rate + macro F1
+        (same as the tier 1 metric for this subset — one engine suffices).
+      * ``free_text_heterogeneous``: multi-label family metric — since
+        the benchmark corpus's heterogeneous shards are scanner corpus
+        shards with a single ground_truth, micro-F1 and accuracy are
+        equivalent here; the multi-label surface is the shape the metric
+        will take at scale when per-value GLiNER lands.
+      * ``opaque_tokens``: binary "did the cascade correctly classify
+        the column's entity family" (OPAQUE_SECRET / CRYPTO families
+        are the expected predictions).
+
+    The oracle routing is the distinguishing design choice — we score
+    per-branch IGNORING router errors. A low per-branch number means
+    the branch's cascade logic is weak; a high per-branch number with a
+    low end-to-end number means the router is the bottleneck.
+    """
+    branches: dict[str, dict] = {}
+
+    for shape in _SHAPE_LABELS:
+        subset = [p for p in predictions if p.get("true_shape") == shape]
+        if not subset:
+            branches[shape] = {"n_shards": 0, "note": "no shards with this true_shape in the corpus"}
+            continue
+
+        # Shared Tier 1 family metric — applies cleanly for structured_single,
+        # informative for the others as a baseline reading.
+        family_metric = _compute_family_metrics(subset, pred_field)
+
+        branches[shape] = {
+            "n_shards": len(subset),
+            "family": {
+                "cross_family_rate": family_metric.get("cross_family_rate"),
+                "cross_family_rate_emitted": family_metric.get("cross_family_rate_emitted"),
+                "family_macro_f1": family_metric.get("family_macro_f1"),
+                "n_shards_emitted": family_metric.get("n_shards_emitted"),
+            },
+        }
+
+    return branches
+
+
 def _compare_to(current: dict, previous_path: Path) -> dict:
     """Produce a delta summary against a previously-saved summary JSON."""
     try:
@@ -572,6 +720,17 @@ def main(argv: list[str] | None = None) -> int:
         },
         "shadow": {
             "overall": _build_tiered(predictions, "shadow_predicted"),
+        },
+        # M4b: router gate accuracy + per-branch downstream accuracy.
+        # gate_accuracy measures whether shape routing is correct;
+        # per_branch_accuracy measures whether each branch's cascade
+        # classifies correctly IGNORING router errors (oracle routing
+        # by true_shape). Mismatch between the two decomposes end-to-end
+        # errors into routing vs downstream failure modes.
+        "gate_accuracy": _compute_gate_accuracy(predictions),
+        "per_branch_accuracy": {
+            "live": _compute_per_branch_accuracy(predictions, "predicted"),
+            "shadow": _compute_per_branch_accuracy(predictions, "shadow_predicted"),
         },
     }
     for mode in ("named", "blind"):

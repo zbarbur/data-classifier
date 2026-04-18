@@ -1,0 +1,55 @@
+Building synthetic pool and shards (seed=20260412)...
+Classifying 9870 shards...
+  500/9870 (2.4s)
+  1000/9870 (4.8s)
+  1500/9870 (6.8s)
+  2000/9870 (12.3s)
+  2500/9870 (13.4s)
+  3000/9870 (14.5s)
+  3500/9870 (16.0s)
+  4000/9870 (17.3s)
+  4500/9870 (18.4s)
+  5000/9870 (20.1s)
+  5500/9870 (21.4s)
+  6000/9870 (24.4s)
+  6500/9870 (28.7s)
+  7000/9870 (30.7s)
+  7500/9870 (31.8s)
+  8000/9870 (32.7s)
+  8500/9870 (33.8s)
+  9000/9870 (35.1s)
+  9500/9870 (37.3s)
+Finished 9870 shards in 38.5s
+
+========================================================================
+FAMILY-LEVEL ACCURACY BENCHMARK
+========================================================================
+N shards:             9870
+
+LIVE path:
+  cross_family_rate:  0.1624  (1603/9870)
+  family_macro_f1:    0.8300
+  within_family_mislabels: 644
+
+SHADOW path (meta-classifier):
+  cross_family_rate:  0.2305  (2275/9870)
+  family_macro_f1:    0.7653
+  within_family_mislabels: 2
+  cross_family_rate_emitted:  0.0001  (v5 accuracy excl. router-suppressed; 7596 shards)
+  family_macro_f1_emitted:    0.9999
+  router_suppression_rate:    0.2304  (2274/9870 shards)
+  suppressed by shape:  free_text_heterogeneous=1110, opaque_tokens=1164
+
+Per-family F1 (shadow, sorted ascending — lowest is the constraint):
+  CRYPTO          N=  600  P=0.000  R=0.000  F1=0.000
+  URL             N=  210  P=1.000  R=0.286  F1=0.444
+  NEGATIVE        N=  450  P=1.000  R=0.333  F1=0.500
+  CREDENTIAL      N=  750  P=1.000  R=0.372  F1=0.542
+  GOVERNMENT_ID   N= 1110  P=1.000  R=0.839  F1=0.912
+  HEALTHCARE      N= 1050  P=1.000  R=0.857  F1=0.923
+  CONTACT         N= 2040  P=1.000  R=0.862  F1=0.926
+  FINANCIAL       N= 1470  P=0.999  R=0.924  F1=0.960
+  NETWORK         N=  720  P=1.000  R=0.971  F1=0.985
+  PAYMENT_CARD    N=  510  P=1.000  R=0.980  F1=0.990
+  DATE            N=  510  P=1.000  R=1.000  F1=1.000
+  VEHICLE         N=  450  P=1.000  R=1.000  F1=1.000

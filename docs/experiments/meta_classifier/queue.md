@@ -2206,37 +2206,62 @@ helper used by all other M4 sub-items.
 
 **Deliverable:** `docs/experiments/meta_classifier/runs/<ts>-m4a-metric-helper/result.md` + the committed helper module.
 
-### M4b — Gate vs downstream evaluation harness
+### M4b — Gate vs downstream evaluation harness (COMPLETE 2026-04-18)
 
-**Status:** ⏸ blocked on Sprint 13 Item A landing on main + M4a
-**Priority:** P1
-**Estimated time:** ~3-4 days
-**Contract note:** research-owned benchmark extension
+**Status:** ✅ complete 2026-04-18 — path 3 variant (strict M4b on existing corpus + M4f follow-up filed for heterogeneous-shards expansion).
+**Canonical artifact:** `docs/experiments/meta_classifier/runs/20260418-m4b-gate-downstream/`
+  — `result.md`, `summary.json`, `predictions.jsonl`, `run.log`
+**Priority:** was P1
+**Actual time:** ~half a day (heuristic validation + wiring + tests + memo)
 
-**Goal:** Split M4 benchmark reporting into three evaluation surfaces so
-the router's two failure modes — misrouting vs correct-routing-wrong-
-output — can be measured and debugged independently. An end-to-end
-0.75 could be 0.95 gate / 0.80 downstream or 0.85 gate / 0.88
-downstream; very different diagnoses.
+**Delivered:**
 
-**What shipped:**
+- `family_accuracy_benchmark.py` extended with two new top-level
+  summary surfaces (pre-existing `live` / `shadow` tiers unchanged):
+  * `gate_accuracy` — confusion matrix + per-shape P/R/F1
+  * `per_branch_accuracy` (live + shadow variants) — oracle-routed
+    per-shape family metrics
+- `_derive_true_shape(corpus, ground_truth)` helper with documented
+  heuristic grounded in "does this column need multi-engine cascade?"
+- 7 new unit tests in `tests/test_family_benchmark_metrics.py`
+  (10 tests total, all green)
+- Canonical run on 9,870 shards: **gate accuracy 0.8802**, with full
+  per-branch decomposition in the memo
 
-Three reporting surfaces added to the benchmark:
+**Key findings from the canonical run:**
 
-1. **Router gate accuracy** — confusion matrix of predicted × true
-   column shape. Plus per-shape precision/recall.
-2. **Per-branch downstream accuracy** — measured using ground-truth
-   shape as an oracle for branch selection:
-   - `structured_single`: v5 accuracy (existing single-label metrics apply)
-   - `free_text_heterogeneous`: per-value GLiNER + aggregation accuracy (M4a multi-label metrics)
-   - `opaque_tokens`: secret_scanner tuned accuracy (binary detection metrics)
-3. **End-to-end accuracy** — customer-visible metric. Aggregates gate + downstream errors.
+- Router over-routes structured_single shards to `opaque_tokens` (543
+  FPs, dominant error mode) and to `free_text_heterogeneous` (360 FPs)
+- Live-path per-branch: structured `macro_f1=0.935`, opaque
+  `macro_f1=0.968` — both strong. Heterogeneous scanner-corpus
+  `macro_f1=0.370` — weak, consistent with Sprint 14 cascade
+  short-circuit fix's motivation.
+- Shadow-path per-branch emits vacuous 0.0 on heterogeneous/opaque
+  by design (Sprint 13 shadow-suppresses on non-structured shapes).
+  M4b confirms this is behaving as intended.
 
-**Success criteria:**
+**Heuristic used:**
 
-- Benchmark JSON carries all three surfaces clearly delineated
-- Misrouted columns are attributable via log output (which surface failed)
-- End-to-end vs branch-isolated metrics differ by the expected amount given measured gate precision/recall
+```python
+scanner_corpora = {"secretbench", "gitleaks", "detect_secrets"}
+opaque_gts = {"BITCOIN_ADDRESS", "ETHEREUM_ADDRESS", "OPAQUE_SECRET"}
+# scanner → free_text_heterogeneous
+# opaque_gts → opaque_tokens
+# else → structured_single
+```
+
+Deliberately NOT aligned to router predictions; disagreements ARE the
+metric. Distribution: 8,220 / 900 / 750 across the three shapes.
+
+**Follow-ups filed:**
+
+- **M4f** (below) — add `free_text_heterogeneous` shards from
+  non-scanner corpora (Sprint 12 fixtures, CFPB Tier 7b) so
+  heterogeneous downstream accuracy is measurable beyond 900 scanner
+  shards.
+- **Router precision on opaque_tokens (0.533)** — worth a Sprint 15+
+  investigation. 543 structured shards mis-routed to opaque; doesn't
+  always cost accuracy (opaque handler is lenient) but is latent risk.
 
 ### M4c — Hand-labeled heterogeneous gold set (50 columns)
 
@@ -2445,6 +2470,55 @@ extend.
 - Regression tests catch silent degradation on either family
 
 **Deliverable:** `tests/benchmarks/meta_classifier/family_accuracy_benchmark.py` extended + new `tests/test_multi_label_metrics_benchmark_parity.py` for regression guarding.
+
+### M4f — Add free_text_heterogeneous shards from non-scanner corpora
+
+**Status:** 🟡 queued — follow-up to M4b landing 2026-04-18
+**Priority:** P3 — unblocks finer-grained heterogeneous downstream
+measurement, but M4b already surfaces the 900-shard signal from scanner
+corpora; not blocking any current sprint work
+**Estimated time:** ~1 week
+
+**Goal:** The M4b benchmark surfaces heterogeneous downstream accuracy
+on 900 scanner-corpus shards (secretbench + gitleaks + detect_secrets).
+That's enough to show the branch is weak (`macro_f1=0.370` live path),
+but scanner KV config-lines are only one flavor of heterogeneous. Add
+shard sources that exercise the other flavors:
+
+- **Log streams** — synthesize Apache-access-log, JSON-event-log,
+  Kafka-event-stream shards from the Sprint 12 safety audit fixtures
+  (already have ground-truth labels at
+  `tests/benchmarks/meta_classifier/sprint12_safety_audit.py`). Each
+  fixture can seed 10-50 resampled shards.
+- **Customer narrative** — CFPB consumer_complaint_narrative chunks
+  per Tier 7b R1 (redacted, public-agency, CC0). 100-300 shards
+  feasible if we sample value-level not column-level.
+- **User bios** — SO `about_me` / HN `comments` samples per the M4c
+  gold-set scheme, chunked into benchmark-sized shards (50 values
+  each). 100-200 shards.
+
+**Shard builder change:** extend `tests/benchmarks/meta_classifier/shard_builder.py`
+with a new `heterogeneous_synthetic` (or similar) corpus enum. Each
+shard carries a ground_truth that's the *dominant* entity from the
+value distribution; the multi-label metric surface (M4e) captures
+secondary entities.
+
+**Success criteria:**
+
+- M4b `per_branch_accuracy.free_text_heterogeneous.n_shards` grows
+  from 900 to 1,500+ across ≥3 structurally-distinct sources
+- No regression on M4b's scanner-corpus numbers (shard_builder
+  deterministic, same seed → same scanner shards)
+- Heterogeneous branch macro_f1 re-measured on the expanded corpus;
+  document new baseline
+
+**Dependencies:** M4b shipped (✅ 2026-04-18). No other dependencies.
+
+**Why this matters:** The 900-shard heterogeneous number in M4b is
+dominated by one failure mode (scanner KV shapes). Expanding sources
+reveals whether the branch weakness is general or specific. If general
+— motivates broader cascade investment. If specific — narrows the
+work needed to fix it.
 
 ## Corpus hygiene / ground-truth quality (M5 track)
 
