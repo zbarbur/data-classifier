@@ -57,17 +57,22 @@ def main() -> None:
     for i, rec in enumerate(records):
         if (i + 1) % 2000 == 0:
             elapsed = time.time() - t0
-            log.info("processed %d/%d (%.0f/sec) | fixtures=%d findings=%d",
-                     i + 1, len(records), (i + 1) / elapsed, len(fixtures), finding_count)
+            log.info(
+                "processed %d/%d (%.0f/sec) | fixtures=%d findings=%d",
+                i + 1,
+                len(records),
+                (i + 1) / elapsed,
+                len(fixtures),
+                finding_count,
+            )
 
         text = xor_decode(rec["text_xor"])
         col = ColumnInput(column_name="prompt", sample_values=[text])
 
         try:
-            findings = (
-                regex_engine.classify_column(col, profile=profile, min_confidence=0.5, max_evidence_samples=10)
-                + secret_engine.classify_column(col, profile=profile, min_confidence=0.5, max_evidence_samples=10)
-            )
+            findings = regex_engine.classify_column(
+                col, profile=profile, min_confidence=0.5, max_evidence_samples=10
+            ) + secret_engine.classify_column(col, profile=profile, min_confidence=0.5, max_evidence_samples=10)
         except Exception as e:
             log.debug("engine error idx=%d: %s", i, e)
             continue
@@ -77,26 +82,35 @@ def main() -> None:
 
         expected = []
         for f in findings:
-            expected.append({
-                "entity_type": f.entity_type,
-                "family": ENTITY_TYPE_TO_FAMILY.get(f.entity_type, "OTHER"),
-                "confidence": f.confidence,
-                "engine": f.engine,
-                "evidence": f.evidence,
-            })
+            expected.append(
+                {
+                    "entity_type": f.entity_type,
+                    "family": ENTITY_TYPE_TO_FAMILY.get(f.entity_type, "OTHER"),
+                    "confidence": f.confidence,
+                    "engine": f.engine,
+                    "evidence": f.evidence,
+                }
+            )
 
-        fixtures.append({
-            "prompt_fingerprint": rec["sha256"],
-            "prompt_length": rec["length"],
-            "bucket": rec["bucket"],
-            "prompt_xor": rec["text_xor"],
-            "expected_findings": expected,
-        })
+        fixtures.append(
+            {
+                "prompt_fingerprint": rec["sha256"],
+                "prompt_length": rec["length"],
+                "bucket": rec["bucket"],
+                "prompt_xor": rec["text_xor"],
+                "expected_findings": expected,
+            }
+        )
         finding_count += len(expected)
 
     elapsed = time.time() - t0
-    log.info("done in %.1fs: %d prompts with findings, %d total findings (out of %d corpus)",
-             elapsed, len(fixtures), finding_count, len(records))
+    log.info(
+        "done in %.1fs: %d prompts with findings, %d total findings (out of %d corpus)",
+        elapsed,
+        len(fixtures),
+        finding_count,
+        len(records),
+    )
 
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = REPORT_DIR / "s2_test_fixtures.jsonl"
@@ -106,6 +120,7 @@ def main() -> None:
 
     # Summary
     from collections import Counter
+
     by_engine = Counter(e["engine"] for fix in fixtures for e in fix["expected_findings"])
     by_family = Counter(e["family"] for fix in fixtures for e in fix["expected_findings"])
     summary = {

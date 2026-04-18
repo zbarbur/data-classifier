@@ -44,8 +44,7 @@ def main() -> None:
 
     if args.random_size + args.long_size > args.stream_size:
         raise SystemExit(
-            f"stream-size ({args.stream_size}) must be >= random + long "
-            f"({args.random_size + args.long_size})"
+            f"stream-size ({args.stream_size}) must be >= random + long ({args.random_size + args.long_size})"
         )
 
     random.seed(args.seed)
@@ -70,12 +69,14 @@ def main() -> None:
             if fp in seen:
                 continue
             seen.add(fp)
-            records.append({
-                "turn_index": len(records),
-                "length": len(text),
-                "sha256": fp,
-                "text_xor": xor_encode(text),
-            })
+            records.append(
+                {
+                    "turn_index": len(records),
+                    "length": len(text),
+                    "sha256": fp,
+                    "text_xor": xor_encode(text),
+                }
+            )
             if len(records) >= args.stream_size:
                 break
         if (len(records) % 5_000) == 0 and len(records) > 0:
@@ -85,10 +86,10 @@ def main() -> None:
 
     # Stable shuffle for reproducibility, then split.
     random.shuffle(records)
-    random_recs = records[:args.random_size]
-    remaining = records[args.random_size:]
+    random_recs = records[: args.random_size]
+    remaining = records[args.random_size :]
     remaining.sort(key=lambda r: r["length"], reverse=True)
-    long_recs = remaining[:args.long_size]
+    long_recs = remaining[: args.long_size]
 
     for r in random_recs:
         r["bucket"] = "random"
@@ -104,8 +105,12 @@ def main() -> None:
     avg_long_len = sum(r["length"] for r in long_recs) / len(long_recs)
     log.info(
         "wrote %d records: %d random (avg %.0f chars) + %d long (avg %.0f chars) → %s",
-        len(out_records), len(random_recs), avg_random_len,
-        len(long_recs), avg_long_len, args.out,
+        len(out_records),
+        len(random_recs),
+        avg_random_len,
+        len(long_recs),
+        avg_long_len,
+        args.out,
     )
 
 

@@ -31,10 +31,22 @@ PATTERN_DEFAULTS = {
 
 # Canonical field order for patterns
 PATTERN_FIELD_ORDER = [
-    "name", "regex", "entity_type", "category", "sensitivity", "confidence",
-    "description", "validator", "examples_match", "examples_no_match",
-    "context_words_boost", "context_words_suppress", "stopwords",
-    "allowlist_patterns", "requires_column_hint", "column_hint_keywords",
+    "name",
+    "regex",
+    "entity_type",
+    "category",
+    "sensitivity",
+    "confidence",
+    "description",
+    "validator",
+    "examples_match",
+    "examples_no_match",
+    "context_words_boost",
+    "context_words_suppress",
+    "stopwords",
+    "allowlist_patterns",
+    "requires_column_hint",
+    "column_hint_keywords",
 ]
 
 
@@ -58,9 +70,14 @@ def normalize_pattern(p: dict) -> dict:
         # else: field like 'validator' should already be present
     # Copy any extra fields not in canonical order
     for k, v in p.items():
-        if k not in out and k not in ("examples_match", "examples_no_match",
-                                       "gitleaks_rules", "gitleaks_rule",
-                                       "source", "note"):
+        if k not in out and k not in (
+            "examples_match",
+            "examples_no_match",
+            "gitleaks_rules",
+            "gitleaks_rule",
+            "source",
+            "note",
+        ):
             out[k] = v
     return out
 
@@ -187,14 +204,16 @@ def main():
             continue
         seen_kw.add(pat)
         # Ensure canonical fields
-        new_keywords.append({
-            "pattern": kw["pattern"],
-            "score": kw["score"],
-            "category": kw.get("category", "Credential"),
-            "match_type": kw.get("match_type", "substring"),
-            "tier": kw["tier"],
-            "subtype": kw.get("subtype", "OPAQUE_SECRET"),
-        })
+        new_keywords.append(
+            {
+                "pattern": kw["pattern"],
+                "score": kw["score"],
+                "category": kw.get("category", "Credential"),
+                "match_type": kw.get("match_type", "substring"),
+                "tier": kw["tier"],
+                "subtype": kw.get("subtype", "OPAQUE_SECRET"),
+            }
+        )
 
     print(f"\n  New keywords after dedup: {len(new_keywords)}")
     if kw_dupes:
@@ -203,12 +222,14 @@ def main():
             print(d)
 
     # --- Summary ---
-    print(f"\n{'='*60}")
-    print(f"SUMMARY:")
+    print(f"\n{'=' * 60}")
+    print("SUMMARY:")
     print(f"  Patterns: {len(existing_patterns)} → {len(existing_patterns) + len(deduped)} (+{len(deduped)} new)")
     print(f"  Upgrades applied: {applied} (deferred: {len(skipped_upgrades)})")
-    print(f"  Key-names: {len(existing_keynames)} → {len(existing_keynames) + len(new_keywords)} (+{len(new_keywords)} new)")
-    print(f"{'='*60}")
+    print(
+        f"  Key-names: {len(existing_keynames)} → {len(existing_keynames) + len(new_keywords)} (+{len(new_keywords)} new)"
+    )
+    print(f"{'=' * 60}")
 
     if dry_run:
         print("\n  --dry-run: no files written")

@@ -48,7 +48,9 @@ class TestPatternExamples:
         compiled = re2.compile(pattern.regex)
         for example in pattern.examples_no_match:
             decoded = _decode_example(example)
-            assert not compiled.search(decoded), f"Pattern '{pattern.name}' should NOT match '{decoded[:80]}...' but did"
+            assert not compiled.search(decoded), (
+                f"Pattern '{pattern.name}' should NOT match '{decoded[:80]}...' but did"
+            )
 
     def test_has_required_metadata(self, pattern):
         """Pattern has all required metadata fields."""
