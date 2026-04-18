@@ -1,0 +1,61 @@
+{
+  "generated": "2026-04-16",
+  "purpose": "S3-D: check whether gitleaks, Kingfisher, and Nosey Parker have added new credential detection rules since Sprint 10",
+  "sources": [
+    {
+      "name": "gitleaks",
+      "repo": "gitleaks/gitleaks",
+      "license": "MIT",
+      "default_branch": "master",
+      "sprint10_sha": "8863af47d64c3681422523e36837957c74d4af4b",
+      "current_sha": "8863af47d64c3681422523e36837957c74d4af4b",
+      "commits_ahead": 0,
+      "new_rules_count": 0,
+      "new_rules_relevant": 0,
+      "new_rules_already_covered": 0,
+      "net_new_patterns_proposed": 0,
+      "total_rules_at_pin": 222,
+      "details": "HEAD on master is identical to Sprint 10 pinned SHA. No new rules since the last mine. 222 [[rules]] entries counted in config/gitleaks.toml at this commit."
+    },
+    {
+      "name": "kingfisher",
+      "repo": "mongodb/kingfisher",
+      "license": "Apache-2.0",
+      "default_branch": "main",
+      "sprint10_sha": "be0ce3bae0b14240bb2781ab6ee2b5c65e02144b",
+      "current_sha": "be0ce3bae0b14240bb2781ab6ee2b5c65e02144b",
+      "commits_ahead": 0,
+      "new_rules_count": 0,
+      "new_rules_relevant": 0,
+      "new_rules_already_covered": 0,
+      "net_new_patterns_proposed": 0,
+      "details": "HEAD on main is identical to Sprint 10 pinned SHA. No new rules since the last mine."
+    },
+    {
+      "name": "noseyparker",
+      "repo": "praetorian-inc/noseyparker",
+      "license": "Apache-2.0",
+      "default_branch": "main",
+      "sprint10_sha": "2e6e7f36ce36619852532bbe698d8cb7a26d2da7",
+      "current_sha": "2e6e7f36ce36619852532bbe698d8cb7a26d2da7",
+      "commits_ahead": 0,
+      "new_rules_count": 0,
+      "new_rules_relevant": 0,
+      "new_rules_already_covered": 0,
+      "net_new_patterns_proposed": 0,
+      "details": "HEAD on main is identical to Sprint 10 pinned SHA. No new rules since the last mine."
+    }
+  ],
+  "summary": {
+    "total_commits_ahead_across_all_sources": 0,
+    "total_net_new_rules": 0,
+    "total_proposed_patterns": 0,
+    "verdict": "NO_NEW_RULES",
+    "note": "All three upstream sources are at exactly the Sprint 10 pinned commit. S3-D yields zero new patterns. No s3d_proposed_patterns.json is required."
+  },
+  "verification_method": {
+    "sha_fetch": "GET https://api.github.com/repos/{owner}/{repo}/commits/{branch}",
+    "compare": "GET https://api.github.com/repos/{owner}/{repo}/compare/{old}...{new} — ahead_by=0 for all three",
+    "gitleaks_rule_count": "curl raw config/gitleaks.toml | count '[[rules]]' — 222 rules at pinned SHA"
+  }
+}

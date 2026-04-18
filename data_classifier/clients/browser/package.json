@@ -1,0 +1,54 @@
+{
+  "name": "@data-classifier/browser",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Client-side secret detection engine ported from data_classifier (Python).",
+  "engines": {
+    "node": ">=20"
+  },
+  "types": "./scanner.d.ts",
+  "exports": {
+    ".": {
+      "types": "./scanner.d.ts",
+      "default": "./dist/scanner.esm.js"
+    },
+    "./worker": "./dist/worker.esm.js",
+    "./tester": "./tester/index.html"
+  },
+  "files": [
+    "dist/*.js",
+    "scanner.d.ts",
+    "tester/index.html",
+    "tester/tester.js",
+    "tester/corpus/stories.jsonl",
+    "docs/*.md",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "build:dev": "node esbuild.config.mjs --dev",
+    "dev": "node esbuild.config.mjs --watch",
+    "generate": "cd ../../.. && python3 scripts/generate_browser_patterns.py",
+    "serve": "npm run generate && npm run build && npx http-server . -p 4173 -c-1",
+    "dist": "npm run generate && npm run build && node scripts/check-size.js",
+    "pretest:unit": "npm run generate",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "pretest:e2e": "npm run generate && npm run build",
+    "test:e2e": "playwright test",
+    "bench": "playwright test tests/e2e/bench.spec.js",
+    "package": "npm run dist && node scripts/package.js",
+    "format": "prettier --write 'src/**/*.js' 'tests/**/*.js' 'tester/**/*.js' 'tester/**/*.html'",
+    "format:check": "prettier --check 'src/**/*.js' 'tests/**/*.js' 'tester/**/*.js' 'tester/**/*.html'"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "@vitest/web-worker": "^2.0.0",
+    "esbuild": "^0.23.0",
+    "http-server": "^14.1.0",
+    "jsdom": "^29.0.2",
+    "prettier": "^3.3.0",
+    "vitest": "^2.0.0"
+  }
+}

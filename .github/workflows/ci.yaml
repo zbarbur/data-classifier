@@ -158,3 +158,33 @@ jobs:
         run: |
           /tmp/smoke_venv/bin/data-classifier-download-models --help
           /tmp/smoke_venv/bin/python -m data_classifier.download_models --help
+
+  browser-parity:
+    # Regenerates JS assets from the current Python source, builds the
+    # browser bundle, runs Vitest unit tests and Playwright differential
+    # tests. Catches Python changes that silently break the JS port.
+    # Runs once (py3.12 + Node 20) after Python tests pass.
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run browser parity check
+        run: ./scripts/ci_browser_parity.sh

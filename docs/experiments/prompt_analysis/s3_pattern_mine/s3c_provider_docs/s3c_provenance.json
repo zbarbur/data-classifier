@@ -1,0 +1,49 @@
+{
+  "_metadata": {
+    "source_category": "provider documentation",
+    "license": "N/A \u2014 factual key format descriptions are not copyrightable",
+    "pulled_date": "2026-04-16"
+  },
+  "provenance": [
+    {
+      "pattern_name": "okta_api_token",
+      "source_type": "provider documentation",
+      "documentation_url": "https://developer.okta.com/docs/guides/create-an-api-token/main/",
+      "secondary_url": "https://support.okta.com/help/s/article/formatting-authorization-headers-for-ssws-and-oauth-2-0-bearer-tokens",
+      "format_notes": "Okta Developer Docs state tokens are 42 chars, start with '00', alphanumeric + hyphens. Used in 'Authorization: SSWS <token>' header. Okta dev forum thread confirms exact format.",
+      "fp_risk": "LOW-MEDIUM \u2014 '00' is a weak prefix, but combined with exact 42-char length and requires_column_hint=true the FP surface is controlled"
+    },
+    {
+      "pattern_name": "postman_api_key",
+      "source_type": "provider documentation",
+      "documentation_url": "https://learning.postman.com/docs/developer/postman-api/authentication",
+      "secondary_url": "https://detectors.xygeni.io/xydocs/secrets/detectors/postman_api_key.html",
+      "format_notes": "Postman officially documents PMAK- prefix. Two hex segments separated by hyphen: 24 chars + 34 chars. Full example XOR-encoded in s3c_proposed_patterns.json.",
+      "fp_risk": "VERY LOW \u2014 PMAK- is a uniquely distinctive prefix"
+    },
+    {
+      "pattern_name": "airtable_pat",
+      "source_type": "provider documentation + secondary source",
+      "documentation_url": "https://airtable.com/developers/web/guides/personal-access-tokens",
+      "secondary_url": "https://github.com/gitleaks/gitleaks/issues/1907",
+      "format_notes": "Airtable documentation states token ID is first 14 chars of PAT. Gitleaks issue and TruffleHog PR #3933/#3941 confirm format: 'pat' + 14 alphanum chars (token ID) + '.' + 32-64 alphanumeric (secret). Dot separator makes this highly distinctive.",
+      "fp_risk": "VERY LOW \u2014 'pat' + 14 chars + dot is a highly distinctive structure; 'pat' alone would collide with 'patch/patient/pattern' but the full regex including the dot separator is robust"
+    },
+    {
+      "pattern_name": "heroku_api_key",
+      "source_type": "provider documentation",
+      "documentation_url": "https://devcenter.heroku.com/changelog-items/3175",
+      "secondary_url": "https://devcenter.heroku.com/articles/oauth",
+      "format_notes": "Heroku Dev Center changelog entry explicitly documents: 'OAuth access tokens are 65 characters long and prefixed with HRKU-'. Full example XOR-encoded in s3c_proposed_patterns.json. New format since April 23 2025.",
+      "fp_risk": "VERY LOW \u2014 HRKU- is a uniquely distinctive prefix"
+    },
+    {
+      "pattern_name": "render_api_key",
+      "source_type": "provider documentation",
+      "documentation_url": "https://api-docs.render.com/reference/authentication",
+      "secondary_url": "https://render.com/docs/api",
+      "format_notes": "Render API authentication docs describe keys with 'rnd_' prefix. Consistent across Render blog posts and third-party integrations. Exact body length not officially documented; 32-64 is a conservative lower bound derived from observed examples.",
+      "fp_risk": "LOW \u2014 'rnd_' is distinctive but shorter prefix than ideal; body length constraint reduces FP risk"
+    }
+  ]
+}

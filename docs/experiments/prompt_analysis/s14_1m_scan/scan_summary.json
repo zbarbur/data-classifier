@@ -1,0 +1,40 @@
+{
+  "total_conversations": 837989,
+  "total_prompts": 1645713,
+  "prompts_with_findings": 3515,
+  "prevalence_pct": 0.2136,
+  "regex_findings": 2819,
+  "ss_findings": 1649,
+  "total_findings": 4468,
+  "pattern_hits": {
+    "aws_secret_key": 1358,
+    "generic_api_key": 427,
+    "telegram_bot_token": 312,
+    "huggingface_token": 269,
+    "connection_string": 124,
+    "gcp_api_key": 74,
+    "google_api_key": 74,
+    "openai_legacy_key": 58,
+    "jwt_token": 43,
+    "facebook_graph_token": 35,
+    "discord_bot_token": 20,
+    "stripe_publishable_key": 6,
+    "aws_access_key_id_extended": 5,
+    "shacrypt_hash": 4,
+    "bcrypt_hash": 3,
+    "aws_access_key": 2,
+    "shopify_access_token": 1,
+    "private_key_pem": 1,
+    "slack_bot_token": 1,
+    "figma_pat": 1,
+    "grafana_cloud_api_token": 1
+  },
+  "entity_hits": {
+    "API_KEY": 3621,
+    "OPAQUE_SECRET": 837,
+    "PASSWORD_HASH": 7,
+    "PRIVATE_KEY": 3
+  },
+  "pattern_count": 120,
+  "keyname_count": 271
+}

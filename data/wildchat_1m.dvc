@@ -1,0 +1,6 @@
+outs:
+- md5: 0c6319f011770a3dde6a79df4a347ffb.dir
+  size: 6703720796
+  nfiles: 1
+  hash: md5
+  path: wildchat_1m
