@@ -2315,16 +2315,45 @@ heterogeneous columns (SO / HN / CFPB) need strict precision, while
 structured single-label columns (location, Sprint 12 fixtures) need
 permissive recall. A single prompt cannot satisfy both.
 
-### M4d Phase 2 — router-labeler architecture (deferred, unblocks scale labeling)
+### M4d Phase 2 — router-labeler architecture (COMPLETE 2026-04-18)
 
-**Status:** 🟡 unblocked 2026-04-17 — Sprint 13 Item A shipped the
-3-branch column-shape router (`backlog/sprint13-column-shape-router.yaml`,
-merged to main via PR #16 at commit `4d67646`). The `structured_single` /
-`free_text_heterogeneous` / `opaque_tokens` taxonomy is now stable; per-branch
-labeler prompts can be tuned against it. Ready to start.
-**Priority:** P2 — needed for Sprint 15+ scale-corpus research bet; not
-on Sprint 13 critical path
-**Estimated time:** ~3-5 days (once router branches are stable)
+**Status:** ✅ complete 2026-04-18 — all three quality gates pass.
+**Canonical artifact:** `docs/experiments/meta_classifier/runs/20260418-m4d-phase2-router/`
+  — `result.md`, `predictions.jsonl`, `iteration_log.md`
+**Priority:** was P2
+**Actual time:** ~half a day (scaffold + 2 iterations)
+
+**Delivered:**
+
+- Router-labeler at `tests/benchmarks/meta_classifier/llm_labeler_router.py`
+  with three per-branch system prompts (`structured_single`,
+  `free_text_heterogeneous`, `opaque_tokens`) and per-branch few-shot
+  examples. Reuses Phase 1 infrastructure (`label_column`, `LabelerCall`,
+  `LabelResponse`); only the prompt builder is new.
+- Driver at `scripts/run_m4d_phase2_labeler.py` with per-branch Jaccard
+  breakdown + optional Phase 1 regression check.
+- iter 2 macro Jaccard **0.8655** (Phase 1 baseline 0.7544) — passes
+  the ≥ 0.8 combined gate with 0.066 margin.
+- Per-branch: `structured_single` 1.000, `opaque_tokens` 1.000,
+  `free_text_heterogeneous` 0.8078 — all clear the ≥ 0.7 per-branch gate.
+- 29 of 29 Phase 1 perfect rows preserved (zero regression gate).
+
+**Key iteration findings:**
+
+- iter 1 surfaced a base64 "decode vs surface" issue: the Phase 1
+  labeler's generic few-shot mix accidentally anchored surface-form
+  classification; the Phase 2 opaque-focused few-shot removed that
+  anchor and the labeler started decoding `eyJ...` JWTs to extract
+  email claims. Fixed in iter 2 via an explicit surface-form guardrail
+  in `OPAQUE_TOKENS_INSTRUCTIONS`. This validates the design in D1a
+  (JWT-payload-classifier backlog item) — decoding should be a
+  separate pipeline stage, not an emergent labeler behavior.
+- iter 1 also surfaced a `max_tokens=1024` ceiling issue on the
+  18-entity `sprint12_fixture_original_q3_log` row. Adaptive thinking
+  burned the token budget before producing parseable JSON. iter 2
+  bumped the router default to 4096.
+
+**Unblocks:** M4d Phase 3 (scale labeling) per the original dependency graph.
 
 **Goal:** Replace the single-prompt labeler with a **router-labeler**
 that picks branch-specific instructions + few-shot examples based on
