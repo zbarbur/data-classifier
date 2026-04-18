@@ -1,0 +1,314 @@
+{
+  "_metadata": {
+    "source": "provider documentation (factual, no license concern)",
+    "pulled_date": "2026-04-16",
+    "notes": "High-profile providers identified via a coverage-comparison exercise against open-source secret scanners (trufflehog/gitleaks/secretlint). All keyword entries are sourced from public knowledge of provider names and official documentation. No code or regex copied from any scanner. Compound/alias variants added where providers have well-known abbreviations or legacy names.",
+    "entry_count": 42
+  },
+  "proposed_keywords": [
+    {
+      "pattern": "amplitude",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "braintree",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "bugsnag",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "clickup",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "contextual"
+    },
+    {
+      "pattern": "deepseek",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "elevenlabs",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "gemini",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "grok",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "word_boundary",
+      "subtype": "API_KEY",
+      "tier": "contextual"
+    },
+    {
+      "pattern": "klaviyo",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "langfuse",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "langsmith",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "mixpanel",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "monday",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "word_boundary",
+      "subtype": "API_KEY",
+      "tier": "contextual"
+    },
+    {
+      "pattern": "mongodb",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "OPAQUE_SECRET",
+      "tier": "strong"
+    },
+    {
+      "pattern": "mongo_password",
+      "score": 0.85,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "OPAQUE_SECRET",
+      "tier": "strong"
+    },
+    {
+      "pattern": "mongo_uri",
+      "score": 0.80,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "OPAQUE_SECRET",
+      "tier": "strong"
+    },
+    {
+      "pattern": "nexmo",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "nvidia",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "opsgenie",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "postgresql",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "OPAQUE_SECRET",
+      "tier": "strong"
+    },
+    {
+      "pattern": "postgres_uri",
+      "score": 0.80,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "OPAQUE_SECRET",
+      "tier": "strong"
+    },
+    {
+      "pattern": "pg_password",
+      "score": 0.85,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "OPAQUE_SECRET",
+      "tier": "strong"
+    },
+    {
+      "pattern": "posthog",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "razorpay",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "replicate",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "ringcentral",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "salesforce",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "sfdc",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "word_boundary",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "segment",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "word_boundary",
+      "subtype": "API_KEY",
+      "tier": "contextual"
+    },
+    {
+      "pattern": "snowflake",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "OPAQUE_SECRET",
+      "tier": "strong"
+    },
+    {
+      "pattern": "snowflake_password",
+      "score": 0.85,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "OPAQUE_SECRET",
+      "tier": "strong"
+    },
+    {
+      "pattern": "snowflake_account",
+      "score": 0.75,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "OPAQUE_SECRET",
+      "tier": "strong"
+    },
+    {
+      "pattern": "telnyx",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "vonage",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "wandb",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "weightsandbiases",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "weights_and_biases",
+      "score": 0.70,
+      "category": "Credential",
+      "match_type": "substring",
+      "subtype": "API_KEY",
+      "tier": "strong"
+    },
+    {
+      "pattern": "xai",
+      "score": 0.65,
+      "category": "Credential",
+      "match_type": "word_boundary",
+      "subtype": "API_KEY",
+      "tier": "contextual"
+    }
+  ]
+}

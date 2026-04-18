@@ -1,0 +1,52 @@
+{
+  "corpus_size": 11000,
+  "pattern_count": 9,
+  "elapsed_seconds": 2.7,
+  "results": {
+    "grafana_cloud_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "grafana_service_account_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "docker_hub_pat": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "linear_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "groq_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "onepassword_service_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "notion_integration_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "figma_pat": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "basicauth_url": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "corpus_size": 11000,
+  "pattern_count": 8,
+  "elapsed_seconds": 2.5,
+  "results": {
+    "newrelic_user_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "newrelic_browser_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "packagist_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "mapbox_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "grafana_legacy_api_key": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "typeform_api_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "instagram_legacy_token": {
+      "hits": 0,
+      "hit_rate_pct": 0.0,
+      "samples": []
+    },
+    "facebook_graph_token": {
+      "hits": 13,
+      "hit_rate_pct": 0.1182,
+      "samples": [
+        {
+          "fingerprint": "5911e6c07d4af94e",
+          "length": 4141,
+          "bucket": "random",
+          "match_count": 1,
+          "first_match_snippet": "me\n\naccess_token = \u201cEAAIui8JmOHYBAESXLZAnsSRe4OITHYzy3Q5osKgMXGRQnoVMtiIwJUonFjVHEjl9EZCEmURy9I9S9cn"
+        },
+        {
+          "fingerprint": "30193f429f960a9e",
+          "length": 5915,
+          "bucket": "random",
+          "match_count": 1,
+          "first_match_snippet": "\u57cb\u3081\u8fbc\u3080\nACCESS_TOKEN =\"EAABwWXZBIFt8BAKgRzMA7tq6TUNgkdqV4ZCj5TaSRn2kxQBLdGvzkMdaVB5f9nSV7ZBVF8pUmyROwZA"
+        },
+        {
+          "fingerprint": "9466e01f349ee88b",
+          "length": 6726,
+          "bucket": "random",
+          "match_count": 1,
+          "first_match_snippet": "out\naccess_token = \"EAAIui8JmOHYBAESXLZAnsSRe4OITHYzy3Q5osKgMXGRQnoVMtiIwJUonFjVHEjl9EZCEmURy9I9S9cn"
+        },
+        {
+          "fingerprint": "dcc0cad828e67522",
+          "length": 3672,
+          "bucket": "random",
+          "match_count": 1,
+          "first_match_snippet": "386736965'\ntoken = 'EAAIui8JmOHYBAESXLZAnsSRe4OITHYzy3Q5osKgMXGRQnoVMtiIwJUonFjVHEjl9EZCEmURy9I9S9cn"
+        },
+        {
+          "fingerprint": "5967540ae1f50ae1",
+          "length": 485,
+          "bucket": "random",
+          "match_count": 1,
+          "first_match_snippet": "estamp&access_token=EAABwWXZBIFt8BAKgRzMA7tq6TUNgkdqV4ZCj5TaSRn2kxQBLdGvzkMdaVB5f9nSV7ZBVF8pUmyROwZA"
+        }
+      ]
+    }
+  }
+}

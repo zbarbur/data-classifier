@@ -1112,7 +1112,7 @@ Sample values, `data_type`, and `description` are ignored by this engine.
 
 ### 5A.2. `regex` — RE2 two-phase pattern matching
 
-**Source:** `data_classifier/engines/regex_engine.py`, `data_classifier/patterns/default_patterns.json` (77 content patterns as of Sprint 11), `data_classifier/engines/validators.py` (14 validators)
+**Source:** `data_classifier/engines/regex_engine.py`, `data_classifier/patterns/default_patterns.json` (159 content patterns as of Sprint 14), `data_classifier/engines/validators.py` (14 validators)
 **Order:** 2 · **Authority:** 5 · **Modes:** `structured`, `unstructured`, `prompt`
 
 **Purpose.** Detect structured entity types (SSN, email, phone, credit card, JWT, PEM keys, ABA routing, NPI, DEA, IBAN, VIN, …) from sample values using Google RE2 for linear-time regex matching. This is the library's workhorse — the pattern bundle covers almost every well-formatted PII and credential type that has a reliable lexical fingerprint.
@@ -1196,7 +1196,7 @@ All thresholds live in `config/engine_defaults.yaml` under `heuristic_engine.sig
 
 ### 5A.4. `secret_scanner` — structured secret detection
 
-**Source:** `data_classifier/engines/secret_scanner.py`, `data_classifier/engines/parsers.py` (JSON/YAML/env/code parsers), `data_classifier/patterns/secret_key_names.json` (178-entry tiered dictionary)
+**Source:** `data_classifier/engines/secret_scanner.py`, `data_classifier/engines/parsers.py` (JSON/YAML/env/code parsers), `data_classifier/patterns/secret_key_names.json` (271-entry tiered dictionary)
 **Order:** 4 · **Authority:** 1 (default) · **Modes:** `structured`, `unstructured`
 
 **Purpose.** Detect credentials embedded in structured text — JSON blobs, YAML configs, `.env` files, code literals like `password = "SuperSecret123!"`. This engine catches secrets that regex patterns *can't*: values that have no known prefix or format, identified only by the **key name** they're bound to plus high relative entropy.
@@ -1234,7 +1234,7 @@ All multipliers and thresholds live in `config/engine_defaults.yaml` under `secr
 
 **Output format.** One `ClassificationFinding` per matched key-value pair, with `engine="secret_scanner"`, `entity_type` set to the dictionary entry's `subtype` (one of `API_KEY`, `PRIVATE_KEY`, `PASSWORD_HASH`, `OPAQUE_SECRET`), and evidence like `"Secret scanner: key 'db_password' (score=0.95, tier=definitive, subtype=OPAQUE_SECRET) + value entropy 0.87"`. Findings are emitted *per match*, but the orchestrator dedups by `entity_type` so the final result is at most one finding per subtype per column.
 
-**Sprint 10 dictionary expansion.** The dictionary grew from 88 → 178 entries via `scripts/ingest_credential_patterns.py`, which harvests key-name lists from Kingfisher (Apache-2.0), gitleaks (MIT), and Nosey Parker (Apache-2.0) with pinned upstream SHAs. Per-entry attribution lives in `docs/process/CREDENTIAL_PATTERN_SOURCES.md` — every new entry is traceable to its upstream.
+**Sprint 10 dictionary expansion.** The dictionary grew from 88 → 178 → 271 entries via `scripts/ingest_credential_patterns.py`, which harvests key-name lists from Kingfisher (Apache-2.0), gitleaks (MIT), and Nosey Parker (Apache-2.0) with pinned upstream SHAs. Per-entry attribution lives in `docs/process/CREDENTIAL_PATTERN_SOURCES.md` — every new entry is traceable to its upstream.
 
 ---
 
@@ -1616,7 +1616,7 @@ SENSITIVITY_ORDER
 | Order | Engine | Authority | What it detects | Requires |
 |-------|--------|-----------|----------------|----------|
 | 1 | `column_name` | **10** | All types from column name matching (§5A.1) | Nothing beyond `column_name` |
-| 2 | `regex` | **5** | Structured patterns — 77 patterns, 14 validators (§5A.2) | `sample_values` |
+| 2 | `regex` | **5** | Structured patterns — 159 patterns, 14 validators (§5A.2) | `sample_values` |
 | 3 | `heuristic_stats` | 1 | SSN/ABA disambiguation, opaque-secret catch-all (§5A.3) | `sample_values` ≥ min_samples |
 | 4 | `secret_scanner` | 1 | API keys, private keys, password hashes, opaque secrets (§5A.4) | `sample_values` parseable as KV |
 | 5 | `gliner2` | 1 | PERSON_NAME, ADDRESS, ORGANIZATION + reinforcement (§5A.5) | `[ml]` install + ONNX model + text `data_type` |

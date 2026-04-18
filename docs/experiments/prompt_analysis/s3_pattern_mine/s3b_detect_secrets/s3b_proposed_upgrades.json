@@ -1,0 +1,17 @@
+{
+  "_metadata": {
+    "source": "detect-secrets (Apache 2.0)",
+    "source_commit": "5e141933554a0b74e7341841f318be21e895339c",
+    "notes": "GitLab token type coverage expansion"
+  },
+  "upgrades": [
+    {
+      "name": "gitlab_pat",
+      "current_regex": "\\bglpat-[0-9a-zA-Z_\\-]{20}\\b",
+      "proposed_regex": "\\b(?:glpat|gldt|glft|glsoat|glrt|glcbt|glimt|glptt|glagent|gloas)-[A-Za-z0-9_-]{20,1024}\\b|\\bGR1348941[A-Za-z0-9_-]{20,50}\\b",
+      "change_description": "Expand from glpat-only to all 10 GitLab token types: Personal (glpat), Deploy (gldt), Feed (glft), OAuth (glsoat), Runner (glrt), CI/CD (glcbt), Incoming Mail (glimt), Trigger (glptt), Agent (glagent), OAuth App Secret (gloas), plus Runner Registration (GR1348941 prefix). Upper length expanded to 1024 for glagent tokens.",
+      "new_examples_match": [],
+      "secretlint_reference": "detect-secrets gitlab_token.py"
+    }
+  ]
+}

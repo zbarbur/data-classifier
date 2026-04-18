@@ -1,0 +1,50 @@
+{
+  "sources": [
+    {
+      "name": "trivy",
+      "repo": "https://github.com/aquasecurity/trivy",
+      "license": "Apache-2.0",
+      "commit_sha": "73809db37ff1",
+      "commit_date": "2026-04-17",
+      "pulled_date": "2026-04-17"
+    },
+    {
+      "name": "git-secrets",
+      "repo": "https://github.com/awslabs/git-secrets",
+      "license": "Apache-2.0",
+      "commit_sha": "7d6b970cbd3c",
+      "finding": "Nothing new (all AWS, already covered)"
+    },
+    {
+      "name": "talisman",
+      "repo": "https://github.com/thoughtworks/talisman",
+      "license": "MIT",
+      "commit_sha": "efcb1a3629f6",
+      "finding": "Nothing new in content patterns (generic keyword+value). File-type detection out of scope."
+    },
+    {
+      "name": "whispers",
+      "repo": "https://github.com/Skyscanner/whispers",
+      "license": "Apache-2.0",
+      "commit_sha": "5832bf74dcb1",
+      "finding": "HubSpot webhook URL is niche; provider keyword already covered in S3-E"
+    },
+    {
+      "name": "credential-digger",
+      "repo": "https://github.com/SAP/credential-digger",
+      "license": "Apache-2.0",
+      "commit_sha": "21f89283400168",
+      "finding": "Instagram legacy token + Facebook Graph token format"
+    }
+  ],
+  "patterns": [
+    {"name": "newrelic_user_api_key", "source": "trivy", "type": "new"},
+    {"name": "newrelic_browser_token", "source": "trivy", "type": "new"},
+    {"name": "packagist_token", "source": "trivy", "type": "new"},
+    {"name": "mapbox_api_token", "source": "trivy", "type": "new"},
+    {"name": "grafana_legacy_api_key", "source": "trivy", "type": "new"},
+    {"name": "typeform_api_token", "source": "trivy", "type": "new"},
+    {"name": "instagram_legacy_token", "source": "credential-digger", "type": "new"},
+    {"name": "facebook_graph_token", "source": "credential-digger", "type": "new"}
+  ]
+}

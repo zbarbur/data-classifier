@@ -1,0 +1,24 @@
+{
+  "source": {
+    "name": "detect-secrets",
+    "repo": "https://github.com/Yelp/detect-secrets",
+    "license": "Apache-2.0",
+    "commit_sha": "5e141933554a0b74e7341841f318be21e895339c",
+    "commit_date": "2026-04-02",
+    "pulled_date": "2026-04-17"
+  },
+  "patterns": [
+    {"name": "pypi_token", "source_plugin": "pypi_token.py", "type": "new"},
+    {"name": "mailchimp_api_key", "source_plugin": "mailchimp.py", "type": "new"},
+    {"name": "artifactory_api_token", "source_plugin": "artifactory.py", "type": "new"},
+    {"name": "square_oauth_secret", "source_plugin": "square_oauth.py", "type": "new"},
+    {"name": "telegram_bot_token", "source_plugin": "telegram_token.py", "type": "new"},
+    {"name": "gitlab_pat", "source_plugin": "gitlab_token.py", "type": "upgrade"}
+  ],
+  "skipped": [
+    {"name": "IBM Cloudant", "reason": "Context-gated (needs variable name prefix), better served by secret_scanner heuristic"},
+    {"name": "IBM Cloud IAM", "reason": "Context-gated (44-char token with ibm/iam prefix), better served by secret_scanner"},
+    {"name": "IBM COS HMAC", "reason": "Context-gated (48-char hex with cos prefix), better served by secret_scanner"},
+    {"name": "IBM SoftLayer", "reason": "Context-gated (64-char hex), URL form too niche for general detection"}
+  ]
+}

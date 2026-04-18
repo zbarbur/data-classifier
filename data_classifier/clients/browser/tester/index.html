@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>data_classifier browser tester</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { font: 14px/1.6 system-ui, sans-serif; margin: 0; padding: 2em; max-width: 1000px; margin: 0 auto; color: #1a1a1a; }
+      h1 { font-size: 1.4em; margin-bottom: 0.25em; }
+      h1 span { font-weight: 400; color: #666; }
+      .subtitle { color: #666; margin-bottom: 1.5em; font-size: 13px; }
+
+      /* Stories */
+      .stories-row { margin-bottom: 1.5em; display: none; }
+      .stories-row label { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 4px; display: block; }
+      .stories-row select { width: 100%; padding: 8px 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 6px; background: #fff; }
+      .annotation { background: #fffbe6; border-left: 3px solid #f0c040; padding: 8px 12px; margin-top: 8px; font-size: 13px; line-height: 1.5; border-radius: 0 4px 4px 0; display: none; }
+
+      /* Input */
+      .input-section { margin-bottom: 1.5em; }
+      .input-section label { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #555; margin-bottom: 4px; display: block; }
+      textarea { width: 100%; height: 200px; font: 13px/1.5 ui-monospace, 'SF Mono', Monaco, monospace; padding: 12px; border: 1px solid #ccc; border-radius: 6px; resize: vertical; }
+      textarea:focus { outline: none; border-color: #4a90d9; box-shadow: 0 0 0 3px rgba(74,144,217,0.15); }
+
+      /* Controls */
+      .controls { display: flex; align-items: center; gap: 16px; margin-bottom: 1.5em; flex-wrap: wrap; }
+      .controls label { font-size: 13px; color: #444; display: flex; align-items: center; gap: 4px; }
+      .controls select { padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+      button#scan-btn { padding: 8px 24px; font-size: 14px; font-weight: 600; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+      button#scan-btn:hover { background: #1d4ed8; }
+      button#scan-btn:active { background: #1e40af; }
+
+      /* Results */
+      .results { display: none; }
+      .results-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+      .results-header h2 { font-size: 1.1em; margin: 0; }
+      .scan-time { font-size: 12px; color: #888; }
+
+      /* Findings summary */
+      .findings-summary { margin-bottom: 1.5em; }
+      .finding-card { background: #fff; border: 1px solid #e5e7eb; border-left: 4px solid #ef4444; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; }
+      .finding-card .finding-type { font-weight: 700; color: #dc2626; font-size: 13px; }
+      .finding-card .finding-meta { font-size: 12px; color: #666; margin-top: 2px; }
+      .finding-card .finding-key { background: #fef2f2; color: #991b1b; padding: 1px 6px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 12px; }
+      .finding-card .finding-match { font-size: 12px; color: #333; margin-top: 6px; }
+      .finding-card .finding-matched-value { background: #fef08a; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 12px; word-break: break-all; }
+      .finding-card .finding-details { font-size: 11px; color: #6b7280; margin-top: 6px; padding-top: 6px; border-top: 1px solid #f3f4f6; }
+      .no-findings { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 12px 16px; color: #166534; font-size: 13px; }
+
+      /* Text panels — vertical stack with synced scroll */
+      .panels { display: flex; flex-direction: column; gap: 16px; margin-bottom: 1.5em; }
+      .panel { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
+      .panel-header { background: #f9fafb; padding: 8px 12px; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #555; border-bottom: 1px solid #e5e7eb; }
+      .panel-body { padding: 12px; font: 13px/1.5 ui-monospace, 'SF Mono', Monaco, monospace; white-space: pre-wrap; word-break: break-word; max-height: 350px; overflow: auto; min-height: 80px; }
+
+      /* Highlights */
+      .secret-highlight { background: #fef08a; border-bottom: 2px solid #eab308; padding: 1px 0; }
+      .redacted { color: #dc2626; font-weight: 700; }
+
+      /* Raw JSON toggle */
+      .raw-toggle { font-size: 12px; color: #6b7280; cursor: pointer; text-decoration: underline; }
+      .raw-json { display: none; margin-top: 8px; }
+      .raw-json pre { background: #f5f5f5; padding: 12px; border-radius: 6px; font-size: 12px; max-height: 300px; overflow: auto; margin: 0; }
+
+      .error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; color: #991b1b; font-size: 13px; }
+
+      /* Performance */
+      .perf-section { margin-top: 2em; padding-top: 1.5em; border-top: 1px solid #e5e7eb; }
+      .perf-section h2 { font-size: 1.1em; margin: 0 0 8px 0; }
+      .perf-section .perf-subtitle { font-size: 12px; color: #888; margin-bottom: 12px; }
+      button#bench-btn { padding: 6px 16px; font-size: 13px; font-weight: 600; background: #059669; color: #fff; border: none; border-radius: 6px; cursor: pointer; margin-bottom: 12px; }
+      button#bench-btn:hover { background: #047857; }
+      button#bench-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+      .perf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 12px; }
+      .perf-stat { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; text-align: center; }
+      .perf-stat .perf-value { font-size: 1.4em; font-weight: 700; color: #1a1a1a; }
+      .perf-stat .perf-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+      .perf-note { font-size: 11px; color: #9ca3af; font-style: italic; }
+      .perf-bar { height: 4px; background: #e5e7eb; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+      .perf-bar-fill { height: 100%; background: #059669; border-radius: 2px; transition: width 0.3s; }
+    </style>
+  </head>
+  <body>
+    <h1>data_classifier <span>browser secret detector</span></h1>
+    <p class="subtitle">
+      Paste text below and click Scan, or pick a real-world example from the dropdown.
+      Requires <code>npm run build</code> first.
+    </p>
+
+    <div class="stories-row" id="stories-row">
+      <label for="stories">Real-world examples</label>
+      <select id="stories">
+        <option value="">(paste your own text)</option>
+      </select>
+      <div class="annotation" id="annotation"></div>
+    </div>
+
+    <div class="input-section">
+      <label for="input">Input text</label>
+      <textarea id="input" placeholder="export API_KEY=ghp_...&#10;db_password = &quot;S3cureP@ss!&quot;&#10;{&quot;token&quot;: &quot;eyJhbG...&quot;}"></textarea>
+    </div>
+
+    <div class="controls">
+      <button id="scan-btn">Scan</button>
+      <label><input type="checkbox" id="verbose" /> Verbose</label>
+      <label>
+        Redact:
+        <select id="strategy">
+          <option value="type-label">type-label</option>
+          <option value="asterisk">asterisk</option>
+          <option value="placeholder">placeholder</option>
+          <option value="none">none</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="results" id="results">
+      <div class="results-header">
+        <h2>Results</h2>
+        <span class="scan-time" id="scan-time"></span>
+      </div>
+
+      <div class="findings-summary" id="findings-summary"></div>
+
+      <div class="panels">
+        <div class="panel">
+          <div class="panel-header">Original (secrets highlighted)</div>
+          <div class="panel-body" id="original-out"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">Redacted output</div>
+          <div class="panel-body" id="redacted-out"></div>
+        </div>
+      </div>
+
+      <span class="raw-toggle" id="raw-toggle">Show raw JSON</span>
+      <div class="raw-json" id="raw-json">
+        <pre id="findings-json"></pre>
+      </div>
+    </div>
+
+    <div class="perf-section">
+      <h2>Performance</h2>
+      <p class="perf-subtitle">
+        Scans all loaded stories 10x each and reports latency statistics.
+        First run includes worker cold-start; subsequent runs are warm cache.
+      </p>
+      <label style="font-size:13px;color:#444;display:inline-flex;align-items:center;gap:6px;margin-right:12px">
+        Rounds:
+        <select id="bench-rounds" style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:13px">
+          <option value="1">1</option>
+          <option value="10" selected>10</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="500">500</option>
+        </select>
+      </label>
+      <button id="bench-btn">Run benchmark</button>
+      <div class="perf-bar" id="perf-bar" style="display:none"><div class="perf-bar-fill" id="perf-bar-fill"></div></div>
+      <div class="perf-grid" id="perf-grid" style="display:none"></div>
+      <div class="perf-note" id="perf-note"></div>
+    </div>
+
+    <script type="module" src="./tester.js"></script>
+  </body>
+</html>

@@ -1,0 +1,254 @@
+{
+  "_metadata": {
+    "document": "s3g_provenance.json",
+    "purpose": "Per-entry provenance for all keywords and patterns proposed in s3g_proposed_keywords.json and s3g_proposed_patterns.json",
+    "note": "These providers were identified through a coverage comparison exercise against open-source secret scanners (trufflehog, gitleaks). All content — keyword names and regex patterns — is sourced independently from public provider documentation and common industry knowledge. No code, regex, or test data was copied from any scanner."
+  },
+  "keyword_provenance": {
+    "default_source": "provider documentation and public provider name knowledge",
+    "entries": [
+      {
+        "pattern": "amplitude",
+        "source": "common industry knowledge — Amplitude analytics platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "braintree",
+        "source": "common industry knowledge — Braintree (PayPal) payment gateway",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "bugsnag",
+        "source": "common industry knowledge — Bugsnag error monitoring platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "clickup",
+        "source": "common industry knowledge — ClickUp project management platform",
+        "confidence": "moderate provider"
+      },
+      {
+        "pattern": "deepseek",
+        "source": "common industry knowledge — DeepSeek AI platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "elevenlabs",
+        "source": "common industry knowledge — ElevenLabs AI voice platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "gemini",
+        "source": "common industry knowledge — Google Gemini AI platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "grok",
+        "source": "common industry knowledge — xAI Grok AI platform; word_boundary match to avoid FP on 'grokking', 'grok-style'",
+        "confidence": "well-known provider (ambiguous word, hence word_boundary)"
+      },
+      {
+        "pattern": "klaviyo",
+        "source": "common industry knowledge — Klaviyo email/SMS marketing platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "langfuse",
+        "source": "common industry knowledge — Langfuse LLM observability platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "langsmith",
+        "source": "common industry knowledge — LangChain LangSmith tracing platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "mixpanel",
+        "source": "common industry knowledge — Mixpanel product analytics platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "monday",
+        "source": "common industry knowledge — monday.com project management; word_boundary to avoid FP on date strings",
+        "confidence": "moderate provider (ambiguous word)"
+      },
+      {
+        "pattern": "mongodb",
+        "source": "common industry knowledge — MongoDB document database",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "mongo_password",
+        "source": "common industry knowledge — MongoDB compound password key name pattern",
+        "confidence": "derived compound variant"
+      },
+      {
+        "pattern": "mongo_uri",
+        "source": "common industry knowledge — MongoDB connection URI key name pattern",
+        "confidence": "derived compound variant"
+      },
+      {
+        "pattern": "nexmo",
+        "source": "common industry knowledge — Nexmo (former name of Vonage Communications API)",
+        "confidence": "legacy alias, still in wide use"
+      },
+      {
+        "pattern": "nvidia",
+        "source": "common industry knowledge — NVIDIA AI/NGC API platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "opsgenie",
+        "source": "common industry knowledge — Atlassian OpsGenie alerting platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "postgresql",
+        "source": "common industry knowledge — PostgreSQL database",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "postgres_uri",
+        "source": "common industry knowledge — PostgreSQL connection URI key name pattern",
+        "confidence": "derived compound variant"
+      },
+      {
+        "pattern": "pg_password",
+        "source": "common industry knowledge — PostgreSQL standard environment variable prefix PG*, per PostgreSQL docs libpq-envars",
+        "confidence": "official env var prefix"
+      },
+      {
+        "pattern": "posthog",
+        "source": "common industry knowledge — PostHog product analytics platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "razorpay",
+        "source": "common industry knowledge — Razorpay payment gateway (India)",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "replicate",
+        "source": "common industry knowledge — Replicate AI model hosting platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "ringcentral",
+        "source": "common industry knowledge — RingCentral communications platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "salesforce",
+        "source": "common industry knowledge — Salesforce CRM platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "sfdc",
+        "source": "common industry knowledge — SFDC is the standard industry abbreviation for Salesforce (salesforce.com ticker symbol)",
+        "confidence": "industry-standard abbreviation"
+      },
+      {
+        "pattern": "segment",
+        "source": "common industry knowledge — Twilio Segment CDP; word_boundary match to reduce FP on 'segment_id', 'data_segment'",
+        "confidence": "moderate provider (ambiguous word)"
+      },
+      {
+        "pattern": "snowflake",
+        "source": "common industry knowledge — Snowflake data cloud platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "snowflake_password",
+        "source": "common industry knowledge — Snowflake compound password key name pattern",
+        "confidence": "derived compound variant"
+      },
+      {
+        "pattern": "snowflake_account",
+        "source": "common industry knowledge — Snowflake account identifier key name pattern",
+        "confidence": "derived compound variant"
+      },
+      {
+        "pattern": "telnyx",
+        "source": "common industry knowledge — Telnyx communications API platform",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "vonage",
+        "source": "common industry knowledge — Vonage Communications API (current name; nexmo is legacy)",
+        "confidence": "well-known provider"
+      },
+      {
+        "pattern": "wandb",
+        "source": "common industry knowledge — Weights & Biases ML experiment tracking; wandb is the official CLI/SDK package name",
+        "confidence": "official package name"
+      },
+      {
+        "pattern": "weightsandbiases",
+        "source": "common industry knowledge — Weights & Biases full company name slug form",
+        "confidence": "derived slug variant"
+      },
+      {
+        "pattern": "weights_and_biases",
+        "source": "common industry knowledge — Weights & Biases underscore-separated env var form",
+        "confidence": "derived underscore variant"
+      },
+      {
+        "pattern": "xai",
+        "source": "common industry knowledge — xAI company (maker of Grok); word_boundary to avoid FP on 'explain' or XML prefixes",
+        "confidence": "well-known provider (short token, hence word_boundary)"
+      }
+    ]
+  },
+  "pattern_provenance": {
+    "replicate_api_key": {
+      "source": "Replicate official documentation — replicate.com/docs/reference/http#authentication",
+      "format_description": "r8_ prefix + 40 alphanumeric characters; format confirmed in official auth docs and SDK source",
+      "license_concern": "none — factual format description"
+    },
+    "xai_api_key": {
+      "source": "xAI official documentation — docs.x.ai/api; xai- prefix confirmed in xAI API quickstart",
+      "format_description": "xai- prefix + 52+ base62 characters",
+      "license_concern": "none — factual format description"
+    },
+    "langfuse_public_key": {
+      "source": "Langfuse official SDK documentation — langfuse.com/docs/sdk; pk-lf- prefix is the canonical public key prefix",
+      "format_description": "pk-lf- prefix + 32+ alphanumeric/hyphen characters; public key used as LANGFUSE_PUBLIC_KEY env var",
+      "license_concern": "none — factual format description"
+    },
+    "langfuse_secret_key": {
+      "source": "Langfuse official SDK documentation — langfuse.com/docs/sdk; sk-lf- prefix is the canonical secret key prefix",
+      "format_description": "sk-lf- prefix + 32+ alphanumeric/hyphen characters; secret key used as LANGFUSE_SECRET_KEY env var",
+      "license_concern": "none — factual format description"
+    },
+    "posthog_api_key": {
+      "source": "PostHog official developer documentation — posthog.com/docs/api; phc_ prefix for project API keys, phx_ prefix for personal API keys",
+      "format_description": "ph[cx]_ prefix + 40+ alphanumeric characters",
+      "license_concern": "none — factual format description"
+    }
+  },
+  "not_added_rationale": {
+    "deepseek": "Uses sk- prefix identical to OpenAI format. Existing openai_legacy_key pattern (sk-[A-Za-z0-9]{32,}) already covers this shape. Keyword entry sufficient.",
+    "mongodb_connection_string": "mongodb:// connection strings already covered by existing connection_string pattern in default_patterns.json (regex: (?i)(?:mysql|postgres|postgresql|mongodb|redis|amqp|mssql)://[^\\s]+). Not duplicated.",
+    "postgresql_connection_string": "postgres:// and postgresql:// already covered by existing connection_string pattern. Not duplicated.",
+    "snowflake_connection_string": "Snowflake uses JDBC/ODBC connection strings with account.snowflakecomputing.com URIs. Not covered by existing connection_string pattern, but the format is not a simple prefixed token — it embeds hostname structure. Keyword entries (snowflake, snowflake_password, snowflake_account) are sufficient for column-name detection. A Snowflake JDBC regex could be a Sprint 13 item if false-negative evidence emerges.",
+    "wandb_token": "W&B API keys (wandb.ai) are 40-character hex strings (historical) or bearer tokens with no distinctive prefix. The local- prefix is for local server installs only. No distinctive prefix for cloud tokens — keyword entry sufficient.",
+    "elevenlabs": "ElevenLabs keys use an xi-api-key header but the token value itself (sk_ prefix followed by alphanumeric) is not publicly confirmed as having a fixed-length format in official docs. Keyword entry sufficient pending confirmation.",
+    "segment": "Segment write keys are opaque 40-char strings with no confirmed distinctive prefix. Keyword entry sufficient.",
+    "salesforce": "Salesforce OAuth tokens (access_token, refresh_token) are opaque bearer tokens with no distinctive prefix. Connected App credentials are client_id + client_secret opaque strings. Keyword entries (salesforce, sfdc) are sufficient.",
+    "langsmith": "LangSmith API keys use ls__api_ prefix in some SDK versions but this is not consistently documented as stable. Keyword entry sufficient; add prefix pattern if confirmed.",
+    "mixpanel": "Mixpanel project tokens and API secrets are opaque alphanumeric strings with no distinctive prefix. Keyword entry sufficient.",
+    "klaviyo": "Klaviyo private keys have pk_ prefix in some versions but format changed with API v2022-10-17. Keyword entry sufficient pending stable format confirmation.",
+    "nvidia": "NVIDIA NGC API keys are opaque strings with no distinctive prefix in public documentation. Keyword entry sufficient.",
+    "braintree": "Braintree merchant ID + public/private key are opaque alphanumeric strings. No distinctive prefix. Keyword entry sufficient.",
+    "razorpay": "Razorpay keys use rzp_live_ and rzp_test_ prefixes — these ARE distinctive but Razorpay is primarily India-market and existing secret-dict likely covers this already. Filed as potential Sprint 13 addition after corpus validation.",
+    "ringcentral": "RingCentral uses OAuth 2.0 tokens — opaque bearer tokens, no distinctive prefix. Keyword entry sufficient.",
+    "opsgenie": "OpsGenie API keys are UUIDs. UUID pattern already exists in default_patterns.json. Keyword entry sufficient.",
+    "clickup": "ClickUp personal tokens use pk_ prefix but not consistently documented. Keyword entry sufficient.",
+    "amplitude": "Amplitude API key + secret key are opaque hex strings. No distinctive prefix. Keyword entry sufficient.",
+    "bugsnag": "Bugsnag API key is a 32-char hex string. No distinctive prefix. Keyword entry sufficient.",
+    "monday": "monday.com API tokens are opaque JWT-format strings. JWT pattern already exists. Keyword entry sufficient.",
+    "telnyx": "Telnyx API keys use KEY prefix in some docs but not consistently. Keyword entry sufficient.",
+    "vonage_nexmo": "Vonage/Nexmo uses API key + API secret pair; both are opaque alphanumeric strings (~8 chars each). No distinctive prefix. Keyword entries sufficient.",
+    "posthog_project_api_key": "Note: phc_ is project API key (embeddable, less sensitive — used in frontend). phx_ is personal API key (more sensitive). Both captured by ph[cx]_ regex. The project API key (phc_) is safe to embed in frontend code by design — consider whether phc_ should have lower confidence than phx_ in a future refinement."
+  }
+}
