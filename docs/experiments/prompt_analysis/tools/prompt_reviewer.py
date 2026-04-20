@@ -121,11 +121,13 @@ HTML_PAGE = r"""<!DOCTYPE html>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; background: #1a1a2e; color: #e0e0e0; }
 .container { display: flex; height: 100vh; }
-.sidebar { width: 320px; border-right: 1px solid #333; overflow-y: auto; background: #16213e; flex-shrink: 0; }
+.sidebar { width: 280px; border-right: 1px solid #333; overflow-y: auto; background: #16213e; flex-shrink: 0; }
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.header { padding: 12px 16px; background: #0f3460; border-bottom: 1px solid #333; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.header { padding: 8px 16px; background: #0f3460; border-bottom: 1px solid #333; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .header h1 { font-size: 16px; color: #e94560; }
+.main-body { flex: 1; display: flex; overflow: hidden; }
 .content { flex: 1; overflow-y: auto; padding: 16px; }
+.review-sidebar { width: 260px; border-left: 1px solid #333; background: #16213e; overflow-y: auto; flex-shrink: 0; padding: 12px; }
 
 .sidebar-header { padding: 12px; background: #0f3460; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 1; }
 .sidebar-header input { width: 100%; padding: 6px 8px; background: #1a1a2e; border: 1px solid #444; color: #e0e0e0; border-radius: 4px; }
@@ -143,6 +145,7 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
 .badge-none { background: #333; color: #888; }
 .badge-approved { background: #1b4332; color: #52b788; }
 .badge-rejected { background: #6b2c2c; color: #f28b82; }
+.badge-correction { background: #5c2d82; color: #d4a5ff; }
 
 .filters { display: flex; gap: 4px; flex-wrap: wrap; }
 .filter-btn { padding: 3px 8px; border: 1px solid #444; background: #1a1a2e; color: #aaa; cursor: pointer; border-radius: 3px; font-size: 11px; }
@@ -183,13 +186,11 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
 .secret-item .value { color: #aaa; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
 .secret-item .meta { color: #666; }
 
-/* Review panel */
-.review-panel { padding: 12px 16px; background: #16213e; border-top: 1px solid #333; }
-.review-panel h3 { margin-bottom: 8px; color: #e94560; font-size: 13px; }
-.review-sections { display: flex; gap: 16px; flex-wrap: wrap; }
-.review-section { flex: 1; min-width: 200px; }
+/* Review panel (right sidebar) */
+.review-panel h3 { margin-bottom: 10px; color: #e94560; font-size: 13px; }
+.review-section { margin-bottom: 14px; }
 .review-section h4 { font-size: 11px; color: #888; margin-bottom: 4px; }
-.review-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+.review-actions { display: flex; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
 .btn { padding: 5px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
 .btn-approve { background: #2d6a4f; color: #fff; }
 .btn-approve:hover { background: #40916c; }
@@ -251,22 +252,35 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
       </div>
       <button class="btn btn-rerun" onclick="showCustomInput()">Custom text</button>
     </div>
-    <div class="content" id="content">
-      <p style="color: #888; padding: 20px;">Select a prompt from the sidebar, or paste custom text.</p>
-    </div>
-    <div class="review-panel" id="review-panel" style="display:none;">
-      <h3>Review</h3>
-      <div class="review-sections">
+    <div class="main-body">
+      <div class="content" id="content">
+        <p style="color: #888; padding: 20px;">Select a prompt from the sidebar, or paste custom text.</p>
+      </div>
+      <div class="review-sidebar" id="review-panel" style="display:none;">
+        <h3>Review</h3>
         <div class="review-section">
-          <h4>Zone annotations</h4>
+          <h4>Verdict</h4>
           <div class="review-actions">
             <button class="btn btn-approve" onclick="reviewZones('approve')">Correct</button>
             <button class="btn btn-reject" onclick="reviewZones('reject')">Wrong</button>
             <button class="btn btn-skip" onclick="reviewZones('skip')">Skip</button>
           </div>
-          <div class="selection-info" id="selection-info">Selected lines: <span id="sel-range"></span></div>
-          <button class="btn btn-mark" id="btn-mark-block" onclick="markBlock()" style="margin-bottom:6px;display:none;">Mark selected as code block</button>
         </div>
+        <div class="review-section">
+          <h4>Mark lines</h4>
+          <div class="selection-info" id="selection-info">Selected: <span id="sel-range"></span></div>
+          <div id="mark-controls" style="display:none;">
+            <select id="mark-type" style="width:100%;padding:4px;background:#1a1a2e;border:1px solid #444;color:#e0e0e0;border-radius:3px;margin-bottom:6px;font-size:11px;">
+              <option value="code">Code</option>
+              <option value="structured_data">Structured data</option>
+              <option value="cli_shell">CLI / Shell</option>
+              <option value="natural_language">Natural language</option>
+            </select>
+            <button class="btn btn-mark" id="btn-mark-block" onclick="markBlock()">Mark as block (m)</button>
+          </div>
+          <div style="font-size:10px;color:#666;margin-top:4px;">Click lines to select. Shift+click for range.</div>
+        </div>
+        <div class="review-section" id="user-blocks-list"></div>
         <div class="review-section">
           <h4>Notes</h4>
           <textarea class="review-notes" id="review-notes" placeholder="Notes..."></textarea>
@@ -362,6 +376,7 @@ function renderList() {
     if (types.has('cli_shell')) addBadge('badge-cli', 'cli');
     if (r.secrets && r.secrets.length > 0) addBadge('badge-secret', 'secret');
     if (!r.heuristic_has_blocks && !(r.secrets && r.secrets.length > 0)) addBadge('badge-none', '-');
+    if (r.review && r.review.actual_blocks && r.review.actual_blocks.length > 0) addBadge('badge-correction', 'marked');
     if (r.review && r.review.correct === true) addBadge('badge-approved', 'ok');
     if (r.review && r.review.correct === false) addBadge('badge-rejected', 'X');
 
@@ -505,18 +520,23 @@ function renderPrompt(r) {
       var corrMarker = document.createElement('div');
       corrMarker.className = 'block-marker';
       corrMarker.style.cssText = 'background:#5c2d82;color:#d4a5ff;';
-      corrMarker.textContent = '\u25BC CORRECTION: ' + ub.zone_type + ' L' + ub.start_line + '-' + ub.end_line;
+      corrMarker.textContent = '\u25BC MARKED: ' + ub.zone_type + ' L' + ub.start_line + '-' + ub.end_line;
       textDiv.appendChild(corrMarker);
     }
 
     var lineDiv = document.createElement('div');
     var zoneClass = '';
     if (ub) {
+      // User correction always takes priority
       zoneClass = 'zone-correction';
     } else if (zone && isRejected) {
       zoneClass = 'zone-rejected';
     } else if (zone) {
       zoneClass = 'zone-' + zone.zone_type;
+    }
+    // If there's BOTH a heuristic zone AND a correction, show a dual indicator
+    if (ub && zone) {
+      zoneClass = 'zone-correction';
     }
     lineDiv.className = 'line ' + zoneClass + (selectedLines.has(i) ? ' selected' : '');
     lineDiv.dataset.lineNo = i;
@@ -623,30 +643,61 @@ function toggleLine(lineNo, shiftKey) {
 
 function updateSelectionInfo() {
   var info = document.getElementById('selection-info');
-  var btn = document.getElementById('btn-mark-block');
+  var controls = document.getElementById('mark-controls');
   if (selectedLines.size > 0) {
     var sorted = Array.from(selectedLines).sort(function(a,b){return a-b;});
     info.style.display = 'block';
-    document.getElementById('sel-range').textContent = sorted[0] + '-' + sorted[sorted.length-1] + ' (' + sorted.length + ' lines)';
-    btn.style.display = 'inline-block';
+    document.getElementById('sel-range').textContent = 'L' + sorted[0] + '-' + sorted[sorted.length-1] + ' (' + sorted.length + ' lines)';
+    controls.style.display = 'block';
   } else {
     info.style.display = 'none';
-    btn.style.display = 'none';
+    controls.style.display = 'none';
   }
+  renderUserBlocksList();
 }
 
 function markBlock() {
   if (selectedLines.size === 0) return;
   var sorted = Array.from(selectedLines).sort(function(a,b){return a-b;});
+  var zoneType = document.getElementById('mark-type').value;
   var block = {
     start_line: sorted[0],
     end_line: sorted[sorted.length-1] + 1,
-    zone_type: 'code',  // default — can change via notes
+    zone_type: zoneType,
   };
   userBlocks.push(block);
   selectedLines = new Set();
   lastSelectedLine = -1;
   rerenderCurrent();
+}
+
+function removeUserBlock(idx) {
+  userBlocks.splice(idx, 1);
+  rerenderCurrent();
+}
+
+function renderUserBlocksList() {
+  var el = document.getElementById('user-blocks-list');
+  el.textContent = '';
+  if (userBlocks.length === 0) return;
+  var h4 = document.createElement('h4');
+  h4.textContent = 'Marked blocks (' + userBlocks.length + ')';
+  h4.style.cssText = 'font-size:11px;color:#888;margin-bottom:4px;';
+  el.appendChild(h4);
+  userBlocks.forEach(function(ub, i) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:3px 6px;margin:2px 0;background:rgba(92,45,130,0.2);border-radius:3px;font-size:11px;';
+    var label = document.createElement('span');
+    label.style.color = '#d4a5ff';
+    label.textContent = ub.zone_type + ' L' + ub.start_line + '-' + ub.end_line;
+    var delBtn = document.createElement('button');
+    delBtn.textContent = 'x';
+    delBtn.style.cssText = 'background:none;border:none;color:#f28b82;cursor:pointer;font-size:11px;padding:0 4px;';
+    delBtn.onclick = function() { removeUserBlock(i); };
+    row.appendChild(label);
+    row.appendChild(delBtn);
+    el.appendChild(row);
+  });
 }
 
 function navigate(dir) {
@@ -673,6 +724,11 @@ async function reviewZones(action) {
   if (currentIdx < 0) return;
   var notes = document.getElementById('review-notes').value;
   var correct = action === 'approve' ? true : action === 'reject' ? false : null;
+
+  // Auto-mark any selected lines as a block before saving
+  if (selectedLines.size > 0) {
+    markBlock();
+  }
 
   var resp = await fetch('/api/review', {
     method: 'POST',
