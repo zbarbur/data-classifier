@@ -374,8 +374,10 @@ function renderList() {
 async function selectPrompt(idx) {
   currentIdx = idx;
   selectedLines = new Set();
-  userBlocks = [];
   var r = corpus[idx];
+
+  // Load any existing user-marked blocks from saved review
+  userBlocks = (r.review && r.review.actual_blocks) ? r.review.actual_blocks.slice() : [];
 
   // Run secret detection if not cached
   if (!r._secrets_loaded) {
@@ -389,11 +391,6 @@ async function selectPrompt(idx) {
     r._secrets_loaded = true;
   }
   currentSecrets = r.secrets || [];
-
-  // Load any existing user blocks from review
-  if (r.review && r.review.actual_blocks) {
-    userBlocks = r.review.actual_blocks;
-  }
 
   renderPrompt(r);
   renderList();
