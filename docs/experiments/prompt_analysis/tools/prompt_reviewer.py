@@ -722,36 +722,105 @@ function markBlock() {
   rerenderCurrent();
 }
 
+var secretReviews = {};  // index -> 'tp' | 'fp'
+
 function renderSecretsList() {
   var el = document.getElementById('secrets-list');
   el.textContent = '';
   if (!currentSecrets || currentSecrets.length === 0) return;
+
+  // Load saved secret reviews
+  var r = corpus[currentIdx];
+  if (r && r.review && r.review.secret_reviews) {
+    secretReviews = r.review.secret_reviews;
+  } else {
+    secretReviews = {};
+  }
+
+  var fpCount = Object.values(secretReviews).filter(function(v) { return v === 'fp'; }).length;
   var h4 = document.createElement('h4');
-  h4.textContent = 'Secrets (' + currentSecrets.length + ')';
+  h4.textContent = 'Secrets (' + currentSecrets.length + ')' + (fpCount ? ' - ' + fpCount + ' FP' : '');
   h4.style.cssText = 'font-size:11px;color:#ff6b6b;margin-bottom:4px;';
   el.appendChild(h4);
-  currentSecrets.forEach(function(s) {
+
+  currentSecrets.forEach(function(s, si) {
+    var isFP = secretReviews[si] === 'fp';
+    var isTP = secretReviews[si] === 'tp';
     var item = document.createElement('div');
     item.className = 'secret-finding';
-    // Click to scroll to line
-    item.onclick = function() {
-      var lineEl = document.querySelector('.line[data-line-no="' + s.line + '"]');
-      if (lineEl) lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    };
+    if (isFP) item.style.opacity = '0.4';
+    if (isFP) item.style.textDecoration = 'line-through';
+
+    // Top row: type + FP/TP buttons
+    var topRow = document.createElement('div');
+    topRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+
     var typeSpan = document.createElement('span');
     typeSpan.className = 'sf-type';
     typeSpan.textContent = s.entity_type + ' (L' + s.line + ')';
-    item.appendChild(typeSpan);
+    typeSpan.style.cursor = 'pointer';
+    typeSpan.onclick = function(e) {
+      e.stopPropagation();
+      var lineEl = document.querySelector('.line[data-line-no="' + s.line + '"]');
+      if (lineEl) lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    var btnRow = document.createElement('span');
+    btnRow.style.cssText = 'display:flex;gap:3px;';
+
+    var tpBtn = document.createElement('button');
+    tpBtn.textContent = 'TP';
+    tpBtn.title = 'True Positive — real secret';
+    tpBtn.style.cssText = 'padding:1px 5px;border:1px solid ' + (isTP ? '#52b788' : '#444') + ';background:' + (isTP ? '#1b4332' : 'transparent') + ';color:' + (isTP ? '#52b788' : '#888') + ';border-radius:2px;cursor:pointer;font-size:9px;';
+    tpBtn.onclick = function(e) { e.stopPropagation(); flagSecret(si, 'tp'); };
+
+    var fpBtn = document.createElement('button');
+    fpBtn.textContent = 'FP';
+    fpBtn.title = 'False Positive — not a secret';
+    fpBtn.style.cssText = 'padding:1px 5px;border:1px solid ' + (isFP ? '#f28b82' : '#444') + ';background:' + (isFP ? '#6b2c2c' : 'transparent') + ';color:' + (isFP ? '#f28b82' : '#888') + ';border-radius:2px;cursor:pointer;font-size:9px;';
+    fpBtn.onclick = function(e) { e.stopPropagation(); flagSecret(si, 'fp'); };
+
+    btnRow.appendChild(tpBtn);
+    btnRow.appendChild(fpBtn);
+    topRow.appendChild(typeSpan);
+    topRow.appendChild(btnRow);
+    item.appendChild(topRow);
+
     var matchSpan = document.createElement('span');
     matchSpan.className = 'sf-match';
     matchSpan.textContent = (s.matched_text || '').slice(0, 50);
     item.appendChild(matchSpan);
+
     var metaSpan = document.createElement('span');
     metaSpan.className = 'sf-meta';
     metaSpan.textContent = s.layer + ' / ' + (s.pattern_name || '') + ' conf=' + (s.confidence || 0).toFixed(2);
     item.appendChild(metaSpan);
+
     el.appendChild(item);
   });
+}
+
+async function flagSecret(secretIdx, verdict) {
+  secretReviews[secretIdx] = verdict;
+  // Save to corpus
+  if (currentIdx >= 0) {
+    var r = corpus[currentIdx];
+    if (!r.review) r.review = { correct: null, actual_blocks: null, notes: '' };
+    r.review.secret_reviews = Object.assign({}, secretReviews);
+
+    await fetch('/api/review', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        index: currentIdx,
+        correct: r.review.correct,
+        notes: r.review.notes || '',
+        actual_blocks: r.review.actual_blocks,
+        secret_reviews: r.review.secret_reviews,
+      })
+    });
+  }
+  renderSecretsList();
 }
 
 function removeUserBlock(idx) {
@@ -813,6 +882,7 @@ async function reviewZones(action) {
     markBlock();
   }
 
+  var sr = Object.keys(secretReviews).length > 0 ? Object.assign({}, secretReviews) : null;
   var resp = await fetch('/api/review', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -821,10 +891,11 @@ async function reviewZones(action) {
       correct: correct,
       notes: notes,
       actual_blocks: userBlocks.length > 0 ? userBlocks : null,
+      secret_reviews: sr,
     })
   });
   if (resp.ok) {
-    corpus[currentIdx].review = { correct: correct, notes: notes, actual_blocks: userBlocks.length > 0 ? userBlocks : null };
+    corpus[currentIdx].review = { correct: correct, notes: notes, actual_blocks: userBlocks.length > 0 ? userBlocks : null, secret_reviews: sr };
     updateStats();
     navigate(1);
   }
@@ -923,6 +994,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
                     "correct": body.get("correct"),
                     "actual_blocks": body.get("actual_blocks"),
                     "notes": body.get("notes", ""),
+                    "secret_reviews": body.get("secret_reviews"),
                 }
                 _save_corpus()
                 self._json_response({"ok": True})
