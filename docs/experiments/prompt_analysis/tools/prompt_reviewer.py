@@ -37,14 +37,16 @@ from docs.experiments.prompt_analysis.s4_zone_detection.zone_detector import det
 
 log = logging.getLogger(__name__)
 
-# Try importing secret detection
+# Use the Sprint 14 scan_text API — single detection path
 try:
-    from data_classifier.engines.regex_engine import RegexEngine
-    from data_classifier.engines.secret_scanner import SecretScannerEngine
+    from data_classifier.scan_text import TextScanner
     _HAS_SECRET_DETECTION = True
 except ImportError:
     _HAS_SECRET_DETECTION = False
-    log.warning("Secret detection not available (missing engines)")
+    log.warning("Secret detection not available (data_classifier.scan_text not found)")
+
+# Module-level scanner singleton (initialized on first use)
+_SCANNER: TextScanner | None = None
 
 # Global state
 CORPUS: list[dict] = []
@@ -66,120 +68,65 @@ def _save_corpus():
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 
-def _load_patterns():
-    """Load regex patterns from default_patterns.json for exact match highlighting."""
-    import re as stdlib_re
-    patterns_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "data_classifier" / "patterns" / "default_patterns.json"
-    if not patterns_path.exists():
-        return []
-    with open(patterns_path) as f:
-        data = json.load(f)
-    compiled = []
-    for p in data.get("patterns", []):
-        try:
-            flags = stdlib_re.IGNORECASE if "(?i)" in p["regex"] else 0
-            regex_str = p["regex"].replace("(?i)", "")
-            compiled.append({
-                "name": p["name"],
-                "entity_type": p["entity_type"],
-                "regex": stdlib_re.compile(regex_str, flags),
-                "confidence": p.get("confidence", 0.5),
-            })
-        except stdlib_re.error:
-            pass  # skip patterns that don't compile in stdlib re
-    return compiled
-
-
-_COMPILED_PATTERNS: list[dict] = []
-
-
-def _get_patterns():
-    global _COMPILED_PATTERNS
-    if not _COMPILED_PATTERNS:
-        _COMPILED_PATTERNS = _load_patterns()
-    return _COMPILED_PATTERNS
+def _get_scanner() -> TextScanner:
+    """Get or create the module-level TextScanner singleton."""
+    global _SCANNER
+    if _SCANNER is None:
+        _SCANNER = TextScanner()
+        _SCANNER.startup()
+    return _SCANNER
 
 
 def _run_secret_detection(text: str) -> list[dict]:
-    """Run regex patterns + secret_scanner on text, return findings with exact match spans."""
-    import re as stdlib_re
-    findings = []
+    """Run scan_text on text, return findings with exact match spans.
 
-    # Phase 1: Direct regex matching for exact spans
+    Uses the Sprint 14 scan_text API — single detection path for both
+    regex patterns and secret_scanner key+entropy heuristic.
+    """
+    if not _HAS_SECRET_DETECTION:
+        return []
+
+    try:
+        scanner = _get_scanner()
+        result = scanner.scan(text, min_confidence=0.3)
+    except Exception as e:
+        log.error("scan_text error: %s", e)
+        return []
+
+    # Convert char offsets to line/col for the UI
     lines = text.split("\n")
-    # Build char offset -> (line, col) map
     line_starts = []
     offset = 0
     for line in lines:
         line_starts.append(offset)
-        offset += len(line) + 1  # +1 for newline
+        offset += len(line) + 1
 
-    for p in _get_patterns():
-        for m in p["regex"].finditer(text):
-            start_offset = m.start()
-            end_offset = m.end()
-            # Find line number
-            line_no = 0
-            for li, ls in enumerate(line_starts):
-                if ls > start_offset:
-                    break
-                line_no = li
-            col_start = start_offset - line_starts[line_no]
-            # Could span multiple lines — find end line
-            end_line_no = line_no
-            for li in range(line_no, len(line_starts)):
-                if li + 1 < len(line_starts) and line_starts[li + 1] > end_offset:
-                    end_line_no = li
-                    break
-                end_line_no = li
-            col_end = end_offset - line_starts[end_line_no]
+    def _char_to_line_col(char_offset: int) -> tuple[int, int]:
+        line_no = 0
+        for li, ls in enumerate(line_starts):
+            if ls > char_offset:
+                break
+            line_no = li
+        return line_no, char_offset - line_starts[line_no]
 
-            findings.append({
-                "layer": "secret_regex",
-                "entity_type": p["entity_type"],
-                "pattern_name": p["name"],
-                "confidence": p["confidence"],
-                "matched_text": m.group()[:100],
-                "line": line_no,
-                "col_start": col_start,
-                "col_end": col_end if end_line_no == line_no else len(lines[line_no]),
-                "end_line": end_line_no,
-            })
+    findings = []
+    for f in result.findings:
+        line_no, col_start = _char_to_line_col(f.start)
+        end_line, col_end = _char_to_line_col(f.end)
 
-    # Phase 2: Secret scanner (key+entropy heuristic) — no exact spans, just line-level
-    if _HAS_SECRET_DETECTION:
-        try:
-            from data_classifier.core.types import ColumnInput
-            from data_classifier.profiles import load_profile
-
-            col = ColumnInput(column_name="prompt", sample_values=[text])
-            profile = load_profile()
-            scanner = SecretScannerEngine()
-            sc_results = scanner.classify_column(col, profile=profile, min_confidence=0.3)
-            for f in sc_results:
-                matched = ""
-                if f.sample_analysis and f.sample_analysis.sample_matches:
-                    matched = f.sample_analysis.sample_matches[0][:100]
-                # Find line containing the match
-                match_line = 0
-                if matched:
-                    for li, line in enumerate(lines):
-                        if matched[:30] in line or (matched.split("=", 1)[-1][:20] if "=" in matched else "") in line:
-                            match_line = li
-                            break
-                findings.append({
-                    "layer": "secret_scanner",
-                    "entity_type": f.entity_type,
-                    "pattern_name": f.evidence[:60] if f.evidence else "",
-                    "confidence": f.confidence,
-                    "matched_text": matched,
-                    "line": match_line,
-                    "col_start": -1,  # no exact span for scanner
-                    "col_end": -1,
-                    "end_line": match_line,
-                })
-        except Exception as e:
-            log.error("Secret scanner error: %s", e)
+        findings.append({
+            "layer": f.engine,
+            "entity_type": f.entity_type,
+            "pattern_name": f.detection_type,
+            "display_name": f.display_name,
+            "confidence": f.confidence,
+            "matched_text": f.value_masked,
+            "evidence": f.evidence,
+            "line": line_no,
+            "col_start": col_start,
+            "col_end": col_end if end_line == line_no else len(lines[line_no]),
+            "end_line": end_line,
+        })
 
     return findings
 
