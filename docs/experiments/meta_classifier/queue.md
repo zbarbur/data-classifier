@@ -1,5 +1,32 @@
 # Meta-Classifier Experiment Queue
 
+> **SPRINT 14 SYNC (2026-04-21):** Merged `origin/main` at commit `7a2ce8f`. Sprint 14 shipped:
+>   - Meta-classifier **directive flip** (shadow → live) — the research shadow
+>     stream is now the production prediction path.
+>   - **Multi-label ground truth + scoring** in `family_accuracy_benchmark.py`
+>     via structural-presence scan (`scan_text`). Supersedes the pre-Sprint-14
+>     single-label GT semantics; research backlog item `benchmark-emit-all-
+>     cascade-findings-multi-label` ✅ SHIPPED.
+>   - **Cascade short-circuit fix** on heterogeneous shape (research backlog
+>     item ✅ SHIPPED). Router no longer short-circuits on column_name
+>     confidence when shape is `free_text_heterogeneous`.
+>   - **Secretbench v2 fixture adopted** in benchmark (research backlog item
+>     ✅ SHIPPED). Note: main's v2 has **44 True→False flips, not research's
+>     178** — sprint14 code review restored 134 flips. Research's deeper
+>     relabel is superseded; main is authoritative.
+>   - **Credential gate finding-level rework** (research backlog item ✅
+>     SHIPPED).
+>   - `FEATURE_SCHEMA_VERSION` bumped **v5 → v6**, `FEATURE_DIM` 49 → 48.
+>     Any training experiment after this sync must regenerate
+>     `training_data.jsonl` per the runbook's stale-training-data caveat.
+>   - `scan_text` public API added to `data_classifier/__init__.py` for
+>     raw-text scanning; used by benchmark relabeling internally.
+>
+>   M4b's 0.8802 gate accuracy + 0.370 heterogeneous macro_f1 numbers
+>   (2026-04-18 run on pre-sync code) will need re-baselining against the
+>   Sprint 14 cascade + multi-label scoring. Filed as part of M4f (research
+>   follow-up queued).
+
 > **NOTE (2026-04-13):** This document cites F1 numbers measured against the `ai4privacy/pii-masking-300k` corpus, which has since been retired due to license non-compatibility. Historical numbers are preserved as records of what was measured at the time. See `docs/process/LICENSE_AUDIT.md` for context.
 
 > **Purpose:** A backlog of training/evaluation experiments to run in **parallel
@@ -2171,12 +2198,11 @@ effort ~4 weeks sequential, ~2 weeks if parallelized. Critical path:
 **M4a → M4c → M4d** (scales to Sprint 15+ research-bet prerequisite).
 Gated path: **Sprint 13 Item A → M4b**.
 
-### M4a — Multi-label metric definitions + computation helper
+### M4a — Multi-label metric definitions + computation helper (COMPLETE 2026-04-17)
 
-**Status:** 🟡 unblocked — can start immediately, no dependencies
-**Priority:** P1 — unblocks M4b / M4c / M4e; Sprint 13 ships unable to self-measure without this
-**Estimated time:** ~3 days
-**Contract note:** `tests/benchmarks/meta_classifier/**` is research-owned; adds a fresh helper module, no production-code changes
+**Status:** ✅ complete — shipped as `tests/benchmarks/meta_classifier/multi_label_metrics.py` (commit `2f95704`, 41 unit tests). Consumed by M4b (gate/downstream surfaces), M4e (dual-report harness), M4d Phase 1/2/3 (LLM labeler validation).
+**Priority:** was P1
+**Actual time:** ~half a day
 
 **Goal:** Define the multi-label metric set and build the computation
 helper used by all other M4 sub-items.
@@ -2263,11 +2289,11 @@ metric. Distribution: 8,220 / 900 / 750 across the three shapes.
   investigation. 543 structured shards mis-routed to opaque; doesn't
   always cost accuracy (opaque handler is lenient) but is latent risk.
 
-### M4c — Hand-labeled heterogeneous gold set (50 columns)
+### M4c — Hand-labeled heterogeneous gold set (50 columns) (COMPLETE 2026-04-17)
 
-**Status:** 🟡 unblocked — can start in parallel with M4a
-**Priority:** P1 — without gold ground truth, nothing downstream is honest
-**Estimated time:** ~1 week of careful annotation work
+**Status:** ✅ complete — 50/50 human-reviewed rows at `tests/benchmarks/meta_classifier/heterogeneous_gold_set.jsonl` (commits `5b195f0` scaffolding + `97b926f` review). Consumed by M4d Phase 1/2 LLM labeler validation.
+**Priority:** was P1
+**Actual time:** ~2 days (BQ fetch + per-source pre-fill + human audit)
 
 **Goal:** Produce 50 hand-labeled heterogeneous columns with complete
 multi-label annotation. This is the honest evaluation anchor — every
