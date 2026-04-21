@@ -29,7 +29,9 @@ Expects ``ANTHROPIC_API_KEY`` in the environment.
 
 from __future__ import annotations
 
+import base64
 import json
+import logging
 import os
 import time
 from pathlib import Path
@@ -37,12 +39,15 @@ from typing import Any, Literal
 
 import anthropic
 
+from data_classifier.patterns._decoder import decode_encoded_strings
 from tests.benchmarks.meta_classifier.llm_labeler import (
     ALLOWED_ENTITIES,
     GOLD_SET_PATH,
     LabelerCall,
     label_column,
 )
+
+log = logging.getLogger(__name__)
 
 ShapeName = Literal["structured_single", "free_text_heterogeneous", "opaque_tokens"]
 
@@ -51,6 +56,78 @@ VALID_SHAPES: tuple[ShapeName, ...] = (
     "free_text_heterogeneous",
     "opaque_tokens",
 )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# M4f-d1 — opaque-column decoder stage
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Base64 is a reversible encoding, not secrecy. Columns routed to the
+# opaque-tokens branch whose values are base64 envelopes around
+# structured content (JSON payloads, plaintext, JWT-style objects) must
+# be decoded before detection runs — otherwise the structurally-correct
+# label (OPAQUE_SECRET) hides semantically-sensitive inner content
+# (EMAIL, PHONE, etc.) and corrupts the OPAQUE_SECRET class by mixing
+# decodable-with-structure into what should be the high-entropy
+# residual category.
+#
+# This stage fires BEFORE the labeler on any opaque-tokens column.
+# Shape-specific opaque (ETH 0x+40hex, BTC 64-hex, other
+# hash-like) falls through to the existing OPAQUE_SECRET path — their
+# bytes don't base64-decode to meaningful text.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def try_decode_opaque_column(
+    values: list[str],
+    min_success_rate: float = 0.8,
+    min_printable_rate: float = 0.9,
+) -> tuple[list[str], ShapeName] | None:
+    """Attempt base64 decoding on an opaque-tokens column.
+
+    If ``min_success_rate`` of values decode to printable UTF-8, returns
+    ``(decoded_values, recommended_shape)`` — values that individually
+    failed to decode pass through in the returned list so the column's
+    length is preserved. Otherwise returns ``None`` (column stays
+    opaque-tokens).
+
+    The recommended shape is always ``free_text_heterogeneous``:
+    decoded base64 is typically JSON / free text with mixed entities,
+    so the heterogeneous branch's multi-entity prompt is the right fit.
+
+    ``min_printable_rate`` filters byte sequences that happen to be
+    valid UTF-8 but aren't readable (control chars dominating). 0.9 is
+    deliberately strict — a JWT payload is ~99% printable; random
+    bytes that happen to form valid UTF-8 are far below that.
+    """
+    if not values:
+        return None
+    decoded: list[str] = []
+    successes = 0
+    for v in values:
+        try:
+            # Tolerate missing padding — base64 output strings are occasionally
+            # stripped of trailing '=' by producers. validate=True rejects
+            # non-base64 characters (catches hex, plain text, etc.).
+            padding = (4 - len(v) % 4) % 4
+            raw = base64.b64decode(v + "=" * padding, validate=True)
+            text = raw.decode("utf-8", errors="strict")
+        except (ValueError, UnicodeDecodeError, base64.binascii.Error):
+            decoded.append(v)
+            continue
+        if not text:
+            decoded.append(v)
+            continue
+        printable = sum(1 for c in text if c.isprintable() or c in "\n\t ")
+        if printable / len(text) < min_printable_rate:
+            decoded.append(v)
+            continue
+        decoded.append(text)
+        successes += 1
+    if successes / len(values) >= min_success_rate:
+        return decoded, "free_text_heterogeneous"
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -105,23 +182,31 @@ recoverable, over-labeling skews downstream Jaccard.
 """.strip()
 
 
-# Phase 1 v1 baseline + Phase 2 iteration 2 addition: surface-form-only
-# guardrail. Without this, the labeler decodes base64 payloads like JWTs
-# (``eyJ...`` containing email claims) and labels them as the nested
-# entity instead of OPAQUE_SECRET. Gold treats base64-encoded payloads
-# as opaque at the column level; decoding is a separate pipeline stage
-# (D1a JWT-payload-classifier, per queue.md).
+# Post-M4f-d1 (2026-04-21): the "do NOT base64-decode" guardrail was
+# removed. Decodable base64 is now handled upstream by
+# ``try_decode_opaque_column`` — any column that reaches this branch is
+# either shape-specific opaque (blockchain addresses, hashes) or
+# high-entropy bytes that failed to decode. Treat what you receive at
+# face value.
 OPAQUE_TOKENS_INSTRUCTIONS = (
     STRUCTURED_SINGLE_INSTRUCTIONS
     + "\n\n"
-    + """Surface-form guardrail (this branch only): values in an opaque-token
-column are classified by their surface structure, not by any content that
-might appear after decoding. Base64-shaped values (including JWT-style
-``eyJ...`` prefixes that decode to JSON with email/sub claims) are
-``OPAQUE_SECRET``. Hex-prefixed values (``0x...``) matching a blockchain
-address shape are ``ETHEREUM_ADDRESS`` / ``BITCOIN_ADDRESS`` / etc. Do
-NOT attempt to base64-decode or hex-decode values to find nested
-entities — decoding is handled by downstream specialized engines.""".strip()
+    + """Surface-form branch: by the time values arrive here, upstream decoding
+has already been attempted. Any base64-wrapped structured content
+(JWT-style ``eyJ...`` payloads decoding to JSON, base64-wrapped plain
+text, etc.) was decoded and re-routed away from this branch before the
+call. What you see here is either:
+
+  * Hex-prefixed values (``0x...``) matching a blockchain address shape:
+    label ``ETHEREUM_ADDRESS`` / ``BITCOIN_ADDRESS`` / etc. as
+    applicable.
+  * Plain hex, hashes, or high-entropy base64 that failed upstream
+    decode (e.g., random session tokens, cryptographic hashes, opaque
+    identifiers): label ``OPAQUE_SECRET``.
+
+``OPAQUE_SECRET`` is the high-entropy residual class — reserved for
+values with no recoverable internal structure. Do not emit it for
+values that carry a shape-specific label.""".strip()
 )
 
 
@@ -397,9 +482,35 @@ def label_gold_set_via_router(
                 )
             )
             continue
+
+        # M4f-d1: opaque-column decoder stage. Base64-wrapped structured
+        # content is decoded and re-routed to the heterogeneous branch so
+        # nested entities (EMAIL, PHONE, ...) are labeled semantically
+        # rather than hidden behind OPAQUE_SECRET. Shape-specific opaque
+        # (ETH 0x+hex, hashes) fails the decode check and falls through.
+        effective_row = row
+        if shape == "opaque_tokens":
+            raw_values = row["values"]
+            if row.get("encoding") == "xor":
+                raw_values = decode_encoded_strings(raw_values)
+            decoder_result = try_decode_opaque_column(raw_values)
+            if decoder_result is not None:
+                decoded_values, new_shape = decoder_result
+                effective_row = dict(row)
+                effective_row["values"] = decoded_values
+                effective_row["encoding"] = "plaintext"  # already decoded
+                effective_row["true_shape"] = new_shape
+                shape = new_shape
+                log.info(
+                    "decoder fired on %s: routed %s → %s",
+                    row["column_id"],
+                    "opaque_tokens",
+                    new_shape,
+                )
+
         system = systems_by_shape[shape]
         try:
-            call = label_column(client, row, system, max_tokens=max_tokens)
+            call = label_column(client, effective_row, system, max_tokens=max_tokens)
         except Exception as e:  # noqa: BLE001 — broad catch is intentional
             call = LabelerCall(
                 column_id=row["column_id"],

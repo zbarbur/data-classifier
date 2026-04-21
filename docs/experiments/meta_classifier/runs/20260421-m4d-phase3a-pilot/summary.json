@@ -1,6 +1,6 @@
 {
   "n_columns": 41,
-  "n_errors": 1,
+  "n_errors": 0,
   "n_unknown_label_emissions": 0,
   "n_empty_predictions": 7,
   "by_shape_count": {
@@ -10,7 +10,7 @@
   },
   "pred_label_distribution": {
     "ADDRESS": 14,
-    "EMAIL": 12,
+    "EMAIL": 13,
     "PERSON_NAME": 12,
     "URL": 10,
     "ETHEREUM_ADDRESS": 4,
@@ -60,7 +60,8 @@
       "AGE": 1
     },
     "opaque_tokens": {
-      "ETHEREUM_ADDRESS": 3
+      "ETHEREUM_ADDRESS": 3,
+      "EMAIL": 1
     },
     "structured_single": {
       "ADDRESS": 9,
@@ -68,17 +69,16 @@
     }
   },
   "usage": {
-    "input_tokens": 332434,
-    "output_tokens": 2952,
-    "cache_read_input_tokens": 62436,
+    "input_tokens": 333778,
+    "output_tokens": 3089,
+    "cache_read_input_tokens": 65274,
     "cache_creation_input_tokens": 0,
-    "cache_hit_rate_pct": 15.81
+    "cache_hit_rate_pct": 16.36
   },
-  "estimated_cost_usd": 1.7672,
-  "errors": [
-    "sprint12_base64_encoded_payloads"
-  ],
+  "estimated_cost_usd": 1.7788,
+  "errors": [],
   "unknown_label_rows": [],
   "model": "claude-opus-4-7",
-  "run_timestamp": "2026-04-21T11:50:55+00:00"
+  "run_timestamp": "2026-04-21T20:41:53+00:00",
+  "notes": "Updated 2026-04-21 after M4f-d1: base64 decoder stage re-labeled sprint12_base64_encoded_payloads from [] (refused) to [EMAIL]."
 }

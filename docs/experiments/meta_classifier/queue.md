@@ -2496,9 +2496,25 @@ Per-shape:
 
 ### M4f-d1 — base64 decoder + re-detection stage (pre-Phase-3b blocker)
 
-**Status:** ⏸ pre-commit, locked as direction 2026-04-21
-**Priority:** P1 — blocks Phase 3b greenlight
-**Estimated time:** ~2-3 days
+**Status:** ✅ shipped 2026-04-21 (research-side, research/meta-classifier branch)
+**Priority:** ~~P1~~ → unblocked
+**Estimated time:** ~~2-3 days~~ → delivered same day
+
+**Delivered:**
+- `tests/benchmarks/meta_classifier/llm_labeler_router.py::try_decode_opaque_column` — base64 decoder stage, fires when ≥ 80% of column values decode to ≥ 90% printable UTF-8. Routes decoded columns `opaque_tokens → free_text_heterogeneous`.
+- `OPAQUE_TOKENS_INSTRUCTIONS` prompt revised — "do NOT base64-decode" guardrail removed, replaced with upstream-decoding clarifier.
+- M4c gold set `sprint12_fixture_base64_encoded_payloads` flipped `[OPAQUE_SECRET] → [EMAIL]` with audit trail.
+- 10 unit tests in `tests/benchmarks/meta_classifier/test_opaque_decoder.py`.
+
+**Revalidation (see `docs/experiments/meta_classifier/runs/20260421-m4d-phase2-revalidation-after-m4f-d1/design_revalidation.md`):**
+- Phase 2 on M4c gold: macro Jaccard `0.8655` → `0.8630` (−0.0025 = within LLM stochasticity; decomposition attached).
+- Phase 2 opaque_tokens branch: `1.0000` held.
+- Phase 3a pilot: the base64 refusal is gone; macro Jaccard pred-vs-reviewer **0.9268 → 0.9512**; opaque_tokens branch `0.7500 → 1.0000`.
+
+**Production-side follow-up (separate future item, not a blocker):**
+- Integrate decoder stage into production orchestrator path (currently research-side only).
+- Calibrate thresholds on Phase 3b full-scale corpus once collected.
+- Down-prioritize the "opaque-token refusal fallback" follow-up — decoder stage removes the refusal-prone branch for decodable content; only shape-specific opaque remains, which the revised prompt handles without issue.
 
 **Why:** base64 is a reversible encoding, not secrecy. Labeling
 decodable base64 content `OPAQUE_SECRET` is a **taxonomy category error**
