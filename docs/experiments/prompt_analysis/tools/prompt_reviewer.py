@@ -140,7 +140,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; background: #1a1a2e; color: #e0e0e0; }
 .container { display: flex; height: 100vh; }
-.sidebar { width: 280px; border-right: 1px solid #333; overflow-y: auto; background: #16213e; flex-shrink: 0; }
+.sidebar { width: 340px; border-right: 1px solid #333; overflow-y: auto; background: #16213e; flex-shrink: 0; }
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .header { padding: 8px 16px; background: #0f3460; border-bottom: 1px solid #333; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .header h1 { font-size: 16px; color: #e94560; }
@@ -151,11 +151,17 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
 .sidebar-header { padding: 12px; background: #0f3460; border-bottom: 1px solid #333; position: sticky; top: 0; z-index: 1; }
 .sidebar-header input { width: 100%; padding: 6px 8px; background: #1a1a2e; border: 1px solid #444; color: #e0e0e0; border-radius: 4px; }
 .sidebar-stats { padding: 8px 12px; font-size: 11px; color: #888; border-bottom: 1px solid #222; }
-.item { padding: 8px 12px; border-bottom: 1px solid #222; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.item { padding: 6px 10px; border-bottom: 1px solid #222; cursor: pointer; }
 .item:hover { background: #1a1a3e; }
 .item.active { background: #0f3460; border-left: 3px solid #e94560; }
+.item-row1 { display: flex; justify-content: space-between; align-items: center; }
 .item .id { font-size: 11px; color: #888; }
-.item .badges { display: flex; gap: 4px; }
+.item .badges { display: flex; gap: 3px; flex-wrap: wrap; }
+.item-row2 { margin-top: 2px; height: 3px; background: #222; border-radius: 2px; overflow: hidden; }
+.item-conf-bar { height: 100%; border-radius: 2px; }
+.conf-high { background: #2d6a4f; }
+.conf-mid { background: #b56727; }
+.conf-low { background: #6b2c2c; }
 .badge { padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
 .badge-code { background: #2d6a4f; color: #95d5b2; }
 .badge-markup { background: #0078a0; color: #7dd3e8; }
@@ -259,13 +265,23 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
       <div class="filters" style="margin-top: 6px;">
         <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All</button>
         <button class="filter-btn" data-filter="code" onclick="setFilter('code')">Code</button>
-        <button class="filter-btn" data-filter="structured_data" onclick="setFilter('structured_data')">Structured</button>
-        <button class="filter-btn" data-filter="cli_shell" onclick="setFilter('cli_shell')">CLI</button>
+        <button class="filter-btn" data-filter="markup" onclick="setFilter('markup')">Markup</button>
+        <button class="filter-btn" data-filter="config" onclick="setFilter('config')">Config</button>
         <button class="filter-btn" data-filter="secret" onclick="setFilter('secret')">Secrets</button>
         <button class="filter-btn" data-filter="none" onclick="setFilter('none')">No detect</button>
         <button class="filter-btn" data-filter="unreviewed" onclick="setFilter('unreviewed')">Unreviewed</button>
         <button class="filter-btn" data-filter="rejected" onclick="setFilter('rejected')">Rejected</button>
         <button class="filter-btn" data-filter="low_conf" onclick="setFilter('low_conf')">Low conf</button>
+      </div>
+      <div style="margin-top: 6px; display: flex; gap: 6px; align-items: center;">
+        <label style="font-size: 10px; color: #888;">Sort:</label>
+        <select id="sort-select" onchange="filterList()" style="flex:1;padding:3px;background:#1a1a2e;border:1px solid #444;color:#e0e0e0;border-radius:3px;font-size:10px;">
+          <option value="default">Default (ID)</option>
+          <option value="conf_asc">Confidence low-high</option>
+          <option value="conf_desc">Confidence high-low</option>
+          <option value="lines_desc">Lines (longest first)</option>
+          <option value="blocks_desc">Most blocks first</option>
+        </select>
       </div>
     </div>
     <div class="sidebar-stats" id="stats"></div>
@@ -371,8 +387,8 @@ function filterList() {
   filteredIndices = [];
   corpus.forEach(function(r, i) {
     if (currentFilter === 'code' && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'code'; })) return;
-    if (currentFilter === 'structured_data' && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'structured_data'; })) return;
-    if (currentFilter === 'cli_shell' && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'cli_shell'; })) return;
+    if (currentFilter === 'markup' && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'markup'; })) return;
+    if (currentFilter === 'config' && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'config'; })) return;
     if (currentFilter === 'secret' && !(r.secrets && r.secrets.length > 0)) return;
     if (currentFilter === 'none' && r.heuristic_has_blocks) return;
     if (currentFilter === 'unreviewed' && r.review && r.review.correct !== null) return;
@@ -384,13 +400,22 @@ function filterList() {
     if (search && !(r.text || '').toLowerCase().includes(search) && !(r.prompt_id || '').includes(search)) return;
     filteredIndices.push(i);
   });
-  // Sort low_conf by confidence ascending (most uncertain first)
-  if (currentFilter === 'low_conf') {
-    filteredIndices.sort(function(a, b) {
-      var ca = Math.max.apply(null, (corpus[a].heuristic_blocks || []).map(function(bl) { return bl.confidence; }).concat([0]));
-      var cb = Math.max.apply(null, (corpus[b].heuristic_blocks || []).map(function(bl) { return bl.confidence; }).concat([0]));
-      return ca - cb;
-    });
+  // Sort
+  var sortMode = document.getElementById('sort-select').value;
+  if (currentFilter === 'low_conf' && sortMode === 'default') sortMode = 'conf_asc';
+
+  function getMaxConf(idx) {
+    return Math.max.apply(null, (corpus[idx].heuristic_blocks || []).map(function(bl) { return bl.confidence; }).concat([0]));
+  }
+
+  if (sortMode === 'conf_asc') {
+    filteredIndices.sort(function(a, b) { return getMaxConf(a) - getMaxConf(b); });
+  } else if (sortMode === 'conf_desc') {
+    filteredIndices.sort(function(a, b) { return getMaxConf(b) - getMaxConf(a); });
+  } else if (sortMode === 'lines_desc') {
+    filteredIndices.sort(function(a, b) { return (corpus[b].total_lines || 0) - (corpus[a].total_lines || 0); });
+  } else if (sortMode === 'blocks_desc') {
+    filteredIndices.sort(function(a, b) { return (corpus[b].heuristic_blocks || []).length - (corpus[a].heuristic_blocks || []).length; });
   }
   renderList();
 }
@@ -408,10 +433,13 @@ function renderList() {
 
     var maxConf = Math.max.apply(null, (r.heuristic_blocks || []).map(function(b) { return b.confidence; }).concat([0]));
 
+    // Row 1: ID + badges
+    var row1 = document.createElement('div');
+    row1.className = 'item-row1';
+
     var idSpan = document.createElement('span');
     idSpan.className = 'id';
-    var confStr = maxConf > 0 ? ' ' + Math.round(maxConf * 100) + '%' : '';
-    idSpan.textContent = (r.prompt_id || '').slice(0, 8) + '.. (' + r.total_lines + 'L)' + confStr;
+    idSpan.textContent = (r.prompt_id || '').slice(0, 8) + '.. (' + r.total_lines + 'L)';
 
     var badgesSpan = document.createElement('span');
     badgesSpan.className = 'badges';
@@ -424,16 +452,30 @@ function renderList() {
     }
 
     if (types.has('code')) addBadge('badge-code', 'code');
+    if (types.has('markup')) addBadge('badge-markup', 'markup');
+    if (types.has('config')) addBadge('badge-config', 'config');
     if (types.has('structured_data')) addBadge('badge-structured', 'struct');
-    if (types.has('cli_shell')) addBadge('badge-cli', 'cli');
-    if (r.secrets && r.secrets.length > 0) addBadge('badge-secret', 'secret');
-    if (!r.heuristic_has_blocks && !(r.secrets && r.secrets.length > 0)) addBadge('badge-none', '-');
     if (r.review && r.review.actual_blocks && r.review.actual_blocks.length > 0) addBadge('badge-correction', 'marked');
     if (r.review && r.review.correct === true) addBadge('badge-approved', 'ok');
     if (r.review && r.review.correct === false) addBadge('badge-rejected', 'X');
+    if (!r.heuristic_has_blocks && !r.review) addBadge('badge-none', '-');
 
-    item.appendChild(idSpan);
-    item.appendChild(badgesSpan);
+    row1.appendChild(idSpan);
+    row1.appendChild(badgesSpan);
+    item.appendChild(row1);
+
+    // Row 2: confidence bar
+    if (maxConf > 0) {
+      var row2 = document.createElement('div');
+      row2.className = 'item-row2';
+      var bar = document.createElement('div');
+      bar.className = 'item-conf-bar ' + (maxConf >= 0.8 ? 'conf-high' : maxConf >= 0.65 ? 'conf-mid' : 'conf-low');
+      bar.style.width = Math.round(maxConf * 100) + '%';
+      bar.title = Math.round(maxConf * 100) + '% confidence';
+      row2.appendChild(bar);
+      item.appendChild(row2);
+    }
+
     listEl.appendChild(item);
   });
 }
