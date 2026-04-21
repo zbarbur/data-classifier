@@ -13,6 +13,12 @@ import base64
 import pytest
 
 from data_classifier import ColumnInput, load_profile
+from data_classifier.engines.column_name_engine import ColumnNameEngine
+from data_classifier.engines.heuristic_engine import HeuristicEngine
+from data_classifier.engines.regex_engine import RegexEngine
+from data_classifier.engines.secret_scanner import SecretScannerEngine
+from data_classifier.orchestrator.orchestrator import Orchestrator
+from data_classifier.orchestrator.shape_detector import detect_column_shape
 
 
 def _decode_xor(encoded: str, key: int = 0x5A) -> str:
@@ -25,12 +31,6 @@ def _decode_xor(encoded: str, key: int = 0x5A) -> str:
 
 # XOR-encoded to avoid GitHub push protection on sk_live_ prefix
 _STRIPE_TEST_KEY = _decode_xor("xor:KTEFNjMsPwU7ODlraGk+Pzxub2w9MjNtYmMwMTZqa2g3NDVpbm8=")
-from data_classifier.engines.column_name_engine import ColumnNameEngine
-from data_classifier.engines.heuristic_engine import HeuristicEngine
-from data_classifier.engines.regex_engine import RegexEngine
-from data_classifier.engines.secret_scanner import SecretScannerEngine
-from data_classifier.orchestrator.orchestrator import Orchestrator
-from data_classifier.orchestrator.shape_detector import detect_column_shape
 
 
 def _classify_no_ml(column: ColumnInput, profile, **kwargs) -> list:
