@@ -1,0 +1,67 @@
+title: "scan_text FP filter parity with JS browser scanner"
+status: open
+priority: P0
+category: bugfix
+sprint_target: 15
+created: 2026-04-21
+updated: 2026-04-21
+depends_on: []
+tags: [scan_text, parity, secret_detection, browser_poc]
+goal: Port all JS scanner FP rejection filters to Python scan_text.py — currently
+  Python has ZERO FP filtering while JS has 10+ filters, causing 79% FP rate on free text
+complexity: L
+description: |
+  Discovered during S4 prompt review: scan_text.py delegates to SecretScannerEngine
+  but does NOT replicate the FP filtering present in the JS browser scanner
+  (scanner-core.js). Review of 507 prompts showed 16 TP / 60 FP (21% precision)
+  on the Python path.
+
+  JS scanner-core.js has these filters that scan_text.py is MISSING:
+
+  1. valueIsObviouslyNotSecret() — rejects:
+     - Code expressions: foo.bar.baz, obj["key"], var;
+     - Shell variables: $VAR, ${VAR}
+     - Constant names: MY_CONSTANT_NAME
+     - Code punctuation: [](){}<>,./
+     - File paths: /usr/local/bin, C:\Users\...
+     - Code calls with parens+equals: OleDbConnection("Provider=...")
+     - Prose (high alpha ratio with spaces)
+     - CJK/Cyrillic/Arabic text (non-ASCII = human language, not credential)
+     - URLs, dates, IPs, numeric-only values
+
+  2. isCompoundNonSecret() — rejects compound keys like token_address,
+     key_type, secret_name where the compound meaning is non-secret
+
+  3. isPlaceholderPattern() — compiled placeholder value patterns
+
+  4. hasAntiIndicator() — anti-indicator checking on key+value
+
+  5. opaqueTokenPass() — standalone high-entropy token detection (JWTs,
+     hex hashes) — noted as TODO in scan_text.py line 15
+
+  The JS scanner was built from the Python column-based SecretScannerEngine
+  but added text-specific FP filters during Sprint 14. These were never
+  backported to the Python scan_text path.
+
+  This is a parity violation: the JS browser extension and Python scanner
+  produce different results on the same input. The JS version is correct.
+technical_specs:
+  - "File: data_classifier/scan_text.py — add all JS FP filters"
+  - "Reference: data_classifier/clients/browser/src/scanner-core.js lines 184-258"
+  - "Port: valueIsObviouslyNotSecret() → _value_is_obviously_not_secret()"
+  - "Port: isCompoundNonSecret() → _is_compound_non_secret()"
+  - "Port: isPlaceholderPattern() → _is_placeholder_pattern()"
+  - "Port: opaqueTokenPass() → _opaque_token_pass()"
+  - "Test: differential test — JS and Python must produce identical findings on same input"
+  - "Benchmark: re-run S4 prompt review corpus, measure precision improvement"
+acceptance_criteria:
+  - All JS FP filters ported to scan_text.py with identical behavior
+  - Differential test passes (JS === Python on shared test corpus)
+  - Precision on S4 review corpus improves from 21% to >70%
+  - No true positive regressions (16 TPs must still be detected)
+test_plan:
+  type: differential
+  steps:
+    - Run JS scanner and Python scan_text on the same 100 prompts
+    - Compare findings — must be identical (entity_type, start, end)
+    - Run on S4 labeled corpus — measure precision against human verdicts
