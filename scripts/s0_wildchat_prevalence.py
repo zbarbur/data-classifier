@@ -93,19 +93,20 @@ def build_finditer_patterns() -> list[tuple[str, str, re.Pattern]]:
             compiled.append((p.name, p.entity_type, re.compile(p.regex)))
         except re.error as e:
             log.warning("skipping uncompilable pattern %s: %s", p.name, e)
-    log.info("compiled %d patterns for finditer (skipped %d column-hint-guarded: %s)",
-             len(compiled), len(skipped), skipped)
+    log.info(
+        "compiled %d patterns for finditer (skipped %d column-hint-guarded: %s)", len(compiled), len(skipped), skipped
+    )
     return compiled
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--limit", type=int, default=50_000, help="Max user-turn texts to scan (None for full WildChat)")
+    parser.add_argument(
+        "--limit", type=int, default=50_000, help="Max user-turn texts to scan (None for full WildChat)"
+    )
     parser.add_argument("--out-dir", default="docs/experiments/prompt_analysis/s0_artifacts")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument(
-        "--audit-sample", type=int, default=50, help="Random N hits to capture for hand-audit"
-    )
+    parser.add_argument("--audit-sample", type=int, default=50, help="Random N hits to capture for hand-audit")
     parser.add_argument(
         "--corpus-extract", type=int, default=1000, help="K positive prompts to freeze for differential-test seed"
     )
@@ -206,8 +207,7 @@ def main() -> None:
                     "turn_index": idx,
                     "prompt_xor": xor_encode(text),
                     "expected_pattern_hits": [
-                        {"name": n, "entity_type": et, "start": s, "end": e}
-                        for n, et, s, e, _ in span_hits
+                        {"name": n, "entity_type": et, "start": s, "end": e} for n, et, s, e, _ in span_hits
                     ],
                 }
                 if len(positive_corpus) < args.corpus_extract:
@@ -217,7 +217,12 @@ def main() -> None:
 
     elapsed = time.time() - t0
     log.info("scan complete in %.1fs (%.1f prompts/sec)", elapsed, total_prompts / elapsed)
-    log.info("prompts with findings: %d / %d (%.2f%%)", prompts_with_findings, total_prompts, 100 * prompts_with_findings / total_prompts)
+    log.info(
+        "prompts with findings: %d / %d (%.2f%%)",
+        prompts_with_findings,
+        total_prompts,
+        100 * prompts_with_findings / total_prompts,
+    )
 
     # Write outputs
     stats = {

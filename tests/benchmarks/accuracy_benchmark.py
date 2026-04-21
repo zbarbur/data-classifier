@@ -559,7 +559,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--corpus",
         type=str,
         default="synthetic",
-        choices=["synthetic", "nemotron", "gretel_en", "gretel_finance", "all"],
+        choices=["synthetic", "nemotron", "gretel_en", "gretel_finance", "openpii_1m", "all"],
         help="Corpus source to use (default: synthetic)",
     )
     parser.add_argument("--max-rows", type=int, default=500, help="Max rows for real-world corpora")

@@ -1,0 +1,27 @@
+title: Char-class diversity should boost composite score not just gate entry
+status: backlog
+priority: P1
+category: feature
+sprint_target: null
+created: 2026-04-18
+updated: 2026-04-18
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: 'Strong tier formula uses diversity >= 3 as a binary gate but doesn''t
+  incorporate it into the composite score. A value with diversity=4 (upper+lower+digits+symbols)
+  like P}fX2+dX8B5q#a scores the same as diversity=3. This causes borderline misses:
+  pass=P}fX2+dX8B5q#a scores 0.48 (just below 0.5 threshold) despite being an obviously
+  generated password. Diversity should boost the multiplier, e.g. diversity=4 adds
+  +0.1 to the entropy score. Affects both strong and contextual tiers. Discovered
+  during WildChat 3,515 corpus review.'
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-package/
+src/generated/
+tester/corpus/**/last_run.json
+.playwright/
+playwright-report/
+test-results/

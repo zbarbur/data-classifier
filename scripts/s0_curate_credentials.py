@@ -26,7 +26,6 @@ import json
 import logging
 import os
 import random
-import re
 import time
 from pathlib import Path
 from typing import Iterator
@@ -71,8 +70,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=50_000)
     parser.add_argument("--out-dir", default="docs/experiments/prompt_analysis/s0_artifacts")
-    parser.add_argument("--non-cred-sample-rate", type=float, default=0.05,
-                        help="Fraction of non-credential findings to capture for FP audit")
+    parser.add_argument(
+        "--non-cred-sample-rate",
+        type=float,
+        default=0.05,
+        help="Fraction of non-credential findings to capture for FP audit",
+    )
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -81,8 +84,10 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     profile = load_profile("standard")
-    regex_engine = RegexEngine(); regex_engine.startup()
-    secret_engine = SecretScannerEngine(); secret_engine.startup()
+    regex_engine = RegexEngine()
+    regex_engine.startup()
+    secret_engine = SecretScannerEngine()
+    secret_engine.startup()
 
     cred_records: list[dict] = []
     non_cred_records: list[dict] = []
@@ -93,13 +98,19 @@ def main() -> None:
     for idx, text in iter_user_turns(args.limit):
         if (idx + 1) % 10000 == 0:
             elapsed = time.time() - t0
-            log.info("processed %d (%.0f/sec) | cred=%d non_cred=%d",
-                     idx + 1, (idx + 1) / elapsed, len(cred_records), len(non_cred_records))
+            log.info(
+                "processed %d (%.0f/sec) | cred=%d non_cred=%d",
+                idx + 1,
+                (idx + 1) / elapsed,
+                len(cred_records),
+                len(non_cred_records),
+            )
 
         col = ColumnInput(column_name="prompt", sample_values=[text])
         try:
-            findings = regex_engine.classify_column(col, profile=profile, min_confidence=0.5, max_evidence_samples=10) \
-                + secret_engine.classify_column(col, profile=profile, min_confidence=0.5, max_evidence_samples=10)
+            findings = regex_engine.classify_column(
+                col, profile=profile, min_confidence=0.5, max_evidence_samples=10
+            ) + secret_engine.classify_column(col, profile=profile, min_confidence=0.5, max_evidence_samples=10)
         except Exception as e:
             log.debug("engine error idx=%d: %s", idx, e)
             continue
@@ -147,6 +158,7 @@ def main() -> None:
 
     # Summary stats
     from collections import Counter
+
     cred_by_type = Counter(r["entity_type"] for r in cred_records)
     cred_by_engine = Counter(r["engine"] for r in cred_records)
     non_cred_by_type = Counter(r["entity_type"] for r in non_cred_records)

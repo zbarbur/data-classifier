@@ -53,6 +53,10 @@ class ContentPattern:
     description: str = ""
     """Human-readable description of what this pattern detects."""
 
+    display_name: str = ""
+    """Short human-friendly label (e.g. ``AWS Access Key``, ``GitHub Token``).
+    Used in client-facing findings.  If empty, derived from ``name``."""
+
     validator: str = ""
     """Name of secondary validator to apply (e.g. ``luhn``, ``ssn_zeros``)."""
 

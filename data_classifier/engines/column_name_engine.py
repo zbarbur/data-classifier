@@ -141,6 +141,37 @@ _TABLE_CONTEXT: dict[str, frozenset[str]] = {
 _TABLE_CONTEXT_BOOST = 0.05
 """Confidence boost applied when the table name contextually supports the entity category."""
 
+# ── Heterogeneous variant hints ────────────────────────────────────────────
+
+# Known column-name variants that indicate log/event/free-text shapes.
+# Used by the Sprint 13 column-shape router as a low-weight tiebreaker.
+# Intentionally narrow — most sensitive-name variants (email, ssn, phone,
+# address, etc.) are structured and do not appear here.
+_HETEROGENEOUS_VARIANTS: frozenset[str] = frozenset(
+    {
+        "log_line",
+        "log_message",
+        "logline",
+        "logmessage",
+        "message",
+        "event_message",
+        "event_body",
+        "event_payload",
+        "eventbody",
+        "eventpayload",
+        "trace",
+        "trace_line",
+        "traceline",
+        "audit_log",
+        "auditlog",
+        "raw_event",
+        "rawevent",
+        "payload",
+        "body",
+        "description",
+    }
+)
+
 
 # ── Variant entry ──────────────────────────────────────────────────────────
 
@@ -231,6 +262,33 @@ class ColumnNameEngine(ClassificationEngine):
         """Lazy startup if not explicitly called."""
         if not self._loaded:
             self.startup()
+
+    def get_variant_category(self, column_name: str) -> str | None:
+        """Return the entity-type category bucket for a known column-name variant.
+
+        Used by the Sprint 13 column-shape router as a low-weight tiebreaker
+        when content signals are ambiguous. Returns ``None`` for unknown
+        variants. Returns one of:
+
+            ``"heterogeneous"`` — log/event/message/trace-style column names
+                                  (narrow curated list, not in the sensitive
+                                  variant dict because they don't describe
+                                  specific PII).
+            ``"structured"``    — known sensitive-name variant (email, ssn,
+                                  phone, address, etc.).
+
+        This is a read-only classification and does NOT run the full matching
+        pipeline (no abbreviation expansion, no subsequence matching). The
+        intent is a cheap tiebreaker, not full column-name classification.
+        """
+        self._ensure_started()
+        normalized = _normalize(column_name)
+        if normalized in _HETEROGENEOUS_VARIANTS:
+            return "heterogeneous"
+        entry = self._lookup.get(normalized)
+        if entry is None:
+            return None
+        return "structured"
 
     def classify_column(
         self,

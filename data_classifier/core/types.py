@@ -151,6 +151,26 @@ class SampleAnalysis:
     """First N matching values as evidence.  Masked when ``mask_samples=True``."""
 
 
+@dataclass(frozen=True)
+class SpanDetection:
+    """One entity span detected by a per-value NER call."""
+
+    text: str
+    """The detected entity text."""
+
+    entity_type: str
+    """The entity type (e.g., EMAIL, SSN, CREDENTIAL)."""
+
+    confidence: float
+    """Detection confidence 0.0-1.0."""
+
+    start: int
+    """Start position in the source text."""
+
+    end: int
+    """End position in the source text."""
+
+
 @dataclass
 class ClassificationFinding:
     """Result of classifying a single column."""
@@ -183,6 +203,20 @@ class ClassificationFinding:
 
     evidence: str = ""
     """Human-readable explanation of the classification."""
+
+    # ── Detection detail ─────────────────────────────────
+    detection_type: str = ""
+    """Specific detection pattern identifier (e.g. ``aws_access_key``,
+    ``github_token``).  More granular than ``entity_type`` — multiple
+    detection_types may share the same entity_type (e.g. both
+    ``aws_access_key`` and ``github_token`` are ``API_KEY``).
+    Set by the regex engine from the pattern name; other engines may
+    leave it empty."""
+
+    display_name: str = ""
+    """Human-friendly label (e.g. ``AWS Access Key``, ``GitHub Token``).
+    Intended for end-user display.  Auto-populated from the pattern's
+    ``display_name`` field when available."""
 
     # ── Sample detail ─────────────────────────────────────
     sample_analysis: SampleAnalysis | None = None

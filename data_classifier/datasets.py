@@ -83,7 +83,9 @@ def load_local_or_remote(
         log.warning(
             "local data not found for %s at %s — falling back to HuggingFace streaming. "
             "Run `dvc pull data/%s.dvc` to hydrate local copy.",
-            name, local_dir, name,
+            name,
+            local_dir,
+            name,
         )
 
     return load_dataset(hf_id, split=split, streaming=streaming or not parquet_files)

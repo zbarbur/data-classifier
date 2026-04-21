@@ -1,0 +1,25 @@
+title: "Clean Nemotron synthetic CC corpus \u2014 invalid Luhn checksums"
+status: backlog
+priority: P2
+category: bug
+sprint_target: null
+created: 2026-04-18
+updated: 2026-04-18
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: "Nemotron generates space-formatted credit card numbers (5317 3687 1025\
+  \ 7642) that fail Luhn validation. 52 benchmark shards labeled CREDIT_CARD contain\
+  \ invalid card numbers. Our detector correctly rejects them \u2014 the ground truth\
+  \ is wrong. Fix: filter Nemotron CC values through Luhn validation, keep only valid\
+  \ ones. Discovered during Sprint 14 checksum disambiguation work."
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

@@ -75,6 +75,11 @@ try:
 except ImportError:  # pragma: no cover — older checkouts
     MetaClassifierEvent = None  # type: ignore[assignment]
 
+try:
+    from data_classifier.events.types import ColumnShapeEvent
+except ImportError:  # pragma: no cover — older checkouts
+    ColumnShapeEvent = None  # type: ignore[assignment]
+
 
 # ── Per-shard classification ────────────────────────────────────────────────
 
@@ -95,7 +100,7 @@ def _run_one_shard(shard, profile) -> dict:
     findings = classify_columns(
         [shard.column],
         profile,
-        min_confidence=0.0,
+        min_confidence=0.5,
         event_emitter=emitter,
     )
     top = _top_finding(findings)
@@ -111,21 +116,48 @@ def _run_one_shard(shard, profile) -> dict:
                 shadow_agreement = ev.agreement
                 break
 
+    shape: str | None = None
+    if ColumnShapeEvent is not None:
+        for ev in captured:
+            if isinstance(ev, ColumnShapeEvent):
+                shape = ev.shape
+                break
+
+    # Collect ALL findings for multi-label scoring — each finding's
+    # entity_type, confidence, engine, and derived family.
+    all_findings = [
+        {
+            "entity_type": f.entity_type,
+            "confidence": round(f.confidence, 4),
+            "engine": f.engine,
+            "family": family_for(f.entity_type),
+            "detection_type": f.detection_type,
+            "display_name": f.display_name,
+        }
+        for f in findings
+    ]
+
     return {
         "column_id": shard.column_id,
         "ground_truth": shard.ground_truth,
+        "ground_truth_families": (
+            shard.ground_truth_families if shard.ground_truth_families else [family_for(shard.ground_truth)]
+        ),
         "mode": shard.mode,
         "corpus": shard.corpus,
         "source": shard.source,
-        "predicted": top.entity_type if top else None,
+        "predicted": top.entity_type if top else ("NEGATIVE" if shard.ground_truth == "NEGATIVE" else None),
         "confidence": round(top.confidence, 4) if top else 0.0,
         "category": top.category if top else None,
         "engine": top.engine if top else None,
+        "findings": all_findings,
         "fired_engines": sorted({f.engine for f in findings}),
         "n_findings": len(findings),
         "shadow_predicted": shadow_entity,
         "shadow_confidence": shadow_confidence,
         "shadow_agrees_with_live": shadow_agreement,
+        "shape": shape,
+        "shadow_suppressed_by_router": shape is not None and shape != "structured_single",
     }
 
 
@@ -133,7 +165,18 @@ def _run_one_shard(shard, profile) -> dict:
 
 
 def _compute_family_metrics(predictions: list[dict], pred_field: str) -> dict:
-    """Family-level Tier 1 metrics: cross-family rate + macro P/R/F1."""
+    """Family-level Tier 1 metrics: cross-family rate + macro P/R/F1.
+
+    Reports two views of cross_family under the Sprint 13 shape gate:
+      * ``cross_family_rate`` — legacy metric, counts router-suppressed
+        columns as errors (Sprint 12 semantics). Retained for audit-trail
+        continuity when comparing against pre-gate baselines.
+      * ``cross_family_rate_emitted`` — null-aware, excludes router-
+        suppressed columns from both numerator and denominator. This is
+        the correct measurement of v5 model quality under the gate.
+      * ``router_suppression_rate`` — fraction of columns where the
+        router deflected shadow emission. Sidecar observability.
+    """
     tp: dict[str, int] = defaultdict(int)
     fp: dict[str, int] = defaultdict(int)
     fn: dict[str, int] = defaultdict(int)
@@ -181,13 +224,182 @@ def _compute_family_metrics(predictions: list[dict], pred_field: str) -> dict:
             f1_sum += F
             f1_count += 1
 
+    # Sprint 13: null-aware metrics — partition into emitted vs suppressed
+    emitted_cross_family = 0
+    emitted_total = 0
+    suppressed_count = 0
+    suppressed_by_shape: dict[str, int] = defaultdict(int)
+
+    for p in predictions:
+        if p.get("shadow_suppressed_by_router", False):
+            suppressed_count += 1
+            shape = p.get("shape")
+            if shape:
+                suppressed_by_shape[shape] += 1
+            continue
+
+        emitted_total += 1
+        gt_sub = p["ground_truth"]
+        pr_sub = p.get(pred_field) or ""
+        gt_fam = family_for(gt_sub)
+        pr_fam = family_for(pr_sub) if pr_sub else ""
+        if gt_fam != pr_fam or not gt_fam:
+            emitted_cross_family += 1
+
+    # Compute macro F1 on emitted subset
+    tp_emit: dict[str, int] = defaultdict(int)
+    fp_emit: dict[str, int] = defaultdict(int)
+    fn_emit: dict[str, int] = defaultdict(int)
+    support_emit: dict[str, int] = defaultdict(int)
+    for p in predictions:
+        if p.get("shadow_suppressed_by_router", False):
+            continue
+        gt_sub = p["ground_truth"]
+        pr_sub = p.get(pred_field) or ""
+        gt_fam = family_for(gt_sub)
+        pr_fam = family_for(pr_sub) if pr_sub else ""
+        support_emit[gt_fam] += 1
+        if gt_fam == pr_fam and gt_fam:
+            tp_emit[gt_fam] += 1
+        else:
+            fn_emit[gt_fam] += 1
+            if pr_fam:
+                fp_emit[pr_fam] += 1
+
+    f1_sum_emit = 0.0
+    f1_count_emit = 0
+    for fam in sorted(set(support_emit) | set(fp_emit)):
+        if not fam:
+            continue
+        P = tp_emit[fam] / (tp_emit[fam] + fp_emit[fam]) if (tp_emit[fam] + fp_emit[fam]) else 0.0
+        R = tp_emit[fam] / (tp_emit[fam] + fn_emit[fam]) if (tp_emit[fam] + fn_emit[fam]) else 0.0
+        F = 2 * P * R / (P + R) if (P + R) else 0.0
+        if support_emit[fam] > 0:
+            f1_sum_emit += F
+            f1_count_emit += 1
+    family_macro_f1_emitted = round(f1_sum_emit / f1_count_emit, 4) if f1_count_emit else 0.0
+
     return {
+        # legacy fields (unchanged semantics — Sprint 12 audit-trail continuity)
         "cross_family_errors": cross_family,
         "cross_family_rate": round(cross_family / len(predictions), 4) if predictions else 0.0,
         "within_family_mislabels": within_family_mislabel,
         "n_shards": len(predictions),
         "family_macro_f1": round(f1_sum / f1_count, 4) if f1_count else 0.0,
         "per_family": per_family,
+        # Sprint 13: null-aware metrics under the shape gate
+        "cross_family_rate_emitted": round(emitted_cross_family / emitted_total, 4) if emitted_total else 0.0,
+        "family_macro_f1_emitted": family_macro_f1_emitted,
+        "n_shards_emitted": emitted_total,
+        "router_suppressed_count": suppressed_count,
+        "router_suppression_rate": round(suppressed_count / len(predictions), 4) if predictions else 0.0,
+        "suppressed_by_shape": dict(suppressed_by_shape),
+    }
+
+
+def _compute_multilabel_family_metrics(predictions: list[dict], pred_field: str) -> dict:
+    """Multi-label family metrics: treat each family independently.
+
+    Unlike single-label scoring (winner-takes-all), multi-label scoring
+    considers ALL findings emitted by the cascade for each column. For
+    each family F:
+      - is_present(shard) := F is in ground_truth_families (multi-label GT)
+      - is_predicted(shard) := ANY finding in the shard has family F
+      - TP(F) := shards where is_predicted AND is_present
+      - FP(F) := shards where is_predicted AND NOT is_present
+      - FN(F) := shards where is_present AND NOT is_predicted
+
+    When ``ground_truth_families`` is available on the prediction record
+    (populated by the shard builder's structural presence scanner), the
+    ground truth is multi-label — e.g. a CREDENTIAL shard that also
+    contains URLs will have ``ground_truth_families = ["CREDENTIAL", "URL"]``.
+    Predicting URL on such a shard is a TP for URL, not an FP.
+
+    Falls back to single-label ground truth when ``ground_truth_families``
+    is absent (backwards compatibility with older prediction files).
+    """
+    # Determine which families are predicted per shard from findings
+    # For the "predicted" field, use the findings list directly.
+    # For the "shadow_predicted" field, fall back to the single prediction
+    # (shadow doesn't have a findings list).
+    use_findings = pred_field == "predicted"
+
+    tp: dict[str, int] = defaultdict(int)
+    fp: dict[str, int] = defaultdict(int)
+    fn: dict[str, int] = defaultdict(int)
+    support: dict[str, int] = defaultdict(int)
+
+    for p in predictions:
+        # Multi-label ground truth: use ground_truth_families when
+        # available, fall back to single-label family_for(ground_truth).
+        gt_families_raw = p.get("ground_truth_families")
+        if gt_families_raw:
+            gt_families = set(gt_families_raw)
+        else:
+            gt_fam = family_for(p["ground_truth"])
+            if not gt_fam:
+                continue
+            gt_families = {gt_fam}
+
+        if not gt_families:
+            continue
+
+        # Collect predicted families for this shard.
+        # When no findings are emitted on a shard whose ground truth
+        # includes NEGATIVE, treat silence as an implicit NEGATIVE TP.
+        # On non-NEGATIVE shards, silence is a miss for that family
+        # (already scored as FN) — it should NOT also count as a
+        # NEGATIVE FP (double-penalizing).
+        if use_findings and "findings" in p:
+            predicted_families = {f["family"] for f in p["findings"] if f.get("family")}
+            if not predicted_families and "NEGATIVE" in gt_families:
+                predicted_families = {"NEGATIVE"}
+        else:
+            pr_sub = p.get(pred_field) or ""
+            pr_fam = family_for(pr_sub) if pr_sub else ""
+            predicted_families = {pr_fam} if pr_fam else set()
+
+        # Score each family independently
+        all_families = gt_families | predicted_families
+        for fam in all_families:
+            is_present = fam in gt_families
+            is_predicted = fam in predicted_families
+
+            if is_present:
+                support[fam] += 1
+
+            if is_predicted and is_present:
+                tp[fam] += 1
+            elif is_predicted and not is_present:
+                fp[fam] += 1
+            elif not is_predicted and is_present:
+                fn[fam] += 1
+
+    per_family: dict[str, dict] = {}
+    f1_sum = 0.0
+    f1_count = 0
+    for fam in sorted(set(support) | set(fp)):
+        if not fam:
+            continue
+        p_val = tp[fam] / (tp[fam] + fp[fam]) if (tp[fam] + fp[fam]) else 0.0
+        r_val = tp[fam] / (tp[fam] + fn[fam]) if (tp[fam] + fn[fam]) else 0.0
+        f_val = 2 * p_val * r_val / (p_val + r_val) if (p_val + r_val) else 0.0
+        per_family[fam] = {
+            "precision": round(p_val, 4),
+            "recall": round(r_val, 4),
+            "f1": round(f_val, 4),
+            "support": support[fam],
+            "tp": tp[fam],
+            "fp": fp[fam],
+            "fn": fn[fam],
+        }
+        if support[fam] > 0:
+            f1_sum += f_val
+            f1_count += 1
+
+    return {
+        "multilabel_macro_f1": round(f1_sum / f1_count, 4) if f1_count else 0.0,
+        "per_family_multilabel": per_family,
     }
 
 
@@ -262,6 +474,14 @@ def _compare_to(current: dict, previous_path: Path) -> dict:
                         cur_tier1.get("family_macro_f1", 0) - prev_tier1.get("family_macro_f1", 0),
                         4,
                     ),
+                    "cross_family_rate_emitted": round(
+                        cur_tier1.get("cross_family_rate_emitted", 0) - prev_tier1.get("cross_family_rate_emitted", 0),
+                        4,
+                    ),
+                    "router_suppression_rate": round(
+                        cur_tier1.get("router_suppression_rate", 0) - prev_tier1.get("router_suppression_rate", 0),
+                        4,
+                    ),
                 }
     return deltas
 
@@ -271,7 +491,9 @@ def _compare_to(current: dict, previous_path: Path) -> dict:
 
 def _print_report(summary: dict) -> None:
     live_overall = summary["live"]["overall"]["family"]
+    live_ml = summary["live"]["overall"]["family_multilabel"]
     shadow_overall = summary["shadow"]["overall"]["family"]
+    shadow_ml = summary["shadow"]["overall"]["family_multilabel"]
     print(f"\n{'=' * 72}", file=sys.stderr)  # noqa: T201
     print("FAMILY-LEVEL ACCURACY BENCHMARK", file=sys.stderr)  # noqa: T201
     print(f"{'=' * 72}", file=sys.stderr)  # noqa: T201
@@ -283,7 +505,8 @@ def _print_report(summary: dict) -> None:
         f"({live_overall['cross_family_errors']}/{live_overall['n_shards']})",
         file=sys.stderr,
     )
-    print(f"  family_macro_f1:    {live_overall['family_macro_f1']:.4f}", file=sys.stderr)  # noqa: T201
+    print(f"  family_macro_f1:          {live_overall['family_macro_f1']:.4f}  (single-label)", file=sys.stderr)  # noqa: T201
+    print(f"  multilabel_macro_f1:      {live_ml['multilabel_macro_f1']:.4f}  (multi-label)", file=sys.stderr)  # noqa: T201
     print(  # noqa: T201
         f"  within_family_mislabels: {live_overall['within_family_mislabels']}",
         file=sys.stderr,
@@ -295,21 +518,57 @@ def _print_report(summary: dict) -> None:
         f"({shadow_overall['cross_family_errors']}/{shadow_overall['n_shards']})",
         file=sys.stderr,
     )
-    print(f"  family_macro_f1:    {shadow_overall['family_macro_f1']:.4f}", file=sys.stderr)  # noqa: T201
+    print(f"  family_macro_f1:          {shadow_overall['family_macro_f1']:.4f}  (single-label)", file=sys.stderr)  # noqa: T201
+    print(f"  multilabel_macro_f1:      {shadow_ml['multilabel_macro_f1']:.4f}  (multi-label)", file=sys.stderr)  # noqa: T201
     print(  # noqa: T201
         f"  within_family_mislabels: {shadow_overall['within_family_mislabels']}",
         file=sys.stderr,
     )
-    print("", file=sys.stderr)  # noqa: T201
     print(  # noqa: T201
-        "Per-family F1 (shadow, sorted ascending — lowest is the constraint):",
+        f"  cross_family_rate_emitted:  {shadow_overall['cross_family_rate_emitted']:.4f}  "
+        f"(v5 accuracy excl. router-suppressed; {shadow_overall['n_shards_emitted']} shards)",
         file=sys.stderr,
     )
-    per_fam = shadow_overall["per_family"]
-    rows = sorted(per_fam.items(), key=lambda kv: kv[1]["f1"])
-    for name, m in rows:
+    print(  # noqa: T201
+        f"  family_macro_f1_emitted:    {shadow_overall['family_macro_f1_emitted']:.4f}",
+        file=sys.stderr,
+    )
+    print(  # noqa: T201
+        f"  router_suppression_rate:    {shadow_overall['router_suppression_rate']:.4f}  "
+        f"({shadow_overall['router_suppressed_count']}/{shadow_overall['n_shards']} shards)",
+        file=sys.stderr,
+    )
+    if shadow_overall.get("suppressed_by_shape"):
+        by_shape = ", ".join(f"{k}={v}" for k, v in sorted(shadow_overall["suppressed_by_shape"].items()))
+        print(f"  suppressed by shape:  {by_shape}", file=sys.stderr)  # noqa: T201
+    print("", file=sys.stderr)  # noqa: T201
+
+    # ── Per-family comparison table: single-label vs multi-label ──────
+    print(  # noqa: T201
+        "Per-family F1 — single-label vs multi-label (live, sorted ascending):",
+        file=sys.stderr,
+    )
+    sl_fam = live_overall["per_family"]
+    ml_fam = live_ml["per_family_multilabel"]
+    all_fams = sorted(set(sl_fam) | set(ml_fam))
+    # Sort by single-label F1 ascending
+    all_fams.sort(key=lambda f: sl_fam.get(f, {}).get("f1", 0.0))
+    print(  # noqa: T201
+        f"  {'Family':15s} {'N':>5s}  {'SL-P':>5s} {'SL-R':>5s} {'SL-F1':>5s}  "
+        f"{'ML-P':>5s} {'ML-R':>5s} {'ML-F1':>5s}  {'delta':>6s}",
+        file=sys.stderr,
+    )
+    for fam in all_fams:
+        sl = sl_fam.get(fam, {})
+        ml = ml_fam.get(fam, {})
+        sl_f1 = sl.get("f1", 0.0)
+        ml_f1 = ml.get("f1", 0.0)
+        delta = ml_f1 - sl_f1
         print(  # noqa: T201
-            f"  {name:15s} N={m['support']:>5d}  P={m['precision']:.3f}  R={m['recall']:.3f}  F1={m['f1']:.3f}",
+            f"  {fam:15s} N={sl.get('support', 0):>5d}  "
+            f"{sl.get('precision', 0.0):.3f} {sl.get('recall', 0.0):.3f} {sl_f1:.3f}  "
+            f"{ml.get('precision', 0.0):.3f} {ml.get('recall', 0.0):.3f} {ml_f1:.3f}  "
+            f"{delta:+.3f}",
             file=sys.stderr,
         )
 
@@ -353,6 +612,7 @@ def main(argv: list[str] | None = None) -> int:
     def _build_tiered(preds: list[dict], field: str) -> dict:
         return {
             "family": _compute_family_metrics(preds, field),
+            "family_multilabel": _compute_multilabel_family_metrics(preds, field),
             "subtype": _compute_subtype_metrics(preds, field),
         }
 

@@ -150,7 +150,7 @@ RUN pip install \
 | Flag | Default | Purpose |
 |---|---|---|
 | `--to PATH` | `~/.cache/data_classifier/models/gliner_onnx/` | Override the install location |
-| `--version VERSION` | `urchade-gliner-multi-pii-v1` (the pinned GLiNER model version — **not** the data_classifier version) | Fetch a different model release |
+| `--version VERSION` | `urchade-gliner_multi_pii-v1` (the pinned GLiNER model version — **not** the data_classifier version) | Fetch a different model release |
 | `--url URL` | AR Generic REST endpoint derived from `--version` | Override the full tarball URL (mirrors, testing) |
 | `--checksum-url URL` | Derived from `--url` | Override the checksum URL independently |
 | `--access-token TOKEN` | Auto-discovered via metadata service or `gcloud` | Explicit GCP access token for AR authentication |
@@ -633,6 +633,24 @@ class ClassificationFinding:
     # Populated when finding was derived from sample value analysis.
     # None when finding was derived from column name/metadata only.
 
+    # ── Detection granularity ─────────────────────────────
+    detection_type: str = ""
+    # Specific detection pattern identifier, more granular than
+    # ``entity_type``. Multiple detection_types may share the same
+    # entity_type. Examples:
+    #   entity_type="API_KEY", detection_type="aws_access_key"
+    #   entity_type="API_KEY", detection_type="github_token"
+    #   entity_type="SSN",     detection_type="us_ssn"
+    #
+    # Clients that need per-pattern detail inspect ``detection_type``;
+    # clients that only need the broad label use ``entity_type`` or
+    # ``family``.
+
+    display_name: str = ""
+    # Human-friendly label for ``detection_type``.
+    # Examples: "AWS Access Key", "GitHub Token", "US SSN".
+    # Suitable for UI display and reporting.
+
     # ── Family (Sprint 11) ────────────────────────────────
     family: str = ""
     # Structural handling family: a coarser grouping than
@@ -1112,7 +1130,7 @@ Sample values, `data_type`, and `description` are ignored by this engine.
 
 ### 5A.2. `regex` — RE2 two-phase pattern matching
 
-**Source:** `data_classifier/engines/regex_engine.py`, `data_classifier/patterns/default_patterns.json` (77 content patterns as of Sprint 11), `data_classifier/engines/validators.py` (14 validators)
+**Source:** `data_classifier/engines/regex_engine.py`, `data_classifier/patterns/default_patterns.json` (159 content patterns as of Sprint 14), `data_classifier/engines/validators.py` (14 validators)
 **Order:** 2 · **Authority:** 5 · **Modes:** `structured`, `unstructured`, `prompt`
 
 **Purpose.** Detect structured entity types (SSN, email, phone, credit card, JWT, PEM keys, ABA routing, NPI, DEA, IBAN, VIN, …) from sample values using Google RE2 for linear-time regex matching. This is the library's workhorse — the pattern bundle covers almost every well-formatted PII and credential type that has a reliable lexical fingerprint.
@@ -1154,7 +1172,7 @@ if validation_rate < 1.0:
     multiply by validation_rate          # e.g., 50% validated → halve
 ```
 
-**Output format.** Up to one `ClassificationFinding` per matched entity type per column, with `engine="regex"`, confidence in **[0.0, 1.0]**, and rich evidence (pattern name, match count, validation rate, context boost deltas). `sample_analysis.sample_matches` contains the raw (or masked, when `mask_samples=True`) matched values for downstream triage.
+**Output format.** One `ClassificationFinding` **per matched pattern** per column (not per entity type), with `engine="regex"`, confidence in **[0.0, 1.0]**, and rich evidence (pattern name, match count, validation rate, context boost deltas). Each finding carries a `detection_type` identifying the specific pattern (e.g. `"aws_access_key"`, `"github_token"`) and a `display_name` with a human-friendly label. Multiple findings may share the same `entity_type` — clients that need a single row per entity type can group by `entity_type` or `family`. `sample_analysis.sample_matches` contains the raw (or masked, when `mask_samples=True`) matched values for downstream triage.
 
 **Masking.** When `mask_samples=True`, matched values are partially redacted before being stored in `sample_analysis` (`_mask_value` in `regex_engine.py`). Redaction is entity-type-aware: SSN/credit-card preserve the last 4, email preserves the local-part first char and the entire domain, phone preserves the last 4, generic entity types preserve first+last char.
 
@@ -1196,7 +1214,7 @@ All thresholds live in `config/engine_defaults.yaml` under `heuristic_engine.sig
 
 ### 5A.4. `secret_scanner` — structured secret detection
 
-**Source:** `data_classifier/engines/secret_scanner.py`, `data_classifier/engines/parsers.py` (JSON/YAML/env/code parsers), `data_classifier/patterns/secret_key_names.json` (178-entry tiered dictionary)
+**Source:** `data_classifier/engines/secret_scanner.py`, `data_classifier/engines/parsers.py` (JSON/YAML/env/code parsers), `data_classifier/patterns/secret_key_names.json` (271-entry tiered dictionary)
 **Order:** 4 · **Authority:** 1 (default) · **Modes:** `structured`, `unstructured`
 
 **Purpose.** Detect credentials embedded in structured text — JSON blobs, YAML configs, `.env` files, code literals like `password = "SuperSecret123!"`. This engine catches secrets that regex patterns *can't*: values that have no known prefix or format, identified only by the **key name** they're bound to plus high relative entropy.
@@ -1234,7 +1252,7 @@ All multipliers and thresholds live in `config/engine_defaults.yaml` under `secr
 
 **Output format.** One `ClassificationFinding` per matched key-value pair, with `engine="secret_scanner"`, `entity_type` set to the dictionary entry's `subtype` (one of `API_KEY`, `PRIVATE_KEY`, `PASSWORD_HASH`, `OPAQUE_SECRET`), and evidence like `"Secret scanner: key 'db_password' (score=0.95, tier=definitive, subtype=OPAQUE_SECRET) + value entropy 0.87"`. Findings are emitted *per match*, but the orchestrator dedups by `entity_type` so the final result is at most one finding per subtype per column.
 
-**Sprint 10 dictionary expansion.** The dictionary grew from 88 → 178 entries via `scripts/ingest_credential_patterns.py`, which harvests key-name lists from Kingfisher (Apache-2.0), gitleaks (MIT), and Nosey Parker (Apache-2.0) with pinned upstream SHAs. Per-entry attribution lives in `docs/process/CREDENTIAL_PATTERN_SOURCES.md` — every new entry is traceable to its upstream.
+**Sprint 10 dictionary expansion.** The dictionary grew from 88 → 178 → 271 entries via `scripts/ingest_credential_patterns.py`, which harvests key-name lists from Kingfisher (Apache-2.0), gitleaks (MIT), and Nosey Parker (Apache-2.0) with pinned upstream SHAs. Per-entry attribution lives in `docs/process/CREDENTIAL_PATTERN_SOURCES.md` — every new entry is traceable to its upstream.
 
 ---
 
@@ -1244,7 +1262,7 @@ All multipliers and thresholds live in `config/engine_defaults.yaml` under `secr
 **Order:** 5 · **Authority:** 1 (default) · **Modes:** `structured`
 **Tier:** requires `pip install "data_classifier[ml]"` + bundled ONNX model
 
-**Purpose.** Run zero-shot Named Entity Recognition on sample values using the GLiNER2 model (`urchade/gliner_multi_pii-v1`, PII-tuned), with entity-type-specific natural-language descriptions that significantly improve accuracy over label-only matching. This is the engine that detects `PERSON_NAME`, `ADDRESS`, and `ORGANIZATION` when column names are generic or missing — the three entity types that have no reliable lexical fingerprint and therefore can't be caught by the regex engine.
+**Purpose.** Run zero-shot Named Entity Recognition on sample values using the GLiNER model (`urchade/gliner_multi_pii-v1`, threshold 0.50, descriptions enabled), with description-enhanced inference for higher accuracy. This is the engine that detects `PERSON_NAME`, `ADDRESS`, and `ORGANIZATION` when column names are generic or missing — the three entity types that have no reliable lexical fingerprint and therefore can't be caught by the regex engine.
 
 The engine also produces reinforcement signals for `EMAIL`, `PHONE`, `SSN`, `DATE_OF_BIRTH`, and `IP_ADDRESS` — these types are already well-covered by regex, but a matching GLiNER finding acts as independent corroboration and triggers the orchestrator's +0.05 agreement boost (§5A.6).
 
@@ -1616,7 +1634,7 @@ SENSITIVITY_ORDER
 | Order | Engine | Authority | What it detects | Requires |
 |-------|--------|-----------|----------------|----------|
 | 1 | `column_name` | **10** | All types from column name matching (§5A.1) | Nothing beyond `column_name` |
-| 2 | `regex` | **5** | Structured patterns — 77 patterns, 14 validators (§5A.2) | `sample_values` |
+| 2 | `regex` | **5** | Structured patterns — 159 patterns, 14 validators (§5A.2) | `sample_values` |
 | 3 | `heuristic_stats` | 1 | SSN/ABA disambiguation, opaque-secret catch-all (§5A.3) | `sample_values` ≥ min_samples |
 | 4 | `secret_scanner` | 1 | API keys, private keys, password hashes, opaque secrets (§5A.4) | `sample_values` parseable as KV |
 | 5 | `gliner2` | 1 | PERSON_NAME, ADDRESS, ORGANIZATION + reinforcement (§5A.5) | `[ml]` install + ONNX model + text `data_type` |

@@ -647,3 +647,27 @@ class TestDeviceIdMacAddressFix:
         findings = _classify(engine, "imei")
         assert len(findings) == 1
         assert findings[0].entity_type == "DEVICE_ID"
+
+
+# ── get_variant_category tests (Sprint 13 scoping Q1) ──────────────────────
+
+
+def test_get_variant_category_heterogeneous_hint() -> None:
+    from data_classifier.engines.column_name_engine import ColumnNameEngine
+
+    engine = ColumnNameEngine()
+    assert engine.get_variant_category("log_line") == "heterogeneous"
+
+
+def test_get_variant_category_structured_hint() -> None:
+    from data_classifier.engines.column_name_engine import ColumnNameEngine
+
+    engine = ColumnNameEngine()
+    assert engine.get_variant_category("email") == "structured"
+
+
+def test_get_variant_category_unknown() -> None:
+    from data_classifier.engines.column_name_engine import ColumnNameEngine
+
+    engine = ColumnNameEngine()
+    assert engine.get_variant_category("some_random_name_xyz") is None

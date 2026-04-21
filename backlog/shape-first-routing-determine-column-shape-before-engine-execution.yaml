@@ -1,0 +1,32 @@
+title: 'Shape-first routing: determine column shape before engine execution'
+status: backlog
+priority: P0
+category: feature
+sprint_target: null
+created: 2026-04-18
+updated: 2026-04-18
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: "MAJOR ARCHITECTURAL GAP: Currently all 5 engines run on every column,\
+  \ then the router determines shape from findings. This is backwards \u2014 the router\
+  \ should run FIRST to decide which engines/heuristics apply. For structured_single\
+  \ columns, regex and heuristics make sense. For free_text_heterogeneous, regex match_ratio\
+  \ is misleading (e.g. 3 NPI matches in 69 chat prompts) and heuristic stats like\
+  \ cardinality/uniform-length are meaningless \u2014 GLiNER per-value is the right\
+  \ tool. For opaque_tokens, secret scanner is primary. Current workarounds: validated-ratio\
+  \ penalty (Sprint 14), common-password list. Real fix: shape detection from pure\
+  \ statistics (value length distribution, char class variance, entropy variance across\
+  \ rows) without running classification engines first. Breaks the chicken-and-egg\
+  \ where findings inform routing but routing should inform which findings to trust.\
+  \ Complexity: L."
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

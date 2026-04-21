@@ -19,6 +19,15 @@ def test_corpus_flag_accepts_gretel_finance() -> None:
     assert args.corpus == "gretel_finance"
 
 
+def test_corpus_flag_accepts_openpii_1m() -> None:
+    """``openpii_1m`` must be a discrete ``--corpus`` choice (Sprint 14)."""
+    from tests.benchmarks.accuracy_benchmark import _build_parser
+
+    parser = _build_parser()
+    args = parser.parse_args(["--corpus", "openpii_1m", "--samples", "1"])
+    assert args.corpus == "openpii_1m"
+
+
 def test_corpus_flag_rejects_unknown_source() -> None:
     """Sanity: unknown corpus source still fails at parse time."""
     from tests.benchmarks.accuracy_benchmark import _build_parser
@@ -40,5 +49,6 @@ def test_corpus_flag_preserves_sprint10_choices() -> None:
         "nemotron",
         "gretel_en",
         "gretel_finance",
+        "openpii_1m",
         "all",
     }

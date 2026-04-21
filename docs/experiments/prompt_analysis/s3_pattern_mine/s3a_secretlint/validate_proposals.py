@@ -11,7 +11,6 @@ import logging
 import os
 import re
 import time
-from collections import Counter
 from pathlib import Path
 
 os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
@@ -57,13 +56,15 @@ def main() -> None:
             if matches:
                 hits += 1
                 if len(samples) < 5:
-                    samples.append({
-                        "fingerprint": rec["sha256"],
-                        "length": rec["length"],
-                        "bucket": rec["bucket"],
-                        "match_count": len(matches),
-                        "first_match_snippet": text[max(0, matches[0].start()-20):matches[0].end()+20][:100],
-                    })
+                    samples.append(
+                        {
+                            "fingerprint": rec["sha256"],
+                            "length": rec["length"],
+                            "bucket": rec["bucket"],
+                            "match_count": len(matches),
+                            "first_match_snippet": text[max(0, matches[0].start() - 20) : matches[0].end() + 20][:100],
+                        }
+                    )
         results[name] = {
             "hits": hits,
             "hit_rate_pct": round(hits / len(corpus) * 100, 4),

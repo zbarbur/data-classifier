@@ -1,0 +1,79 @@
+// Stage-1 regex backend: JS RegExp iteration over all patterns.
+// Stage 2 (re2-wasm) reimplements this module against the same interface.
+
+import { resolveValidator, makeNotPlaceholderCredential } from './validators.js';
+
+export function createBackend(patterns, stopwordsSet, placeholderSet) {
+  const compiled = patterns.map((p) => ({
+    pattern: p,
+    re: safeCompile(p.regex, p.name),
+    allowlistRes: precompileAllowlist(p),
+    validator: resolveValidator(p.validator, {
+      notPlaceholderCredential: makeNotPlaceholderCredential(placeholderSet),
+    }),
+  }));
+
+  function iterate(text) {
+    const out = [];
+    for (const { pattern, re, allowlistRes, validator } of compiled) {
+      if (!re) continue;
+      for (const m of text.matchAll(re)) {
+        const value = m[0];
+        if (valueIsStopword(value, pattern, stopwordsSet)) continue;
+        if (matchesPrecompiledAllowlist(value, allowlistRes)) continue;
+        out.push({
+          pattern,
+          value,
+          start: m.index,
+          end: m.index + value.length,
+          validator,
+        });
+      }
+    }
+    return out;
+  }
+
+  return { iterate };
+}
+
+function safeCompile(regex, patternName) {
+  try {
+    // Strip Python (?i) inline flag and promote to JS 'i' flag
+    const hasInlineI = /\(\?i\)/.test(regex);
+    const cleaned = hasInlineI ? regex.replace(/\(\?i\)/g, '') : regex;
+    return new RegExp(cleaned, hasInlineI ? 'gi' : 'g');
+  } catch (err) {
+    console.warn(`[regex-backend] pattern '${patternName}' failed to compile; skipping. error: ${err.message}`);
+    return null;
+  }
+}
+
+function valueIsStopword(value, pattern, globalStopwords) {
+  const lower = value.toLowerCase().trim();
+  for (const s of pattern.stopwords || []) {
+    if (s.toLowerCase() === lower) return true;
+  }
+  return globalStopwords.has(lower);
+}
+
+function precompileAllowlist(pattern) {
+  return (pattern.allowlist_patterns || [])
+    .map((allow) => {
+      try {
+        return new RegExp(allow);
+      } catch (err) {
+        console.warn(
+          `[regex-backend] pattern '${pattern.name}' has invalid allowlist regex ${JSON.stringify(allow)}; skipping. error: ${err.message}`,
+        );
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function matchesPrecompiledAllowlist(value, allowlistRes) {
+  for (const re of allowlistRes) {
+    if (re.test(value)) return true;
+  }
+  return false;
+}

@@ -368,9 +368,13 @@ class RegexEngine(ClassificationEngine):
                 max_evidence_samples=max_evidence_samples,
             )
             for sf in sample_findings:
-                existing = findings.get(sf.entity_type)
+                # Key by detection_type (pattern name) to preserve per-pattern
+                # granularity. Multiple patterns for the same entity_type each
+                # produce their own finding.
+                fkey = sf.detection_type or sf.entity_type
+                existing = findings.get(fkey)
                 if existing is None or sf.confidence > existing.confidence:
-                    findings[sf.entity_type] = sf
+                    findings[fkey] = sf
 
         return [f for f in findings.values() if f.confidence >= min_confidence]
 
@@ -461,14 +465,13 @@ class RegexEngine(ClassificationEngine):
                     except Exception:
                         validated = False
 
-                entity_type = p.entity_type
-                if entity_type not in accumulators:
-                    accumulators[entity_type] = _MatchAccumulator(p)
-                accumulators[entity_type].add_match(value, validated=validated)
+                if p.name not in accumulators:
+                    accumulators[p.name] = _MatchAccumulator(p)
+                accumulators[p.name].add_match(value, validated=validated)
 
         # Convert to findings with context adjustment
         findings: list[ClassificationFinding] = []
-        for entity_type, acc in accumulators.items():
+        for _pattern_name, acc in accumulators.items():
             confidence = _compute_sample_confidence(
                 acc.pattern.confidence,
                 acc.matched_count,
@@ -484,6 +487,7 @@ class RegexEngine(ClassificationEngine):
                     avg_adj = sum(adjustments) / len(adjustments)
                     confidence = max(0.0, min(1.0, confidence + avg_adj))
 
+            entity_type = acc.pattern.entity_type
             match_ratio = acc.matched_count / total_scanned if total_scanned > 0 else 0.0
 
             evidence_values = acc.matched_values[:max_evidence_samples]
@@ -500,10 +504,12 @@ class RegexEngine(ClassificationEngine):
                     regulatory=[],  # Content patterns don't carry regulatory — profile rules do
                     engine=self.name,
                     evidence=(
-                        f"Regex: {entity_type} format matched "
+                        f"Regex: {acc.pattern.display_name or acc.pattern.name} matched "
                         f"{acc.matched_count}/{total_scanned} samples "
                         f"({match_ratio:.0%})"
                     ),
+                    detection_type=acc.pattern.name,
+                    display_name=acc.pattern.display_name or acc.pattern.name,
                     sample_analysis=SampleAnalysis(
                         samples_scanned=total_scanned,
                         samples_matched=acc.matched_count,

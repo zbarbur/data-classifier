@@ -1,11 +1,11 @@
-title: 'Sprint 13 Item C: opaque-token branch tuning (secret_scanner + entropy
-  features for base64 / JWT / hash columns)'
-status: backlog
+title: 'Sprint 13 Item C: opaque-token branch tuning (secret_scanner + entropy features
+  for base64 / JWT / hash columns)'
+status: done
 priority: P2
 category: feature
 sprint_target: 13
 created: 2026-04-16
-updated: 2026-04-16
+updated: 2026-04-17
 depends_on:
 - sprint13-column-shape-router
 tags:
@@ -15,73 +15,58 @@ tags:
 - opaque-tokens
 - sprint12-deferred-followup
 - optional
-goal: >
-  Tune data_classifier/engines/secret_scanner.py (and/or add an entropy-based
-  helper) to handle the opaque_tokens branch from Item A (column-shape
-  router). The opaque_tokens branch covers columns of long alphanumeric
-  tokens with no English words — JWTs, base64 payloads, opaque hashes,
-  encrypted session IDs, API tokens in audit tables. Currently v5 emits
-  VIN @ 0.934 on these (safety audit Q3 base64 fixture), which is the
-  silent-failure pathology. The router deflects them from v5; this item
-  gives them a proper handler.
+goal: "Tune data_classifier/engines/secret_scanner.py (and/or add an entropy-based\
+  \ helper) to handle the opaque_tokens branch from Item A (column-shape router).\
+  \ The opaque_tokens branch covers columns of long alphanumeric tokens with no English\
+  \ words \u2014 JWTs, base64 payloads, opaque hashes, encrypted session IDs, API\
+  \ tokens in audit tables. Currently v5 emits VIN @ 0.934 on these (safety audit\
+  \ Q3 base64 fixture), which is the silent-failure pathology. The router deflects\
+  \ them from v5; this item gives them a proper handler.\n"
 complexity: S
 technical_specs:
-- 'Audit secret_scanner behavior on opaque-token fixtures. Add 3+ fixtures
-  to tests/ covering: (a) real JWT tokens, (b) base64-encoded JSON payloads,
-  (c) opaque hex hashes, (d) urlsafe-base64 session IDs, (e) placeholder
-  credential strings ("your_token_here" etc.). Note which secret_scanner
-  patterns fire on each and at what confidence.'
-- 'If secret_scanner alone is enough to classify these correctly (emit
-  OPAQUE_SECRET or a more specific subtype at reasonable confidence),
-  Item C is mostly just adding the router branch wiring + a few more
-  patterns. If secret_scanner is not enough (some fixtures return no
-  findings), add an entropy-based helper: compute Shannon entropy of the
-  character distribution per sample value, threshold at ~4.5 bits/char
-  for "opaque-alphanumeric" classification, emit OPAQUE_SECRET with
-  confidence proportional to fraction-of-rows-above-threshold.'
-- 'Orchestrator integration: Item A''s opaque_tokens branch routes to the
-  tuned secret_scanner output (plus the entropy helper if added). The
-  cascade''s other engines (regex, column_name) still run for this branch
-  but secret_scanner becomes the primary signal.'
+- 'Audit secret_scanner behavior on opaque-token fixtures. Add 3+ fixtures to tests/
+  covering: (a) real JWT tokens, (b) base64-encoded JSON payloads, (c) opaque hex
+  hashes, (d) urlsafe-base64 session IDs, (e) placeholder credential strings ("your_token_here"
+  etc.). Note which secret_scanner patterns fire on each and at what confidence.'
+- 'If secret_scanner alone is enough to classify these correctly (emit OPAQUE_SECRET
+  or a more specific subtype at reasonable confidence), Item C is mostly just adding
+  the router branch wiring + a few more patterns. If secret_scanner is not enough
+  (some fixtures return no findings), add an entropy-based helper: compute Shannon
+  entropy of the character distribution per sample value, threshold at ~4.5 bits/char
+  for "opaque-alphanumeric" classification, emit OPAQUE_SECRET with confidence proportional
+  to fraction-of-rows-above-threshold.'
+- 'Orchestrator integration: Item A''s opaque_tokens branch routes to the tuned secret_scanner
+  output (plus the entropy helper if added). The cascade''s other engines (regex,
+  column_name) still run for this branch but secret_scanner becomes the primary signal.'
 - 'Testing: the 3+ opaque-token fixtures added to tests/test_opaque_token_handler.py.
-  Assert each fixture classifies correctly (base64 -> OPAQUE_SECRET,
-  placeholder -> NEGATIVE or OPAQUE_SECRET with low confidence, etc.).'
-description: |
-  Reframed Sprint 13 Item C (optional). The safety audit identified a
-  third column shape the current system handles poorly: long alphanumeric
-  tokens with no English content. These aren't heterogeneous (log-shape)
-  and aren't structured (single-entity short strings); they're opaque.
-
-  Current v5 emits VIN @ 0.934 on a base64-payload column because base64
-  looks like a 17-char alphanumeric identifier from a feature perspective
-  and VIN is the closest training-distribution class. This is a
-  confidently-wrong false positive that the column-shape router (Item A)
-  deflects away from v5.
-
-  After the router lands, the opaque_tokens branch needs a handler that
-  doesn''t silently fail. secret_scanner is the obvious first choice — it
-  already has patterns for JWT tokens, API keys, etc. If its patterns
-  don''t cover the full opaque-token surface, we can add entropy-based
-  signal as a secondary detector.
-
-  This item is marked optional (P2) because:
-    - Item A alone + a fallback to "current cascade output" for the
-      opaque_tokens branch already prevents the VIN @ 0.934 regression
-    - The opaque_tokens failure mode is less common in production than
-      heterogeneous columns (chat / logs / event streams)
-    - If the current cascade output is "good enough" on opaque-token
-      columns (even if not great), this item can defer to Sprint 14+
-
-  It is kept on the Sprint 13 list because the 3-branch routing is cleaner
-  when all 3 branches have explicit handlers, and the cost of this item
-  (~3 days of targeted work on secret_scanner patterns + optional entropy
-  helper) is small compared to Items A and B.
+  Assert each fixture classifies correctly (base64 -> OPAQUE_SECRET, placeholder ->
+  NEGATIVE or OPAQUE_SECRET with low confidence, etc.).'
+description: "Reframed Sprint 13 Item C (optional). The safety audit identified a\n\
+  third column shape the current system handles poorly: long alphanumeric\ntokens\
+  \ with no English content. These aren't heterogeneous (log-shape)\nand aren't structured\
+  \ (single-entity short strings); they're opaque.\n\nCurrent v5 emits VIN @ 0.934\
+  \ on a base64-payload column because base64\nlooks like a 17-char alphanumeric identifier\
+  \ from a feature perspective\nand VIN is the closest training-distribution class.\
+  \ This is a\nconfidently-wrong false positive that the column-shape router (Item\
+  \ A)\ndeflects away from v5.\n\nAfter the router lands, the opaque_tokens branch\
+  \ needs a handler that\ndoesn''t silently fail. secret_scanner is the obvious first\
+  \ choice \u2014 it\nalready has patterns for JWT tokens, API keys, etc. If its patterns\n\
+  don''t cover the full opaque-token surface, we can add entropy-based\nsignal as\
+  \ a secondary detector.\n\nThis item is marked optional (P2) because:\n  - Item\
+  \ A alone + a fallback to \"current cascade output\" for the\n    opaque_tokens\
+  \ branch already prevents the VIN @ 0.934 regression\n  - The opaque_tokens failure\
+  \ mode is less common in production than\n    heterogeneous columns (chat / logs\
+  \ / event streams)\n  - If the current cascade output is \"good enough\" on opaque-token\n\
+  \    columns (even if not great), this item can defer to Sprint 14+\n\nIt is kept\
+  \ on the Sprint 13 list because the 3-branch routing is cleaner\nwhen all 3 branches\
+  \ have explicit handlers, and the cost of this item\n(~3 days of targeted work on\
+  \ secret_scanner patterns + optional entropy\nhelper) is small compared to Items\
+  \ A and B.\n"
 acceptance_criteria:
-- tests/test_opaque_token_handler.py exists with at least 5 fixtures
-  covering JWT / base64 / hex hash / placeholder / session ID shapes
-- Each fixture produces a sensible classification (OPAQUE_SECRET or
-  NEGATIVE with reasonable confidence, no wrong-class high-confidence
-  collapse)
+- tests/test_opaque_token_handler.py exists with at least 5 fixtures covering JWT
+  / base64 / hex hash / placeholder / session ID shapes
+- Each fixture produces a sensible classification (OPAQUE_SECRET or NEGATIVE with
+  reasonable confidence, no wrong-class high-confidence collapse)
 - Item A''s opaque_tokens branch is wired to route through this handler
 - If an entropy helper is added, it has unit tests on known-entropy strings
 - No regression on family benchmark or safety audit
@@ -89,23 +74,18 @@ acceptance_criteria:
 test_plan:
 - Unit tests on 5+ opaque-token fixtures
 - Entropy helper tests (if implemented)
-- Integration via safety audit Q3 base64 fixture — verdict should stay
-  GREEN or improve (shadow should emit OPAQUE_SECRET instead of VIN)
-- 'Regression check on family benchmark + full test suite'
-notes: |
-  Estimated ~3 days if secret_scanner patterns are sufficient, ~1 week if
-  an entropy-based helper is needed. Can proceed in parallel with Item B
-  once Item A (column-shape router) lands.
-
-  Follow-up research (for the research branch):
-    1. What is the character-distribution entropy landscape of real BQ
-       opaque-token columns? Would need sampled production data.
-    2. Are there distinguishable subtypes of opaque-token columns
-       (encrypted vs hashed vs encoded vs random)? May or may not matter
-       for BQ customers.
-    3. Does Shannon entropy correlate with "this is a secret" labeling
-       in our corpora? Quick spike to check.
-phase: plan
+- "Integration via safety audit Q3 base64 fixture \u2014 verdict should stay GREEN\
+  \ or improve (shadow should emit OPAQUE_SECRET instead of VIN)"
+- Regression check on family benchmark + full test suite
+notes: "Estimated ~3 days if secret_scanner patterns are sufficient, ~1 week if\n\
+  an entropy-based helper is needed. Can proceed in parallel with Item B\nonce Item\
+  \ A (column-shape router) lands.\n\nFollow-up research (for the research branch):\n\
+  \  1. What is the character-distribution entropy landscape of real BQ\n     opaque-token\
+  \ columns? Would need sampled production data.\n  2. Are there distinguishable subtypes\
+  \ of opaque-token columns\n     (encrypted vs hashed vs encoded vs random)? May\
+  \ or may not matter\n     for BQ customers.\n  3. Does Shannon entropy correlate\
+  \ with \"this is a secret\" labeling\n     in our corpora? Quick spike to check.\n"
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

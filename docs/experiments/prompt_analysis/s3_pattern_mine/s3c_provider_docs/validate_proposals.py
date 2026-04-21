@@ -1,7 +1,13 @@
 """Validate S3-C proposed patterns against the S2 11K WildChat corpus."""
 
 from __future__ import annotations
-import base64, json, logging, os, re, time
+
+import base64
+import json
+import logging
+import os
+import re
+import time
 from pathlib import Path
 
 os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
@@ -43,17 +49,24 @@ def main():
             if matches:
                 hits += 1
                 if len(samples) < 5:
-                    samples.append({
-                        "fingerprint": rec["sha256"],
-                        "length": rec["length"],
-                        "bucket": rec["bucket"],
-                        "match_count": len(matches),
-                        "first_match_snippet": text[max(0, matches[0].start()-20):matches[0].end()+20][:100],
-                    })
+                    samples.append(
+                        {
+                            "fingerprint": rec["sha256"],
+                            "length": rec["length"],
+                            "bucket": rec["bucket"],
+                            "match_count": len(matches),
+                            "first_match_snippet": text[max(0, matches[0].start() - 20) : matches[0].end() + 20][:100],
+                        }
+                    )
         results[name] = {"hits": hits, "hit_rate_pct": round(hits / len(corpus) * 100, 4), "samples": samples}
         log.info("  %s: %d hits (%.4f%%)", name, hits, hits / len(corpus) * 100)
     elapsed = time.time() - t0
-    out = {"corpus_size": len(corpus), "pattern_count": len(compiled), "elapsed_seconds": round(elapsed, 1), "results": results}
+    out = {
+        "corpus_size": len(corpus),
+        "pattern_count": len(compiled),
+        "elapsed_seconds": round(elapsed, 1),
+        "results": results,
+    }
     OUT.write_text(json.dumps(out, indent=2))
     log.info("wrote %s in %.1fs", OUT, elapsed)
 
