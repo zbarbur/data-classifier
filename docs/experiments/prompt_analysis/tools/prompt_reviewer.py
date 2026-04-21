@@ -66,49 +66,121 @@ def _save_corpus():
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 
-def _run_secret_detection(text: str) -> list[dict]:
-    """Run regex + secret_scanner on text, return findings."""
-    if not _HAS_SECRET_DETECTION:
+def _load_patterns():
+    """Load regex patterns from default_patterns.json for exact match highlighting."""
+    import re as stdlib_re
+    patterns_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "data_classifier" / "patterns" / "default_patterns.json"
+    if not patterns_path.exists():
         return []
+    with open(patterns_path) as f:
+        data = json.load(f)
+    compiled = []
+    for p in data.get("patterns", []):
+        try:
+            flags = stdlib_re.IGNORECASE if "(?i)" in p["regex"] else 0
+            regex_str = p["regex"].replace("(?i)", "")
+            compiled.append({
+                "name": p["name"],
+                "entity_type": p["entity_type"],
+                "regex": stdlib_re.compile(regex_str, flags),
+                "confidence": p.get("confidence", 0.5),
+            })
+        except stdlib_re.error:
+            pass  # skip patterns that don't compile in stdlib re
+    return compiled
+
+
+_COMPILED_PATTERNS: list[dict] = []
+
+
+def _get_patterns():
+    global _COMPILED_PATTERNS
+    if not _COMPILED_PATTERNS:
+        _COMPILED_PATTERNS = _load_patterns()
+    return _COMPILED_PATTERNS
+
+
+def _run_secret_detection(text: str) -> list[dict]:
+    """Run regex patterns + secret_scanner on text, return findings with exact match spans."""
+    import re as stdlib_re
     findings = []
-    try:
-        from data_classifier.core.types import ColumnInput
-        from data_classifier.profiles import load_profile
 
-        col = ColumnInput(column_name="prompt", sample_values=[text])
-        profile = load_profile()
+    # Phase 1: Direct regex matching for exact spans
+    lines = text.split("\n")
+    # Build char offset -> (line, col) map
+    line_starts = []
+    offset = 0
+    for line in lines:
+        line_starts.append(offset)
+        offset += len(line) + 1  # +1 for newline
 
-        def _extract_match(finding):
-            """Get a displayable matched value from a ClassificationFinding."""
-            if finding.sample_analysis and finding.sample_analysis.sample_matches:
-                return finding.sample_analysis.sample_matches[0][:80]
-            return finding.evidence[:80] if finding.evidence else ""
+    for p in _get_patterns():
+        for m in p["regex"].finditer(text):
+            start_offset = m.start()
+            end_offset = m.end()
+            # Find line number
+            line_no = 0
+            for li, ls in enumerate(line_starts):
+                if ls > start_offset:
+                    break
+                line_no = li
+            col_start = start_offset - line_starts[line_no]
+            # Could span multiple lines — find end line
+            end_line_no = line_no
+            for li in range(line_no, len(line_starts)):
+                if li + 1 < len(line_starts) and line_starts[li + 1] > end_offset:
+                    end_line_no = li
+                    break
+                end_line_no = li
+            col_end = end_offset - line_starts[end_line_no]
 
-        # Regex engine
-        re_engine = RegexEngine()
-        re_results = re_engine.classify_column(col, profile=profile, min_confidence=0.3)
-        for f in re_results:
             findings.append({
                 "layer": "secret_regex",
-                "entity_type": f.entity_type,
-                "confidence": f.confidence,
-                "matched_value": _extract_match(f),
-                "evidence": f.evidence[:120] if f.evidence else "",
+                "entity_type": p["entity_type"],
+                "pattern_name": p["name"],
+                "confidence": p["confidence"],
+                "matched_text": m.group()[:100],
+                "line": line_no,
+                "col_start": col_start,
+                "col_end": col_end if end_line_no == line_no else len(lines[line_no]),
+                "end_line": end_line_no,
             })
-        # Secret scanner
-        scanner = SecretScannerEngine()
-        sc_results = scanner.classify_column(col, profile=profile, min_confidence=0.3)
-        for f in sc_results:
-            findings.append({
-                "layer": "secret_scanner",
-                "entity_type": f.entity_type,
-                "confidence": f.confidence,
-                "matched_value": _extract_match(f),
-                "evidence": f.evidence[:120] if f.evidence else "",
-            })
-    except Exception as e:
-        log.error("Secret detection error: %s", e)
-        findings.append({"layer": "error", "entity_type": str(e), "confidence": 0, "matched_value": "", "pattern_name": ""})
+
+    # Phase 2: Secret scanner (key+entropy heuristic) — no exact spans, just line-level
+    if _HAS_SECRET_DETECTION:
+        try:
+            from data_classifier.core.types import ColumnInput
+            from data_classifier.profiles import load_profile
+
+            col = ColumnInput(column_name="prompt", sample_values=[text])
+            profile = load_profile()
+            scanner = SecretScannerEngine()
+            sc_results = scanner.classify_column(col, profile=profile, min_confidence=0.3)
+            for f in sc_results:
+                matched = ""
+                if f.sample_analysis and f.sample_analysis.sample_matches:
+                    matched = f.sample_analysis.sample_matches[0][:100]
+                # Find line containing the match
+                match_line = 0
+                if matched:
+                    for li, line in enumerate(lines):
+                        if matched[:30] in line or (matched.split("=", 1)[-1][:20] if "=" in matched else "") in line:
+                            match_line = li
+                            break
+                findings.append({
+                    "layer": "secret_scanner",
+                    "entity_type": f.entity_type,
+                    "pattern_name": f.evidence[:60] if f.evidence else "",
+                    "confidence": f.confidence,
+                    "matched_text": matched,
+                    "line": match_line,
+                    "col_start": -1,  # no exact span for scanner
+                    "col_end": -1,
+                    "end_line": match_line,
+                })
+        except Exception as e:
+            log.error("Secret scanner error: %s", e)
+
     return findings
 
 
@@ -178,13 +250,18 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
 .block-end { background: #333; color: #888; }
 .block-rejected-marker { background: #6b2c2c; color: #f28b82; text-decoration: line-through; }
 
-/* Secret findings */
-.secrets-panel { margin-top: 16px; padding: 12px; background: #1e1e3a; border: 1px solid #444; border-radius: 6px; }
-.secrets-panel h4 { color: #ff6b6b; margin-bottom: 8px; font-size: 12px; }
-.secret-item { padding: 4px 8px; margin: 2px 0; background: rgba(139,0,0,0.2); border-radius: 3px; font-size: 11px; display: flex; justify-content: space-between; }
-.secret-item .type { color: #ff6b6b; font-weight: bold; }
-.secret-item .value { color: #aaa; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
-.secret-item .meta { color: #666; }
+/* Secret findings — inline highlights */
+.secret-highlight { background: rgba(255, 80, 80, 0.25); border-bottom: 2px solid #ff6b6b; cursor: help; position: relative; }
+.secret-highlight:hover { background: rgba(255, 80, 80, 0.4); }
+.secret-tooltip { display: none; position: absolute; bottom: 100%; left: 0; background: #2a0a0a; border: 1px solid #ff6b6b; border-radius: 4px; padding: 4px 8px; font-size: 10px; color: #ff6b6b; white-space: nowrap; z-index: 10; pointer-events: none; }
+.secret-highlight:hover .secret-tooltip { display: block; }
+
+/* Secret findings — right panel list */
+.secret-finding { padding: 4px 6px; margin: 2px 0; background: rgba(139,0,0,0.2); border-radius: 3px; font-size: 10px; cursor: pointer; }
+.secret-finding:hover { background: rgba(139,0,0,0.35); }
+.secret-finding .sf-type { color: #ff6b6b; font-weight: bold; }
+.secret-finding .sf-meta { color: #888; display: block; margin-top: 1px; }
+.secret-finding .sf-match { color: #aaa; display: block; margin-top: 1px; word-break: break-all; }
 
 /* Review panel (right sidebar) */
 .review-panel h3 { margin-bottom: 10px; color: #e94560; font-size: 13px; }
@@ -281,6 +358,7 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
           <div style="font-size:10px;color:#666;margin-top:4px;">Click lines to select. Shift+click for range.</div>
         </div>
         <div class="review-section" id="user-blocks-list"></div>
+        <div class="review-section" id="secrets-list"></div>
         <div class="review-section">
           <h4>Notes</h4>
           <textarea class="review-notes" id="review-notes" placeholder="Notes..."></textarea>
@@ -440,14 +518,34 @@ function renderPrompt(r) {
     }
   });
 
-  // Find lines with secret matches
-  var secretLines = {};
+  // Build per-line secret match spans for inline highlighting
+  // secretLineMatches[lineNo] = [{col_start, col_end, entity_type, pattern_name, confidence}]
+  var secretLineMatches = {};
   if (showSecrets && currentSecrets.length > 0) {
     currentSecrets.forEach(function(s) {
-      if (s.matched_value) {
+      if (s.col_start >= 0) {
+        // Exact span available
+        if (!secretLineMatches[s.line]) secretLineMatches[s.line] = [];
+        secretLineMatches[s.line].push({
+          col_start: s.col_start,
+          col_end: s.col_end,
+          entity_type: s.entity_type,
+          pattern_name: s.pattern_name || '',
+          confidence: s.confidence,
+        });
+      } else if (s.matched_text) {
+        // Scanner — no exact span, highlight the whole matched text if found
         lines.forEach(function(line, li) {
-          if (line.includes(s.matched_value.slice(0, 20))) {
-            secretLines[li] = s;
+          var idx = line.indexOf(s.matched_text.slice(0, 30));
+          if (idx >= 0) {
+            if (!secretLineMatches[li]) secretLineMatches[li] = [];
+            secretLineMatches[li].push({
+              col_start: idx,
+              col_end: Math.min(idx + s.matched_text.length, line.length),
+              entity_type: s.entity_type,
+              pattern_name: s.pattern_name || 'secret_scanner',
+              confidence: s.confidence,
+            });
           }
         });
       }
@@ -548,19 +646,40 @@ function renderPrompt(r) {
 
     var lineContent = document.createElement('span');
     lineContent.className = 'line-content';
-    lineContent.textContent = line || ' ';
+
+    // Render line with inline secret highlights
+    var lineSecrets = secretLineMatches[i];
+    if (lineSecrets && lineSecrets.length > 0 && line) {
+      // Sort spans by start position
+      lineSecrets.sort(function(a,b) { return a.col_start - b.col_start; });
+      var pos = 0;
+      lineSecrets.forEach(function(sp) {
+        // Text before match
+        if (sp.col_start > pos) {
+          lineContent.appendChild(document.createTextNode(line.slice(pos, sp.col_start)));
+        }
+        // Highlighted match
+        var hlSpan = document.createElement('span');
+        hlSpan.className = 'secret-highlight';
+        hlSpan.textContent = line.slice(sp.col_start, sp.col_end);
+        // Tooltip
+        var tip = document.createElement('span');
+        tip.className = 'secret-tooltip';
+        tip.textContent = sp.entity_type + ' (' + sp.pattern_name + ') conf=' + sp.confidence.toFixed(2);
+        hlSpan.appendChild(tip);
+        lineContent.appendChild(hlSpan);
+        pos = sp.col_end;
+      });
+      // Text after last match
+      if (pos < line.length) {
+        lineContent.appendChild(document.createTextNode(line.slice(pos)));
+      }
+    } else {
+      lineContent.textContent = line || ' ';
+    }
 
     var lineMarkers = document.createElement('span');
     lineMarkers.className = 'line-markers';
-
-    // Secret marker on this line
-    if (secretLines[i]) {
-      var sMark = document.createElement('span');
-      sMark.className = 'badge badge-secret';
-      sMark.textContent = secretLines[i].entity_type;
-      sMark.style.fontSize = '9px';
-      lineMarkers.appendChild(sMark);
-    }
 
     lineDiv.appendChild(lineNo);
     lineDiv.appendChild(lineContent);
@@ -577,33 +696,6 @@ function renderPrompt(r) {
 
   container.appendChild(textDiv);
 
-  // Secrets panel
-  if (showSecrets && currentSecrets.length > 0) {
-    var secPanel = document.createElement('div');
-    secPanel.className = 'secrets-panel';
-    var secTitle = document.createElement('h4');
-    secTitle.textContent = 'Secret/Credential Findings (' + currentSecrets.length + ')';
-    secPanel.appendChild(secTitle);
-    currentSecrets.forEach(function(s) {
-      var item = document.createElement('div');
-      item.className = 'secret-item';
-      var typeSpan = document.createElement('span');
-      typeSpan.className = 'type';
-      typeSpan.textContent = s.entity_type;
-      var valSpan = document.createElement('span');
-      valSpan.className = 'value';
-      valSpan.textContent = s.matched_value;
-      var metaSpan = document.createElement('span');
-      metaSpan.className = 'meta';
-      metaSpan.textContent = s.layer + (s.evidence ? ' / ' + s.evidence.slice(0, 60) : '');
-      item.appendChild(typeSpan);
-      item.appendChild(valSpan);
-      item.appendChild(metaSpan);
-      secPanel.appendChild(item);
-    });
-    container.appendChild(secPanel);
-  }
-
   var contentEl = document.getElementById('content');
   contentEl.textContent = '';
   contentEl.appendChild(container);
@@ -611,6 +703,7 @@ function renderPrompt(r) {
   document.getElementById('review-panel').style.display = 'block';
   document.getElementById('review-notes').value = (r.review && r.review.notes) || '';
   updateSelectionInfo();
+  renderSecretsList();
 }
 
 // Line selection for marking actual code blocks
@@ -669,6 +762,38 @@ function markBlock() {
   selectedLines = new Set();
   lastSelectedLine = -1;
   rerenderCurrent();
+}
+
+function renderSecretsList() {
+  var el = document.getElementById('secrets-list');
+  el.textContent = '';
+  if (!currentSecrets || currentSecrets.length === 0) return;
+  var h4 = document.createElement('h4');
+  h4.textContent = 'Secrets (' + currentSecrets.length + ')';
+  h4.style.cssText = 'font-size:11px;color:#ff6b6b;margin-bottom:4px;';
+  el.appendChild(h4);
+  currentSecrets.forEach(function(s) {
+    var item = document.createElement('div');
+    item.className = 'secret-finding';
+    // Click to scroll to line
+    item.onclick = function() {
+      var lineEl = document.querySelector('.line[data-line-no="' + s.line + '"]');
+      if (lineEl) lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+    var typeSpan = document.createElement('span');
+    typeSpan.className = 'sf-type';
+    typeSpan.textContent = s.entity_type + ' (L' + s.line + ')';
+    item.appendChild(typeSpan);
+    var matchSpan = document.createElement('span');
+    matchSpan.className = 'sf-match';
+    matchSpan.textContent = (s.matched_text || '').slice(0, 50);
+    item.appendChild(matchSpan);
+    var metaSpan = document.createElement('span');
+    metaSpan.className = 'sf-meta';
+    metaSpan.textContent = s.layer + ' / ' + (s.pattern_name || '') + ' conf=' + (s.confidence || 0).toFixed(2);
+    item.appendChild(metaSpan);
+    el.appendChild(item);
+  });
 }
 
 function removeUserBlock(idx) {
