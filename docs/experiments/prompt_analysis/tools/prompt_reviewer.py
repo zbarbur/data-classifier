@@ -430,8 +430,8 @@ async function selectPrompt(idx) {
   // Load any existing user-marked blocks from saved review
   userBlocks = (r.review && r.review.actual_blocks) ? r.review.actual_blocks.slice() : [];
 
-  // Run secret detection if not cached
-  if (!r._secrets_loaded) {
+  // Run secret detection if not cached (v2 = scan_text path)
+  if (!r._secrets_v2) {
     var resp = await fetch('/api/detect_secrets', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -439,7 +439,7 @@ async function selectPrompt(idx) {
     });
     var result = await resp.json();
     r.secrets = result.findings;
-    r._secrets_loaded = true;
+    r._secrets_v2 = true;
   }
   currentSecrets = r.secrets || [];
 
