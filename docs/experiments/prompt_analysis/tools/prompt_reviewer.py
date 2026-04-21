@@ -465,6 +465,7 @@ function renderList() {
       confBadge.textContent = Math.round(maxConf * 100) + '%';
       badgesSpan.appendChild(confBadge);
     }
+    if (r.secrets && r.secrets.length > 0) addBadge('badge-secret', 'secret');
     if (r.review && r.review.actual_blocks && r.review.actual_blocks.length > 0) addBadge('badge-correction', 'marked');
     if (r.review && r.review.correct === true) addBadge('badge-approved', 'ok');
     if (r.review && r.review.correct === false) addBadge('badge-rejected', 'X');
