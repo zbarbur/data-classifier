@@ -158,8 +158,12 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
 .item .badges { display: flex; gap: 4px; }
 .badge { padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
 .badge-code { background: #2d6a4f; color: #95d5b2; }
+.badge-markup { background: #0078a0; color: #7dd3e8; }
+.badge-config { background: #5c4b99; color: #c8b6ff; }
+.badge-query { background: #a0641e; color: #ffd9a0; }
 .badge-structured { background: #5c4b99; color: #c8b6ff; }
 .badge-cli { background: #b56727; color: #ffd9a0; }
+.badge-data { background: #783c8c; color: #d4a5ff; }
 .badge-secret { background: #8b0000; color: #ff6b6b; }
 .badge-none { background: #333; color: #888; }
 .badge-approved { background: #1b4332; color: #52b788; }
@@ -181,8 +185,12 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
 
 /* Zone highlighting */
 .zone-code { background: rgba(45, 106, 79, 0.2); border-left: 3px solid #2d6a4f; padding-left: 8px; }
-.zone-structured_data { background: rgba(92, 75, 153, 0.2); border-left: 3px solid #5c4b99; padding-left: 8px; }
+.zone-markup { background: rgba(0, 120, 160, 0.2); border-left: 3px solid #0078a0; padding-left: 8px; }
+.zone-config { background: rgba(92, 75, 153, 0.2); border-left: 3px solid #5c4b99; padding-left: 8px; }
+.zone-query { background: rgba(160, 100, 30, 0.2); border-left: 3px solid #a0641e; padding-left: 8px; }
 .zone-cli_shell { background: rgba(181, 103, 39, 0.2); border-left: 3px solid #b56727; padding-left: 8px; }
+.zone-data { background: rgba(120, 60, 140, 0.2); border-left: 3px solid #783c8c; padding-left: 8px; }
+.zone-structured_data { background: rgba(92, 75, 153, 0.2); border-left: 3px solid #5c4b99; padding-left: 8px; }
 .zone-natural_language { }
 
 /* Rejected zone — strikethrough + red tint */
@@ -296,8 +304,11 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
           <div id="mark-controls" style="display:none;">
             <select id="mark-type" style="width:100%;padding:4px;background:#1a1a2e;border:1px solid #444;color:#e0e0e0;border-radius:3px;margin-bottom:6px;font-size:11px;">
               <option value="code">Code</option>
-              <option value="structured_data">Structured data</option>
-              <option value="cli_shell">CLI / Shell</option>
+              <option value="markup">Markup (HTML/XML)</option>
+              <option value="config">Config (YAML/JSON/env)</option>
+              <option value="query">Query (SQL/GraphQL)</option>
+              <option value="cli_shell">CLI / Shell / Logs</option>
+              <option value="data">Data (CSV/tabular)</option>
               <option value="natural_language">Natural language</option>
             </select>
             <button class="btn btn-mark" id="btn-mark-block" onclick="markBlock()">Mark as block (m)</button>
