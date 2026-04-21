@@ -6,6 +6,9 @@
     "your_api_key_here", "your_secret_here", "xxx", "xxxxxxxx",
     "todo", "fixme", "replace_me", "insert_here", "put_your_key_here",
     "akiaiosfodnn7example", "test123", "dummy", "foobar", "example",
-    "sample", "demo", "temp", "tmp"
+    "sample", "demo", "temp", "tmp",
+    "mysecretkey", "mysecret", "my_secret_key", "my-secret-key",
+    "postgres", "mysql", "mongodb", "redis", "localhost",
+    "not-needed", "none", "undefined", "null"
   ]
 }

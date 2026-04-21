@@ -50,7 +50,7 @@ const { findings, redactedText, scannedMs } = await scanner.scan(text);
 | `redactStrategy` | `'type-label' \| 'asterisk' \| 'placeholder' \| 'none'` | `'type-label'` | How to redact secrets in the output text |
 | `verbose` | `boolean` | `false` | Attach a `details` block to each finding with pattern name, validator status, entropy breakdown |
 | `dangerouslyIncludeRawValues` | `boolean` | `false` | Populate `match.valueRaw` with unmasked value. **Never enable in production.** |
-| `categoryFilter` | `string[]` | `['Credential']` | Pattern categories to scan. v1 supports `Credential` only |
+| `categoryFilter` | `string[]` | `['Credential']` | Pattern categories to scan. Currently supports `Credential` only |
 
 ### Returns: `ScanResult`
 
@@ -90,6 +90,8 @@ A single detected secret.
   sensitivity: string;    // "CRITICAL"
   confidence: number;     // 0–1, 4 decimal places
   engine: string;         // "regex" or "secret_scanner"
+  detection_type?: string; // pattern identifier (e.g., "aws_access_key", "github_token")
+  display_name?: string;  // human-friendly label (e.g., "AWS Access Key", "GitHub Token")
   evidence: string;       // human-readable scoring breakdown
   match: Match;           // offset span in original text
   kv?: KVContext;         // key-value context (secret_scanner only)
@@ -210,6 +212,12 @@ console.log(result.findings.length);
 
 console.log(result.findings[0].entity_type);
 // → "API_KEY"
+
+console.log(result.findings[0].detection_type);
+// → "github_token"
+
+console.log(result.findings[0].display_name);
+// → "GitHub Token"
 
 console.log(result.findings[0].match.valueMasked);
 // → "g]************************************a"

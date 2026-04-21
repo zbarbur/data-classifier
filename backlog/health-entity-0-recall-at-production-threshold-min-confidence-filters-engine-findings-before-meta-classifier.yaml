@@ -1,0 +1,34 @@
+title: "HEALTH entity 0% recall at production threshold \u2014 min_confidence filters\
+  \ engine findings before meta-classifier"
+status: backlog
+priority: P2
+category: bug
+sprint_target: null
+created: 2026-04-20
+updated: 2026-04-20
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs:
+- "Root cause: min_confidence=0.5 is passed to each engine during the cascade. Engines\
+  \ filter out low-confidence findings before returning them. The meta-classifier\
+  \ receives engine_findings that are already filtered \u2014 if no engine produces\
+  \ a finding above 0.5 for HEALTH columns (no regex pattern exists), the meta-classifier\
+  \ gets empty features and cannot predict."
+- 'Fix: pass min_confidence=0.0 to engines for feature extraction, then apply min_confidence
+  filter AFTER the meta-classifier directive runs. The meta-classifier needs all signals
+  to make predictions.'
+- 'Impact: HEALTH entity type (150 shards) has 0% recall at production threshold.
+  At min_confidence=0.0 the meta-classifier correctly detects HEALTH at 0.92 confidence.'
+description: ''
+acceptance_criteria:
+- HEALTH recall > 90% at min_confidence=0.5
+- No regression on other entity types
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

@@ -41,7 +41,8 @@
         "routing",
         "aba",
         "transit"
-      ]
+      ],
+      "display_name": "US SSN"
     },
     {
       "name": "us_ssn_no_dashes",
@@ -77,7 +78,8 @@
         "transit",
         "phone",
         "tel"
-      ]
+      ],
+      "display_name": "US SSN (No Dashes)"
     },
     {
       "name": "credit_card_visa",
@@ -96,7 +98,8 @@
         "5111111111111111",
         "411111111111111",
         "41111111111111111"
-      ]
+      ],
+      "display_name": "Credit Card (Visa)"
     },
     {
       "name": "credit_card_mastercard",
@@ -113,7 +116,8 @@
       ],
       "examples_no_match": [
         "5600000000000004"
-      ]
+      ],
+      "display_name": "Credit Card (Mastercard)"
     },
     {
       "name": "credit_card_amex",
@@ -130,7 +134,8 @@
       ],
       "examples_no_match": [
         "381234567890123"
-      ]
+      ],
+      "display_name": "Credit Card (Amex)"
     },
     {
       "name": "credit_card_formatted",
@@ -148,7 +153,8 @@
       "examples_no_match": [
         "4111-1111-1111",
         "411-1111-1111-1111"
-      ]
+      ],
+      "display_name": "Credit Card"
     },
     {
       "name": "email_address",
@@ -167,6 +173,11 @@
         "@domain.com",
         "user@",
         "user@.com"
+      ],
+      "display_name": "Email Address",
+      "stopwords": [
+        "pswd-destroyer",
+        "froderick"
       ]
     },
     {
@@ -203,7 +214,8 @@
         "provider",
         "ssn",
         "social security"
-      ]
+      ],
+      "display_name": "US Phone Number"
     },
     {
       "name": "international_phone",
@@ -242,7 +254,8 @@
         "npi",
         "provider",
         "ssn"
-      ]
+      ],
+      "display_name": "Phone Number (International)"
     },
     {
       "name": "international_phone_local",
@@ -284,7 +297,8 @@
         "ssn",
         "iban",
         "account"
-      ]
+      ],
+      "display_name": "Phone Number (Local)"
     },
     {
       "name": "ipv4_address",
@@ -304,7 +318,8 @@
         "999.999.999.999",
         "256.1.1.1",
         "1.2.3"
-      ]
+      ],
+      "display_name": "IPv4 Address"
     },
     {
       "name": "ipv6_address",
@@ -320,7 +335,8 @@
       ],
       "examples_no_match": [
         "2001:db8::1"
-      ]
+      ],
+      "display_name": "IPv6 Address"
     },
     {
       "name": "iban",
@@ -338,7 +354,8 @@
       "examples_no_match": [
         "US12345",
         "ab12ZZZZ"
-      ]
+      ],
+      "display_name": "IBAN"
     },
     {
       "name": "us_passport",
@@ -355,7 +372,8 @@
       "examples_no_match": [
         "AB1234567",
         "A1234567"
-      ]
+      ],
+      "display_name": "US Passport"
     },
     {
       "name": "us_drivers_license",
@@ -372,12 +390,13 @@
       ],
       "examples_no_match": [
         "AB123"
-      ]
+      ],
+      "display_name": "US Driver's License"
     },
     {
       "name": "date_of_birth_format",
       "regex": "\\b(?:0[1-9]|1[0-2])[/\\-](?:0[1-9]|[12]\\d|3[01])[/\\-](?:19|20)\\d{2}\\b",
-      "entity_type": "DATE_OF_BIRTH",
+      "entity_type": "DATE",
       "category": "PII",
       "sensitivity": "HIGH",
       "confidence": 0.6,
@@ -408,12 +427,13 @@
         "order",
         "due",
         "payment"
-      ]
+      ],
+      "display_name": "Date of Birth"
     },
     {
       "name": "date_iso_format",
       "regex": "\\b(?:19|20)\\d{2}[/\\-](?:0[1-9]|1[0-2])[/\\-](?:0[1-9]|[12]\\d|3[01])\\b",
-      "entity_type": "DATE_OF_BIRTH",
+      "entity_type": "DATE",
       "category": "PII",
       "sensitivity": "HIGH",
       "confidence": 0.5,
@@ -425,7 +445,8 @@
       ],
       "examples_no_match": [
         "2000-13-01"
-      ]
+      ],
+      "display_name": "Date (ISO)"
     },
     {
       "name": "us_medical_record_number",
@@ -443,7 +464,8 @@
       "examples_no_match": [
         "MRN",
         "12345678"
-      ]
+      ],
+      "display_name": "Medical Record Number"
     },
     {
       "name": "icd10_code",
@@ -487,7 +509,8 @@
         "zone",
         "model",
         "serial"
-      ]
+      ],
+      "display_name": "ICD-10 Code"
     },
     {
       "name": "mac_address",
@@ -504,7 +527,8 @@
       ],
       "examples_no_match": [
         "00:1A:2B:3C:4D"
-      ]
+      ],
+      "display_name": "MAC Address"
     },
     {
       "name": "us_itin",
@@ -522,7 +546,8 @@
       "examples_no_match": [
         "123-45-6789",
         "912-60-1234"
-      ]
+      ],
+      "display_name": "US ITIN"
     },
     {
       "name": "credit_card_discover",
@@ -540,7 +565,8 @@
       "examples_no_match": [
         "7011111111111117",
         "601111111111111"
-      ]
+      ],
+      "display_name": "Credit Card (Discover)"
     },
     {
       "name": "uk_nino",
@@ -559,7 +585,8 @@
         "DA123456C",
         "QQ123456A",
         "AB12345C"
-      ]
+      ],
+      "display_name": "UK National Insurance Number"
     },
     {
       "name": "url",
@@ -576,7 +603,8 @@
       ],
       "examples_no_match": [
         "ftp://files.example.com"
-      ]
+      ],
+      "display_name": "URL"
     },
     {
       "name": "us_npi",
@@ -611,7 +639,8 @@
         "call",
         "fax",
         "cell"
-      ]
+      ],
+      "display_name": "US NPI"
     },
     {
       "name": "us_dea",
@@ -629,7 +658,8 @@
       "examples_no_match": [
         "XY1234567",
         "AB123456"
-      ]
+      ],
+      "display_name": "DEA Number"
     },
     {
       "name": "us_mbi",
@@ -647,7 +677,8 @@
       "examples_no_match": [
         "0EG4TE5MK72",
         "1SG4TE5MK72"
-      ]
+      ],
+      "display_name": "US Medicare ID"
     },
     {
       "name": "vin",
@@ -674,7 +705,8 @@
         "chassis",
         "registration"
       ],
-      "context_words_suppress": []
+      "context_words_suppress": [],
+      "display_name": "VIN"
     },
     {
       "name": "us_ein",
@@ -705,12 +737,13 @@
         "ssn",
         "social security",
         "phone"
-      ]
+      ],
+      "display_name": "US EIN"
     },
     {
       "name": "dob_european",
       "regex": "\\b(0[1-9]|[12]\\d|3[01])[/.](0[1-9]|1[0-2])[/.](19|20)\\d{2}\\b",
-      "entity_type": "DATE_OF_BIRTH",
+      "entity_type": "DATE",
       "category": "PII",
       "sensitivity": "HIGH",
       "confidence": 0.6,
@@ -740,12 +773,13 @@
         "order",
         "due",
         "payment"
-      ]
+      ],
+      "display_name": "Date of Birth (EU)"
     },
     {
       "name": "dob_long_format",
       "regex": "\\b(January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{1,2},?\\s+(19|20)\\d{2}\\b",
-      "entity_type": "DATE_OF_BIRTH",
+      "entity_type": "DATE",
       "category": "PII",
       "sensitivity": "HIGH",
       "confidence": 0.65,
@@ -773,7 +807,8 @@
         "invoice",
         "order",
         "due"
-      ]
+      ],
+      "display_name": "Date of Birth (Long)"
     },
     {
       "name": "swift_bic",
@@ -791,7 +826,8 @@
       "examples_no_match": [
         "DEUT",
         "1234DEFF"
-      ]
+      ],
+      "display_name": "SWIFT/BIC Code"
     },
     {
       "name": "bitcoin_address",
@@ -810,7 +846,8 @@
       "examples_no_match": [
         "1BvB",
         "0xdead"
-      ]
+      ],
+      "display_name": "Bitcoin Address"
     },
     {
       "name": "ethereum_address",
@@ -828,7 +865,8 @@
       "examples_no_match": [
         "0xdead",
         "0x32Be343B94f860124dC4f"
-      ]
+      ],
+      "display_name": "Ethereum Address"
     },
     {
       "name": "aba_routing",
@@ -863,7 +901,8 @@
         "order",
         "invoice",
         "zip"
-      ]
+      ],
+      "display_name": "ABA Routing Number"
     },
     {
       "name": "canadian_sin",
@@ -897,7 +936,8 @@
         "invoice",
         "ssn",
         "routing"
-      ]
+      ],
+      "display_name": "Canadian SIN"
     },
     {
       "name": "1password_secret_key",
@@ -920,7 +960,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "1Password Secret Key"
     },
     {
       "name": "adobe_client_secret",
@@ -943,7 +984,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Adobe Client Secret"
     },
     {
       "name": "age_secret_key",
@@ -966,7 +1008,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Age Encryption Key"
     },
     {
       "name": "airtable_pat",
@@ -994,7 +1037,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Airtable Access Token"
     },
     {
       "name": "alibaba_access_key_id",
@@ -1017,7 +1061,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Alibaba Cloud Access Key"
     },
     {
       "name": "anthropic_api_key",
@@ -1035,7 +1080,8 @@
         "test",
         "demo",
         "placeholder"
-      ]
+      ],
+      "display_name": "Anthropic API Key"
     },
     {
       "name": "argon2_hash",
@@ -1052,7 +1098,8 @@
       "examples_no_match": [
         "argon2_without_prefix",
         "$2a$10$abc"
-      ]
+      ],
+      "display_name": "Argon2 Password Hash"
     },
     {
       "name": "artifactory_api_key_structured",
@@ -1075,7 +1122,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "JFrog Artifactory API Key"
     },
     {
       "name": "artifactory_api_token",
@@ -1104,7 +1152,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "JFrog Artifactory Token"
     },
     {
       "name": "atlassian_api_token",
@@ -1127,7 +1176,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Atlassian API Token"
     },
     {
       "name": "authress_service_client_key",
@@ -1150,7 +1200,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Authress Service Key"
     },
     {
       "name": "aws_access_key",
@@ -1174,7 +1225,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "AWS Access Key"
     },
     {
       "name": "aws_access_key_id_extended",
@@ -1198,7 +1250,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "AWS Access Key (Extended)"
     },
     {
       "name": "aws_secret_key",
@@ -1228,7 +1281,18 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "AWS Secret Key",
+      "requires_column_hint": true,
+      "column_hint_keywords": [
+        "aws",
+        "secret",
+        "secret_key",
+        "secret_access",
+        "aws_secret"
+      ],
+      "context_words_boost": [],
+      "context_words_suppress": []
     },
     {
       "name": "azure_ad_client_secret",
@@ -1251,7 +1315,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Azure AD Client Secret"
     },
     {
       "name": "azure_storage_account_key",
@@ -1278,7 +1343,8 @@
         "sample",
         "your_storage_key_here",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Azure Storage Key"
     },
     {
       "name": "basicauth_url",
@@ -1313,7 +1379,8 @@
         "<%="
       ],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Basic Auth URL"
     },
     {
       "name": "bcrypt_hash",
@@ -1331,7 +1398,8 @@
       "examples_no_match": [
         "abcdef1234567890",
         "plaintext"
-      ]
+      ],
+      "display_name": "Bcrypt Password Hash"
     },
     {
       "name": "clojars_api_token",
@@ -1354,7 +1422,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Clojars API Token"
     },
     {
       "name": "cloudflare_api_token",
@@ -1381,7 +1450,8 @@
         "sample",
         "your_api_token_here",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Cloudflare API Token"
     },
     {
       "name": "connection_string",
@@ -1405,7 +1475,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Database Connection String"
     },
     {
       "name": "databricks_token",
@@ -1429,7 +1500,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Databricks Token"
     },
     {
       "name": "digitalocean_oauth_token",
@@ -1457,7 +1529,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "DigitalOcean OAuth Token"
     },
     {
       "name": "digitalocean_pat",
@@ -1485,7 +1558,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "DigitalOcean Access Token"
     },
     {
       "name": "discord_bot_token",
@@ -1513,7 +1587,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Discord Bot Token"
     },
     {
       "name": "docker_hub_pat",
@@ -1540,7 +1615,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Docker Hub Access Token"
     },
     {
       "name": "doppler_api_token",
@@ -1563,7 +1639,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Doppler API Token"
     },
     {
       "name": "duffel_api_token",
@@ -1586,7 +1663,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Duffel API Token"
     },
     {
       "name": "dynatrace_api_token",
@@ -1609,7 +1687,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Dynatrace API Token"
     },
     {
       "name": "easypost_api_key",
@@ -1632,7 +1711,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "EasyPost API Key"
     },
     {
       "name": "easypost_test_api_key",
@@ -1655,7 +1735,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "EasyPost Test API Key"
     },
     {
       "name": "facebook_access_token",
@@ -1678,7 +1759,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Facebook Access Token"
     },
     {
       "name": "facebook_graph_token",
@@ -1707,7 +1789,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Facebook Graph Token"
     },
     {
       "name": "figma_pat",
@@ -1733,7 +1816,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Figma Access Token"
     },
     {
       "name": "flutterwave_public_key",
@@ -1756,7 +1840,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Flutterwave Public Key"
     },
     {
       "name": "flutterwave_secret_key",
@@ -1779,7 +1864,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Flutterwave Secret Key"
     },
     {
       "name": "flyio_api_token",
@@ -1806,7 +1892,8 @@
         "sample",
         "your_fly_token_here",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Fly.io API Token"
     },
     {
       "name": "frameio_api_token",
@@ -1829,30 +1916,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
-    },
-    {
-      "name": "gcp_api_key",
-      "regex": "\\bAIza[a-zA-Z0-9_\\-]{35}\\b",
-      "entity_type": "API_KEY",
-      "category": "Credential",
-      "sensitivity": "CRITICAL",
-      "confidence": 0.96,
-      "description": "Google Cloud Platform (GCP) API key (AIza prefix, 35 alphanumeric chars). Complements generic google_api_key.",
-      "validator": null,
-      "examples_match": [
-        "xor:GxMgOwkjOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7"
-      ],
-      "examples_no_match": [
-        "AIza_short",
-        "AIzaSy_12chars"
-      ],
-      "context_words_boost": [],
-      "context_words_suppress": [],
-      "stopwords": [],
-      "allowlist_patterns": [],
-      "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Frame.io API Token"
     },
     {
       "name": "generic_api_key",
@@ -1876,7 +1941,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Generic API Key"
     },
     {
       "name": "github_token",
@@ -1902,7 +1968,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "GitHub Token"
     },
     {
       "name": "gitlab_pat",
@@ -1926,7 +1993,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "GitLab Access Token"
     },
     {
       "name": "gitlab_token_extended",
@@ -1951,7 +2019,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "GitLab Token"
     },
     {
       "name": "google_api_key",
@@ -1975,7 +2044,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Google API Key"
     },
     {
       "name": "grafana_cloud_api_token",
@@ -1985,7 +2055,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Grafana Cloud API token (glc_ prefix, base64 JWT body)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "glc_eyJvIjoiOTk0NjQyIiwibiI6InRlc3Qtc3RhY2stMTIzIiwiayI6InRlc3QxMjM0NTY3ODkwIiwibSI6eyJyIjoicHJvZC11cy1lYXN0LTAifX0="
       ],
@@ -2003,7 +2073,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Grafana Cloud Token"
     },
     {
       "name": "grafana_legacy_api_key",
@@ -2030,7 +2101,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Grafana API Key"
     },
     {
       "name": "grafana_service_account_token",
@@ -2056,7 +2128,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Grafana Service Token"
     },
     {
       "name": "groq_api_key",
@@ -2083,7 +2156,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Groq API Key"
     },
     {
       "name": "harness_api_key",
@@ -2106,7 +2180,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Harness API Key"
     },
     {
       "name": "hashicorp_terraform_token",
@@ -2129,7 +2204,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Terraform Cloud Token"
     },
     {
       "name": "hashicorp_vault_token",
@@ -2159,7 +2235,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "HashiCorp Vault Token"
     },
     {
       "name": "hashicorp_vault_token_extended",
@@ -2182,7 +2259,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "HashiCorp Vault Batch Token"
     },
     {
       "name": "heroku_api_key",
@@ -2210,7 +2288,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Heroku API Key"
     },
     {
       "name": "heroku_api_key_v2",
@@ -2233,7 +2312,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Heroku API Key (v2)"
     },
     {
       "name": "huggingface_token",
@@ -2243,7 +2323,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Hugging Face API token",
-      "validator": "not_placeholder_credential",
+      "validator": "huggingface_token",
       "examples_match": [
         "xor:MjwFHh4eHh4eHh4eHh4eHh4eHh4eHh4="
       ],
@@ -2260,7 +2340,8 @@
         "sample",
         "your_hf_token_here",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Hugging Face Token"
     },
     {
       "name": "infracost_api_token",
@@ -2283,7 +2364,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Infracost API Token"
     },
     {
       "name": "instagram_legacy_token",
@@ -2314,7 +2396,8 @@
         "instagram",
         "ig_token",
         "access_token"
-      ]
+      ],
+      "display_name": "Instagram Legacy Token"
     },
     {
       "name": "jwt_token",
@@ -2338,7 +2421,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "JWT Token"
     },
     {
       "name": "langfuse_public_key",
@@ -2368,7 +2452,8 @@
         "langfuse",
         "public_key",
         "pk"
-      ]
+      ],
+      "display_name": "Langfuse Public Key"
     },
     {
       "name": "langfuse_secret_key",
@@ -2398,7 +2483,8 @@
         "langfuse",
         "secret_key",
         "sk"
-      ]
+      ],
+      "display_name": "Langfuse Secret Key"
     },
     {
       "name": "langsmith_api_key",
@@ -2425,7 +2511,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "LangSmith API Key"
     },
     {
       "name": "linear_api_key",
@@ -2452,7 +2539,8 @@
         "sample",
         "your_linear_key_here",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Linear API Key"
     },
     {
       "name": "linear_api_token",
@@ -2479,7 +2567,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Linear API Token"
     },
     {
       "name": "mailchimp_api_key",
@@ -2508,7 +2597,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Mailchimp API Key"
     },
     {
       "name": "mailgun_api_key",
@@ -2532,7 +2622,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Mailgun API Key"
     },
     {
       "name": "mapbox_api_token",
@@ -2555,7 +2646,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Mapbox API Token"
     },
     {
       "name": "microsoft_teams_webhook",
@@ -2578,7 +2670,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "MS Teams Webhook"
     },
     {
       "name": "netlify_pat",
@@ -2605,7 +2698,8 @@
         "sample",
         "your_netlify_token_here",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Netlify Access Token"
     },
     {
       "name": "new_relic_api_key",
@@ -2628,7 +2722,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "New Relic API Key"
     },
     {
       "name": "new_relic_browser_token",
@@ -2651,7 +2746,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "New Relic Browser Token"
     },
     {
       "name": "new_relic_insert_key",
@@ -2674,7 +2770,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "New Relic Insert Key"
     },
     {
       "name": "newrelic_browser_token",
@@ -2703,7 +2800,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "New Relic Browser Token"
     },
     {
       "name": "newrelic_user_api_key",
@@ -2731,7 +2829,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "New Relic User API Key"
     },
     {
       "name": "notion_api_token",
@@ -2754,7 +2853,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Notion API Token"
     },
     {
       "name": "notion_integration_token",
@@ -2781,7 +2881,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Notion Integration Token"
     },
     {
       "name": "npm_token",
@@ -2809,7 +2910,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "npm Token"
     },
     {
       "name": "nvidia_nim_api_key",
@@ -2837,7 +2939,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "NVIDIA NIM API Key"
     },
     {
       "name": "okta_api_token",
@@ -2870,7 +2973,8 @@
         "ssws",
         "token",
         "api_key"
-      ]
+      ],
+      "display_name": "Okta API Token"
     },
     {
       "name": "onepassword_service_token",
@@ -2898,7 +3002,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "1Password Service Token"
     },
     {
       "name": "openai_api_key",
@@ -2922,7 +3027,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "OpenAI API Key"
     },
     {
       "name": "openai_legacy_key",
@@ -2940,7 +3046,8 @@
         "test",
         "demo",
         "placeholder"
-      ]
+      ],
+      "display_name": "OpenAI Legacy Key"
     },
     {
       "name": "openshift_user_token",
@@ -2963,7 +3070,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "OpenShift User Token"
     },
     {
       "name": "packagist_token",
@@ -2990,7 +3098,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Packagist Token"
     },
     {
       "name": "perplexity_api_key",
@@ -3013,7 +3122,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Perplexity API Key"
     },
     {
       "name": "planetscale_api_token",
@@ -3036,7 +3146,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "PlanetScale API Token"
     },
     {
       "name": "planetscale_password",
@@ -3059,7 +3170,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "PlanetScale Password"
     },
     {
       "name": "posthog_api_key",
@@ -3092,7 +3204,8 @@
         "posthog",
         "api_key",
         "token"
-      ]
+      ],
+      "display_name": "PostHog API Key"
     },
     {
       "name": "postman_api_key",
@@ -3120,7 +3233,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Postman API Key"
     },
     {
       "name": "prefect_api_token",
@@ -3143,7 +3257,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Prefect API Token"
     },
     {
       "name": "private_key_pem",
@@ -3167,7 +3282,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Private Key (PEM)"
     },
     {
       "name": "pulumi_access_token",
@@ -3195,7 +3311,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Pulumi Access Token"
     },
     {
       "name": "pypi_token",
@@ -3224,7 +3341,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "PyPI Token"
     },
     {
       "name": "random_password",
@@ -3263,7 +3381,8 @@
         "qwerty",
         "letmein",
         "test"
-      ]
+      ],
+      "display_name": "Password"
     },
     {
       "name": "readme_api_token",
@@ -3286,7 +3405,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "ReadMe API Token"
     },
     {
       "name": "render_api_key",
@@ -3314,7 +3434,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Render API Key"
     },
     {
       "name": "replicate_api_key",
@@ -3344,7 +3465,8 @@
         "replicate",
         "api_key",
         "token"
-      ]
+      ],
+      "display_name": "Replicate API Key"
     },
     {
       "name": "rubygems_api_token",
@@ -3367,7 +3489,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "RubyGems API Token"
     },
     {
       "name": "scalingo_api_token",
@@ -3390,7 +3513,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Scalingo API Token"
     },
     {
       "name": "scrypt_hash",
@@ -3406,7 +3530,8 @@
       ],
       "examples_no_match": [
         "scrypt_raw_value"
-      ]
+      ],
+      "display_name": "Scrypt Password Hash"
     },
     {
       "name": "sendgrid_api_key",
@@ -3430,7 +3555,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "SendGrid API Key"
     },
     {
       "name": "sendinblue_api_token",
@@ -3453,7 +3579,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Sendinblue API Token"
     },
     {
       "name": "sentry_auth_token",
@@ -3480,7 +3607,8 @@
         "sample",
         "your_sentry_token_here",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Sentry Auth Token"
     },
     {
       "name": "sentry_user_token",
@@ -3503,7 +3631,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Sentry User Token"
     },
     {
       "name": "settlemint_access_token",
@@ -3528,7 +3657,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "SettleMint Access Token"
     },
     {
       "name": "shacrypt_hash",
@@ -3546,7 +3676,8 @@
       "examples_no_match": [
         "abcdef1234567890abcdef1234567890",
         "$2a$10$something"
-      ]
+      ],
+      "display_name": "SHA-Crypt Password Hash"
     },
     {
       "name": "shippo_api_token",
@@ -3569,7 +3700,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Shippo API Token"
     },
     {
       "name": "shopify_access_token",
@@ -3593,7 +3725,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Shopify Access Token"
     },
     {
       "name": "slack_app_token",
@@ -3616,7 +3749,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Slack App Token"
     },
     {
       "name": "slack_bot_token",
@@ -3644,7 +3778,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Slack Bot Token"
     },
     {
       "name": "slack_config_refresh_token",
@@ -3667,7 +3802,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Slack Config Refresh Token"
     },
     {
       "name": "slack_user_token",
@@ -3691,7 +3827,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Slack User Token"
     },
     {
       "name": "slack_webhook_url",
@@ -3715,7 +3852,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Slack Webhook URL"
     },
     {
       "name": "sourcegraph_access_token",
@@ -3738,7 +3876,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Sourcegraph Access Token"
     },
     {
       "name": "square_oauth_secret",
@@ -3767,7 +3906,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Square OAuth Secret"
     },
     {
       "name": "stripe_publishable_key",
@@ -3791,7 +3931,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Stripe Publishable Key"
     },
     {
       "name": "stripe_secret_key",
@@ -3815,7 +3956,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Stripe Secret Key"
     },
     {
       "name": "supabase_service_key",
@@ -3842,7 +3984,8 @@
         "sample",
         "your_supabase_key_here",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Supabase Service Key"
     },
     {
       "name": "telegram_bot_token",
@@ -3871,7 +4014,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Telegram Bot Token"
     },
     {
       "name": "terraform_cloud_token",
@@ -3898,7 +4042,8 @@
         "sample",
         "your_tf_token_here",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Terraform Cloud Token"
     },
     {
       "name": "twilio_api_key",
@@ -3922,7 +4067,8 @@
         "your_api_key_here",
         "your-api-key",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Twilio API Key"
     },
     {
       "name": "typeform_api_token",
@@ -3945,7 +4091,8 @@
       "stopwords": [],
       "allowlist_patterns": [],
       "requires_column_hint": false,
-      "column_hint_keywords": []
+      "column_hint_keywords": [],
+      "display_name": "Typeform API Token"
     },
     {
       "name": "vercel_api_token",
@@ -3972,7 +4119,8 @@
         "sample",
         "your_vercel_token_here",
         "insert_key_here"
-      ]
+      ],
+      "display_name": "Vercel API Token"
     },
     {
       "name": "xai_api_key",
@@ -4004,7 +4152,8 @@
         "grok",
         "api_key",
         "token"
-      ]
+      ],
+      "display_name": "xAI API Key"
     }
   ]
 }

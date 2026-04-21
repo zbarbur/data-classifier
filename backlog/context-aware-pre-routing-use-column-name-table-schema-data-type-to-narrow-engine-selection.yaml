@@ -1,0 +1,31 @@
+title: 'Context-aware pre-routing: use column name, table, schema, data_type to narrow
+  engine selection'
+status: backlog
+priority: P0
+category: feature
+sprint_target: null
+created: 2026-04-18
+updated: 2026-04-18
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: "Companion to shape-first routing. Before running engines, analyze ALL\
+  \ available context: column name (already used by column_name_engine but not by\
+  \ orchestrator), table_name (on ColumnInput since Sprint 3, only shallow consumption),\
+  \ schema_name, data_type (VARCHAR vs INT constrains candidates), description. This\
+  \ context should: (1) narrow candidate entity types before engines run (INT column\
+  \ can't be EMAIL), (2) inform domain (patient_records table \u2192 healthcare),\
+  \ (3) select engine strategy per shape+context combination. Currently only column_name_engine\
+  \ uses column name, and only for direct entity-type matching. Table/schema/data_type/description\
+  \ are effectively unused. BQ confirmed populating these fields (Sprint 10). Complexity:\
+  \ L."
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

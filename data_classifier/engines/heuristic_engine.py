@@ -516,112 +516,17 @@ def compute_placeholder_credential_rejection_ratio(values: list[str]) -> float:
     return rejected / len(values)
 
 
-# ── OPAQUE_SECRET detection (Sprint 8 Item 4) ───────────────────────────────
+# ── OPAQUE_SECRET detection — REMOVED (consolidated into SecretScannerEngine)
 #
-# Multi-signal guard for high-entropy credential-shaped values that do NOT
-# match any specific pattern. Per the memory file
-# ``feedback_entropy_secondary.md`` entropy alone produced 37 false positives,
-# so this function fires only when ALL of the following hold:
+# The opaque_secret_detection function that previously lived here has been
+# consolidated into the SecretScannerEngine (secret_scanner.py), which now
+# handles bare-value detection via 4 paths: prefix, column-name, KV parsing,
+# and population-level entropy analysis. The secret scanner owns the richer
+# key-name dictionary (271 entries vs 12 hints) and tiered scoring.
+#
+# Previously this function fired only when ALL of the following held:
 #   1. column name contains a credential hint keyword
 #      (prevents FPs on UUIDs, hashes, tokens in unrelated columns)
-#   2. average entropy > ~4.5 bits/char (non-language randomness)
-#   3. non-language char-class profile (multi-class OR non-alpha mix)
-#   4. value length in range 20-200 (filters short IDs and long blobs)
-#   5. high per-column distinct ratio (>=0.9 — real secrets are unique)
-#
-# Condition 1 substitutes for "no other engine claimed the row" because
-# inside a single engine we have no cross-engine coordination; instead we
-# gate emission on the column name being a credential-like column.
-
-# Column name substrings that hint at a credential column.
-_OPAQUE_SECRET_COLUMN_HINTS: frozenset[str] = frozenset(
-    {
-        "password",
-        "passwd",
-        "passphrase",
-        "passcode",
-        "pwd",
-        "secret",
-        "token",
-        "credential",
-        "credentials",
-        "api_key",
-        "apikey",
-        "auth",
-    }
-)
-
-_OPAQUE_MIN_ENTROPY = 4.5
-_OPAQUE_MIN_LENGTH = 20
-_OPAQUE_MAX_LENGTH = 200
-_OPAQUE_MIN_DIVERSITY = 3
-_OPAQUE_MIN_DISTINCT_RATIO = 0.9
-
-
-def _column_name_has_credential_hint(column_name: str | None) -> bool:
-    if not column_name:
-        return False
-    lowered = column_name.lower()
-    return any(hint in lowered for hint in _OPAQUE_SECRET_COLUMN_HINTS)
-
-
-def opaque_secret_detection(values: list[str], column_name: str | None) -> tuple[bool, str]:
-    """Multi-signal opaque-secret detector for credential-gated columns.
-
-    Fires only when ALL five conditions hold:
-        1. column name hints at a credential column (see
-           ``_OPAQUE_SECRET_COLUMN_HINTS``);
-        2. average Shannon entropy >= 4.5 bits/char;
-        3. length in [20, 200] for the majority of samples;
-        4. average char-class diversity >= 3 (non-language randomness);
-        5. distinct-value ratio >= 0.9 (values are nearly unique per row).
-
-    Args:
-        values: Non-empty list of sample values from the column.
-        column_name: The column name (used as a gate, never standalone).
-
-    Returns:
-        Tuple of ``(is_opaque_secret, evidence_string)``.  If the column
-        fails any condition, returns ``(False, reason)``.
-    """
-    # Condition 1: column-name gate.  Without this, entropy-only signals
-    # caused 37 FPs in Sprint 4 — see feedback_entropy_secondary.md.
-    if not _column_name_has_credential_hint(column_name):
-        return False, f"column '{column_name}' lacks credential hint"
-
-    # Filter empties for the other stats
-    non_empty = [v for v in values if v]
-    if len(non_empty) < 2:
-        return False, "not enough non-empty samples"
-
-    # Condition 4 (cheap): length window
-    lengths = [len(v) for v in non_empty]
-    in_range = sum(1 for ln in lengths if _OPAQUE_MIN_LENGTH <= ln <= _OPAQUE_MAX_LENGTH)
-    if in_range / len(non_empty) < 0.5:
-        return False, "length distribution outside 20-200 range"
-
-    # Condition 3: diversity
-    avg_diversity = compute_avg_char_class_diversity(non_empty)
-    if avg_diversity < _OPAQUE_MIN_DIVERSITY:
-        return False, f"avg diversity {avg_diversity:.2f} < {_OPAQUE_MIN_DIVERSITY}"
-
-    # Condition 2: entropy (always CONFIRM another signal, never standalone)
-    avg_entropy = compute_avg_entropy(non_empty)
-    if avg_entropy < _OPAQUE_MIN_ENTROPY:
-        return False, f"avg entropy {avg_entropy:.2f} < {_OPAQUE_MIN_ENTROPY}"
-
-    # Condition 5: distinctness
-    distinct_ratio = compute_cardinality_ratio(non_empty)
-    if distinct_ratio < _OPAQUE_MIN_DISTINCT_RATIO:
-        return False, f"distinct ratio {distinct_ratio:.2f} < {_OPAQUE_MIN_DISTINCT_RATIO}"
-
-    evidence = (
-        f"opaque_secret_detection: column='{column_name}' "
-        f"entropy={avg_entropy:.2f} diversity={avg_diversity:.2f} "
-        f"length_in_range={in_range}/{len(non_empty)} "
-        f"distinct_ratio={distinct_ratio:.2f}"
-    )
-    return True, evidence
 
 
 # ── Engine ──────────────────────────────────────────────────────────────────
@@ -748,31 +653,8 @@ class HeuristicEngine(ClassificationEngine):
                     )
                 )
 
-        # NOTE: Specific CREDENTIAL formats (API keys, JWTs, PEM keys) are handled
-        # by the regex engine. Structured KV secret detection is handled by the
-        # secret scanner (order=4). The heuristic engine's only credential-related
-        # rule is OPAQUE_SECRET: a column-gated, multi-signal catch-all for
-        # high-entropy credential-shaped values that did not match any pattern.
-        # See ``opaque_secret_detection`` docstring for the five guard conditions.
-
-        is_opaque, opaque_evidence = opaque_secret_detection(values, column.column_name)
-        if is_opaque:
-            # Conservative confidence — this is a heuristic signal, not a shape
-            # match. The orchestrator may still defer to higher-authority engines
-            # if they produced a more specific finding for the same column.
-            confidence = 0.75
-            if confidence >= min_confidence:
-                findings.append(
-                    ClassificationFinding(
-                        column_id=column.column_id,
-                        entity_type="OPAQUE_SECRET",
-                        category="Credential",
-                        sensitivity="CRITICAL",
-                        confidence=round(confidence, 4),
-                        regulatory=["SOC2", "ISO27001"],
-                        engine=self.name,
-                        evidence=opaque_evidence,
-                    )
-                )
+        # NOTE: OPAQUE_SECRET detection has been consolidated into the
+        # SecretScannerEngine (order=4), which now handles bare-value
+        # detection via prefix, column-name, KV, and population paths.
 
         return findings

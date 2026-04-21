@@ -14,6 +14,7 @@ Types::
 
 Functions::
 
+    scan_text()                    — scan free text for credentials
     classify_columns()             — classify a list of columns
     load_profile()                 — load bundled profile by name
     load_profile_from_yaml()       — load profile from a YAML file
@@ -65,6 +66,7 @@ from data_classifier.profiles import (
     load_profile_from_dict,
     load_profile_from_yaml,
 )
+from data_classifier.scan_text import TextFinding, TextScanner, TextScanResult, scan_text
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +80,10 @@ __all__ = [
     "ClassificationRule",
     "RollupResult",
     # Functions
+    "scan_text",
+    "TextScanner",
+    "TextScanResult",
+    "TextFinding",
     "classify_columns",
     "load_profile",
     "load_profile_from_yaml",

@@ -1,4 +1,4 @@
-import { createScanner } from '../dist/scanner.esm.js';
+import { createScanner } from './dist/scanner.esm.js';
 
 const XOR_KEY = 0x5a;
 
@@ -31,13 +31,11 @@ let stories = [];
 
 async function loadStories() {
   try {
-    const res = await fetch('./corpus/stories.jsonl');
+    const res = await fetch('./corpus/stories.json');
     if (!res.ok) return;
     const text = await res.text();
-    stories = text
-      .split('\n')
-      .filter(Boolean)
-      .map((l) => JSON.parse(l));
+    if (text.startsWith('<')) return;
+    stories = text.split('\n').filter(Boolean).map((l) => JSON.parse(l));
     for (const s of stories) {
       const opt = document.createElement('option');
       opt.value = s.id;
@@ -45,22 +43,23 @@ async function loadStories() {
       storiesEl.appendChild(opt);
     }
     storiesRow.style.display = 'block';
-  } catch {
-    // stories.jsonl not available
-  }
+  } catch { /* stories not available */ }
 }
+loadStories();
 
 storiesEl.addEventListener('change', () => {
   const story = stories.find((s) => s.id === storiesEl.value);
   if (story) {
     inputEl.value = decodeXor(story.prompt_xor);
-    annotationEl.textContent = story.annotation;
+    annotationEl.textContent = story.annotation || '';
     annotationEl.style.display = 'block';
   } else {
     inputEl.value = '';
     annotationEl.style.display = 'none';
   }
 });
+
+function getStories() { return stories; }
 
 rawToggle.addEventListener('click', () => {
   const visible = rawJson.style.display === 'block';
@@ -110,7 +109,13 @@ function renderFindings(findings) {
 
     const typeEl = document.createElement('div');
     typeEl.className = 'finding-type';
-    typeEl.textContent = f.entity_type;
+    typeEl.textContent = f.display_name || f.entity_type;
+    if (f.detection_type) {
+      const dtSpan = document.createElement('span');
+      dtSpan.style.cssText = 'font-weight:400;color:#666;margin-left:8px;font-size:12px';
+      dtSpan.textContent = `(${f.detection_type})`;
+      typeEl.appendChild(dtSpan);
+    }
     card.appendChild(typeEl);
 
     const metaEl = document.createElement('div');
@@ -227,7 +232,7 @@ const benchRoundsEl = document.getElementById('bench-rounds');
 
 benchBtn.addEventListener('click', async () => {
   const BENCH_ROUNDS = parseInt(benchRoundsEl.value, 10) || 10;
-  if (!stories.length) {
+  if (!getStories().length) {
     perfNote.textContent = 'No stories loaded — cannot benchmark.';
     return;
   }
@@ -238,7 +243,7 @@ benchBtn.addEventListener('click', async () => {
   perfGrid.style.display = 'none';
   perfNote.textContent = '';
 
-  const prompts = stories.map((s) => decodeXor(s.prompt_xor));
+  const prompts = getStories().map((s) => decodeXor(s.prompt_xor));
   const totalScans = prompts.length * BENCH_ROUNDS;
   const latencies = [];
   let done = 0;
@@ -289,9 +294,9 @@ benchBtn.addEventListener('click', async () => {
 
   const avgLen = Math.round(prompts.reduce((s, p) => s + p.length, 0) / prompts.length);
   perfNote.textContent =
-    `${totalScans} scans (${stories.length} stories x ${BENCH_ROUNDS} rounds). ` +
+    `${totalScans} scans (${getStories().length} stories x ${BENCH_ROUNDS} rounds). ` +
     `Avg prompt: ${avgLen.toLocaleString()} chars. ` +
-    `First round includes worker cold-start. Validated against S2 spike: P99 = 0.70 ms on 11K real prompts.`;
+    `First round includes worker cold-start. P99 = 0.70 ms validated on 11K real prompts.`;
 
   benchBtn.disabled = false;
   benchBtn.textContent = 'Run again';
@@ -309,5 +314,3 @@ function syncScroll(source, target) {
 }
 originalOut.addEventListener('scroll', () => syncScroll(originalOut, redactedOut));
 redactedOut.addEventListener('scroll', () => syncScroll(redactedOut, originalOut));
-
-loadStories();

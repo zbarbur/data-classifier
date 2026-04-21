@@ -28,7 +28,10 @@ const INCLUDES = [
   'scanner.d.ts',
   'tester/index.html',
   'tester/tester.js',
-  'tester/corpus/stories.jsonl',
+  'tester/corpus/stories.json',
+  // Copy dist into tester/ so the tester works when served standalone
+  { src: 'dist/scanner.esm.js', dest: 'tester/dist/scanner.esm.js' },
+  { src: 'dist/worker.esm.js', dest: 'tester/dist/worker.esm.js' },
   'docs/api.md',
   'docs/patterns.md',
   'docs/secret-scanner.md',
@@ -44,11 +47,23 @@ mkdirSync(outDir, { recursive: true });
 let totalRaw = 0;
 let totalGz = 0;
 
-for (const rel of INCLUDES) {
-  const src = resolve(ROOT, rel);
-  const dest = resolve(outDir, rel);
+for (const entry of INCLUDES) {
+  const srcRel = typeof entry === 'string' ? entry : entry.src;
+  const destRel = typeof entry === 'string' ? entry : entry.dest;
+  const src = resolve(ROOT, srcRel);
+  const dest = resolve(outDir, destRel);
   mkdirSync(dirname(dest), { recursive: true });
-  cpSync(src, dest);
+
+  // Strip dev-only fields from package.json for distribution
+  if (srcRel === 'package.json') {
+    const pkg = JSON.parse(readFileSync(src, 'utf8'));
+    delete pkg.scripts;
+    delete pkg.devDependencies;
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(dest, JSON.stringify(pkg, null, 2) + '\n');
+  } else {
+    cpSync(src, dest);
+  }
 
   const bytes = statSync(dest).size;
   const gz = gzipSync(readFileSync(dest)).length;
@@ -58,7 +73,20 @@ for (const rel of INCLUDES) {
 
 console.log(`\n  Packaged to: ${outDir}`);
 console.log(`  Files:       ${INCLUDES.length}`);
-console.log(`  Size:        ${fmt(totalRaw)} (${fmt(totalGz)} gz)\n`);
+console.log(`  Size:        ${fmt(totalRaw)} (${fmt(totalGz)} gz)`);
+
+// Create zip if --zip flag is passed
+if (process.argv.includes('--zip')) {
+  const { execFileSync } = await import('node:child_process');
+  const pkg = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8'));
+  const zipName = `data-classifier-browser-${pkg.version}.zip`;
+  const zipPath = resolve(ROOT, zipName);
+  rmSync(zipPath, { force: true });
+  execFileSync('zip', ['-r', zipPath, '.'], { cwd: outDir, stdio: 'pipe' });
+  const zipSize = statSync(zipPath).size;
+  console.log(`  Zip:         ${zipPath}`);
+  console.log(`               ${fmt(zipSize)}\n`);
+}
 
 function fmt(bytes) {
   if (bytes < 1024) return `${bytes} B`;

@@ -48,7 +48,7 @@ LOGIC_FILES = [
 
 # Keep in sync with src/validators.js (PORTED dict keys). Names not listed here
 # emit a warning and load as always-true stubs in JS.
-PORTED_VALIDATORS = {"aws_secret_not_hex", "random_password", "not_placeholder_credential", ""}
+PORTED_VALIDATORS = {"aws_secret_not_hex", "random_password", "not_placeholder_credential", "huggingface_token", ""}
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger("generate_browser_patterns")
@@ -71,10 +71,17 @@ def emit_constants(version: str) -> None:
     from data_classifier.engines.secret_scanner import (
         _CONFIG_VALUES,
         _DATE_LIKE,
+        _IP_LIKE,
         _NON_SECRET_ALLOWLIST,
         _NON_SECRET_SUFFIXES,
+        _NUMERIC_ONLY,
         _PLACEHOLDER_PATTERNS,
+        _STATISTICAL_BASE_CONFIDENCE,
+        _STATISTICAL_DIVERSITY_THRESHOLD,
+        _STATISTICAL_ENTROPY_THRESHOLD,
+        _STATISTICAL_MAX_CONFIDENCE,
         _URL_LIKE,
+        _UUID_RE,
     )
 
     cfg = load_secret_scanner_config()
@@ -91,9 +98,12 @@ def emit_constants(version: str) -> None:
             flags += "i"
         placeholder_patterns.append({"pattern": pat.pattern, "flags": flags})
 
-    # _URL_LIKE and _DATE_LIKE
+    # _URL_LIKE, _DATE_LIKE, _IP_LIKE, _NUMERIC_ONLY, _UUID_RE
     url_like = {"pattern": _URL_LIKE.pattern, "flags": "i" if _URL_LIKE.flags & re.IGNORECASE else ""}
     date_like = {"pattern": _DATE_LIKE.pattern, "flags": "i" if _DATE_LIKE.flags & re.IGNORECASE else ""}
+    ip_like = {"pattern": _IP_LIKE.pattern, "flags": "i" if _IP_LIKE.flags & re.IGNORECASE else ""}
+    numeric_only = {"pattern": _NUMERIC_ONLY.pattern, "flags": ""}
+    uuid_re = {"pattern": _UUID_RE.pattern, "flags": "i" if _UUID_RE.flags & re.IGNORECASE else ""}
 
     # Per-file hash map for targeted drift diagnosis
     file_hashes = {}
@@ -122,6 +132,13 @@ export const SECRET_SCANNER = {{
   dateLikePattern: {json.dumps(date_like)},
   nonSecretSuffixes: {json.dumps(sorted(_NON_SECRET_SUFFIXES))},
   nonSecretAllowlist: {json.dumps(sorted(_NON_SECRET_ALLOWLIST))},
+  ipLikePattern: {json.dumps(ip_like)},
+  numericOnlyPattern: {json.dumps(numeric_only)},
+  uuidPattern: {json.dumps(uuid_re)},
+  opaqueTokenEntropyThreshold: {_STATISTICAL_ENTROPY_THRESHOLD},
+  opaqueTokenDiversityThreshold: {_STATISTICAL_DIVERSITY_THRESHOLD},
+  opaqueTokenBaseConfidence: {_STATISTICAL_BASE_CONFIDENCE},
+  opaqueTokenMaxConfidence: {_STATISTICAL_MAX_CONFIDENCE},
 }};
 """
     (GENERATED_DIR / "constants.js").write_text(js)
@@ -151,6 +168,7 @@ def emit_patterns() -> int:
                 "context_words_suppress": list(p.context_words_suppress),
                 "stopwords": list(p.stopwords),
                 "allowlist_patterns": list(p.allowlist_patterns),
+                "display_name": p.display_name or p.name,
                 "requires_column_hint": p.requires_column_hint,
                 "column_hint_keywords": list(p.column_hint_keywords),
             }

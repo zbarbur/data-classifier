@@ -914,7 +914,7 @@ def q3_heterogeneous_audit() -> dict[str, Any]:
         "apache_access_log": {"IP_ADDRESS", "URL", "PERSON_NAME"},
         "json_event_log": {"EMAIL", "IP_ADDRESS", "URL", "PERSON_NAME"},
         "base64_encoded_payloads": set(),
-        "support_chat_messages": {"EMAIL", "PHONE", "PERSON_NAME", "ORGANIZATION", "DATE_OF_BIRTH"},
+        "support_chat_messages": {"EMAIL", "PHONE", "PERSON_NAME", "ORGANIZATION", "DATE"},
         "kafka_event_stream": {"EMAIL", "IP_ADDRESS", "URL", "PERSON_NAME"},
     }
     try:

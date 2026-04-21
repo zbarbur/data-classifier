@@ -33,16 +33,36 @@ export function randomPassword(value) {
   return classes >= 3;
 }
 
+const _PLACEHOLDER_X_RE = /[xX]{5,}/;
+const _PLACEHOLDER_CHAR_RE = /(.)\1{7,}/;
+const _PLACEHOLDER_TEMPLATE_RE = /(?:^|[=:\s"'])(?:your[_\-\s]|my[_\-\s]|insert[_\-\s]|put[_\-\s]|replace[_\-\s]|add[_\-\s]|enter[_\-\s])/i;
+
 export function makeNotPlaceholderCredential(placeholderSet) {
   return function notPlaceholderCredential(value) {
     const clean = value.trim().toLowerCase();
-    return !placeholderSet.has(clean);
+    if (placeholderSet.has(clean)) return false;
+    if (_PLACEHOLDER_X_RE.test(value)) return false;
+    if (_PLACEHOLDER_CHAR_RE.test(value)) return false;
+    if (_PLACEHOLDER_TEMPLATE_RE.test(value)) return false;
+    return true;
   };
+}
+
+const _CAMEL_CASE_RE = /[a-z][A-Z]/;
+
+export function huggingfaceToken(value) {
+  const suffix = value.startsWith('hf_') ? value.slice(3) : value;
+  const hasCamel = _CAMEL_CASE_RE.test(suffix);
+  const hasDigit = /[0-9]/.test(suffix);
+  // camelCase + no digits = code identifier (e.g. Objective-C method name)
+  if (hasCamel && !hasDigit) return false;
+  return true;
 }
 
 const PORTED = {
   aws_secret_not_hex: awsSecretNotHex,
   random_password: randomPassword,
+  huggingface_token: huggingfaceToken,
 };
 
 function makeStub() {

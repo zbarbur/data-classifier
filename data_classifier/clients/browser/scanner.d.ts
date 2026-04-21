@@ -42,7 +42,7 @@ export interface ScanOptions {
 
   /**
    * Which pattern categories to scan for.
-   * v1 supports Credential only; other categories have unported validators.
+   * Currently supports `Credential` only; other categories have unported validators.
    *
    * @default ['Credential']
    */
@@ -142,6 +142,12 @@ export interface Finding {
   /** Which engine produced this finding: `"regex"` or `"secret_scanner"`. */
   engine: string;
 
+  /** Specific detection pattern identifier (e.g., `"aws_access_key"`, `"github_token"`). */
+  detection_type?: string;
+
+  /** Human-friendly label (e.g., `"AWS Access Key"`, `"GitHub Token"`). */
+  display_name?: string;
+
   /** Human-readable evidence string with scoring breakdown. */
   evidence: string;
 
@@ -165,6 +171,13 @@ export interface ScanResult {
 
   /** Wall-clock scan time in milliseconds. */
   scannedMs: number;
+
+  /**
+   * All findings from every engine/pass before deduplication.
+   * Only present when `verbose: true`. Useful for debugging which
+   * engines fired and what was dropped by dedup.
+   */
+  allFindings?: Finding[];
 }
 
 // ── Public API ───────────────────────────────────────────────────

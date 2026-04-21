@@ -1,8 +1,9 @@
 # Real-World Detection Stories
 
-9 curated examples from the WildChat corpus (11,000 prompts).
+Annotated examples from the WildChat corpus (11,000 prompts).
 Each shows a real prompt that users submitted to ChatGPT containing
-credentials the scanner detected.
+credentials the scanner detected. The tester page includes all 17
+stories; the 9 documented below are the most instructive.
 
 To see the actual prompts, use the tester page (`npm run serve`, then
 open `http://localhost:4173/tester/` and select a story from the

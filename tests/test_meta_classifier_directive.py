@@ -624,3 +624,64 @@ def test_directive_integration_email_column(
     # so directive=False (agreement case)
     ev = meta_events[0]
     assert isinstance(ev.directive, bool)
+
+
+# ── 11. Per-pattern keying: low-authority high-confidence doesn't block ──
+
+
+def test_directive_overrides_high_confidence_low_authority_finding(
+    standard_profile: ClassificationProfile,
+) -> None:
+    """Per-pattern keying leaves low-authority findings (e.g. heuristic_stats
+    SSN@0.81) in the cascade that would previously have been merged away.
+    The cascade_trust_threshold must not block the directive when the
+    meta-classifier's confidence exceeds the cascade top's confidence.
+    Regression test for the ABA_ROUTING / SSN collision scenario."""
+    cascade_result = [
+        _make_finding("SSN", 0.81, "heuristic_stats", category="PII", column_id="col_aba"),
+        _make_finding("SSN", 0.72, "regex", category="PII", column_id="col_aba"),
+    ]
+    prediction = MetaClassifierPrediction(
+        column_id="col_aba",
+        predicted_entity="ABA_ROUTING",
+        confidence=1.0,
+        live_entity="SSN",
+        agreement=False,
+    )
+    col = ColumnInput(
+        column_id="col_aba",
+        column_name="routing_number",
+        sample_values=["021000021"] * 5,
+    )
+
+    result = Orchestrator._apply_meta_directive(prediction, cascade_result, col, standard_profile)
+    assert result is not None, "Directive should apply: meta-classifier confidence 1.0 > cascade top 0.81"
+
+    top = max(result, key=lambda f: f.confidence)
+    assert top.entity_type == "ABA_ROUTING"
+    assert top.engine == "meta_classifier"
+
+
+def test_directive_still_trusts_cascade_when_more_confident(
+    standard_profile: ClassificationProfile,
+) -> None:
+    """When cascade top confidence >= threshold AND >= meta-classifier confidence,
+    the cascade should still be trusted (directive not applied)."""
+    cascade_result = [
+        _make_finding("SSN", 0.95, "regex", category="PII", column_id="col_ssn"),
+    ]
+    prediction = MetaClassifierPrediction(
+        column_id="col_ssn",
+        predicted_entity="CREDIT_CARD",
+        confidence=0.85,
+        live_entity="SSN",
+        agreement=False,
+    )
+    col = ColumnInput(
+        column_id="col_ssn",
+        column_name="ssn",
+        sample_values=["123-45-6789"] * 5,
+    )
+
+    result = Orchestrator._apply_meta_directive(prediction, cascade_result, col, standard_profile)
+    assert result is None, "Directive should NOT apply: cascade 0.95 >= threshold 0.80 and >= meta 0.85"

@@ -154,5 +154,7 @@ def calibrate_finding(finding: ClassificationFinding) -> ClassificationFinding:
         regulatory=finding.regulatory,
         engine=finding.engine,
         evidence=finding.evidence,
+        detection_type=finding.detection_type,
+        display_name=finding.display_name,
         sample_analysis=finding.sample_analysis,
     )

@@ -1,6 +1,6 @@
 {
-  "training_date": "2026-04-17T15:33:22.775226+00:00",
-  "git_sha": "0706f7f925c61be83a10e305150e2c684dc40f51",
+  "training_date": "2026-04-20T09:33:12.027946+00:00",
+  "git_sha": "93ab58c28b82c28e4670aa1db1d6014b664049da",
   "random_state": 42,
   "cv_folds": 5,
   "c_grid": [
@@ -10,49 +10,50 @@
     10.0,
     100.0
   ],
-  "best_c": 100.0,
-  "cv_mean_macro_f1": 0.5654480182572594,
-  "cv_std_macro_f1": 0.09630865341257684,
+  "best_c": 0.01,
+  "cv_mean_macro_f1": 0.7108514207016985,
+  "cv_std_macro_f1": 0.1352809366806201,
   "cv_history": [
     {
       "C": 0.01,
-      "mean_f1": 0.5435974152601393,
-      "std_f1": 0.15221277474362646
+      "mean_f1": 0.7108514207016985,
+      "std_f1": 0.1352809366806201
     },
     {
       "C": 0.1,
-      "mean_f1": 0.5464728026992389,
-      "std_f1": 0.14558080753135502
+      "mean_f1": 0.6994627681981311,
+      "std_f1": 0.14730286486318084
     },
     {
       "C": 1.0,
-      "mean_f1": 0.5372552100752751,
-      "std_f1": 0.1144075692944784
+      "mean_f1": 0.7037798060176781,
+      "std_f1": 0.1664113832443924
     },
     {
       "C": 10.0,
-      "mean_f1": 0.5464276183436552,
-      "std_f1": 0.07682405742030896
+      "mean_f1": 0.7039307851137954,
+      "std_f1": 0.1646585858483249
     },
     {
       "C": 100.0,
-      "mean_f1": 0.5654480182572594,
-      "std_f1": 0.09630865341257684
+      "mean_f1": 0.6760777195681406,
+      "std_f1": 0.13724612226992602
     }
   ],
-  "held_out_test_macro_f1": 0.9926713295247839,
+  "held_out_test_macro_f1": 0.9903642023153199,
   "held_out_test_ci_95_bca": {
-    "low": 0.9882123298952783,
-    "high": 0.995665145484063,
-    "width": 0.007452815588784745
+    "low": 0.9861321337882789,
+    "high": 0.9935417504275048,
+    "width": 0.007409616639225902
   },
-  "total_rows": 9870,
+  "total_rows": 10470,
   "per_class_counts": {
-    "CREDENTIAL": 600,
+    "API_KEY": 600,
+    "OPAQUE_SECRET": 600,
     "ABA_ROUTING": 510,
     "ADDRESS": 510,
     "CREDIT_CARD": 510,
-    "DATE_OF_BIRTH": 510,
+    "DATE": 510,
     "EMAIL": 510,
     "IP_ADDRESS": 510,
     "PERSON_NAME": 510,
@@ -60,7 +61,6 @@
     "SSN": 510,
     "IBAN": 450,
     "NEGATIVE": 450,
-    "VIN": 450,
     "SWIFT_BIC": 360,
     "BITCOIN_ADDRESS": 300,
     "CANADIAN_SIN": 300,
@@ -69,14 +69,15 @@
     "ETHEREUM_ADDRESS": 300,
     "MBI": 300,
     "NPI": 300,
+    "PRIVATE_KEY": 300,
+    "VIN": 300,
     "MAC_ADDRESS": 210,
     "URL": 210,
     "BANK_ACCOUNT": 150,
-    "HEALTH": 150,
-    "OPAQUE_SECRET": 150
+    "HEALTH": 150
   },
-  "train_rows": 7896,
-  "test_rows": 1974,
+  "train_rows": 8376,
+  "test_rows": 2094,
   "feature_names": [
     "top_overall_confidence",
     "regex_confidence",
@@ -132,12 +133,12 @@
   "class_labels": [
     "ABA_ROUTING",
     "ADDRESS",
+    "API_KEY",
     "BANK_ACCOUNT",
     "BITCOIN_ADDRESS",
     "CANADIAN_SIN",
-    "CREDENTIAL",
     "CREDIT_CARD",
-    "DATE_OF_BIRTH",
+    "DATE",
     "DEA_NUMBER",
     "EIN",
     "EMAIL",
@@ -152,6 +153,7 @@
     "OPAQUE_SECRET",
     "PERSON_NAME",
     "PHONE",
+    "PRIVATE_KEY",
     "SSN",
     "SWIFT_BIC",
     "URL",
@@ -159,43 +161,49 @@
   ],
   "top_5_feature_importances": [
     {
-      "feature": "regex_match_ratio",
-      "abs_coef_sum": 70.74392228863904
+      "feature": "primary_is_pii",
+      "abs_coef_sum": 4.669057756134578
+    },
+    {
+      "feature": "primary_entity_type=UNKNOWN",
+      "abs_coef_sum": 3.9407551529455813
+    },
+    {
+      "feature": "has_dictionary_name_match_ratio",
+      "abs_coef_sum": 3.871769960725405
     },
     {
       "feature": "heuristic_distinct_ratio",
-      "abs_coef_sum": 62.27188855218511
-    },
-    {
-      "feature": "heuristic_avg_length",
-      "abs_coef_sum": 59.428280125184564
+      "abs_coef_sum": 3.712242309134105
     },
     {
       "feature": "heuristic_dictionary_word_ratio",
-      "abs_coef_sum": 49.89349978395926
-    },
-    {
-      "feature": "top_overall_confidence",
-      "abs_coef_sum": 45.86611130840224
+      "abs_coef_sum": 3.6950921887915684
     }
   ],
   "per_class_f1_on_test": {
     "ABA_ROUTING": {
-      "precision": 0.9807692307692307,
-      "recall": 1.0,
-      "f1": 0.9902912621359223,
-      "support": 102
-    },
-    "ADDRESS": {
       "precision": 1.0,
       "recall": 1.0,
       "f1": 1.0,
       "support": 102
     },
-    "BANK_ACCOUNT": {
+    "ADDRESS": {
+      "precision": 0.9439252336448598,
+      "recall": 0.9901960784313726,
+      "f1": 0.9665071770334929,
+      "support": 102
+    },
+    "API_KEY": {
       "precision": 0.9375,
       "recall": 1.0,
       "f1": 0.967741935483871,
+      "support": 120
+    },
+    "BANK_ACCOUNT": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
       "support": 30
     },
     "BITCOIN_ADDRESS": {
@@ -210,22 +218,16 @@
       "f1": 1.0,
       "support": 60
     },
-    "CREDENTIAL": {
-      "precision": 0.9663865546218487,
-      "recall": 0.9583333333333334,
-      "f1": 0.9623430962343096,
-      "support": 120
-    },
     "CREDIT_CARD": {
-      "precision": 0.9807692307692307,
+      "precision": 1.0,
       "recall": 1.0,
-      "f1": 0.9902912621359223,
+      "f1": 1.0,
       "support": 102
     },
-    "DATE_OF_BIRTH": {
-      "precision": 0.9807692307692307,
+    "DATE": {
+      "precision": 1.0,
       "recall": 1.0,
-      "f1": 0.9902912621359223,
+      "f1": 1.0,
       "support": 102
     },
     "DEA_NUMBER": {
@@ -283,45 +285,51 @@
       "support": 60
     },
     "NEGATIVE": {
-      "precision": 0.9438202247191011,
-      "recall": 0.9333333333333333,
-      "f1": 0.9385474860335196,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
       "support": 90
     },
     "NPI": {
+      "precision": 0.8823529411764706,
+      "recall": 1.0,
+      "f1": 0.9375,
+      "support": 60
+    },
+    "OPAQUE_SECRET": {
+      "precision": 1.0,
+      "recall": 0.925,
+      "f1": 0.961038961038961,
+      "support": 120
+    },
+    "PERSON_NAME": {
+      "precision": 1.0,
+      "recall": 0.9313725490196079,
+      "f1": 0.9644670050761421,
+      "support": 102
+    },
+    "PHONE": {
+      "precision": 1.0,
+      "recall": 0.9215686274509803,
+      "f1": 0.9591836734693877,
+      "support": 102
+    },
+    "PRIVATE_KEY": {
       "precision": 1.0,
       "recall": 1.0,
       "f1": 1.0,
       "support": 60
     },
-    "OPAQUE_SECRET": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1": 1.0,
-      "support": 30
-    },
-    "PERSON_NAME": {
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1": 1.0,
-      "support": 102
-    },
-    "PHONE": {
-      "precision": 1.0,
-      "recall": 0.9901960784313726,
-      "f1": 0.9950738916256158,
-      "support": 102
-    },
     "SSN": {
-      "precision": 1.0,
-      "recall": 0.9509803921568627,
-      "f1": 0.9748743718592965,
+      "precision": 0.9807692307692307,
+      "recall": 1.0,
+      "f1": 0.9902912621359223,
       "support": 102
     },
     "SWIFT_BIC": {
-      "precision": 1.0,
+      "precision": 0.9863013698630136,
       "recall": 1.0,
-      "f1": 1.0,
+      "f1": 0.993103448275862,
       "support": 72
     },
     "URL": {
@@ -334,7 +342,7 @@
       "precision": 1.0,
       "recall": 1.0,
       "f1": 1.0,
-      "support": 90
+      "support": 60
     }
   }
 }

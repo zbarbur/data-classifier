@@ -51,11 +51,11 @@ _log = logging.getLogger(__name__)
 # its own singleton family).
 ENTITY_TYPE_TO_FAMILY: dict[str, str] = {
     # ── DATE family ─────────────────────────────────────────────────
-    # Date of birth in any format (US MM/DD/YYYY, EU DD/MM/YYYY, ISO-8601,
-    # long-form "March 15 1985", etc.). Sprint 12 retired the
-    # ``DATE_OF_BIRTH_EU`` subtype from emission; Sprint 14 completed
-    # the cleanup by retraining the meta-classifier as v6 without the
-    # DOB_EU class label and removing the compatibility alias.
+    # ``DATE`` is the structural detection (regex matched a date format).
+    # ``DATE_OF_BIRTH`` is the semantic specialisation, promoted by
+    # column-name or context signals (dob, birth_date, etc.).
+    # Both share the same family, sensitivity tier, and DLP handling.
+    "DATE": "DATE",
     "DATE_OF_BIRTH": "DATE",
     # ── CREDENTIAL family ───────────────────────────────────────────
     # All credential subtypes share the same sensitivity tier and

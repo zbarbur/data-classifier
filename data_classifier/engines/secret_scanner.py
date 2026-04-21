@@ -98,22 +98,45 @@ def _score_relative_entropy(relative_entropy: float) -> float:
     return min(1.0, relative_entropy)
 
 
-# Regex for values that look like dates, versions, or numeric IDs
+# Regex for values that are obviously not credentials
 _DATE_LIKE = re.compile(r"^\d{4}[-/]\d{2}[-/]\d{2}")
 _URL_LIKE = re.compile(r"^https?://", re.IGNORECASE)
+_IP_LIKE = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+_NUMERIC_ONLY = re.compile(r"^[\d\s.,+-]+$")
 
-# ── Fast-path rejection (item: secret-scanner-fast-path-rejection) ──────────
-# Structural screen for "could this value plausibly contain a secret?".
-# If neither a KV indicator NOR a known secret prefix is present, the value
-# is almost certainly not a secret and we can skip expensive parsing.
-_KV_CHARS: frozenset[str] = frozenset("=\"':")
+# Code expression patterns — values that are code references, not secrets.
+# Must contain at least one property accessor (dot, bracket) or end with
+# a statement terminator (;). Bare identifiers do NOT match.
+# e.g. form.password.data, textBox2.Text, message.text, request.POST["x"]
+_CODE_DOT_NOTATION = re.compile(r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)+[;,]?$")
+_CODE_BRACKET_ACCESS = re.compile(r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)*\[[^\]]+\][;,]?$")
+_CODE_SEMICOLON = re.compile(r"^[a-zA-Z_]\w*;$")
 
+# Shell/env variable reference — value starts with $ (e.g. $password, ${DB_PASS})
+_SHELL_VARIABLE = re.compile(r"^\$[\w{]")
+
+# ALL_CAPS constant names — e.g. API_KEY_BINANCE, ARGILLA_API_KEY, VERACODE-HMAC-SHA-256.
+# Separators can be underscores or hyphens. Must have at least one separator
+# (pure uppercase like ABCDEF could be hex).
+_CONSTANT_NAME = re.compile(r"^[A-Z][A-Z0-9]*([_-][A-Z0-9]+)+$")
+
+# Code punctuation — value is just brackets, parens, semicolons.
+# e.g. "));", "])", "{};" — obviously not a secret.
+_CODE_PUNCTUATION = re.compile(r"^[\[\](){};<>,./\\|!@#%^&*\-+=~`\s]+$")
+
+# File/directory path — e.g. /home/user/.config/token, C:\Users\secret
+_FILE_PATH = re.compile(r"^[/~][\w./\-]+$|^[A-Z]:\\[\w\\.\-]+$")
+
+# ── Known secret prefixes (KV fast-path gate only) ───────────────────────────
+# These prefixes activate KV parsing even when no `=`/`:` is present.
+# Prefix-based *detection* is handled by the regex engine's specific patterns
+# (e.g. aws_access_key, github_token, jwt_token) which are more precise.
 _SECRET_PREFIXES: tuple[str, ...] = (
-    # Known high-confidence token prefixes — these identify a raw token even
-    # without surrounding KV structure, so their presence disables fast-path.
-    "sk-",
-    "ghp_",
+    "-----BEGIN",
+    "ssh-ed25519",
+    "ssh-rsa",
     "github_pat_",
+    "ghp_",
     "gho_",
     "ghs_",
     "ghr_",
@@ -124,15 +147,24 @@ _SECRET_PREFIXES: tuple[str, ...] = (
     "xoxp-",
     "xoxa-",
     "xoxr-",
-    "ssh-rsa",
-    "ssh-ed25519",
-    "-----BEGIN",
+    "sk-",
+    "eyJ",
     "Bearer ",
     "Basic ",
     "Token ",
     "Authorization",
-    "eyJ",  # JWT header (base64-encoded {"alg":... starts with eyJ)
 )
+
+# KV structure characters — fast-path gate for Path 2 (KV parsing).
+_KV_CHARS: frozenset[str] = frozenset("=\"':")
+
+# ── Path 3: Population-level analysis constants ──────────────────────────────
+_MIN_STATISTICAL_SAMPLES = 5
+_STATISTICAL_ENTROPY_THRESHOLD = 0.7
+_STATISTICAL_DIVERSITY_THRESHOLD = 3
+_STATISTICAL_BASE_CONFIDENCE = 0.55
+_STATISTICAL_MAX_CONFIDENCE = 0.80
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
 
 
 # ── Gitleaks placeholder FP suppression (item: gitleaks-fp-analysis) ────────
@@ -153,10 +185,13 @@ _PLACEHOLDER_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(.)\1{7,}"),
     # Angle-bracket placeholders — e.g. "<your-api-key>", "<TOKEN>"
     re.compile(r"<[^>]{1,80}>"),
-    # YOUR_*_KEY / YOUR_*_TOKEN / YOUR_*_SECRET style
+    # Square-bracket placeholders — e.g. "[PASSWORD]", "[YOUR_KEY]"
+    re.compile(r"^\[[A-Z_]{2,}\]$"),
+    # YOUR_*_KEY / YOUR_*_TOKEN / YOUR_*_SECRET style — allow any words
+    # between "your" and the credential suffix (e.g. "your-openai-api-key",
+    # "YOUR_TELEGRAM_BOT_TOKEN")
     re.compile(
-        r"your[_\-\s]?(api|access|auth|secret|token|private|aws|gcp|azure)?"
-        r"[_\-\s]?(key|token|secret|password|credential)",
+        r"your[_\-\s][\w\-\s]{0,30}(key|token|secret|password|credential)\b",
         re.IGNORECASE,
     ),
     # PUT_YOUR_*_HERE style
@@ -183,6 +218,12 @@ _PLACEHOLDER_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bfoobar\b", re.IGNORECASE),
     re.compile(r"\btodo\b", re.IGNORECASE),
     re.compile(r"\bfixme\b", re.IGNORECASE),
+    # Long sequential alphabetic run (10+ chars) — e.g. "abcdefghijkl".
+    # Shorter runs (ABCDEF) appear in hex tokens; require 10+ to avoid FPs.
+    re.compile(
+        r"abcdefghij|bcdefghijk|cdefghijkl|defghijklm|efghijklmn|fghijklmno|ghijklmnop|hijklmnopq|ijklmnopqr|jklmnopqrs|klmnopqrst|lmnopqrstu|mnopqrstuv|nopqrstuvw|opqrstuvwx|pqrstuvwxy|qrstuvwxyz",
+        re.IGNORECASE,
+    ),
 )
 
 
@@ -220,6 +261,18 @@ _NON_SECRET_SUFFIXES: tuple[str, ...] = (
     "_placeholder",
     "_url",
     "_endpoint",
+    "_file",
+    "_path",
+    "_dir",
+    "_prefix",
+    "_suffix",
+    "_format",
+    "_type",
+    "_mode",
+    "_status",
+    "_count",
+    "_size",
+    "_length",
 )
 
 # Explicit allowlist: compound names ending with a stoplist suffix that ARE
@@ -330,6 +383,46 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
 
     # Date-like patterns (2024-01-15, 2024/01/15)
     if _DATE_LIKE.match(value):
+        return True
+
+    # IP addresses (192.168.1.1)
+    if _IP_LIKE.match(value):
+        return True
+
+    # Pure numeric values (phone numbers, IDs, amounts)
+    if _NUMERIC_ONLY.match(value):
+        return True
+
+    # Code expressions — dot-notation property access, bracket notation.
+    # e.g. form.password.data, textBox2.Text, request.POST["x"], tokenApp;
+    if _CODE_DOT_NOTATION.match(value) or _CODE_BRACKET_ACCESS.match(value) or _CODE_SEMICOLON.match(value):
+        return True
+
+    # Shell/env variable references — e.g. $password, ${DB_PASS}
+    if _SHELL_VARIABLE.match(value):
+        return True
+
+    # ALL_CAPS constant names — e.g. API_KEY_BINANCE, ARGILLA_API_KEY
+    if _CONSTANT_NAME.match(value):
+        return True
+
+    # Code punctuation — e.g. "));", "])", "{};"
+    if _CODE_PUNCTUATION.match(value):
+        return True
+
+    # File paths — e.g. /home/user/.yt/token, ~/config/secret
+    if _FILE_PATH.match(value):
+        return True
+
+    # Single plain word — only letters and hyphens, no digits or special chars
+    # (e.g. "Steganography", "authorization-text"). Real secrets have mixed classes.
+    if re.fullmatch(r"[a-zA-Z]+(-[a-zA-Z]+)*", value.strip()):
+        return True
+
+    # String concatenation — value is a variable reference or expression.
+    # Covers: "+my_token+", '" + textBox2.Text + "', etc.
+    stripped = value.strip().strip("\"'").strip()
+    if stripped.startswith("+") or stripped.endswith("+"):
         return True
 
     # Prose — contains spaces and is mostly alphabetic
@@ -451,13 +544,30 @@ class SecretScannerEngine(ClassificationEngine):
         min_confidence: float = 0.5,
         mask_samples: bool = False,
         max_evidence_samples: int = 5,
+        prior_findings: list[ClassificationFinding] | None = None,
     ) -> list[ClassificationFinding]:
         """Classify a column by scanning sample values for embedded secrets.
 
-        For each sample value, parses key-value pairs and scores them
-        using tiered key-name matching and relative entropy analysis.
+        Runs three detection paths in order of signal strength:
 
-        Returns findings for columns where embedded credentials are detected.
+        1. **Column name** — column name scores against the key-name
+           dictionary, each cell value is the candidate.
+        2. **KV parsing** — parse key=value structure from text, score
+           the key name with tiered entropy gating. If regex already
+           matched the value, its ``detection_type`` and ``display_name``
+           are used directly instead of generic entropy analysis.
+        3. **Population** — no per-value signal, but the column's values
+           collectively exhibit secret-like characteristics (high entropy,
+           consistent length, high diversity).
+
+        All paths share the same suppression pipeline (placeholders,
+        anti-indicators, compound non-secret names).
+
+        Args:
+            prior_findings: Findings from earlier engines (e.g. regex).
+                When a KV-extracted value overlaps with a prior finding,
+                the secret scanner uses the prior finding's detection_type
+                and display_name instead of generic classification.
         """
         self._ensure_config()
 
@@ -467,84 +577,166 @@ class SecretScannerEngine(ClassificationEngine):
         min_value_length = self._config.get("min_value_length", 8)
         anti_indicators = self._config.get("anti_indicators", [])
 
+        # Build lookup from prior regex findings: matched value → finding.
+        # When KV parsing extracts a value that regex already identified,
+        # we use the regex finding's detection_type/display_name directly.
+        regex_value_index: dict[str, ClassificationFinding] = {}
+        for pf in prior_findings or []:
+            if pf.sample_analysis and pf.sample_analysis.sample_matches:
+                for mv in pf.sample_analysis.sample_matches:
+                    regex_value_index[mv] = pf
+
         matched_evidence: list[str] = []
         matched_sample_indices: set[int] = set()
         best_confidence = 0.0
         best_evidence = ""
         best_subtype = _DEFAULT_SUBTYPE
+        best_detection_type = ""
+        best_display_name = ""
         samples_scanned = 0
+
+        # ── Pre-score column name once (Path 1 gate) ─────────────────
+        col_name = column.column_name or ""
+        col_key_score, col_tier, col_subtype = 0.0, "", _DEFAULT_SUBTYPE
+        if col_name and not _is_compound_non_secret(col_name):
+            col_key_score, col_tier, col_subtype = _score_key_name(col_name, self._key_entries)
+
+        # Collect unmatched values for Path 3 (population analysis)
+        entropy_candidates: list[str] = []
 
         for idx, sample in enumerate(column.sample_values):
             if not sample:
                 continue
             samples_scanned += 1
+            value = sample.strip()
 
-            # Fast-path rejection: skip values with no KV structure and no
-            # known secret prefix. Pure random strings (e.g. "R4nd0mSt1ng")
-            # cannot produce a scanner finding, so we avoid the parser call.
-            if not _has_secret_indicators(sample):
+            if len(value) < min_value_length:
                 continue
 
-            # Deduplicate KV pairs (env + code parsers can overlap)
-            kv_pairs = list(dict.fromkeys(parse_key_values(sample)))
-            if not kv_pairs:
+            # ── Prior regex match — skip analysis, adopt classification ─
+            # If the regex engine already identified this value, use its
+            # detection_type and display_name directly. No need for KV
+            # parsing or entropy analysis.
+            prior = regex_value_index.get(value)
+            if prior is not None:
+                matched_sample_indices.add(idx)
+                if prior.confidence > best_confidence:
+                    best_confidence = prior.confidence
+                    best_subtype = prior.entity_type
+                    best_detection_type = prior.detection_type
+                    best_display_name = prior.display_name
+                    best_evidence = (
+                        f"Secret scanner: regex-identified {prior.detection_type or prior.entity_type} "
+                        f"(confidence={prior.confidence:.2f})"
+                    )
+                if len(matched_evidence) < max_evidence_samples:
+                    display = _mask_value(value) if mask_samples else value
+                    matched_evidence.append(display)
                 continue
 
-            for key, value in kv_pairs:
-                # Skip short values
-                if len(value) < min_value_length:
-                    continue
-
-                # Anti-indicator suppression on key and value
-                if self._has_anti_indicator(key, value, anti_indicators):
-                    continue
-
-                # Known placeholder suppression (exact match of seeded list)
-                if value.lower() in self._placeholder_values:
-                    continue
-
-                # Gitleaks placeholder pattern suppression (sprint 6):
-                # e.g. "xxxxxxxxxxxx", "YOUR_API_KEY", "<your-token>".
-                if _is_placeholder_value(value):
-                    continue
-
-                # Sprint 13 S0: compound-name stoplist. Key names ending
-                # with these suffixes are typically NOT credentials (they're
-                # identifiers, UI fields, blockchain addresses, etc.).
-                if _is_compound_non_secret(key):
-                    continue
-
-                # Score the key name (returns score, tier, and credential subtype)
-                key_score, tier, subtype = _score_key_name(key, self._key_entries)
-                if key_score <= 0.0:
-                    continue
-
-                # Tiered scoring
-                composite = self._compute_tiered_score(key_score, tier, value)
-                if composite <= 0.0:
-                    continue
-
-                if composite >= min_confidence:
+            # ── Path 1: Column name as key ───────────────────────────
+            if col_key_score > 0 and not self._value_is_suppressed(col_name, value, anti_indicators):
+                composite = self._compute_tiered_score(col_key_score, col_tier, value)
+                if composite > 0 and composite >= min_confidence:
                     matched_sample_indices.add(idx)
                     if composite > best_confidence:
                         best_confidence = composite
-                        best_subtype = subtype
-                        rel_entropy = _compute_relative_entropy(value)
+                        best_subtype = col_subtype
+                        rel_ent = _compute_relative_entropy(value)
                         charset = _detect_charset(value)
                         best_evidence = (
-                            f"Secret scanner: key '{key}' (score={key_score:.2f}, tier={tier}, "
-                            f"subtype={subtype}) with {charset} "
-                            f"relative_entropy={rel_entropy:.2f} composite={composite:.2f}"
+                            f"Secret scanner: column '{col_name}' "
+                            f"(score={col_key_score:.2f}, tier={col_tier}, "
+                            f"subtype={col_subtype}) with {charset} "
+                            f"relative_entropy={rel_ent:.2f} composite={composite:.2f}"
                         )
                     if len(matched_evidence) < max_evidence_samples:
-                        display_value = _mask_value(value) if mask_samples else value
-                        matched_evidence.append(f"{key}={display_value}")
+                        display = _mask_value(value) if mask_samples else value
+                        matched_evidence.append(f"{col_name}={display}")
+                    continue
 
-        # ── Structural parsers (Layer 3) ──────────────────────────────
-        # Run structural parsers on each sample to detect credentials
-        # embedded in SQL, HTTP headers, CLI args, connection strings.
-        # These catch secrets that the KV parser misses because the
-        # credential is only identifiable by its structural context.
+            # ── Path 2: KV parsing ───────────────────────────────────
+            kv_parsed = False
+            if _has_secret_indicators(sample):
+                kv_pairs = list(dict.fromkeys(parse_key_values(sample)))
+                if kv_pairs:
+                    kv_parsed = True
+                for key, kv_value in kv_pairs:
+                    if len(kv_value) < min_value_length:
+                        continue
+                    if _is_compound_non_secret(key):
+                        continue
+                    if self._value_is_suppressed(key, kv_value, anti_indicators):
+                        continue
+
+                    # Check if regex already identified this KV value
+                    kv_prior = regex_value_index.get(kv_value)
+                    if kv_prior is not None:
+                        matched_sample_indices.add(idx)
+                        if kv_prior.confidence > best_confidence:
+                            best_confidence = kv_prior.confidence
+                            best_subtype = kv_prior.entity_type
+                            best_detection_type = kv_prior.detection_type
+                            best_display_name = kv_prior.display_name
+                            best_evidence = (
+                                f"Secret scanner: key '{key}' with regex-identified "
+                                f"{kv_prior.detection_type or kv_prior.entity_type}"
+                            )
+                        if len(matched_evidence) < max_evidence_samples:
+                            display_value = _mask_value(kv_value) if mask_samples else kv_value
+                            matched_evidence.append(f"{key}={display_value}")
+                        continue
+
+                    key_score, tier, subtype = _score_key_name(key, self._key_entries)
+
+                    composite = 0.0
+                    if key_score > 0:
+                        composite = self._compute_tiered_score(key_score, tier, kv_value)
+
+                    if composite <= 0.0:
+                        continue
+
+                    if composite >= min_confidence:
+                        matched_sample_indices.add(idx)
+                        if composite > best_confidence:
+                            best_confidence = composite
+                            best_subtype = subtype
+                            rel_entropy = _compute_relative_entropy(kv_value)
+                            charset = _detect_charset(kv_value)
+                            best_evidence = (
+                                f"Secret scanner: key '{key}' (score={key_score:.2f}, tier={tier}, "
+                                f"subtype={subtype}) with {charset} "
+                                f"relative_entropy={rel_entropy:.2f} composite={composite:.2f}"
+                            )
+                        if len(matched_evidence) < max_evidence_samples:
+                            display_value = _mask_value(kv_value) if mask_samples else kv_value
+                            matched_evidence.append(f"{key}={display_value}")
+
+            # Collect for Path 3: only unmatched, non-KV samples.
+            # Samples with KV structure (even if suppressed) are structured
+            # data, not bare opaque tokens — exclude from population analysis.
+            if idx not in matched_sample_indices and not kv_parsed:
+                entropy_candidates.append(value)
+
+        # ── Path 3: Population-level entropy analysis ────────────────
+        # No per-value signal from paths 1-3, but the column's values
+        # collectively look like secrets: high entropy, consistent
+        # length, high char-class diversity.
+        if best_confidence < min_confidence and len(entropy_candidates) >= _MIN_STATISTICAL_SAMPLES:
+            stat_result = self._analyze_population(entropy_candidates)
+            if stat_result:
+                conf, evidence = stat_result
+                if conf >= min_confidence:
+                    best_confidence = conf
+                    best_subtype = _DEFAULT_SUBTYPE
+                    best_evidence = evidence
+                    for i, s in enumerate(column.sample_values):
+                        if s and s.strip():
+                            matched_sample_indices.add(i)
+                    for s in entropy_candidates[:max_evidence_samples]:
+                        matched_evidence.append(_mask_value(s) if mask_samples else s)
+
+        # ── Structural parsers (Layer 3) ─────────────────────────────
         structural_findings: list[ClassificationFinding] = []
         for idx, sample in enumerate(column.sample_values):
             if not sample or idx in matched_sample_indices:
@@ -558,14 +750,11 @@ class SecretScannerEngine(ClassificationEngine):
                         best_confidence = sf.confidence
                         best_subtype = sf.entity_type
                         best_evidence = sf.evidence
-                    break  # one finding per sample is enough
+                    break
 
         if best_confidence <= 0.0 or best_confidence < min_confidence:
             return structural_findings if structural_findings else []
 
-        # If structural parsers found something but KV scoring didn't,
-        # return the structural findings directly (they carry their own
-        # SampleAnalysis).
         if structural_findings and not matched_evidence:
             return structural_findings
 
@@ -588,9 +777,67 @@ class SecretScannerEngine(ClassificationEngine):
                 regulatory=["SOC2", "ISO27001"],
                 engine=self.name,
                 evidence=best_evidence,
+                detection_type=best_detection_type,
+                display_name=best_display_name,
                 sample_analysis=sample_analysis,
             )
         ]
+
+    def _value_is_suppressed(self, key: str, value: str, anti_indicators: list[str]) -> bool:
+        """Shared suppression checks for paths 2 and 3."""
+        if self._has_anti_indicator(key, value, anti_indicators):
+            return True
+        if value.lower() in self._placeholder_values:
+            return True
+        if _is_placeholder_value(value):
+            return True
+        return False
+
+    def _analyze_population(self, samples: list[str]) -> tuple[float, str] | None:
+        """Path 3: Detect secret-like patterns at the population level.
+
+        Fires when unmatched sample values collectively exhibit high entropy,
+        high char-class diversity, and consistent length — even without any
+        key name or prefix signal.
+
+        Returns (confidence, evidence) or None.
+        """
+        # Exclude if majority are UUIDs (high entropy but not secrets)
+        uuid_count = sum(1 for s in samples if _UUID_RE.fullmatch(s))
+        if uuid_count > len(samples) * 0.5:
+            return None
+
+        entropies = [_compute_relative_entropy(s) for s in samples]
+        diversities = [compute_char_class_diversity(s) for s in samples]
+        lengths = [len(s) for s in samples]
+
+        mean_entropy = sum(entropies) / len(entropies)
+        mean_diversity = sum(diversities) / len(diversities)
+
+        if mean_entropy < _STATISTICAL_ENTROPY_THRESHOLD:
+            return None
+        if mean_diversity < _STATISTICAL_DIVERSITY_THRESHOLD:
+            return None
+
+        # Length consistency (coefficient of variation)
+        mean_len = sum(lengths) / len(lengths)
+        len_std = (sum((ln - mean_len) ** 2 for ln in lengths) / len(lengths)) ** 0.5
+        len_cv = len_std / mean_len if mean_len > 0 else 1.0
+
+        confidence = _STATISTICAL_BASE_CONFIDENCE
+        if len_cv < 0.1:
+            confidence += 0.10
+        if mean_entropy > 0.85:
+            confidence += 0.10
+        confidence = min(_STATISTICAL_MAX_CONFIDENCE, confidence)
+
+        evidence = (
+            f"Secret scanner: population analysis — "
+            f"mean_rel_entropy={mean_entropy:.2f}, "
+            f"mean_diversity={mean_diversity:.1f}, "
+            f"length_cv={len_cv:.2f}, n={len(samples)}"
+        )
+        return confidence, evidence
 
     def _compute_tiered_score(self, key_score: float, tier: str, value: str) -> float:
         """Compute composite score based on the tier of the key-name match.
@@ -620,10 +867,13 @@ class SecretScannerEngine(ClassificationEngine):
         diversity_min = scoring.get("diversity_threshold", 3)
         prose_threshold = scoring.get("prose_alpha_threshold", 0.6)
 
+        # Pre-filter: reject values that are obviously not credentials,
+        # regardless of tier. Code expressions, file paths, constants, etc.
+        # should never fire even with a definitive key name.
+        if _value_is_obviously_not_secret(value, prose_threshold=prose_threshold):
+            return 0.0
+
         if tier == "definitive":
-            # Key name is strong evidence, but reject values that are clearly not credentials
-            if _value_is_obviously_not_secret(value, prose_threshold=prose_threshold):
-                return 0.0
             return key_score * definitive_mult
 
         if tier == "strong":

@@ -97,7 +97,7 @@
     {
       "id": "vague:structured:dob",
       "column_name": "info",
-      "expected_entity_type": "DATE_OF_BIRTH",
+      "expected_entity_type": "DATE",
       "expected_router_branch": "structured_single",
       "sample_values": [
         "1985-03-15",
@@ -303,20 +303,20 @@
     {
       "id": "vague:opaque:api_keys",
       "column_name": "field_2",
-      "expected_entity_type": "OPAQUE_SECRET",
-      "expected_entity_type_note": "sk-proj-* keys get classified as OPAQUE_SECRET via entropy handler when regex API_KEY pattern does not match the specific prefix",
+      "expected_entity_type": "API_KEY",
+      "expected_entity_type_note": "sk-proj-* keys detected by openai_api_key regex pattern (requires 80+ chars after prefix)",
       "expected_router_branch": "opaque_tokens",
       "sample_values": [
-        "sk-proj-abcdef1234567890abcdef1234567890abcdef1234567890ab",
-        "sk-proj-zyxwvu0987654321zyxwvu0987654321zyxwvu0987654321zy",
-        "sk-proj-mnopqr5678901234mnopqr5678901234mnopqr5678901234mn",
-        "sk-proj-ghijkl2345678901ghijkl2345678901ghijkl2345678901gh",
-        "sk-proj-stuvwx8901234567stuvwx8901234567stuvwx8901234567st",
-        "sk-proj-abcxyz1357924680abcxyz1357924680abcxyz1357924680ab",
-        "sk-proj-defuvw2468013579defuvw2468013579defuvw2468013579de",
-        "sk-proj-ghirst3691470258ghirst3691470258ghirst3691470258gh",
-        "sk-proj-jklmno4702581369jklmno4702581369jklmno4702581369jk",
-        "sk-proj-pqrstu5813692470pqrstu5813692470pqrstu5813692470pq"
+        "sk-proj-abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd",
+        "sk-proj-zyxwvu0987654321zyxwvu0987654321zyxwvu0987654321zyxwvu0987654321zyxwvu0987654321zyxw",
+        "sk-proj-mnopqr5678901234mnopqr5678901234mnopqr5678901234mnopqr5678901234mnopqr5678901234mnop",
+        "sk-proj-ghijkl2345678901ghijkl2345678901ghijkl2345678901ghijkl2345678901ghijkl2345678901ghij",
+        "sk-proj-stuvwx8901234567stuvwx8901234567stuvwx8901234567stuvwx8901234567stuvwx8901234567stuv",
+        "sk-proj-abcxyz1357924680abcxyz1357924680abcxyz1357924680abcxyz1357924680abcxyz1357924680abcx",
+        "sk-proj-defuvw2468013579defuvw2468013579defuvw2468013579defuvw2468013579defuvw2468013579defu",
+        "sk-proj-ghirst3691470258ghirst3691470258ghirst3691470258ghirst3691470258ghirst3691470258ghir",
+        "sk-proj-jklmno4702581369jklmno4702581369jklmno4702581369jklmno4702581369jklmno4702581369jklm",
+        "sk-proj-pqrstu5813692470pqrstu5813692470pqrstu5813692470pqrstu5813692470pqrstu5813692470pqrs"
       ]
     },
     {

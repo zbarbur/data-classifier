@@ -47,7 +47,7 @@ _CREDENTIAL_SUBTYPES: frozenset[str] = frozenset(
 # data_classifier taxonomy labels).
 _GRETEL_EN_TARGET_TYPES: frozenset[str] = frozenset(
     {
-        "DATE_OF_BIRTH",
+        "DATE",
         "SSN",
         "PERSON_NAME",
         "EMAIL",
@@ -93,7 +93,7 @@ _GRETEL_FINANCE_TARGET_TYPES: frozenset[str] = frozenset(
         "ADDRESS",
         "PHONE",
         "EMAIL",
-        "DATE_OF_BIRTH",
+        "DATE",
         "SSN",
         "IBAN",
         "CREDIT_CARD",
@@ -290,7 +290,8 @@ class TestGretelEnLoader:
         for rec in records:
             assert "entity_type" in rec
             assert "value" in rec
-            assert rec["entity_type"] in _GRETEL_EN_TARGET_TYPES
+            # Accept DATE_OF_BIRTH as legacy fixture value (remapped to DATE by identity map)
+            assert rec["entity_type"] in _GRETEL_EN_TARGET_TYPES or rec["entity_type"] == "DATE_OF_BIRTH"
 
 
 class TestGretelFinanceLoader:
@@ -373,11 +374,14 @@ class TestGretelFinanceLoader:
         for rec in records:
             assert "entity_type" in rec
             assert "value" in rec
-            assert rec["entity_type"] in _GRETEL_FINANCE_TARGET_TYPES
+            # Accept DATE_OF_BIRTH as legacy fixture value (remapped to DATE by identity map)
+            assert rec["entity_type"] in _GRETEL_FINANCE_TARGET_TYPES or rec["entity_type"] == "DATE_OF_BIRTH"
             seen_types.add(rec["entity_type"])
-        # ACC: at least one record per mapped type.
-        assert seen_types == _GRETEL_FINANCE_TARGET_TYPES, (
-            f"fixture must include every target type; missing {_GRETEL_FINANCE_TARGET_TYPES - seen_types}"
+        # ACC: at least one record per mapped type. Legacy DATE_OF_BIRTH
+        # in fixtures satisfies the DATE requirement.
+        normalized = {("DATE" if t == "DATE_OF_BIRTH" else t) for t in seen_types}
+        assert normalized >= _GRETEL_FINANCE_TARGET_TYPES, (
+            f"fixture must include every target type; missing {_GRETEL_FINANCE_TARGET_TYPES - normalized}"
         )
 
     def test_gretel_finance_credentials_in_financial_docs(self) -> None:
@@ -499,7 +503,7 @@ _OPENPII_1M_TARGET_TYPES: frozenset[str] = frozenset(
         "BANK_ACCOUNT",
         "EMAIL",
         "PHONE",
-        "DATE_OF_BIRTH",
+        "DATE",
     }
 )
 
@@ -552,7 +556,7 @@ class TestOpenPII1mLoader:
             {"entity_type": "CREDIT_CARD", "value": "4111111111111111"},
             {"entity_type": "BANK_ACCOUNT", "value": "1234567890"},
             {"entity_type": "PHONE", "value": "+1-555-0100"},
-            {"entity_type": "DATE_OF_BIRTH", "value": "1990-01-15"},
+            {"entity_type": "DATE", "value": "1990-01-15"},
         ]
         fixture = tmp_path / "openpii_1m_test.json"
         fixture.write_text(json.dumps(records), encoding="utf-8")

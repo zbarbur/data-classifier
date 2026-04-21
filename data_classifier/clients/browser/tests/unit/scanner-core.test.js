@@ -3,7 +3,7 @@ import { scanText } from '../../src/scanner-core.js';
 
 describe('scanText — regex pass', () => {
   it('detects a GitHub PAT in env-file text and returns a redacted output', () => {
-    const text = 'please set export GITHUB_TOKEN=ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa thanks';
+    const text = 'please set export GITHUB_TOKEN=ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789 thanks';
     const { findings, redactedText, scannedMs } = scanText(text, {});
     expect(findings.length).toBeGreaterThan(0);
     const f = findings.find((x) => x.category === 'Credential');
@@ -31,7 +31,7 @@ describe('scanText — secret-scanner pass', () => {
 
 describe('scanText — verbose mode', () => {
   it('attaches details only when verbose=true', () => {
-    const text = 'export TOKEN=ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const text = 'export TOKEN=ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789';
     const plain = scanText(text, { verbose: false }).findings[0];
     const verbose = scanText(text, { verbose: true }).findings[0];
     expect(plain.details).toBeUndefined();
@@ -42,13 +42,13 @@ describe('scanText — verbose mode', () => {
 
 describe('scanText — raw values', () => {
   it('omits valueRaw by default', () => {
-    const text = 'export TOKEN=ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const text = 'export TOKEN=ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789';
     const f = scanText(text, {}).findings[0];
     expect(f.match.valueRaw).toBeUndefined();
   });
 
   it('includes valueRaw when dangerouslyIncludeRawValues=true', () => {
-    const text = 'export TOKEN=ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const text = 'export TOKEN=ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789';
     const f = scanText(text, { dangerouslyIncludeRawValues: true }).findings[0];
     expect(f.match.valueRaw).toBeTypeOf('string');
     expect(f.match.valueRaw.startsWith('ghp_')).toBe(true);

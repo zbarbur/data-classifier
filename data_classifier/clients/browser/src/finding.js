@@ -21,9 +21,13 @@ export function makeFinding({
   match,
   kv,
   details,
+  detectionType,
+  displayName,
 }) {
   const f = { entity_type: entityType, category, sensitivity, confidence, engine, evidence, match };
   if (kv) f.kv = kv;
   if (details) f.details = details;
+  if (detectionType) f.detection_type = detectionType;
+  if (displayName) f.display_name = displayName;
   return f;
 }

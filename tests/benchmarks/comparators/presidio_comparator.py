@@ -51,13 +51,13 @@ STRICT_MAPPING: dict[str, str] = {
 
 # Aggressive mapping — extends strict with looser cross-category pairs.
 # These are semantically adjacent but not 1:1 (e.g. DATE_TIME covers more
-# than DATE_OF_BIRTH; LOCATION is broader than ADDRESS). Use when the
+# than DATE; LOCATION is broader than ADDRESS). Use when the
 # goal is "maximum overlap" rather than "strict like-for-like".
 AGGRESSIVE_MAPPING: dict[str, str] = {
     **STRICT_MAPPING,
     "PERSON": "PERSON_NAME",
     "LOCATION": "ADDRESS",
-    "DATE_TIME": "DATE_OF_BIRTH",
+    "DATE_TIME": "DATE",
     "US_BANK_NUMBER": "BANK_ACCOUNT",
     "US_ITIN": "NATIONAL_ID",
     "US_PASSPORT": "NATIONAL_ID",

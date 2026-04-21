@@ -497,12 +497,21 @@ def _load_placeholder_values_once() -> frozenset[str]:
     return _PLACEHOLDER_VALUES
 
 
+_PLACEHOLDER_CHAR_RE = re.compile(r"(.)\1{7,}")
+_PLACEHOLDER_X_RE = re.compile(r"[xX]{5,}")
+_PLACEHOLDER_TEMPLATE_RE = re.compile(
+    r"(?i)(^|[=:\s\"'])(?:your[_\-\s]|my[_\-\s]|insert[_\-\s]|put[_\-\s]|replace[_\-\s]|add[_\-\s]|enter[_\-\s])"
+)
+
+
 def not_placeholder_credential(value: str) -> bool:
     """Reject the value if it is a known credential placeholder string.
 
     Returns True (accept) if the value is a non-placeholder; False (reject)
-    if the value (case-insensitive, whitespace-stripped) is in
-    ``data_classifier/patterns/known_placeholder_values.json``.
+    if the value matches any of:
+    - Exact match in ``known_placeholder_values.json``
+    - Contains 5+ repeated identical characters (e.g. ``XXXXXXXXXX``)
+    - Contains sequential placeholder patterns (``abcdefgh``, ``12345678``)
 
     Only applies to credential patterns. The stopwords.json filter (in
     regex_engine._is_stopword) already runs before this validator, so
@@ -511,7 +520,18 @@ def not_placeholder_credential(value: str) -> bool:
     """
     placeholders = _load_placeholder_values_once()
     clean = value.strip().lower()
-    return clean not in placeholders
+    if clean in placeholders:
+        return False
+    # Repeated character runs (XXXXXXXXXX, 0000000000, etc.)
+    if _PLACEHOLDER_X_RE.search(value):
+        return False
+    # 8+ identical consecutive characters (not X which is caught above)
+    if _PLACEHOLDER_CHAR_RE.search(value):
+        return False
+    # Template prefixes: YOUR_API_KEY, my_secret, insert_token_here, etc.
+    if _PLACEHOLDER_TEMPLATE_RE.search(clean):
+        return False
+    return True
 
 
 def random_password_check(value: str) -> bool:
@@ -839,6 +859,28 @@ def _openai_legacy_key_check(value: str) -> bool:
     return sum([has_upper, has_lower, has_digit]) >= 2
 
 
+_CAMEL_CASE_RE = re.compile(r"[a-z][A-Z]")
+
+
+def huggingface_token_check(value: str) -> bool:
+    """Reject ``hf_`` prefixed values that look like code identifiers.
+
+    Real HuggingFace tokens are random alphanumeric (``hf_`` + 34 chars).
+    False positives are camelCase method/property names from Objective-C
+    and Swift frameworks (e.g. ``hf_requiredCharacteristicTypesForDisplayMetadata``).
+
+    Rejects when the suffix (after ``hf_``) contains camelCase transitions
+    (``[a-z][A-Z]``) AND no digits — real random tokens virtually always
+    contain digits (P(no digit in 34 base62 chars) < 0.001%).
+    """
+    suffix = value[3:] if value.startswith("hf_") else value
+    has_camel = bool(_CAMEL_CASE_RE.search(suffix))
+    has_digit = any(c.isdigit() for c in suffix)
+    if has_camel and not has_digit:
+        return False
+    return True
+
+
 # Registry mapping validator names to functions
 VALIDATORS: dict[str, typing.Callable] = {
     "luhn": luhn_check,
@@ -863,4 +905,5 @@ VALIDATORS: dict[str, typing.Callable] = {
     # Sprint 13 S0
     "swift_bic_country_code": swift_bic_country_code_check,
     "openai_legacy_key": _openai_legacy_key_check,
+    "huggingface_token": huggingface_token_check,
 }

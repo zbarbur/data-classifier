@@ -82,7 +82,7 @@ class TestAggressiveMapping:
         [
             ("PERSON", "PERSON_NAME"),
             ("LOCATION", "ADDRESS"),
-            ("DATE_TIME", "DATE_OF_BIRTH"),
+            ("DATE_TIME", "DATE"),
         ],
     )
     def test_aggressive_adds_loose_pairs(self, presidio_type: str, our_type: str) -> None:

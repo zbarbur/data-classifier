@@ -43,7 +43,7 @@ NEMOTRON_TYPE_MAP: dict[str, str] = {
     "email": "EMAIL",
     "phone_number": "PHONE",
     "ssn": "SSN",
-    "date_of_birth": "DATE_OF_BIRTH",
+    "date_of_birth": "DATE",
     "street_address": "ADDRESS",
     "url": "URL",
     "ipv4": "IP_ADDRESS",
@@ -104,7 +104,7 @@ NEMOTRON_TYPE_MAP: dict[str, str] = {
 # decision. Target coverage: ~71% of labeled Gretel instances, by design.
 GRETEL_EN_TYPE_MAP: dict[str, str] = {
     # PII
-    "date_of_birth": "DATE_OF_BIRTH",
+    "date_of_birth": "DATE",
     "ssn": "SSN",
     "first_name": "PERSON_NAME",
     "name": "PERSON_NAME",
@@ -166,7 +166,7 @@ GRETEL_FINANCE_TYPE_MAP: dict[str, str] = {
     "street_address": "ADDRESS",
     "phone_number": "PHONE",
     "email": "EMAIL",
-    "date_of_birth": "DATE_OF_BIRTH",
+    "date_of_birth": "DATE",
     "ssn": "SSN",
     # Financial
     "iban": "IBAN",

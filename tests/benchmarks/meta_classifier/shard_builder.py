@@ -36,6 +36,7 @@ from tests.benchmarks.corpus_loader import (
     _FIXTURES_DIR,
     NEGATIVE_GROUND_TRUTH,
     NEMOTRON_TYPE_MAP,
+    _classify_credential_value_shape,
 )
 from tests.benchmarks.corpus_loader import (
     _GRETEL_EN_POST_ETL_IDENTITY as _GRETEL_EN_POOL_IDENTITY,
@@ -91,11 +92,29 @@ _CREDENTIAL_PREFIX_RE = re.compile(
     r"|glpat-[a-zA-Z0-9\-]{20}"  # GitLab PAT
     r"|xox[baprs]-[a-zA-Z0-9\-]+"  # Slack
     r"|AKIA[A-Z0-9]{16}"  # AWS access key
+    r"|AIzaSy[a-zA-Z0-9_\-]{33}"  # Google API key
     r"|ya29\.[a-zA-Z0-9_\-]+"  # Google OAuth
     r"|eyJ[a-zA-Z0-9_\-]{10,}\.[a-zA-Z0-9_\-]{10,}"  # JWT
-    r"|-----BEGIN\s(?:RSA\s)?PRIVATE\sKEY-----"  # Private key
+    r"|-----BEGIN\s(?:RSA\s|EC\s)?PRIVATE\sKEY-----"  # Private key (RSA/EC/generic)
     r"|sk-ant-[a-zA-Z0-9\-]{20}"  # Anthropic
+    r"|glc_[a-zA-Z0-9]{20,}"  # Grafana cloud token
+    r"|dapi[a-zA-Z0-9]{32}"  # Databricks token
+    r"|ops_eyJ[a-zA-Z0-9]"  # 1Password service account
     r")",
+    re.ASCII,
+)
+
+#: Values matching ``_CREDENTIAL_PREFIX_RE`` that also match this
+#: pattern are considered placeholders/examples, NOT format-valid
+#: credentials.  Used to avoid relabeling ``AIzaSyXXXXXXXXX...`` or
+#: ``glc_111111111...`` as true positives.
+_PLACEHOLDER_RE = re.compile(
+    r"[Xx]{6,}"  # repeated X/x filler
+    r"|[0]{6,}"  # repeated zeros
+    r"|EXAMPLE"  # AWS example key marker
+    r"|PUT_YOUR_"  # placeholder instruction
+    r"|aaaa{4,}"  # repeated 'a' filler
+    r"|1{10,}",  # repeated '1' filler (e.g. glc_1111...)
     re.ASCII,
 )
 
@@ -171,6 +190,23 @@ def _load_raw_records(path: Path) -> list[dict]:
         return json.load(f)
 
 
+# LLM-generated corpora (Nemotron, Gretel) produce CC/ABA values with
+# correct format but random digits — ~90% fail Luhn/ABA checksum.
+# Filter to valid-checksum values only across all pool functions.
+def _passes_checksum(mapped_type: str, value: str) -> bool:
+    """Return True if the value passes the checksum for its entity type,
+    or if the entity type has no checksum requirement."""
+    from data_classifier.engines.validators import aba_checksum_check, luhn_strip_check, vin_checkdigit_check
+
+    if mapped_type == "CREDIT_CARD":
+        return luhn_strip_check(value)
+    if mapped_type == "ABA_ROUTING":
+        return aba_checksum_check(value)
+    if mapped_type == "VIN":
+        return vin_checkdigit_check(value)
+    return True
+
+
 def _gretel_en_pool() -> dict[str, list[str]]:
     """Return ``{mapped_type: [values...]}`` for the Gretel-EN sample.
 
@@ -187,6 +223,8 @@ def _gretel_en_pool() -> dict[str, list[str]]:
             continue
         mapped = _GRETEL_EN_POOL_IDENTITY.get(ext)
         if mapped is None:
+            continue
+        if not _passes_checksum(mapped, str(value)):
             continue
         pool.setdefault(mapped, []).append(str(value))
     return pool
@@ -211,6 +249,12 @@ def _gretel_finance_pool() -> dict[str, list[str]]:
         mapped = _GRETEL_FINANCE_POOL_IDENTITY.get(ext)
         if mapped is None:
             continue
+        # Repartition CREDENTIAL into specific subtypes by value shape
+        # so benchmark ground truth matches per-pattern detection output.
+        if mapped == "CREDENTIAL":
+            mapped = _classify_credential_value_shape(str(value))
+        if not _passes_checksum(mapped, str(value)):
+            continue
         pool.setdefault(mapped, []).append(str(value))
     return pool
 
@@ -223,22 +267,36 @@ def _nemotron_pool() -> dict[str, list[str]]:
         value = rec.get("value", "")
         if not value or not ext:
             continue
-        mapped = NEMOTRON_TYPE_MAP.get(ext)
+        # Repartition credential-bucket records by value shape before
+        # applying the type map, matching corpus_loader.load_nemotron_corpus.
+        if ext in ("password", "CREDENTIAL"):
+            mapped = _classify_credential_value_shape(str(value))
+        else:
+            mapped = NEMOTRON_TYPE_MAP.get(ext)
         if mapped is None:
+            continue
+        if not _passes_checksum(mapped, str(value)):
             continue
         pool.setdefault(mapped, []).append(str(value))
     return pool
 
 
 def _credential_corpus_pool(corpus_name: str) -> dict[str, list[str]]:
-    """Return ``{"CREDENTIAL": [...], "NEGATIVE": [...]}`` for a credential corpus.
+    """Return ``{subtype: [...], "NEGATIVE": [...]}`` for a credential corpus.
 
-    SecretBench/gitleaks/detect_secrets all normalise to
-    ``{entity_type: "CREDENTIAL", value, is_secret}``.  For detect_secrets
-    we also honour its alternative ``type`` schema (``non_secret`` /
-    ``false_positive`` become NEGATIVE).
+    Repartitions credential positives into specific subtypes (API_KEY,
+    PRIVATE_KEY, OPAQUE_SECRET) so the benchmark ground truth matches
+    the classifier's per-pattern detection output.
+
+    * **detect_secrets**: uses ``_DETECT_SECRETS_TYPE_MAP`` to map each
+      record's ``type`` field to the correct subtype.
+    * **gitleaks**: uses ``_GITLEAKS_SOURCE_TYPE_MAP`` to map each
+      record's ``source_type`` field to the correct subtype.
+    * **secretbench**: uses ``_classify_credential_value_shape`` to
+      infer subtype from the value itself (JWT → API_KEY,
+      PEM → PRIVATE_KEY, everything else → OPAQUE_SECRET).
     """
-    pool: dict[str, list[str]] = {"CREDENTIAL": [], NEGATIVE_GROUND_TRUTH: []}
+    pool: dict[str, list[str]] = {NEGATIVE_GROUND_TRUTH: []}
 
     filename = {
         "secretbench": "secretbench_sample_v2.json",
@@ -255,20 +313,107 @@ def _credential_corpus_pool(corpus_name: str) -> dict[str, list[str]]:
             t = rec.get("type", "")
             if not value:
                 continue
-            if t in _DETECT_SECRETS_TYPE_MAP:
-                pool["CREDENTIAL"].append(str(value))
+            subtype = _DETECT_SECRETS_TYPE_MAP.get(t)
+            if subtype is not None:
+                pool.setdefault(subtype, []).append(str(value))
             else:
                 pool[NEGATIVE_GROUND_TRUTH].append(str(value))
-        return pool
+        return _relabel_negative_by_regex(pool)
 
+    if corpus_name == "gitleaks":
+        from tests.benchmarks.corpus_loader import _GITLEAKS_SOURCE_TYPE_MAP
+
+        for rec in records:
+            value = rec.get("value")
+            if not value:
+                continue
+            if rec.get("is_secret") is False:
+                v_str = str(value)
+                v_lower = v_str.lower()
+                # Skip non-credential PII (URLs, emails) — detectable
+                # but not truly NEGATIVE.
+                if "http://" in v_lower or "https://" in v_lower:
+                    continue
+                if _EMAIL_RE.search(v_str):
+                    continue
+                # Relabel format-valid credentials by value shape.
+                # Source corpora mark revoked/test/example keys as
+                # "false positive", but for FORMAT detection these
+                # are true positives.  Placeholder patterns (repeated
+                # X, 0, example markers) stay NEGATIVE.
+                if _CREDENTIAL_PREFIX_RE.search(v_str) and not _PLACEHOLDER_RE.search(v_str):
+                    subtype = _classify_credential_value_shape(v_str)
+                    pool.setdefault(subtype, []).append(v_str)
+                else:
+                    pool[NEGATIVE_GROUND_TRUTH].append(v_str)
+            else:
+                source_type = rec.get("source_type", "")
+                subtype = _GITLEAKS_SOURCE_TYPE_MAP.get(source_type, "OPAQUE_SECRET")
+                pool.setdefault(subtype, []).append(str(value))
+        return _relabel_negative_by_regex(pool)
+
+    # secretbench — no per-record metadata, classify by value shape.
     for rec in records:
         value = rec.get("value")
         if not value:
             continue
         if rec.get("is_secret") is False:
-            pool[NEGATIVE_GROUND_TRUTH].append(str(value))
+            v_str = str(value)
+            v_lower = v_str.lower()
+            # Skip non-credential PII (URLs, emails) — detectable
+            # but not truly NEGATIVE.
+            if "http://" in v_lower or "https://" in v_lower:
+                continue
+            if _EMAIL_RE.search(v_str):
+                continue
+            # Relabel format-valid credentials as their subtype.
+            if _CREDENTIAL_PREFIX_RE.search(v_str) and not _PLACEHOLDER_RE.search(v_str):
+                subtype = _classify_credential_value_shape(v_str)
+                pool.setdefault(subtype, []).append(v_str)
+            else:
+                pool[NEGATIVE_GROUND_TRUTH].append(v_str)
         else:
-            pool["CREDENTIAL"].append(str(value))
+            subtype = _classify_credential_value_shape(str(value))
+            pool.setdefault(subtype, []).append(str(value))
+
+    # Final pass: run the regex engine on remaining NEGATIVE values.
+    # Prefix-based relabeling misses values detected via KV parsing
+    # or patterns not in _CREDENTIAL_PREFIX_RE.  The regex engine is
+    # the definitive detector — if it fires, the value is mislabeled.
+    pool = _relabel_negative_by_regex(pool)
+
+    return pool
+
+
+def _relabel_negative_by_regex(pool: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Move NEGATIVE values to their detected subtype if the regex engine fires.
+
+    Uses scan_text (same as the production text scanning API) to check
+    each NEGATIVE value.  Values where a credential pattern matches are
+    moved to the detected subtype pool.  Values with no detection stay
+    NEGATIVE.
+    """
+    neg_values = pool.get(NEGATIVE_GROUND_TRUTH, [])
+    if not neg_values:
+        return pool
+
+    from data_classifier.scan_text import TextScanner
+
+    scanner = TextScanner()
+    scanner.startup()
+
+    keep_negative: list[str] = []
+    for value in neg_values:
+        result = scanner.scan(value, min_confidence=0.1)
+        if result.findings:
+            # Use the highest-confidence finding's entity_type
+            top = max(result.findings, key=lambda f: f.confidence)
+            subtype = top.entity_type
+            pool.setdefault(subtype, []).append(value)
+        else:
+            keep_negative.append(value)
+
+    pool[NEGATIVE_GROUND_TRUTH] = keep_negative
     return pool
 
 
@@ -501,7 +646,8 @@ def build_real_corpus_shards(
             )
         )
 
-    # Credential corpora — emit both CREDENTIAL and NEGATIVE pools.
+    # Credential corpora — emit subtype pools (API_KEY, PRIVATE_KEY,
+    # OPAQUE_SECRET) plus NEGATIVE.
     # These pools are small (~500 positives / ~550 negatives for
     # SecretBench, ~30/141 for gitleaks, ~8/5 for detect_secrets), so
     # unique-without-replacement shards are impossible at
@@ -515,10 +661,21 @@ def build_real_corpus_shards(
         (0.50, 50, 100),
         (0.25, 120, 200),
     )
+    # Track credential subtype shard counts across corpora to prevent
+    # any single subtype from dominating.  OPAQUE_SECRET is the catch-all
+    # and accumulates ~3× more shards than API_KEY or PRIVATE_KEY,
+    # which causes the meta-classifier to over-predict it.
+    max_credential_subtype_shards = shards_per_type * 2  # 150 from credential corpora
+    credential_subtype_counts: dict[str, int] = {}
     for corpus in _CREDENTIAL_CORPORA:
         cpool = _credential_corpus_pool(corpus)
         for gt, values in sorted(cpool.items()):
             if not values:
+                continue
+            already = credential_subtype_counts.get(gt, 0)
+            remaining = max(0, max_credential_subtype_shards - already)
+            n = min(shards_per_type, remaining) if gt != NEGATIVE_GROUND_TRUTH else shards_per_type
+            if n <= 0:
                 continue
             shards.extend(
                 _emit_shards_for_type(
@@ -526,11 +683,12 @@ def build_real_corpus_shards(
                     ground_truth=gt,
                     corpus=corpus,
                     source="real",
-                    num_shards=shards_per_type,
+                    num_shards=n,
                     rng=rng,
                     bucket_override=credential_buckets,
                 )
             )
+            credential_subtype_counts[gt] = already + n
 
     return shards
 

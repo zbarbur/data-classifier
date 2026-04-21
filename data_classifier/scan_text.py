@@ -1,0 +1,216 @@
+"""Text-level scanning — credential detection in free text (prompts, logs, configs).
+
+Unlike :func:`classify_columns` which operates on database columns (column name +
+sample values), :func:`scan_text` scans a string for credential patterns at the
+substring level.  This is the Python equivalent of the JS browser scanner's
+``scanText``.
+
+Detection flow:
+  1. **Regex pass** — iterate all non-column-gated credential patterns via RE2,
+     apply validators and stopwords.
+  2. **Secret scanner pass** — parse KV structures from the text, score key names
+     against the dictionary with tiered entropy gating.  Uses regex findings from
+     step 1 to enrich KV-extracted values (unified detection).
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+
+import re2
+
+from data_classifier.core.types import ClassificationFinding, SampleAnalysis
+from data_classifier.engines.regex_engine import _get_global_stopwords
+from data_classifier.engines.secret_scanner import SecretScannerEngine
+from data_classifier.engines.validators import VALIDATORS
+from data_classifier.patterns import ContentPattern, load_default_patterns
+from data_classifier.profiles import load_profile
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TextScanResult:
+    """Result of scanning free text for credentials."""
+
+    findings: list[TextFinding]
+    """All credential findings in the text."""
+
+    scanned_length: int
+    """Length of the input text."""
+
+
+@dataclass
+class TextFinding:
+    """A single credential match within text."""
+
+    entity_type: str
+    detection_type: str
+    display_name: str
+    category: str
+    confidence: float
+    engine: str
+    start: int
+    end: int
+    value_masked: str
+    evidence: str = ""
+
+
+def _mask_value(value: str) -> str:
+    """Mask a matched value for safe display."""
+    if len(value) <= 8:
+        return "*" * len(value)
+    return value[:4] + "*" * (len(value) - 8) + value[-4:]
+
+
+class TextScanner:
+    """Reusable text scanner — call :meth:`startup` once, then :meth:`scan` per text."""
+
+    def __init__(self) -> None:
+        self._patterns: list[ContentPattern] = []
+        self._stopwords: set[str] = set()
+        self._ss: SecretScannerEngine | None = None
+        self._started = False
+
+    def startup(self) -> None:
+        self._patterns = load_default_patterns()
+        self._stopwords = _get_global_stopwords()
+        self._ss = SecretScannerEngine()
+        self._ss.startup()
+        self._started = True
+
+    def scan(self, text: str, *, min_confidence: float = 0.3) -> TextScanResult:
+        """Scan free text for credential patterns.
+
+        Runs regex pass then secret scanner KV pass, deduplicates overlapping
+        spans, returns findings sorted by position.
+        """
+        if not self._started:
+            self.startup()
+
+        raw: list[TextFinding] = []
+        raw.extend(self._regex_pass(text))
+        raw.extend(self._secret_scanner_pass(text, raw))
+
+        # Dedup: keep highest confidence per overlapping span
+        deduped = self._dedup(raw)
+        deduped = [f for f in deduped if f.confidence >= min_confidence]
+
+        return TextScanResult(findings=deduped, scanned_length=len(text))
+
+    def _regex_pass(self, text: str) -> list[TextFinding]:
+        out: list[TextFinding] = []
+        for p in self._patterns:
+            if p.category != "Credential":
+                continue
+            if p.requires_column_hint:
+                continue
+            try:
+                for m in re2.finditer(p.regex, text):
+                    value = m.group(0)
+                    lower = value.lower().strip()
+                    if p.stopwords and lower in {s.lower() for s in p.stopwords}:
+                        continue
+                    if lower in self._stopwords:
+                        continue
+                    vfn = VALIDATORS.get(p.validator)
+                    if vfn and not vfn(value):
+                        continue
+                    out.append(
+                        TextFinding(
+                            entity_type=p.entity_type,
+                            detection_type=p.name,
+                            display_name=p.display_name or p.name,
+                            category=p.category,
+                            confidence=p.confidence,
+                            engine="regex",
+                            start=m.start(),
+                            end=m.end(),
+                            value_masked=_mask_value(value),
+                            evidence=f"Regex: {p.display_name or p.name} matched",
+                        )
+                    )
+            except Exception:
+                pass  # (?i) patterns fail in RE2, same as JS
+        return out
+
+    def _secret_scanner_pass(self, text: str, regex_findings: list[TextFinding]) -> list[TextFinding]:
+        """Run KV parsing on text, enriched by regex findings."""
+        from data_classifier.core.types import ColumnInput
+
+        col = ColumnInput(column_id="text_scan", column_name="prompt", sample_values=[text])
+
+        # Build prior_findings for the SS to use
+        prior: list[ClassificationFinding] = []
+        for rf in regex_findings:
+            matched_value = text[rf.start : rf.end]
+            prior.append(
+                ClassificationFinding(
+                    column_id="text_scan",
+                    entity_type=rf.entity_type,
+                    category=rf.category,
+                    sensitivity="CRITICAL",
+                    confidence=rf.confidence,
+                    regulatory=[],
+                    engine="regex",
+                    detection_type=rf.detection_type,
+                    display_name=rf.display_name,
+                    sample_analysis=SampleAnalysis(
+                        samples_scanned=1,
+                        samples_matched=1,
+                        samples_validated=1,
+                        match_ratio=1.0,
+                        sample_matches=[matched_value],
+                    ),
+                )
+            )
+
+        profile = load_profile()
+        ss_findings = self._ss.classify_column(col, profile=profile, min_confidence=0.3, prior_findings=prior)
+
+        out: list[TextFinding] = []
+        for f in ss_findings:
+            out.append(
+                TextFinding(
+                    entity_type=f.entity_type,
+                    detection_type=f.detection_type or "",
+                    display_name=f.display_name or f.entity_type,
+                    category=f.category,
+                    confidence=f.confidence,
+                    engine="secret_scanner",
+                    start=0,
+                    end=len(text),
+                    value_masked=_mask_value(text[:20]) if len(text) > 20 else _mask_value(text),
+                    evidence=f.evidence,
+                )
+            )
+        return out
+
+    @staticmethod
+    def _dedup(findings: list[TextFinding]) -> list[TextFinding]:
+        """Keep highest confidence per overlapping span."""
+        sorted_f = sorted(findings, key=lambda f: -f.confidence)
+        kept: list[TextFinding] = []
+        for f in sorted_f:
+            overlaps = any(f.start < k.end and f.end > k.start for k in kept)
+            if not overlaps:
+                kept.append(f)
+        return sorted(kept, key=lambda f: f.start)
+
+
+# Module-level singleton for convenience
+_scanner: TextScanner | None = None
+
+
+def scan_text(text: str, *, min_confidence: float = 0.3) -> TextScanResult:
+    """Scan free text for credentials — convenience wrapper.
+
+    Uses a module-level :class:`TextScanner` singleton (initialized on first call).
+    For batch usage, create a :class:`TextScanner` directly to control lifecycle.
+    """
+    global _scanner
+    if _scanner is None:
+        _scanner = TextScanner()
+        _scanner.startup()
+    return _scanner.scan(text, min_confidence=min_confidence)

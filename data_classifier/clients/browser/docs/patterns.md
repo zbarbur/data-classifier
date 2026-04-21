@@ -1,17 +1,17 @@
 # Secret Detection Reference
 
-Everything the browser scanner uses to detect credentials in v1.
+Everything the browser scanner uses to detect credentials.
 Two detection systems work together:
 
-1. **Regex patterns** (123) — match tokens by their structural prefix/format
-2. **Key-name patterns** (271) — score KV pair key names, gate values by entropy
+1. **Regex patterns** (122) — match tokens by their structural prefix/format
+2. **Key-name patterns** (283) — score KV pair key names, gate values by entropy
 
 Plus placeholder suppression patterns and config-value suppressions
 (both generated from Python — see `docs/secret-scanner.md` for the full logic).
 
 ---
 
-## Part 1: Regex Patterns (123 Credential)
+## Part 1: Regex Patterns (122 Credential)
 
 These fire on the **regex pass**. Each pattern matches a specific token format
 (e.g., `ghp_` for GitHub PATs, `sk_live_` for Stripe keys). No key-name context needed.
@@ -144,17 +144,18 @@ These fire on the **regex pass**. Each pattern matches a specific token format
 
 ---
 
-## Part 2: Key-Name Patterns (271 Secret Scanner)
+## Part 2: Key-Name Patterns (283 Secret Scanner)
 
 These fire on the **secret-scanner pass**. The scanner parses KV pairs from text,
 matches key names against this dictionary, then gates the value by entropy/diversity.
 
-### Definitive tier (155 entries)
+### Definitive tier (166 entries)
 
 | Pattern | Score | Match | Subtype |
 |---------|-------|-------|---------|
 | `access_key` | 0.95 | substring | API_KEY |
 | `access_key_id` | 0.95 | substring | API_KEY |
+| `access_secret` | 0.95 | substring | API_KEY |
 | `access_token` | 0.95 | substring | API_KEY |
 | `admin_password` | 0.95 | substring | OPAQUE_SECRET |
 | `aes_key` | 0.9 | substring | PRIVATE_KEY |
@@ -162,6 +163,7 @@ matches key names against this dictionary, then gates the value by entropy/diver
 | `alibaba_access_key_secret` | 0.95 | substring | API_KEY |
 | `aliyun_access_key` | 0.95 | substring | API_KEY |
 | `ansible_vault_password` | 0.95 | substring | OPAQUE_SECRET |
+| `api_dev_key` | 0.9 | substring | API_KEY |
 | `api_key` | 0.95 | substring | API_KEY |
 | `api_secret` | 0.95 | substring | API_KEY |
 | `api_token` | 0.95 | substring | API_KEY |
@@ -210,6 +212,9 @@ matches key names against this dictionary, then gates the value by entropy/diver
 | `docker_password` | 0.95 | substring | OPAQUE_SECRET |
 | `drone_token` | 0.95 | substring | API_KEY |
 | `elasticsearch_password` | 0.95 | substring | OPAQUE_SECRET |
+| `email_password` | 0.9 | substring | OPAQUE_SECRET |
+| `enc_key` | 0.9 | substring | PRIVATE_KEY |
+| `encoding_key` | 0.9 | substring | API_KEY |
 | `encryption_key` | 0.95 | substring | API_KEY |
 | `encryption_secret` | 0.95 | substring | PRIVATE_KEY |
 | `es_password` | 0.95 | substring | OPAQUE_SECRET |
@@ -240,8 +245,11 @@ matches key names against this dictionary, then gates the value by entropy/diver
 | `jira_token` | 0.95 | substring | API_KEY |
 | `jwt_secret` | 0.95 | substring | API_KEY |
 | `keystore_password` | 0.95 | substring | PRIVATE_KEY |
+| `license_key` | 0.9 | substring | API_KEY |
 | `linode_api_key` | 0.95 | substring | API_KEY |
 | `linode_token` | 0.95 | substring | API_KEY |
+| `mail_pass` | 0.9 | substring | OPAQUE_SECRET |
+| `mail_password` | 0.9 | substring | OPAQUE_SECRET |
 | `mailgun_api_key` | 0.95 | substring | API_KEY |
 | `mailgun_signing_key` | 0.95 | substring | API_KEY |
 | `mariadb_password` | 0.95 | substring | OPAQUE_SECRET |
@@ -270,6 +278,7 @@ matches key names against this dictionary, then gates the value by entropy/diver
 | `pd_api_key` | 0.95 | substring | API_KEY |
 | `postgres_password` | 0.95 | substring | OPAQUE_SECRET |
 | `pre_shared_key` | 0.95 | substring | PRIVATE_KEY |
+| `product_key` | 0.9 | substring | API_KEY |
 | `private_key` | 0.95 | substring | PRIVATE_KEY |
 | `pwd` | 0.9 | substring | OPAQUE_SECRET |
 | `pypi_token` | 0.95 | substring | API_KEY |
@@ -281,8 +290,10 @@ matches key names against this dictionary, then gates the value by entropy/diver
 | `scaleway_key` | 0.95 | substring | API_KEY |
 | `scaleway_secret_key` | 0.95 | substring | API_KEY |
 | `secret` | 0.9 | word_boundary | OPAQUE_SECRET |
+| `secret-key` | 0.95 | substring | API_KEY |
 | `secret_access_key` | 0.95 | substring | API_KEY |
 | `secret_key` | 0.95 | substring | API_KEY |
+| `secretkey` | 0.95 | substring | API_KEY |
 | `sendgrid_api_key` | 0.95 | substring | API_KEY |
 | `sentry_auth_token` | 0.95 | substring | API_KEY |
 | `sentry_org_token` | 0.95 | substring | API_KEY |
@@ -309,7 +320,7 @@ matches key names against this dictionary, then gates the value by entropy/diver
 | `webhook_secret` | 0.95 | substring | API_KEY |
 | `zendesk_token` | 0.95 | substring | API_KEY |
 
-### Strong tier (62 entries)
+### Strong tier (63 entries)
 
 | Pattern | Score | Match | Subtype |
 |---------|-------|-------|---------|
@@ -326,6 +337,7 @@ matches key names against this dictionary, then gates the value by entropy/diver
 | `coinbase_api_key` | 0.7 | substring | API_KEY |
 | `deepseek` | 0.7 | substring | API_KEY |
 | `deploy_token` | 0.85 | substring | API_KEY |
+| `dev_key` | 0.85 | substring | API_KEY |
 | `dropbox_api_key` | 0.7 | substring | API_KEY |
 | `dropbox_token` | 0.7 | substring | API_KEY |
 | `dsn` | 0.85 | word_boundary | OPAQUE_SECRET |

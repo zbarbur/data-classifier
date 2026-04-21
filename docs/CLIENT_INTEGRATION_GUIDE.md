@@ -633,6 +633,24 @@ class ClassificationFinding:
     # Populated when finding was derived from sample value analysis.
     # None when finding was derived from column name/metadata only.
 
+    # ── Detection granularity ─────────────────────────────
+    detection_type: str = ""
+    # Specific detection pattern identifier, more granular than
+    # ``entity_type``. Multiple detection_types may share the same
+    # entity_type. Examples:
+    #   entity_type="API_KEY", detection_type="aws_access_key"
+    #   entity_type="API_KEY", detection_type="github_token"
+    #   entity_type="SSN",     detection_type="us_ssn"
+    #
+    # Clients that need per-pattern detail inspect ``detection_type``;
+    # clients that only need the broad label use ``entity_type`` or
+    # ``family``.
+
+    display_name: str = ""
+    # Human-friendly label for ``detection_type``.
+    # Examples: "AWS Access Key", "GitHub Token", "US SSN".
+    # Suitable for UI display and reporting.
+
     # ── Family (Sprint 11) ────────────────────────────────
     family: str = ""
     # Structural handling family: a coarser grouping than
@@ -1154,7 +1172,7 @@ if validation_rate < 1.0:
     multiply by validation_rate          # e.g., 50% validated → halve
 ```
 
-**Output format.** Up to one `ClassificationFinding` per matched entity type per column, with `engine="regex"`, confidence in **[0.0, 1.0]**, and rich evidence (pattern name, match count, validation rate, context boost deltas). `sample_analysis.sample_matches` contains the raw (or masked, when `mask_samples=True`) matched values for downstream triage.
+**Output format.** One `ClassificationFinding` **per matched pattern** per column (not per entity type), with `engine="regex"`, confidence in **[0.0, 1.0]**, and rich evidence (pattern name, match count, validation rate, context boost deltas). Each finding carries a `detection_type` identifying the specific pattern (e.g. `"aws_access_key"`, `"github_token"`) and a `display_name` with a human-friendly label. Multiple findings may share the same `entity_type` — clients that need a single row per entity type can group by `entity_type` or `family`. `sample_analysis.sample_matches` contains the raw (or masked, when `mask_samples=True`) matched values for downstream triage.
 
 **Masking.** When `mask_samples=True`, matched values are partially redacted before being stored in `sample_analysis` (`_mask_value` in `regex_engine.py`). Redaction is entity-type-aware: SSN/credit-card preserve the last 4, email preserves the local-part first char and the entire domain, phone preserves the last 4, generic entity types preserve first+last char.
 

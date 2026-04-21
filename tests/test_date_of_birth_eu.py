@@ -92,14 +92,11 @@ class TestDateOfBirthUsUnambiguous:
 
 
 class TestDateOfBirthAmbiguous:
-    """Ambiguous day<=12 + month<=12 values resolve to a single DATE_OF_BIRTH finding.
+    """Ambiguous day<=12 + month<=12 values resolve to a single DATE finding.
 
-    Before Sprint 12 these would emit both ``DATE_OF_BIRTH`` and
-    ``DATE_OF_BIRTH_EU`` for downstream jurisdiction-aware disambiguation.
-    After the retirement there is no second subtype to emit — the pipeline
-    reports ``DATE_OF_BIRTH`` once, which is correct because format does
-    not identify jurisdiction and the sensitivity / regulatory scope is
-    identical regardless.
+    Sprint 14 separated DATE (structural — regex matched a date format)
+    from DATE_OF_BIRTH (semantic — column name says ``dob`` / ``birth_date``).
+    On a blind column without DOB context, the regex emits DATE.
     """
 
     @pytest.mark.parametrize(
@@ -111,15 +108,17 @@ class TestDateOfBirthAmbiguous:
             "05/06/1975",
         ],
     )
-    def test_ambiguous_dates_land_in_date_of_birth(self, dob: str, profile) -> None:
+    def test_ambiguous_dates_land_in_date_family(self, dob: str, profile) -> None:
         col = ColumnInput(
             column_id="c1",
             column_name="col_data",  # neutral — no column-name-engine bias
-            sample_values=[dob, dob, dob],
+            sample_values=[dob] * 30,  # realistic sample size
         )
         findings = classify_columns([col], profile)
         types = _entity_types(findings)
-        assert "DATE_OF_BIRTH" in types, f"ambiguous {dob} did not produce DATE_OF_BIRTH: {types}"
+        assert "DATE" in types or "DATE_OF_BIRTH" in types, (
+            f"ambiguous {dob} did not produce DATE or DATE_OF_BIRTH: {types}"
+        )
         assert "DATE_OF_BIRTH_EU" not in types, f"retired subtype leaked for {dob}: {types}"
 
 

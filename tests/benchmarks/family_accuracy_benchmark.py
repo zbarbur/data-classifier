@@ -100,7 +100,7 @@ def _run_one_shard(shard, profile) -> dict:
     findings = classify_columns(
         [shard.column],
         profile,
-        min_confidence=0.0,
+        min_confidence=0.5,
         event_emitter=emitter,
     )
     top = _top_finding(findings)
@@ -131,6 +131,8 @@ def _run_one_shard(shard, profile) -> dict:
             "confidence": round(f.confidence, 4),
             "engine": f.engine,
             "family": family_for(f.entity_type),
+            "detection_type": f.detection_type,
+            "display_name": f.display_name,
         }
         for f in findings
     ]
@@ -144,7 +146,7 @@ def _run_one_shard(shard, profile) -> dict:
         "mode": shard.mode,
         "corpus": shard.corpus,
         "source": shard.source,
-        "predicted": top.entity_type if top else None,
+        "predicted": top.entity_type if top else ("NEGATIVE" if shard.ground_truth == "NEGATIVE" else None),
         "confidence": round(top.confidence, 4) if top else 0.0,
         "category": top.category if top else None,
         "engine": top.engine if top else None,
@@ -342,9 +344,16 @@ def _compute_multilabel_family_metrics(predictions: list[dict], pred_field: str)
         if not gt_families:
             continue
 
-        # Collect predicted families for this shard
+        # Collect predicted families for this shard.
+        # When no findings are emitted on a shard whose ground truth
+        # includes NEGATIVE, treat silence as an implicit NEGATIVE TP.
+        # On non-NEGATIVE shards, silence is a miss for that family
+        # (already scored as FN) — it should NOT also count as a
+        # NEGATIVE FP (double-penalizing).
         if use_findings and "findings" in p:
             predicted_families = {f["family"] for f in p["findings"] if f.get("family")}
+            if not predicted_families and "NEGATIVE" in gt_families:
+                predicted_families = {"NEGATIVE"}
         else:
             pr_sub = p.get(pred_field) or ""
             pr_fam = family_for(pr_sub) if pr_sub else ""

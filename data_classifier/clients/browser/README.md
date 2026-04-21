@@ -5,10 +5,7 @@ Client-side secret detection engine, ported from the Python
 about to be sent to a chat AI) and returns findings + a redacted
 version.
 
-**19 KB gzipped.** No runtime dependencies. ES module.
-
-> Scaffold — tracking `sprint14/browser-poc-secret`. Full pattern
-> coverage arrives in subsequent sprint items.
+**20 KB gzipped.** No runtime dependencies. ES module.
 
 ## Quick start
 
@@ -62,38 +59,25 @@ scanner.scan(text, {
   redactStrategy: 'type-label',         // 'asterisk' | 'placeholder' | 'none'
   verbose: false,                       // attach details block per finding
   dangerouslyIncludeRawValues: false,   // see WARNING below
-  categoryFilter: ['Credential'],       // v1 Credential-only
+  categoryFilter: ['Credential'],       // Credential-only (default)
 });
 ```
 
-## Standalone testing
+## Tester
 
-```
-git clone <repo>
-cd data_classifier/clients/browser
-npm install
-npm run serve
+Serve the package directory with a static file server and open `/tester/`:
+
+```bash
+npx http-server . -p 4173
 # open http://localhost:4173/tester/
 ```
 
-The tester page includes 17 real-world credential stories from the
+Do NOT use `npx serve` — it runs in SPA mode and breaks module imports.
+
+The tester includes 15 real-world credential stories from the
 WildChat corpus. Select one from the dropdown and click **Scan** to see
-findings with highlighted secrets, redacted output, and detection metadata.
-
-## Development
-
-```
-npm install
-npm run generate      # regenerate src/generated/ from Python library
-npm run build         # esbuild -> dist/ (minified, no sourcemaps)
-npm run build:dev     # esbuild -> dist/ (unminified, with sourcemaps)
-npm run dist          # generate + build + size report
-npm run serve         # generate + build + http-server on :4173
-npm run test:unit     # Vitest (75 tests)
-npm run test:e2e      # Playwright (smoke + timeout + differential)
-npm run bench         # 1K-prompt latency benchmark
-npm run package       # assemble standalone delivery folder (dist-package/)
-```
+findings with highlighted secrets, redacted output, and detection
+metadata (including `detection_type` and human-friendly `display_name`).
 
 ## Raw-value escape hatch
 
@@ -101,60 +85,21 @@ npm run package       # assemble standalone delivery folder (dist-package/)
 `match.valueRaw` with the unmasked matched value.
 
 **Never enable in production.** Use only for local fixture authoring
-and differential-test diagnostics.
-
-## Python-JS sync
-
-- **Data** (patterns, stopwords, placeholders, key names) — generated
-  from Python source. Run `npm run generate`.
-- **Scoring params** (`engine_defaults.yaml`) — also generated as
-  `constants.js`. Run `npm run generate`.
-- **Algorithm changes** — `PYTHON_LOGIC_VERSION` SHA stamps fixtures
-  and constants. Differential test fails on drift.
-
-### CI integration
-
-```
-./scripts/ci_browser_parity.sh                 # after pytest
-./scripts/ci_browser_parity.sh --strict-validators  # also fail on stubs
-```
-
-## Standalone delivery
-
-Run `npm run package` to create a `dist-package/` folder with everything
-a consumer needs — scanner bundles, TypeScript declarations, tester page,
-docs. No repo checkout required. Hand off the folder or zip it.
+and diagnostics.
 
 ## Documentation
 
 - [API reference](docs/api.md) — all methods, parameters, return types, error handling
-- [Pattern reference](docs/patterns.md) — 123 Credential patterns + 271 key-name entries
+- [Pattern reference](docs/patterns.md) — 158 credential patterns + 283 key-name entries
 - [Secret detection logic](docs/secret-scanner.md) — how the scanner works
-- [Real-world stories](docs/stories.md) — 9 annotated examples from WildChat
+- [Real-world stories](docs/stories.md) — 17 annotated examples from WildChat
 
-TypeScript declarations are at `scanner.d.ts` (auto-resolved via the
-`types` field in `package.json`).
-
-## Architecture
-
-- `src/scanner.js` — public API
-- `src/pool.js` — 2-worker pool, lazy init, respawn, MV3-aware
-- `src/worker.js` — worker shim
-- `src/scanner-core.js` — regex + secret-scanner orchestration
-- `src/regex-backend.js` — Stage-1 JS RegExp backend
-- `src/kv-parsers.js` — JSON / env / code-literal parsers
-- `src/redaction.js` — four strategies, right-to-left replacement
-- `src/validators.js` — three ported validators + stubs
-- `src/entropy.js` — Shannon + relative entropy
-- `src/decoder.js` — xor: / b64: prefix decoder
-- `src/generated/` — regenerated from Python; gitignored
+TypeScript declarations are at `scanner.d.ts`.
 
 ## Footprint
 
 | Component | Raw | Gzipped | In extension? |
 |-----------|-----|---------|---------------|
 | scanner.esm.js | 1.5 KB | 0.7 KB | Yes |
-| worker.esm.js | 130.5 KB | 18.2 KB | Yes |
-| **Extension total** | **132 KB** | **19 KB** | |
-| Tester + stories + docs | ~160 KB | ~55 KB | No |
-| **Delivery package total** | ~292 KB | ~74 KB | |
+| worker.esm.js | 140 KB | 20 KB | Yes |
+| **Extension total** | **142 KB** | **21 KB** | |

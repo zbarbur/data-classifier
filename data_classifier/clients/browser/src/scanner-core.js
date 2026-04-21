@@ -54,10 +54,13 @@ export function scanText(text, opts = {}) {
   const raw = [];
   raw.push(...regexPass(text, categoryFilter, verbose, includeRaw));
   raw.push(...secretScannerPass(text, verbose, includeRaw));
+  raw.push(...opaqueTokenPass(text, verbose, includeRaw));
   const findings = dedup(raw);
 
   const redactedText = redact(text, findings, redactStrategy);
-  return { findings, redactedText, scannedMs: performanceNowSafe() - t0 };
+  const result = { findings, redactedText, scannedMs: performanceNowSafe() - t0 };
+  if (verbose) result.allFindings = raw;
+  return result;
 }
 
 function regexPass(text, categoryFilter, verbose, includeRaw) {
@@ -79,6 +82,8 @@ function regexPass(text, categoryFilter, verbose, includeRaw) {
         engine: 'regex',
         evidence: `Regex: ${p.entity_type} pattern "${p.name}" matched`,
         match,
+        detectionType: p.name,
+        displayName: p.display_name || p.name,
         details: verbose
           ? {
               pattern: p.name,
@@ -176,16 +181,44 @@ function tieredScore(keyScore, tier, value) {
   return 0;
 }
 
+// Code expression patterns — values that are code references, not secrets.
+// Mirrors Python's code expression and variable reference patterns.
+const _CODE_DOT_RE = /^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)+[;,]?$/;
+const _CODE_BRACKET_RE = /^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)*\[[^\]]+\][;,]?$/;
+const _CODE_SEMI_RE = /^[a-zA-Z_]\w*;$/;
+const _SHELL_VAR_RE = /^\$[\w{]/;
+const _CONSTANT_NAME_RE = /^[A-Z][A-Z0-9]*([_-][A-Z0-9]+)+$/;
+const _CODE_PUNCT_RE = /^[\[\](){};<>,./\\|!@#%^&*\-+=~`\s]+$/;
+const _FILE_PATH_RE = /^[/~][\w./\-]+$|^[A-Z]:\\[\w\\.\-]+$/;
+// Tokens containing both parens and equals/semicolons are code fragments
+// (e.g. `OleDbConnection("Provider=Microsoft.Jet.OLEDB.4.0;Data`), not secrets.
+const _CODE_CALL_RE = /[({].*[=;]/;
+
 function valueIsObviouslyNotSecret(value) {
   const v = value.toLowerCase().trim();
   if (SECRET_SCANNER.configValues.includes(v)) return true;
   if (_URL_LIKE_RE.test(value)) return true;
   if (_DATE_LIKE_RE.test(value)) return true;
+  if (_IP_LIKE_RE.test(value)) return true;
+  if (_NUMERIC_ONLY_RE.test(value)) return true;
+  if (_CODE_DOT_RE.test(value) || _CODE_BRACKET_RE.test(value) || _CODE_SEMI_RE.test(value) || _CODE_CALL_RE.test(value)) return true;
+  if (_SHELL_VAR_RE.test(value)) return true;
+  if (_CONSTANT_NAME_RE.test(value)) return true;
+  if (_CODE_PUNCT_RE.test(value)) return true;
+  if (_FILE_PATH_RE.test(value)) return true;
+  if (/^[a-zA-Z]+(-[a-zA-Z]+)*$/.test(value.trim())) return true;
+  const stripped = value.trim().replace(/^["']+|["']+$/g, '').trim();
+  if (stripped.startsWith('+') || stripped.endsWith('+')) return true;
+  // Prose detection for spaced scripts (English, etc.): count ASCII
+  // letters — high ratio with spaces means natural language, not a secret.
   if (value.includes(' ')) {
     let alpha = 0;
     for (const c of value) if (/[A-Za-z]/.test(c)) alpha++;
     if (alpha / value.length > SECRET_SCANNER.proseAlphaThreshold) return true;
   }
+  // Non-spaced scripts (CJK, etc.): any non-ASCII Unicode letter means
+  // this is human-language text, not a credential.  Secrets are ASCII.
+  if (/[\u3000-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0600-\u06FF]/.test(value)) return true;
   return false;
 }
 
@@ -194,9 +227,12 @@ const _PLACEHOLDER_RES = SECRET_SCANNER.placeholderPatterns.map(
   ({ pattern, flags }) => new RegExp(pattern, flags)
 );
 
-// Compiled from Python's _URL_LIKE / _DATE_LIKE via generator
+// Compiled from Python's rejection patterns via generator
 const _URL_LIKE_RE = new RegExp(SECRET_SCANNER.urlLikePattern.pattern, SECRET_SCANNER.urlLikePattern.flags);
 const _DATE_LIKE_RE = new RegExp(SECRET_SCANNER.dateLikePattern.pattern, SECRET_SCANNER.dateLikePattern.flags);
+const _IP_LIKE_RE = new RegExp(SECRET_SCANNER.ipLikePattern.pattern, SECRET_SCANNER.ipLikePattern.flags);
+const _NUMERIC_ONLY_RE = new RegExp(SECRET_SCANNER.numericOnlyPattern.pattern, SECRET_SCANNER.numericOnlyPattern.flags);
+const _UUID_RE = new RegExp(SECRET_SCANNER.uuidPattern.pattern, SECRET_SCANNER.uuidPattern.flags);
 
 // Port of Python's _is_compound_non_secret (Sprint 13).
 // Keys like "token_address" contain a secret-bearing word ("token") but the
@@ -220,6 +256,68 @@ function isPlaceholderPattern(value) {
     if (re.test(value)) return true;
   }
   return false;
+}
+
+// ── Opaque token detection (suspicious high-entropy tokens) ─────────────
+// Scans text for standalone tokens that look like opaque secrets: high
+// entropy, high char-class diversity, not a UUID/IP/date/URL. Flagged
+// as suspicious at lower confidence — same heuristics as Python Path 4.
+function opaqueTokenPass(text, verbose, includeRaw) {
+  const out = [];
+  const minLen = SECRET_SCANNER.minValueLength;
+  const entropyThreshold = SECRET_SCANNER.opaqueTokenEntropyThreshold;
+  const diversityThreshold = SECRET_SCANNER.opaqueTokenDiversityThreshold;
+  const baseConfidence = SECRET_SCANNER.opaqueTokenBaseConfidence;
+  const maxConfidence = SECRET_SCANNER.opaqueTokenMaxConfidence;
+
+  const tokenRe = /\S+/g;
+  let m;
+  while ((m = tokenRe.exec(text)) !== null) {
+    const token = m[0];
+    const start = m.index;
+    const cleaned = token.replace(/^["'`]+|["'`,.;:!?)}\]]+$/g, '');
+    if (cleaned.length < minLen) continue;
+    if (valueIsObviouslyNotSecret(cleaned)) continue;
+    if (_UUID_RE.test(cleaned)) continue;
+    if (PLACEHOLDER_VALUES.has(cleaned.toLowerCase())) continue;
+    if (isPlaceholderPattern(cleaned)) continue;
+    if (hasAntiIndicator('', cleaned)) continue;
+
+    const rel = relativeEntropy(cleaned);
+    if (rel < entropyThreshold) continue;
+    const div = charClassDiversity(cleaned);
+    if (div < diversityThreshold) continue;
+
+    let confidence = baseConfidence;
+    if (rel > 0.85) confidence += 0.1;
+    if (cleaned.length > 24) confidence += 0.05;
+    confidence = Math.min(maxConfidence, confidence);
+
+    const end = start + token.length;
+    const match = { valueMasked: maskValue(cleaned, 'OPAQUE_SECRET'), start, end };
+    if (includeRaw) match.valueRaw = cleaned;
+    out.push(
+      makeFinding({
+        entityType: 'OPAQUE_SECRET',
+        category: 'Credential',
+        sensitivity: 'CRITICAL',
+        confidence: Math.round(confidence * 10000) / 10000,
+        engine: 'secret_scanner',
+        evidence:
+          `secret_scanner: opaque token — rel_entropy=${rel.toFixed(2)} ` +
+          `diversity=${div} len=${cleaned.length}`,
+        match,
+        details: verbose
+          ? {
+              pattern: 'opaque_token',
+              validator: 'none',
+              entropy: { relative: rel, charset: detectCharset(cleaned), diversity: div },
+            }
+          : undefined,
+      })
+    );
+  }
+  return out;
 }
 
 function dedup(findings) {
