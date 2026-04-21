@@ -2443,26 +2443,40 @@ labels trustworthy enough to seed M4e's multi-label ground truth.
 
 ### M4d Phase 3 — scale labeling (500-1000 columns)
 
-**Status:** ⏸ blocked on Phase 2 router-labeler passing its gate
+**Status:**
+- **Phase 3a (pilot, 41 cols):** ✅ complete 2026-04-21 — awaiting reviewer sign-off
+- **Phase 3b (full scale, ~280 cols):** ⏸ blocked on Phase 3a reviewer gate (≥ 0.8 macro Jaccard)
+
 **Priority:** P2
-**Estimated time:** ~1 week
+**Estimated time:** ~1 week for Phase 3b once gated
 
-**Goal:** Run the validated router-labeler on Tier 7b candidates (CFPB
-volume, SO users at scale, HN comments at scale) to produce
-`corpora/bq_public_multilabel/labeled.jsonl` — the multi-label scale
-corpus that seeds M4e's ground truth at volume.
+**Phase 3a — pilot summary (2026-04-21):**
+- Corpus at `data/m4d_phase3_corpus/` (DVC-tracked): 41 cols / ~115 GB BQ scan / $0 BQ cost (free tier)
+- Labeler cost: **$1.77 for 41 cols** (cache hit 15.8% on this isolated run; higher expected in Phase 3b with warmed cache)
+- Disagreements: 8/41 vs fetcher prefill — mix of labeler-correct (HN+EMAIL, CFPB+ADDRESS) and possible over-firing (sprint12 q3 log +ADDRESS/BANK_ACCOUNT/SWIFT_BIC)
+- 1 refusal: `sprint12_base64_encoded_payloads` tripped Anthropic content-safety; tracked as Phase 3b blocker
+- Synthetic ETH substitution validated (3 shards, all labeled `ETHEREUM_ADDRESS`) — saves ~354 GB in Phase 3b
+- Memo: `docs/experiments/meta_classifier/runs/20260421-m4d-phase3a-pilot/result.md`
 
-**Output:**
+**Phase 3a pipeline (reference — scripts stay put for Phase 3b reuse):**
+```
+scripts/m4d_phase3_build_scale_corpus.py  → data/m4d_phase3_corpus/unlabeled.jsonl
+scripts/run_m4d_phase3_scale.py           → data/m4d_phase3_corpus/labeled.jsonl + summary.json
+scripts/m4d_phase3_build_worksheet.py     → data/m4d_phase3_corpus/review_worksheet.{jsonl,md}
+```
 
-- `corpora/bq_public_multilabel/labeled.jsonl` — LLM-labeled volume corpus
-- `docs/experiments/meta_classifier/runs/<date>-m4d-phase3-scale/` —
-  scale-run memo with per-branch volume, cost, and spot-check sample
+**Phase 3b blockers before greenlight:**
 
-**Success criteria:**
+1. Reviewer processes `review_worksheet.jsonl` on Phase 3a (41 rows, full coverage)
+2. Score reviewer vs labeler → per-shape + overall macro Jaccard ≥ 0.8
+3. Add opaque-token refusal-fallback (structural label assignment on safety refusal)
+4. Investigate NY311 dry-run 400 failure (re-enable if cheap)
+5. Decide final Phase 3b slice budget (proposed: bump PILOT_* constants ~3× → ~150 cols / ~500 GB / ~$6)
 
-- 500-1000 columns committed with per-column multi-label annotations
-- Human spot-check of 50 random rows shows ≥ 0.8 Jaccard to labeler
-  output (confirming scale-run matches Phase 2 gold-set validation)
+**Success criteria (Phase 3b):**
+
+- 280-500 columns committed with per-column multi-label annotations
+- Human spot-check of 50 stratified-sample rows shows ≥ 0.8 Jaccard to labeler output
 - Labels ingested by M4e without taxonomy drift
 
 ### M4e — Dual-report harness (Sprint 11 single-label + Sprint 13+ multi-label)

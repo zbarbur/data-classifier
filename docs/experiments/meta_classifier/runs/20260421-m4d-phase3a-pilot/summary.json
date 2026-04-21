@@ -1,0 +1,84 @@
+{
+  "n_columns": 41,
+  "n_errors": 1,
+  "n_unknown_label_emissions": 0,
+  "n_empty_predictions": 7,
+  "by_shape_count": {
+    "free_text_heterogeneous": 22,
+    "opaque_tokens": 4,
+    "structured_single": 15
+  },
+  "pred_label_distribution": {
+    "ADDRESS": 14,
+    "EMAIL": 12,
+    "PERSON_NAME": 12,
+    "URL": 10,
+    "ETHEREUM_ADDRESS": 4,
+    "IP_ADDRESS": 4,
+    "PHONE": 3,
+    "ABA_ROUTING": 1,
+    "API_KEY": 1,
+    "BANK_ACCOUNT": 1,
+    "BITCOIN_ADDRESS": 1,
+    "CREDIT_CARD": 1,
+    "DATE_OF_BIRTH": 1,
+    "DEA_NUMBER": 1,
+    "EIN": 1,
+    "IBAN": 1,
+    "MAC_ADDRESS": 1,
+    "MBI": 1,
+    "NPI": 1,
+    "SSN": 1,
+    "SWIFT_BIC": 1,
+    "VIN": 1,
+    "AGE": 1
+  },
+  "pred_label_by_shape": {
+    "free_text_heterogeneous": {
+      "EMAIL": 12,
+      "URL": 10,
+      "PERSON_NAME": 6,
+      "ADDRESS": 5,
+      "IP_ADDRESS": 4,
+      "PHONE": 3,
+      "ABA_ROUTING": 1,
+      "API_KEY": 1,
+      "BANK_ACCOUNT": 1,
+      "BITCOIN_ADDRESS": 1,
+      "CREDIT_CARD": 1,
+      "DATE_OF_BIRTH": 1,
+      "DEA_NUMBER": 1,
+      "EIN": 1,
+      "ETHEREUM_ADDRESS": 1,
+      "IBAN": 1,
+      "MAC_ADDRESS": 1,
+      "MBI": 1,
+      "NPI": 1,
+      "SSN": 1,
+      "SWIFT_BIC": 1,
+      "VIN": 1,
+      "AGE": 1
+    },
+    "opaque_tokens": {
+      "ETHEREUM_ADDRESS": 3
+    },
+    "structured_single": {
+      "ADDRESS": 9,
+      "PERSON_NAME": 6
+    }
+  },
+  "usage": {
+    "input_tokens": 332434,
+    "output_tokens": 2952,
+    "cache_read_input_tokens": 62436,
+    "cache_creation_input_tokens": 0,
+    "cache_hit_rate_pct": 15.81
+  },
+  "estimated_cost_usd": 1.7672,
+  "errors": [
+    "sprint12_base64_encoded_payloads"
+  ],
+  "unknown_label_rows": [],
+  "model": "claude-opus-4-7",
+  "run_timestamp": "2026-04-21T11:50:55+00:00"
+}
