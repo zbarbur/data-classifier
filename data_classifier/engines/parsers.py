@@ -109,7 +109,7 @@ _ENV_PATTERN = re.compile(
     (?:                         # value alternatives
         "([^"]*)"               # double-quoted value
         |'([^']*)'              # single-quoted value
-        |(\S+)                  # unquoted value (no spaces)
+        |([^\s()\[\]{},]+)      # unquoted value (no spaces, no code-expression chars, no trailing comma)
     )
     \s*$                        # optional trailing whitespace + end of line
     """,

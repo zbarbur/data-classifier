@@ -1,0 +1,48 @@
+{
+  "generated": "2026-04-16",
+  "purpose": "Provenance record for S3-D refresh check — documents SHA comparison results for each upstream source",
+  "sources": [
+    {
+      "name": "gitleaks",
+      "repo": "gitleaks/gitleaks",
+      "license": "MIT",
+      "sprint10_sha": "8863af47d64c3681422523e36837957c74d4af4b",
+      "current_sha": "8863af47d64c3681422523e36837957c74d4af4b",
+      "sha_match": true,
+      "ahead_by": 0,
+      "compare_url": "https://api.github.com/repos/gitleaks/gitleaks/compare/8863af47d64c3681422523e36837957c74d4af4b...8863af47d64c3681422523e36837957c74d4af4b",
+      "new_rules": [],
+      "notes": "Verified via GitHub compare API (ahead_by=0). Rule count at pin: 222 [[rules]] blocks in config/gitleaks.toml."
+    },
+    {
+      "name": "kingfisher",
+      "repo": "mongodb/kingfisher",
+      "license": "Apache-2.0",
+      "sprint10_sha": "be0ce3bae0b14240bb2781ab6ee2b5c65e02144b",
+      "current_sha": "be0ce3bae0b14240bb2781ab6ee2b5c65e02144b",
+      "sha_match": true,
+      "ahead_by": 0,
+      "compare_url": "https://api.github.com/repos/mongodb/kingfisher/compare/be0ce3bae0b14240bb2781ab6ee2b5c65e02144b...be0ce3bae0b14240bb2781ab6ee2b5c65e02144b",
+      "new_rules": [],
+      "notes": "Verified via GitHub compare API (ahead_by=0)."
+    },
+    {
+      "name": "noseyparker",
+      "repo": "praetorian-inc/noseyparker",
+      "license": "Apache-2.0",
+      "sprint10_sha": "2e6e7f36ce36619852532bbe698d8cb7a26d2da7",
+      "current_sha": "2e6e7f36ce36619852532bbe698d8cb7a26d2da7",
+      "sha_match": true,
+      "ahead_by": 0,
+      "compare_url": "https://api.github.com/repos/praetorian-inc/noseyparker/compare/2e6e7f36ce36619852532bbe698d8cb7a26d2da7...2e6e7f36ce36619852532bbe698d8cb7a26d2da7",
+      "new_rules": [],
+      "notes": "Verified via GitHub compare API (ahead_by=0)."
+    }
+  ],
+  "existing_coverage_snapshot": {
+    "secret_key_names_count": 178,
+    "s3a_proposed": ["grafana_cloud_api_token", "grafana_service_account_token", "docker_hub_pat", "linear_api_token", "groq_api_key", "onepassword_service_token", "notion_integration_token", "figma_pat", "basicauth_url"],
+    "s3b_proposed": ["pypi_token", "mailchimp_api_key", "artifactory_api_token", "square_oauth_secret", "telegram_bot_token"],
+    "s3c_proposed": ["okta_api_token", "postman_api_key", "airtable_pat", "heroku_api_key", "render_api_key"]
+  }
+}

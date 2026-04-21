@@ -1,0 +1,220 @@
+{
+  "_metadata": {
+    "source": "provider documentation (factual, no license concern)",
+    "pulled_date": "2026-04-16",
+    "notes": "Only providers with DISTINCTIVE prefixed token formats are included. Providers whose tokens have no prefix (or share a generic prefix already covered by existing patterns) are documented in s3g_gap_analysis.md as keyword-only. DeepSeek uses sk- identical to OpenAI; not added \u2014 openai_legacy_key already covers that shape. MongoDB/PostgreSQL connection strings already covered by existing connection_string pattern. Snowflake uses account.region.snowflakecomputing.com URIs not caught by current pattern \u2014 a Snowflake-specific pattern added. All examples_match are XOR-encoded per project policy. Updated: added LangSmith (lsv2_pt_/lsv2_sk_) and NVIDIA NIM (nvapi-) from official docs.",
+    "pattern_count": 5
+  },
+  "patterns": [
+    {
+      "name": "replicate_api_key",
+      "regex": "\\br8_[A-Za-z0-9]{40}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Replicate API key \u2014 r8_ prefix followed by exactly 40 alphanumeric characters. Format documented at replicate.com/docs/reference/http#authentication.",
+      "validator": "",
+      "examples_match": [
+        "xor:KGIFO2s4aDlpPm4/bzxsPW0yYjNjMGoxazZoN2k0bjVvKmwrbShiKWMuag=="
+      ],
+      "examples_no_match": [
+        "xor:KGIFKTI1KC4="
+      ],
+      "context_words_boost": [
+        "replicate",
+        "REPLICATE_API_KEY",
+        "replicate_token"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": [
+        "replicate",
+        "api_key",
+        "token"
+      ]
+    },
+    {
+      "name": "xai_api_key",
+      "regex": "\\bxai-[A-Za-z0-9]{52,}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "xAI (Grok) API key \u2014 xai- prefix followed by 52+ base62 characters. Format documented at docs.x.ai/api.",
+      "validator": "",
+      "examples_match": [
+        "xor:IjszdysrGGg5aR5uP28cbD1tEmIzYxBqMWsWaDdpFG41bwpsK20IYiljDmovawxoLWkCbiNvAGwbbRhiOWM="
+      ],
+      "examples_no_match": [
+        "xor:IjszdykyNSgu"
+      ],
+      "context_words_boost": [
+        "xai",
+        "grok",
+        "XAI_API_KEY",
+        "GROK_API_KEY"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": [
+        "xai",
+        "grok",
+        "api_key",
+        "token"
+      ]
+    },
+    {
+      "name": "langfuse_public_key",
+      "regex": "\\bpk-lf-[A-Za-z0-9\\-]{32,}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Langfuse public key \u2014 pk-lf- prefix followed by 32+ alphanumeric/hyphen characters. Format from Langfuse SDK documentation (langfuse.com/docs/sdk).",
+      "validator": "",
+      "examples_match": [
+        "xor:KjF3Njx3O2s4aDlpPm4/bzxsPW0yYjNjMGoxazZoN2k0bjVvKmwrbQ=="
+      ],
+      "examples_no_match": [
+        "sk-lf-short"
+      ],
+      "context_words_boost": [
+        "langfuse",
+        "LANGFUSE_PUBLIC_KEY",
+        "langfuse_pk"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": [
+        "langfuse",
+        "public_key",
+        "pk"
+      ]
+    },
+    {
+      "name": "langfuse_secret_key",
+      "regex": "\\bsk-lf-[A-Za-z0-9\\-]{32,}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "Langfuse secret key \u2014 sk-lf- prefix followed by 32+ alphanumeric/hyphen characters. Format from Langfuse SDK documentation (langfuse.com/docs/sdk).",
+      "validator": "",
+      "examples_match": [
+        "xor:KTF3Njx3O2s4aDlpPm4/bzxsPW0yYjNjMGoxazZoN2k0bjVvKmwrbQ=="
+      ],
+      "examples_no_match": [
+        "pk-lf-short"
+      ],
+      "context_words_boost": [
+        "langfuse",
+        "LANGFUSE_SECRET_KEY",
+        "langfuse_sk"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": [
+        "langfuse",
+        "secret_key",
+        "sk"
+      ]
+    },
+    {
+      "name": "posthog_api_key",
+      "regex": "\\bph[cx]_[A-Za-z0-9]{40,}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.9,
+      "description": "PostHog API key \u2014 phc_ (project API key) or phx_ (personal API key) prefix followed by 40+ alphanumeric characters. Format from PostHog developer documentation (posthog.com/docs/api).",
+      "validator": "",
+      "examples_match": [
+        "xor:KjI5BTtrGGg5aR5uP28cbD1tEmIzYxBqMWsWaDdpFG41bwpsK20IYiljDmovawxoLWkCbiNvAGwbbQ==",
+        "xor:KjIiBTtrGGg5aR5uP28cbD1tEmIzYxBqMWsWaDdpFG41bwpsK20IYiljDmovawxoLWkCbiNvAGwbbRhiOWMeaj9r"
+      ],
+      "examples_no_match": [
+        "phc_short",
+        "PHC_tooshort"
+      ],
+      "context_words_boost": [
+        "posthog",
+        "POSTHOG_API_KEY",
+        "posthog_key",
+        "ph_project"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": [
+        "posthog",
+        "api_key",
+        "token"
+      ]
+    },
+    {
+      "name": "langsmith_api_key",
+      "regex": "\\blsv2_(?:pt|sk)_[a-f0-9]{20,}_[a-f0-9]{20,}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "LangSmith (LangChain) API key \u2014 PAT (lsv2_pt_) or service key (lsv2_sk_) with hex body segments",
+      "validator": "",
+      "examples_match": [
+        "xor:NiksaAUqLgU7ODk+PzxraGlub2xtYmNqOzg5Pj88BWtoaW5vbG1iY2o7ODk+PzxraGlub2xtYg=="
+      ],
+      "examples_no_match": [
+        "lsv2_pt_short",
+        "lsv2_xx_invalid"
+      ],
+      "context_words_boost": [
+        "langsmith",
+        "langchain",
+        "LANGCHAIN_API_KEY"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    },
+    {
+      "name": "nvidia_nim_api_key",
+      "regex": "\\bnvapi-[A-Za-z0-9_-]{20,}\\b",
+      "entity_type": "API_KEY",
+      "category": "Credential",
+      "sensitivity": "CRITICAL",
+      "confidence": 0.95,
+      "description": "NVIDIA NIM/NGC API key (nvapi- prefix)",
+      "validator": "",
+      "examples_match": [
+        "xor:NCw7KjN3Oxg5Hj8cPRIzEDEWNxQ1CisIKQ4vDC0CIwBqa2hpbm9sbWJj"
+      ],
+      "examples_no_match": [
+        "nvapi-short",
+        "nvapi"
+      ],
+      "context_words_boost": [
+        "nvidia",
+        "nim",
+        "ngc",
+        "NVIDIA_API_KEY"
+      ],
+      "context_words_suppress": [],
+      "stopwords": [],
+      "allowlist_patterns": [],
+      "requires_column_hint": false,
+      "column_hint_keywords": []
+    }
+  ]
+}

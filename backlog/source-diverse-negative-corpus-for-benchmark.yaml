@@ -1,0 +1,28 @@
+title: Source diverse NEGATIVE corpus for benchmark
+status: backlog
+priority: P1
+category: feature
+sprint_target: null
+created: 2026-04-18
+updated: 2026-04-18
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: "Current NEGATIVE pool is 90 values from SecretBench (after reclassification),\
+  \ resampled into 450 shards. Too small and too homogeneous. Need 5+ structurally-distinct\
+  \ NEGATIVE sources with 100+ values each: (1) config files without secrets (PORT=8080,\
+  \ DEBUG=true), (2) code without PII (function definitions, imports), (3) generic\
+  \ business data (product names, SKUs), (4) numeric non-PII (measurements, scores,\
+  \ counts), (5) prose without PII (documentation text). The binary PII gate RED verdict\
+  \ (Sprint 14 research) showed 3 corpora encoding 3 unrelated concepts of NEGATIVE\
+  \ \u2014 need coherent definition + diverse sourcing."
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

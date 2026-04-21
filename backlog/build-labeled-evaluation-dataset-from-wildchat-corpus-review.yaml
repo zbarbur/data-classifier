@@ -1,0 +1,35 @@
+title: Build labeled evaluation dataset from WildChat corpus review
+status: backlog
+priority: P1
+category: feature
+sprint_target: null
+created: 2026-04-18
+updated: 2026-04-18
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: "During Sprint 14 secret scanner review, we manually classified 3,515\
+  \ WildChat credential prompts across 5 sample batches (seeds 42/99/777/2024/555).\
+  \ Results: 98.6% precision on SS-only subset (900 unique prompts), 4 remaining FPs,\
+  \ 5 real missed secrets. This work should be preserved as a labeled evaluation dataset\
+  \ for regression testing:\n\n1. Re-scan all 3,515 prompts with current scanner (both\
+  \ regex + secret_scanner engines)\n2. Save results as JSONL with fields: prompt_xor,\
+  \ scanner_findings, old_findings, label (TP/FP/TN/FN), confidence, reviewed flag\n\
+  3. Include the 5 identified missed secrets with label=FN for recall tracking\n4.\
+  \ Include the 4 remaining FP cases with label=FP for precision tracking  \n5. Track\
+  \ via DVC alongside the raw corpus\n6. Use as ground truth for future scanner changes\
+  \ \u2014 any regression in these labeled cases blocks the change\n\nThe 620 suppressed\
+  \ prompts (old FPs) are also valuable \u2014 they prove the suppression logic works.\
+  \ Label them as TN (correctly suppressed).\n\nBrowser parity: the JS scanner should\
+  \ produce identical results on the same prompts. Add a differential test using this\
+  \ labeled dataset."
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

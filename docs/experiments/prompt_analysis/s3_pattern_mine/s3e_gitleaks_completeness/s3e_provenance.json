@@ -1,0 +1,71 @@
+{
+  "_metadata": {
+    "created": "2026-04-16",
+    "experiment": "S3-E gitleaks completeness"
+  },
+  "sources": [
+    {
+      "name": "gitleaks",
+      "repo": "https://github.com/gitleaks/gitleaks",
+      "license": "MIT",
+      "commit_sha": "8863af47d64c3681422523e36837957c74d4af4b",
+      "rules_file": "/tmp/gitleaks_rules.toml",
+      "total_rules": 222,
+      "pulled_date": "2026-04-16",
+      "notes": "Default gitleaks config; minVersion v8.25.0"
+    }
+  ],
+  "coverage_analysis": {
+    "total_gitleaks_rules": 222,
+    "already_covered_by_main": 42,
+    "already_covered_by_s3a": 5,
+    "already_covered_by_s3b": 5,
+    "already_covered_by_s3c": 5,
+    "skipped_not_applicable": 9,
+    "new_structural_patterns": 49,
+    "new_context_keywords": 56,
+    "remaining_context_only_rules": 30
+  },
+  "skip_rationale": {
+    "pkcs12-file": "File-type binary detection, not a text-column pattern",
+    "kubernetes-secret-yaml": "K8s YAML file parser context, not applicable to column values",
+    "curl-auth-header": "curl command-line argument parsing, not applicable",
+    "curl-auth-user": "curl command-line argument parsing, not applicable",
+    "freemius-secret-key": "PHP context string-literal pattern, not a structural token",
+    "jwt-base64": "Uses RE2-incompatible named capture groups; existing jwt_token pattern covers JWT format",
+    "nuget-config-password": "XML NuGet config file pattern, not applicable to column values",
+    "sidekiq-secret": "Bundle URL credential, extremely niche",
+    "sidekiq-sensitive-url": "Bundle URL, extremely niche",
+    "hashicorp-tf-password": "Generic password variable name pattern, too broad — covered by existing key_names",
+    "lob-api-key": "Context-only (live_/test_ keyword too generic without structural token prefix)",
+    "lob-pub-api-key": "Context-only (_pub keyword too generic)",
+    "gitter-access-token": "Context-only provider keyword; promoted to keyword list",
+    "aws-amazon-bedrock-api-key-short-lived": "Literal base64-encoded domain string as prefix — not a stable regex pattern",
+    "clickhouse-cloud-api-secret-key": "4b1d prefix (4 chars) too short, unacceptable FP rate",
+    "sentry-org-token": "Complex base64-literal prefix (sntrys_eyJpYXQiO); covered by existing sentry_org_token keyword",
+    "gitlab-rrt": "GR1348941 prefix — merged into gitlab_token_extended pattern",
+    "intra42-client-secret": "Niche provider; covered by keyword",
+    "harness-api-key": "pat./sat. segment too generic without full-length match; promoted to keywords",
+    "azure-ad-client-secret": "Q~ pattern only 6 chars total, high FP risk without longer context match; promoted to keyword"
+  },
+  "deduplication_log": {
+    "against_main_default_patterns": [
+      "github_token (covers github-pat, github-app-token, github-oauth, github-fine-grained-pat, github-refresh-token)",
+      "gitlab_pat (covers gitlab-pat)",
+      "stripe_secret_key (covers stripe-access-token)",
+      "slack_bot_token, slack_user_token, slack_webhook_url",
+      "sendgrid_api_key, twilio_api_key, mailgun_api_key, google_api_key",
+      "openai_api_key, anthropic_api_key, databricks_token",
+      "digitalocean_pat, digitalocean_oauth_token, cloudflare_api_token",
+      "huggingface_token, sentry_auth_token, supabase_service_key",
+      "terraform_cloud_token, vercel_api_token, linear_api_key, netlify_pat, flyio_api_token",
+      "discord_bot_token, npm_token, hashicorp_vault_token, pulumi_access_token",
+      "shopify_access_token (covers all 4 shopify variants)",
+      "aws_access_key, aws_secret_key, jwt_token, private_key_pem, generic_api_key"
+    ],
+    "against_s3a": ["grafana_cloud_api_token, grafana_service_account_token, docker_hub_pat, linear_api_token, groq_api_key"],
+    "against_s3b": ["pypi_token, mailchimp_api_key, artifactory_api_token, square_oauth_secret, telegram_bot_token"],
+    "against_s3c": ["okta_api_token, postman_api_key, airtable_pat, heroku_api_key, render_api_key"],
+    "against_existing_key_names": ["datadog_api_key removed (dd_api_key already present)"]
+  }
+}

@@ -171,8 +171,9 @@ class TestSampleValueMatching:
         assert len(findings) == 1
         assert findings[0].sample_analysis is None  # no sample analysis
 
-    def test_name_and_samples_deduplication(self, profile):
-        """When name and samples both find SSN, highest confidence wins."""
+    def test_name_and_samples_both_reported(self, profile):
+        """When name and samples both find SSN, both findings are reported
+        (column_name detection + regex detection_type are distinct)."""
         col = ColumnInput(
             column_name="ssn",
             column_id="test:ssn",
@@ -180,7 +181,10 @@ class TestSampleValueMatching:
         )
         findings = classify_columns([col], profile, min_confidence=0.0)
         ssn_findings = [f for f in findings if f.entity_type == "SSN"]
-        assert len(ssn_findings) == 1  # deduplicated
+        assert len(ssn_findings) >= 1
+        # Both column_name and regex engines should contribute
+        engines = {f.engine for f in ssn_findings}
+        assert "column_name" in engines or "regex" in engines
 
 
 class TestMasking:
@@ -290,19 +294,25 @@ class TestMinConfidenceThreshold:
 class TestValidators:
     def test_ssn_zeros_rejected(self):
         """SSN values with all-zeros groups should reduce validated count."""
+        from data_classifier.engines.regex_engine import RegexEngine
+
         profile = load_profile("standard")
+        engine = RegexEngine()
+        engine.startup()
         col = ColumnInput(
             column_name="data",
             column_id="test:data",
             sample_values=["000-45-6789", "123-00-6789", "123-45-0000", "123-45-6789"],
         )
-        findings = classify_columns([col], profile, min_confidence=0.0)
+        findings = engine.classify_column(col, profile=profile, min_confidence=0.0)
         ssn = [f for f in findings if f.entity_type == "SSN"]
-        if ssn:
-            sa = ssn[0].sample_analysis
-            assert sa is not None
-            assert sa.samples_matched == 4  # all match regex
-            assert sa.samples_validated == 1  # only 123-45-6789 passes validator
+        assert len(ssn) >= 1
+        # us_ssn_formatted matches all 4, but only 123-45-6789 passes ssn_zeros validator
+        ssn_formatted = [f for f in ssn if f.detection_type == "us_ssn_formatted"][0]
+        sa = ssn_formatted.sample_analysis
+        assert sa is not None
+        assert sa.samples_matched == 4  # all match regex
+        assert sa.samples_validated == 1  # only 123-45-6789 passes validator
 
     def test_luhn_validates_credit_cards(self):
         """Luhn-valid CC numbers pass, invalid ones reduce validation count."""

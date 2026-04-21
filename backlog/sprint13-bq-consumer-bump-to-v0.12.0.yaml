@@ -2,9 +2,9 @@ title: 'Sprint 14: BQ connector consumer bump to v0.12.0 (external coordination)
 status: backlog
 priority: P1
 category: chore
-sprint_target: 14
+sprint_target: 0
 created: 2026-04-16
-updated: 2026-04-16
+updated: 2026-04-17
 depends_on:
 - sprint12-v0.12.0-wheel-release
 tags:
@@ -13,26 +13,24 @@ tags:
 - release-ops
 - external-team
 - sprint13-out-of-scope
-goal: >
-  Coordinate with the BigQuery connector team to bump their
-  data_classifier dependency from v0.8.0 to v0.12.0. First BQ-facing
-  release since v0.8.0 — bundles Sprints 9/10/11/12 per the Sprint 12
-  reframe single-coordinated-bump decision.
+goal: "Coordinate with the BigQuery connector team to bump their data_classifier dependency\
+  \ from v0.8.0 to v0.12.0. First BQ-facing release since v0.8.0 \u2014 bundles Sprints\
+  \ 9/10/11/12 per the Sprint 12 reframe single-coordinated-bump decision.\n"
 complexity: S
 technical_specs:
-- 'Pre-condition: sprint12-v0.12.0-wheel-release has landed (wheel
-  available in AR Python repo).'
-- 'File the BQ consumer bump as a coordinated PR on the BigQuery-connector
-  side (do NOT touch ../BigQuery-connector/ directly — coordinate via the
-  connector team).'
-- 'Surface the CLIENT_INTEGRATION_GUIDE.md v0.12.0 migration section to the
-  BQ team explicitly. Key points: NO behavior change on live path;
-  ClassificationFinding.family is a new additive field (connectors can
-  ignore or surface it in their downstream telemetry); shadow
-  meta-classifier observability is accessible via
-  ClassificationEvent.meta_classification for DLP policy telemetry.'
-- 'Verification: BQ connector team runs their integration tests against
-  v0.12.0 in a staging environment before production rollout.'
+- 'Pre-condition: sprint12-v0.12.0-wheel-release has landed (wheel available in AR
+  Python repo).'
+- "File the BQ consumer bump as a coordinated PR on the BigQuery-connector side (do\
+  \ NOT touch ../BigQuery-connector/ directly \u2014 coordinate via the connector\
+  \ team)."
+- 'Surface the CLIENT_INTEGRATION_GUIDE.md v0.12.0 migration section to the BQ team
+  explicitly. Key points: NO behavior change on live path; ClassificationFinding.family
+  is a new additive field (connectors can ignore or surface it in their downstream
+  telemetry); shadow meta-classifier observability is accessible via ClassificationEvent.meta_classification
+  for DLP policy telemetry.'
+- 'Verification: BQ connector team runs their integration tests against v0.12.0 in
+  a staging environment before production rollout.'
+description: ''
 acceptance_criteria:
 - BQ connector team has opened a PR bumping data_classifier to v0.12.0
 - BQ integration tests pass on v0.12.0 in staging
@@ -40,29 +38,47 @@ acceptance_criteria:
 - Sprint 13 handover doc references the coordinated release outcome
 test_plan:
 - 'BQ side: connector team runs integration tests against v0.12.0 in staging'
-- 'Rollback drill: confirm pinning back to v0.8.0 is still possible if the
-  bump causes unexpected production issues (release-ops sanity check)'
-notes: |
-  Filed 2026-04-16 as the external-coordination half of the retired
+- 'Rollback drill: confirm pinning back to v0.8.0 is still possible if the bump causes
+  unexpected production issues (release-ops sanity check)'
+notes: 'Filed 2026-04-16 as the external-coordination half of the retired
+
   sprint-12-v0-12-0-release-and-bq-consumer-bump composite item. Split
+
   because wheel-publish (Sprint 12 scope, ~2h of writing) and BQ
+
   consumer-bump (external team, ~1 day of their capacity) are distinct
+
   actions blocking on different parties.
 
+
   Deferred out of Sprint 13 scope (2026-04-16 scoping discussion): the BQ
+
   team will pick up the v0.12.0 bump on their own cadence. data_classifier
+
   v0.12.0 is published and available; no further action required from the
+
   library side until BQ files their consumer-bump PR. Retagged sprint14 as
+
   a tracking placeholder; may not actually execute in Sprint 14 either if
+
   BQ completes the bump on their own timeline first.
 
+
   The risk surface is much smaller than the original composite item
+
   anticipated: v0.12.0 is a shadow-only release from the consumer
+
   perspective, not a directive flip. The live classification path is
+
   functionally identical to v0.8.0 on structured single-entity columns
+
   (Sprint 8 test distribution). The only consumer-visible additive
+
   change is ClassificationFinding.family, which connectors can ignore
+
   without breaking their existing integrations.
+
+  '
 phase: plan
 design_reviewed: true
 code_reviewed: false

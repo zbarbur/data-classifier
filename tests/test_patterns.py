@@ -13,8 +13,17 @@ import pytest
 import re2
 
 from data_classifier.patterns import load_default_patterns
+from data_classifier.patterns._decoder import decode_encoded_strings
 
 _PATTERNS = load_default_patterns()
+
+
+def _decode_example(value: str) -> str:
+    """Decode xor:/b64:-prefixed examples to raw text."""
+    if value.startswith(("xor:", "b64:")):
+        decoded = decode_encoded_strings([value])
+        return decoded[0] if decoded else value
+    return value
 
 
 @pytest.mark.parametrize(
@@ -31,13 +40,17 @@ class TestPatternExamples:
         """Every examples_match value matches the regex."""
         compiled = re2.compile(pattern.regex)
         for example in pattern.examples_match:
-            assert compiled.search(example), f"Pattern '{pattern.name}' should match '{example}' but didn't"
+            decoded = _decode_example(example)
+            assert compiled.search(decoded), f"Pattern '{pattern.name}' should match '{decoded[:80]}...' but didn't"
 
     def test_examples_no_match(self, pattern):
         """Every examples_no_match value does NOT match the regex."""
         compiled = re2.compile(pattern.regex)
         for example in pattern.examples_no_match:
-            assert not compiled.search(example), f"Pattern '{pattern.name}' should NOT match '{example}' but did"
+            decoded = _decode_example(example)
+            assert not compiled.search(decoded), (
+                f"Pattern '{pattern.name}' should NOT match '{decoded[:80]}...' but did"
+            )
 
     def test_has_required_metadata(self, pattern):
         """Pattern has all required metadata fields."""

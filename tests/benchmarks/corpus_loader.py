@@ -10,6 +10,9 @@ Supports multiple corpus sources:
 - Gretel-PII-masking-en-v1 (HuggingFace sample; Apache 2.0 mixed-label
   corpus, 60k rows / 47 domains) — replaced a retired 300k-row corpus
   in Sprint 9 (license non-OSS, see docs/process/LICENSE_AUDIT.md).
+- ai4privacy/pii-masking-openpii-1m (CC-BY-4.0, 1.4M rows, 23 languages,
+  19 entity labels) — added Sprint 14. Re-opens Sprint 9 removal decision
+  for the openpii-1m variant specifically (license verified CC-BY-4.0).
 
 Sample data ships in tests/fixtures/corpora/ for offline benchmarking.
 
@@ -57,7 +60,7 @@ _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "corpora"
 # decision. Target coverage: ~71% of labeled Gretel instances, by design.
 GRETEL_EN_TYPE_MAP: dict[str, str] = {
     # PII
-    "date_of_birth": "DATE_OF_BIRTH",
+    "date_of_birth": "DATE",
     "ssn": "SSN",
     "first_name": "PERSON_NAME",
     "name": "PERSON_NAME",
@@ -84,11 +87,72 @@ GRETEL_EN_TYPE_MAP: dict[str, str] = {
 # The fixture shipped in tests/fixtures/corpora/gretel_en_sample.json is
 # ALREADY flattened into the ``{entity_type, value}`` schema the loader
 # expects.  The downstream data_classifier taxonomy labels (e.g.
-# ``DATE_OF_BIRTH``, ``PERSON_NAME``) are already applied during
+# ``DATE``, ``PERSON_NAME``) are already applied during
 # download; so the loader only needs an identity map over the post-ETL
 # labels.  We do not re-map from the raw Gretel labels here because the
 # raw labels never appear in the fixture.
 _GRETEL_EN_POST_ETL_IDENTITY: dict[str, str] = {label: label for label in set(GRETEL_EN_TYPE_MAP.values())}
+# Backward compat: fixtures produced before the DATE_OF_BIRTH → DATE rename
+# still carry ``DATE_OF_BIRTH`` as entity_type.  Map it to ``DATE``.
+_GRETEL_EN_POST_ETL_IDENTITY["DATE_OF_BIRTH"] = "DATE"
+
+
+# ai4privacy/pii-masking-openpii-1m label map — locked 2026-04-17,
+# Sprint 14.  CC-BY-4.0 (verified 2026-04-14 via HuggingFace page).
+#
+# 19 raw labels → 8 data_classifier entity types.  Mapping decisions:
+#
+# - GIVENNAME / SURNAME → PERSON_NAME (name components).
+# - USERNAME → PERSON_NAME (user handle, closest PII fit; no USERNAME
+#   entity type exists in the taxonomy and adding one is out of scope).
+# - BUILDINGNUM / STREET / CITY / ZIPCODE / STATE / COUNTY → ADDRESS
+#   (address components, same family as ADDRESS).
+# - IDCARDNUM / DRIVERLICENSENUM / PASSPORTNUM → NATIONAL_ID
+#   (government-issued identity documents; existing entity type covers
+#   passports + drivers licenses + national IDs).
+# - TAXNUM → SSN (tax identifier — SSN/TIN/NIF equivalent; SSN is the
+#   closest existing entity type for government tax IDs).
+# - SOCIALNUM → SSN (social security / social insurance number).
+# - CREDITCARDNUMBER → CREDIT_CARD (payment card number).
+# - ACCOUNTNUM → BANK_ACCOUNT (financial account number).
+# - EMAIL → EMAIL (email address).
+# - PHONENUMBER → PHONE (phone number).
+# - DATE → DATE (regex cannot distinguish birth dates from generic dates;
+#   the DATE entity type covers all date formats, and the DATE family
+#   in taxonomy.py handles both DATE and legacy DATE_OF_BIRTH).
+OPENPII_1M_TYPE_MAP: dict[str, str] = {
+    # Identity / PII
+    "GIVENNAME": "PERSON_NAME",
+    "SURNAME": "PERSON_NAME",
+    "USERNAME": "PERSON_NAME",
+    # Address components
+    "BUILDINGNUM": "ADDRESS",
+    "STREET": "ADDRESS",
+    "CITY": "ADDRESS",
+    "ZIPCODE": "ADDRESS",
+    "STATE": "ADDRESS",
+    "COUNTY": "ADDRESS",
+    # Government-issued IDs
+    "IDCARDNUM": "NATIONAL_ID",
+    "DRIVERLICENSENUM": "NATIONAL_ID",
+    "PASSPORTNUM": "NATIONAL_ID",
+    # Tax / social security
+    "TAXNUM": "SSN",
+    "SOCIALNUM": "SSN",
+    # Financial
+    "CREDITCARDNUMBER": "CREDIT_CARD",
+    "ACCOUNTNUM": "BANK_ACCOUNT",
+    # Contact
+    "EMAIL": "EMAIL",
+    "PHONENUMBER": "PHONE",
+    # Date
+    "DATE": "DATE",
+}
+
+#: Identity map over the already-flattened post-ETL labels in the
+#: openpii-1m fixture, matching the Gretel-EN approach.
+_OPENPII_1M_POST_ETL_IDENTITY: dict[str, str] = {label: label for label in set(OPENPII_1M_TYPE_MAP.values())}
+_OPENPII_1M_POST_ETL_IDENTITY["DATE_OF_BIRTH"] = "DATE"
 
 
 # Gretel synthetic_pii_finance_multilingual label map — locked
@@ -112,7 +176,7 @@ GRETEL_FINANCE_TYPE_MAP: dict[str, str] = {
     "street_address": "ADDRESS",
     "phone_number": "PHONE",
     "email": "EMAIL",
-    "date_of_birth": "DATE_OF_BIRTH",
+    "date_of_birth": "DATE",
     "ssn": "SSN",
     # Financial
     "iban": "IBAN",
@@ -136,12 +200,13 @@ GRETEL_FINANCE_TYPE_MAP: dict[str, str] = {
 #: Identity map over the already-flattened post-ETL labels in the
 #: Gretel-finance fixture, matching the Gretel-EN approach.
 _GRETEL_FINANCE_POST_ETL_IDENTITY: dict[str, str] = {label: label for label in set(GRETEL_FINANCE_TYPE_MAP.values())}
+_GRETEL_FINANCE_POST_ETL_IDENTITY["DATE_OF_BIRTH"] = "DATE"
 
 
 NEMOTRON_TYPE_MAP: dict[str, str] = {
     "first_name": "PERSON_NAME",
     "last_name": "PERSON_NAME",
-    "date_of_birth": "DATE_OF_BIRTH",
+    "date_of_birth": "DATE",
     "street_address": "ADDRESS",
     "email": "EMAIL",
     "email_address": "EMAIL",
@@ -182,7 +247,8 @@ NEMOTRON_TYPE_MAP: dict[str, str] = {
     # Legacy passthrough: any residual ``CREDENTIAL`` labels in upstream
     # corpora route to the OPAQUE_SECRET catch-all.
     "CREDENTIAL": "OPAQUE_SECRET",
-    "DATE_OF_BIRTH": "DATE_OF_BIRTH",
+    "DATE_OF_BIRTH": "DATE",
+    "DATE": "DATE",
     # Sprint 11 credential-shape partitioner identity entries.  The
     # loader rewrites a record's ``entity_type`` to one of these three
     # post-taxonomy labels when a raw ``password`` / ``CREDENTIAL``
@@ -202,40 +268,64 @@ NEMOTRON_TYPE_MAP: dict[str, str] = {
 # the regex engine's ``jwt_token`` pattern (correctly) fires on.
 _JWT_SHAPE_RE = re.compile(r"^ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
 
+# Known API key prefixes — values matching these have a deterministic
+# signature and should be labeled API_KEY, not OPAQUE_SECRET.  The regex
+# engine will detect them by their specific pattern (google_api_key,
+# slack_bot_token, etc.) so the GT must agree.
+_API_KEY_PREFIX_RE = re.compile(
+    r"(?:"
+    r"sk-[a-zA-Z0-9]{20}"  # OpenAI
+    r"|ghp_[a-zA-Z0-9]{36}"  # GitHub PAT
+    r"|gho_[a-zA-Z0-9]{36}"  # GitHub OAuth
+    r"|ghs_[a-zA-Z0-9]{36}"  # GitHub app token
+    r"|glpat-[a-zA-Z0-9\-]{20}"  # GitLab PAT
+    r"|xox[baprs]-[a-zA-Z0-9\-]+"  # Slack
+    r"|AKIA[A-Z0-9]{16}"  # AWS access key
+    r"|AIzaSy[a-zA-Z0-9_\-]{33}"  # Google API key
+    r"|ya29\.[a-zA-Z0-9_\-]+"  # Google OAuth
+    r"|sk-ant-[a-zA-Z0-9\-]{20}"  # Anthropic
+    r"|glc_[a-zA-Z0-9]{20,}"  # Grafana cloud token
+    r"|dapi[a-zA-Z0-9]{32}"  # Databricks token
+    r"|shpat_[a-zA-Z0-9]{32}"  # Shopify
+    r"|SG\.[a-zA-Z0-9_\-]{22}\."  # SendGrid
+    r"|hf_[a-zA-Z0-9]{34}"  # HuggingFace
+    r")",
+    re.ASCII,
+)
+
 
 def _classify_credential_value_shape(value: str) -> str:
     """Return the credential subtype a plaintext value should be labeled as.
 
-    Sprint 11 follow-up to the nemotron-corpus-loader-taxonomy-refresh item.
-    Nemotron's upstream ``password`` / ``CREDENTIAL`` bucket is a
-    grab-bag of plaintext passwords, 6-digit PINs, UUID-ish tokens, and
-    a small number of JWT-shaped tokens.  The Sprint 11 item #1 mapping
-    routed the whole bucket uniformly to ``OPAQUE_SECRET``, so JWT
-    values got scored as FPs when the regex engine correctly identified
-    them as ``API_KEY``.  This helper inspects the value and returns the
-    correct subtype — the caller rewrites each record's ``entity_type``
-    before ``NEMOTRON_TYPE_MAP`` is applied.
+    Inspects the value for known structural signatures:
+
+    1. **PEM block** (``-----BEGIN ... PRIVATE KEY-----``) → ``PRIVATE_KEY``
+    2. **Known API key prefix** (``AIzaSy``, ``ghp_``, ``xoxb-``, etc.)
+       or **JWT shape** (``eyJ...``) → ``API_KEY``
+    3. Everything else (passwords, PINs, UUIDs, opaque tokens) → ``OPAQUE_SECRET``
+
+    The ordering matters: a value with a known prefix is unambiguously an
+    API key — the regex engine will detect it by its specific pattern, so
+    the ground truth must agree.
 
     Args:
-        value: A raw credential string from the Nemotron corpus.
+        value: A raw credential string from a corpus.
 
     Returns:
-        One of ``"API_KEY"`` (JWT-shaped), ``"PRIVATE_KEY"`` (PEM block),
-        or ``"OPAQUE_SECRET"`` (plaintext password, PIN, UUID, and any
-        empty or whitespace-only input).
+        One of ``"API_KEY"``, ``"PRIVATE_KEY"``, or ``"OPAQUE_SECRET"``.
     """
     stripped = (value or "").strip()
     if not stripped:
         return "OPAQUE_SECRET"
-    if _JWT_SHAPE_RE.match(stripped):
-        return "API_KEY"
-    # PEM match must require "PRIVATE KEY" explicitly — checking for just
-    # "KEY" would incorrectly bucket ``-----BEGIN PUBLIC KEY-----`` blocks
-    # (and other non-private PEM headers) as PRIVATE_KEY.  The header-only
-    # 60-char window is enough to see the full type prefix without pulling
-    # in the base64 body.
+    # PEM blocks — check first because they can contain JWT-like base64
     if stripped.startswith("-----BEGIN ") and "PRIVATE KEY" in stripped[:60].upper():
         return "PRIVATE_KEY"
+    # Known API key prefixes — deterministic signature
+    if _API_KEY_PREFIX_RE.search(stripped):
+        return "API_KEY"
+    # JWT shape
+    if _JWT_SHAPE_RE.match(stripped):
+        return "API_KEY"
     return "OPAQUE_SECRET"
 
 
@@ -266,6 +356,16 @@ def _records_to_corpus(
             the column name engine cannot cheat.  This tests whether
             classification works from sample values alone.
     """
+    # LLM-generated corpora produce CC/ABA values with correct format but
+    # random digits.  Filter checksum-validated types to valid values only.
+    from data_classifier.engines.validators import aba_checksum_check, luhn_strip_check, vin_checkdigit_check
+
+    _checksum_filters: dict[str, callable] = {
+        "CREDIT_CARD": luhn_strip_check,
+        "ABA_ROUTING": aba_checksum_check,
+        "VIN": vin_checkdigit_check,
+    }
+
     # Group values by our entity type
     by_type: dict[str, list[str]] = {}
     for record in records:
@@ -276,6 +376,10 @@ def _records_to_corpus(
 
         our_type = type_map.get(ext_type)
         if our_type is None:
+            continue
+
+        validator = _checksum_filters.get(our_type)
+        if validator is not None and not validator(str(value)):
             continue
 
         by_type.setdefault(our_type, []).append(str(value))
@@ -437,6 +541,73 @@ def load_gretel_finance_corpus(
         max_rows,
         blind=blind,
     )
+
+
+def load_openpii_1m_corpus(
+    path: Path | str | None = None,
+    max_rows: int = 500,
+    *,
+    blind: bool = False,
+) -> list[tuple[ColumnInput, str | None]]:
+    """Load the ai4privacy/pii-masking-openpii-1m corpus sample.
+
+    The dataset is CC-BY-4.0 (1.4M rows, 23 languages, 19 entity labels).
+    It is too large to commit and must be downloaded to
+    ``~/.cache/data_classifier/datasets/ai4privacy_openpii_1m/`` at
+    training/benchmark time.
+
+    The bundled fixture (if present) at
+    ``tests/fixtures/corpora/openpii_1m_sample.json`` is **already
+    flattened** to the ``{"entity_type": <data_classifier type>,
+    "value": <raw value>}`` schema.  The download-side ETL maps labels
+    through :data:`OPENPII_1M_TYPE_MAP` and writes the post-ETL taxonomy
+    labels to disk.  The loader therefore uses an identity map over the
+    already-mapped taxonomy labels.
+
+    If no fixture file exists, the loader tries the cache directory at
+    ``~/.cache/data_classifier/datasets/ai4privacy_openpii_1m/openpii_1m_sample.json``.
+    If neither exists, it returns an empty list with a warning — CI
+    without the corpus does not break.
+
+    Args:
+        path: Path to JSON sample file. Defaults to bundled fixture,
+            then falls back to cache directory.
+        max_rows: Maximum sample values per entity type.
+        blind: If True, use generic column names (``col_0``, ``col_1``,
+            ...) so the column-name engine cannot cheat.
+
+    Returns:
+        List of ``(ColumnInput, expected_entity_type)`` tuples.
+    """
+    if path is None:
+        # Try bundled fixture first, then cache directory.
+        fixture_path = _FIXTURES_DIR / "openpii_1m_sample.json"
+        cache_path = (
+            Path.home() / ".cache" / "data_classifier" / "datasets" / "ai4privacy_openpii_1m" / "openpii_1m_sample.json"
+        )
+        if fixture_path.exists():
+            path = fixture_path
+        elif cache_path.exists():
+            path = cache_path
+        else:
+            logger.warning(
+                "OpenPII-1M corpus not found at %s or %s. "
+                "Download via scripts/download_corpora.py --corpus openpii_1m "
+                "or place a fixture at %s.",
+                fixture_path,
+                cache_path,
+                fixture_path,
+            )
+            return []
+    else:
+        path = Path(path)
+
+    records = _load_json_corpus(path)
+    if not records:
+        logger.warning("No records loaded from OpenPII-1M corpus at %s", path)
+        return []
+
+    return _records_to_corpus(records, _OPENPII_1M_POST_ETL_IDENTITY, "openpii_1m", max_rows, blind=blind)
 
 
 #: Generic sentinel for "this column's ground truth is that nothing
@@ -816,7 +987,8 @@ def load_corpus(
     Args:
         source: One of ``"synthetic"``, ``"nemotron"``,
             ``"secretbench"``, ``"gitleaks"``, ``"detect_secrets"``,
-            ``"gretel_en"``, ``"gretel_finance"``, or ``"all"``.
+            ``"gretel_en"``, ``"gretel_finance"``, ``"openpii_1m"``,
+            or ``"all"``.
         max_rows: Max rows for real-world corpora.
         path: Optional custom path to corpus file.
         samples_per_type: Samples per type for synthetic corpus.
@@ -840,6 +1012,8 @@ def load_corpus(
         return load_gretel_en_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "gretel_finance":
         return load_gretel_finance_corpus(path=path, max_rows=max_rows, blind=blind)
+    elif source == "openpii_1m":
+        return load_openpii_1m_corpus(path=path, max_rows=max_rows, blind=blind)
     elif source == "all":
         corpus: list[tuple[ColumnInput, str | None]] = []
         corpus.extend(load_synthetic_corpus(samples_per_type=samples_per_type))
@@ -849,11 +1023,12 @@ def load_corpus(
         corpus.extend(load_detect_secrets_corpus(blind=blind))
         corpus.extend(load_gretel_en_corpus(max_rows=max_rows, blind=blind))
         corpus.extend(load_gretel_finance_corpus(max_rows=max_rows, blind=blind))
+        corpus.extend(load_openpii_1m_corpus(max_rows=max_rows, blind=blind))
         return corpus
     else:
         msg = (
             f"Unknown corpus source: {source!r}. Valid: synthetic, "
             "nemotron, secretbench, gitleaks, detect_secrets, "
-            "gretel_en, gretel_finance, all"
+            "gretel_en, gretel_finance, openpii_1m, all"
         )
         raise ValueError(msg)

@@ -1,0 +1,44 @@
+title: "GLiNER label decisions \u2014 promote AGE/HEALTH/FINANCIAL, fix or drop DEMOGRAPHIC"
+status: done
+priority: P2
+category: feature
+sprint_target: 14
+created: 2026-04-17
+updated: 2026-04-17
+depends_on: []
+tags: []
+goal: Promote AGE, HEALTH, FINANCIAL from experimental to standard GLiNER labels with
+  tests; diagnose DEMOGRAPHIC (model silent on current description) and either fix
+  the description or drop the label
+complexity: S
+technical_specs:
+- "File: data_classifier/engines/gliner_engine.py \u2014 move AGE/HEALTH/FINANCIAL\
+  \ from EXPERIMENTAL_LABEL_DESCRIPTIONS to ENTITY_LABEL_DESCRIPTIONS"
+- "File: data_classifier/profiles/standard.yaml \u2014 add AGE, HEALTH, FINANCIAL\
+  \ entity types with family assignments"
+- "File: data_classifier/__init__.py \u2014 update ENTITY_TYPE_TO_FAMILY with new\
+  \ types"
+- "File: tests/test_gliner_engine.py \u2014 add parameterized test cases for each\
+  \ promoted label"
+- 'DEMOGRAPHIC diagnosis: test 3-5 alternative descriptions, if none fire reliably,
+  remove'
+description: ''
+acceptance_criteria:
+- AGE, HEALTH, FINANCIAL added to ENTITY_LABEL_DESCRIPTIONS in gliner_engine.py with
+  standard (non-experimental) status
+- Each promoted label has at least 3 positive and 2 negative test cases in test_gliner_engine.py
+- DEMOGRAPHIC either fires with a revised description or is removed from EXPERIMENTAL_LABEL_DESCRIPTIONS
+- standard.yaml updated with new entity types and family assignments
+- Family benchmark cross_family_rate does not regress
+- Tests pass (pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_gliner_engine.py: positive/negative cases for AGE, HEALTH, FINANCIAL'
+- 'tests/test_family_taxonomy.py: new entity types present in family map'
+- 'Manual: family benchmark run to verify no cross_family regression'
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

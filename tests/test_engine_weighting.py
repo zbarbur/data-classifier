@@ -250,7 +250,9 @@ class TestSingleEngineUnchanged:
         results = orch.classify_column(column, empty_profile, min_confidence=0.0)
 
         entity_types = {f.entity_type for f in results}
-        assert entity_types == {"SSN", "PHONE"}
+        # PHONE is suppressed when SSN co-occurs (directional PHONE suppression)
+        assert "SSN" in entity_types
+        assert "PHONE" not in entity_types
 
     def test_column_name_only(self, empty_profile, column):
         """When only column_name matches, finding is calibrated."""
@@ -336,7 +338,7 @@ class TestLowAuthorityEngines:
     """Engines with similar authority levels do not suppress each other."""
 
     def test_heuristic_and_regex_both_kept(self, empty_profile, column):
-        """Both regex (auth=5) and heuristic (auth=1) kept when no column_name."""
+        """Heuristic engine finding is kept when it doesn't collide with PHONE suppression."""
         regex_engine = StubEngine(
             "regex",
             2,
@@ -347,14 +349,15 @@ class TestLowAuthorityEngines:
             "heuristic_stats",
             3,
             1,
-            [_make_finding("PHONE", 0.70, "heuristic_stats")],
+            # Use EMAIL instead of PHONE to avoid directional PHONE suppression
+            [_make_finding("EMAIL", 0.70, "heuristic_stats")],
         )
         orch = Orchestrator(engines=[regex_engine, heuristic_engine])
         results = orch.classify_column(column, empty_profile, min_confidence=0.0)
 
         entity_types = {f.entity_type for f in results}
         assert "SSN" in entity_types
-        assert "PHONE" in entity_types
+        assert "EMAIL" in entity_types
 
 
 # ── Parameterized conflict scenarios ─────────────────────────────────────────

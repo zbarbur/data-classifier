@@ -1,30 +1,11 @@
 title: "Sprint 12: Ingest ai4privacy openpii-1m corpus (CC-BY-4.0) \u2014 re-open\
   \ Sprint 9 removal decision"
-status: backlog
+status: done
 priority: P1
 category: feature
 sprint_target: 14
 created: 2026-04-14
-updated: 2026-04-16
-# Deferred 2026-04-16 during Sprint 12 Item #4 investigation. The
-# in-distribution prereq chain (items #1 validator_rejected_credential
-# + #2 has_dictionary_name_match) is projected to close the
-# in-distribution AC on the existing 9870-row corpus; ai4privacy
-# multilingual diversity is not on the critical path for those
-# targets. If the Phase 5b safety audit returns RED on the current
-# corpus and ai4privacy would plausibly close the LOCO gap, this
-# item is the first thing to reopen in Sprint 13. See
-# docs/research/meta_classifier/sprint12_item4_directive_promotion_investigation.md
-# §7 rejected-alternatives block for the full rationale.
-#
-# 2026-04-16 (sprint-start 13 cleanup pass): Sprint 13 scope is the
-# column-shape router (Items A/B/C) — no retrain work. Deferred to
-# Sprint 14 where it pairs naturally with the DOB_EU v6 retrain
-# (sprint13-meta-classifier-v4-retrain-drop-dob-eu, also deferred to
-# Sprint 14). Removed stale sprint12 + critical-path tags: Sprint 12
-# shipped v5 shadow without this corpus, so it is neither a Sprint 12
-# item nor on a critical path anymore. Re-evaluate priority at
-# /sprint-start 14.
+updated: 2026-04-17
 depends_on: []
 tags:
 - sprint14

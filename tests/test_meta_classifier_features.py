@@ -22,6 +22,7 @@ from data_classifier.orchestrator.meta_classifier import (
 # Sprint 11 Phase 7: added heuristic_dictionary_word_ratio at index 46 (total 47, schema v3).
 # Sprint 12 Item #1: added validator_rejected_credential_ratio at index 47 (total 48, schema v4).
 # Sprint 12 Item #2: added has_dictionary_name_match_ratio at index 48 (total 49, schema v5).
+# Sprint 14: removed DATE_OF_BIRTH_EU from PRIMARY_ENTITY_TYPES (30 one-hot slots, total 48, schema v6).
 _BASE_DIM = 15
 _ONE_HOT_DIM = len(PRIMARY_ENTITY_TYPES)
 _EXTRA_DIM = 3  # dict_word_ratio, validator_rejected_credential_ratio, has_dictionary_name_match_ratio
@@ -77,8 +78,8 @@ def test_feature_dim_matches_names():
     assert FEATURE_DIM == len(FEATURE_NAMES) == _EXPECTED_DIM
 
 
-def test_feature_schema_version_is_v5():
-    assert FEATURE_SCHEMA_VERSION == 5
+def test_feature_schema_version_is_v6():
+    assert FEATURE_SCHEMA_VERSION == 6
 
 
 def test_base_feature_names_order_stable():

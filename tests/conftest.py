@@ -2,10 +2,41 @@
 
 from __future__ import annotations
 
+import os
+import sys
+import warnings
+
 import pytest
 
-from data_classifier import ClassificationProfile, load_profile
-from data_classifier.core.types import ColumnInput
+from data_classifier import ClassificationProfile, load_profile  # noqa: E402
+from data_classifier.core.types import ColumnInput  # noqa: E402
+
+# ── Venv guard: fail loudly if ML deps are missing ──────────────────────
+# The project venv has gliner2/torch installed; system python does not.
+# Running tests outside the venv causes GLiNER to silently skip, producing
+# misleading benchmark results.  This guard catches it at session start.
+_IN_CI = os.environ.get("CI") == "true"
+_ML_DISABLED = os.environ.get("DATA_CLASSIFIER_DISABLE_ML") == "1"
+
+if not _IN_CI and not _ML_DISABLED:
+    _missing = []
+    for _pkg in ("gliner2", "torch"):
+        try:
+            __import__(_pkg)
+        except ImportError:
+            _missing.append(_pkg)
+    if _missing:
+        warnings.warn(
+            f"ML packages missing: {', '.join(_missing)}. "
+            f"Run tests with .venv/bin/python -m pytest, not bare pytest. "
+            f"Current interpreter: {sys.executable}",
+            stacklevel=1,
+        )
+        pytest.exit(
+            f"ABORT: ML packages {_missing} not found. Use .venv/bin/python. "
+            f"Set DATA_CLASSIFIER_DISABLE_ML=1 to skip ML tests intentionally.",
+            returncode=1,
+        )
 
 
 @pytest.fixture

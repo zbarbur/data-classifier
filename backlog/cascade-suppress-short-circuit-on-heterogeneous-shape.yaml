@@ -1,0 +1,70 @@
+title: 'Cascade: disable short-circuit on free_text_heterogeneous shape'
+status: done
+priority: P1
+category: chore
+sprint_target: 14
+created: 2026-04-17
+updated: 2026-04-17
+depends_on: []
+tags:
+- sprint14
+- cascade
+- multi-label
+- recall
+goal: "On columns routed to free_text_heterogeneous by the shape router, always run\
+  \ the per-value regex engine \u2014 never short-circuit on column_name-engine confidence.\
+  \ Otherwise URLs/emails/secondary entities embedded in values are invisible to the\
+  \ cascade.\n"
+complexity: S
+technical_specs:
+- 'Current behavior: orchestrator iterates engines in cascade order; when an early
+  engine (e.g. column_name) produces a high-confidence finding, downstream engines
+  are skipped. Good for structured_single (fast, avoids spurious per-value matches).
+  Wrong for free_text_heterogeneous where multiple entity types coexist.'
+- 'Proposed change: in orchestrator/orchestrator.py, gate the short-circuit on shape.
+  Pseudo-code: if shape == ''free_text_heterogeneous'': run all engines regardless
+  of prior confidence else: keep current short-circuit behavior'
+- Engine ordering stays the same; only the skip condition changes.
+- 'Latency impact: ~11% of columns (the heterogeneous fraction per Sprint 13 router
+  stats) will run the full cascade. Measure in the same way Sprint 13 measured per-value
+  GLiNER latency; expect minimal since regex engine is fast.'
+description: "Companion to benchmark-emit-all-cascade-findings-multi-label. That\n\
+  item changes scoring; this item ensures the findings actually exist\nto be scored.\n\
+  \nResearch data (2026-04-17, research/meta-classifier):\n- 449 URL-containing shards\
+  \ where URL was NOT predicted by cascade\n- 148 of them (33%) fired ONLY the column_name\
+  \ engine \u2014 short-circuit\n  in action, per-value regex never ran\n- Most of\
+  \ those were synthetic nemotron shards with column name\n  'opaque_secret' or similar;\
+  \ one URL per shard got missed\n\nThis is a cheap recall fix for multi-label scoring\
+  \ to mean anything.\n"
+acceptance_criteria:
+- Orchestrator short-circuits only on non-heterogeneous shapes
+- 'New test: heterogeneous shard with column_name=''password'' and values containing
+  URLs produces findings for BOTH password (from column_name) and URL (from regex)'
+- family_accuracy_benchmark multilabel recall for URL improves (target >=0.60, up
+  from rescored 0.417) on the Sprint 13 dataset
+- No regression on structured_single shape metrics
+test_plan:
+- 'Unit test: synthetic column with name=''api_key'' and values [''sk_live_abc123...'',
+  ''https://api.example.com'']; assert both CREDENTIAL and URL are in findings'
+- 'Regression: structured_single columns keep their current single-label behavior
+  unchanged (fast path preserved)'
+- "End-to-end: family benchmark multilabel URL recall \u2265 0.60"
+notes: 'Sprint 13 Item B introduced per-value GLiNER on heterogeneous shape,
+
+  which unions with cascade output. The regex engine is separate from
+
+  that and currently gated by cascade short-circuit. This item aligns
+
+  regex behavior with per-value GLiNER behavior.
+
+
+  Effort: S (~1 day). The change itself is ~20 lines; the test-plan is
+
+  where the work is.
+
+  '
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
