@@ -1,7 +1,7 @@
 """Tests for GLiNER2 classification engine.
 
 ALL tests use mock models — no ML dependencies required in CI.
-The gliner2 package is never imported; we mock the model's extract_entities method.
+The gliner package is never imported; we mock the model's predict_entities method.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from data_classifier.core.types import ColumnInput
 from data_classifier.registry import ModelRegistry
 from data_classifier.registry.model_entry import ModelDependencyError
 
-# ── Helper: build GLiNER2-style extract_entities response ─────────────────
+# ── Helper: build GLiNER v1 predict_entities response ─────────────────────
 
 
 def _gliner_predictions(entities: dict[str, list[tuple[str, float]]]) -> list[dict]:
@@ -28,6 +28,25 @@ def _gliner_predictions(entities: dict[str, list[tuple[str, float]]]) -> list[di
     ]
 
 
+# ── Helper: build GLiNER v2 extract_entities response ─────────────────────
+
+
+def _gliner2_predictions(entities: dict[str, list[tuple[str, float]]]) -> dict:
+    """Build mock GLiNER v2 extract_entities response.
+
+    Args:
+        entities: {gliner_label: [(text, confidence), ...]}
+
+    Returns:
+        {"entities": {label: [{"text": ..., "confidence": ...}, ...]}}
+    """
+    return {
+        "entities": {
+            label: [{"text": text, "confidence": conf} for text, conf in matches] for label, matches in entities.items()
+        }
+    }
+
+
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
 
@@ -39,7 +58,7 @@ def mock_registry():
 
 @pytest.fixture()
 def mock_gliner_model():
-    """Create a mock GLiNER2 model with extract_entities."""
+    """Create a mock GLiNER v1 model with predict_entities."""
     model = MagicMock()
     model.predict_entities = MagicMock(return_value=[])
     return model
@@ -47,7 +66,13 @@ def mock_gliner_model():
 
 @pytest.fixture()
 def engine_with_mock(mock_registry, mock_gliner_model):
-    """Create a GLiNER2Engine with a mock model pre-loaded in the registry."""
+    """Create a GLiNER2Engine with a mock model pre-loaded in the registry.
+
+    Uses the default model (urchade/gliner_multi_pii-v1, v1 API) with threshold
+    at the production default of 0.50.
+    Tests that need to verify threshold behavior should construct their own
+    engine with the desired threshold.
+    """
     from data_classifier.engines.gliner_engine import GLiNER2Engine
 
     engine = GLiNER2Engine(registry=mock_registry, gliner_threshold=0.5)
@@ -292,6 +317,10 @@ class TestEntityTypeMapping:
             "SSN",
             "EMAIL",
             "IP_ADDRESS",
+            # Promoted from experimental in Sprint 14
+            "AGE",
+            "HEALTH",
+            "FINANCIAL",
         }
         assert set(ENTITY_LABEL_DESCRIPTIONS.keys()) == expected
 
@@ -423,7 +452,7 @@ class TestEngineProperties:
 
     def test_no_predictions_returns_empty(self, engine_with_mock, mock_gliner_model):
         """No NER predictions should return empty findings."""
-        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
+        mock_gliner_model.predict_entities.return_value = []
         column = ColumnInput(column_name="test", column_id="c1", sample_values=["some data"])
         findings = engine_with_mock.classify_column(column)
         assert findings == []
@@ -947,14 +976,14 @@ class TestOrgOverfireRegression:
 
         mock_model = MagicMock()
 
-        def _simulate_baseline_org_overfire(text, labels, threshold):
+        def _simulate_baseline_org_overfire(text, labels, threshold=0.5):
             # Baseline: raw " ; "-joined numeric-dash string triggers ORG.
             # S1: the NL-wrapped prompt with column/table metadata does not.
             if "Column 'ssn'" in text or "from table 'users'" in text:
                 return []
             return [
-                {"text": "123-45-6789", "label": "organization", "score": 0.87},
-                {"text": "987-65-4321", "label": "organization", "score": 0.85},
+                {"text": "123-45-6789", "label": "organization", "score": 0.87, "start": 0, "end": 11},
+                {"text": "987-65-4321", "label": "organization", "score": 0.85, "start": 14, "end": 25},
             ]
 
         mock_model.predict_entities = MagicMock(side_effect=_simulate_baseline_org_overfire)
@@ -1044,7 +1073,7 @@ class TestDataTypePrefilter:
 
         assert findings == []
         assert not mock_gliner_model.predict_entities.called
-        assert not mock_gliner_model.extract_entities.called
+        assert not mock_gliner_model.predict_entities.called
 
     @pytest.mark.parametrize("data_type", ["integer", "Integer", "INTEGER", "iNtEgEr"])
     def test_case_insensitive(self, engine_with_mock, mock_gliner_model, data_type):
@@ -1159,3 +1188,292 @@ class TestDataTypePrefilter:
 
         assert results == [[], []]
         assert not mock_gliner_model.predict_entities.called
+
+
+# ── Test: Sprint 14 promoted labels (AGE, HEALTH, FINANCIAL) ──────────────
+
+
+class TestAgeDetection:
+    """Test AGE detection — promoted from experimental in Sprint 14."""
+
+    def test_detects_age_values(self, engine_with_mock, mock_gliner_model):
+        """Engine should detect AGE from age-containing samples."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {
+                "age": [("72 years old", 0.88), ("age 45", 0.85), ("54 years old", 0.90)],
+            }
+        )
+        column = ColumnInput(
+            column_name="patient_age",
+            column_id="col_age",
+            sample_values=["72 years old", "age 45", "54 years old", "born in 1952", "31"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.5)
+        assert len(findings) == 1
+        assert findings[0].entity_type == "AGE"
+        assert findings[0].engine == "gliner2"
+        assert findings[0].confidence > 0.5
+
+    def test_age_metadata(self, engine_with_mock, mock_gliner_model):
+        """AGE findings should have correct category, sensitivity, and regulatory."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {
+                "age": [("age 45", 0.85), ("72 years old", 0.88)],
+            }
+        )
+        column = ColumnInput(
+            column_name="age",
+            column_id="col_age",
+            sample_values=["age 45", "72 years old"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert len(findings) == 1
+        assert findings[0].category == "PII"
+        assert findings[0].sensitivity == "MEDIUM"
+        assert "HIPAA" in findings[0].regulatory
+
+    def test_age_sample_analysis(self, engine_with_mock, mock_gliner_model):
+        """AGE finding should have correct sample analysis counts."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {
+                "age": [("72 years old", 0.88), ("age 45", 0.85)],
+            }
+        )
+        column = ColumnInput(
+            column_name="employee_age",
+            column_id="col_age",
+            sample_values=["72 years old", "age 45", "unknown"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert len(findings) == 1
+        sa = findings[0].sample_analysis
+        assert sa is not None
+        assert sa.samples_scanned == 3
+        assert sa.samples_matched == 2
+
+    def test_age_negative_numeric_ids(self, engine_with_mock, mock_gliner_model):
+        """Purely numeric IDs should not trigger AGE detection."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
+        column = ColumnInput(
+            column_name="record_id",
+            column_id="col_id",
+            sample_values=["1001", "1002", "1003", "1004"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert findings == []
+
+    def test_age_negative_dates(self, engine_with_mock, mock_gliner_model):
+        """Date strings should not trigger AGE detection."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
+        column = ColumnInput(
+            column_name="created_at",
+            column_id="col_date",
+            sample_values=["2024-01-15", "2023-06-30", "2022-12-01"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert findings == []
+
+
+class TestHealthDetection:
+    """Test HEALTH detection — promoted from experimental in Sprint 14."""
+
+    def test_detects_medical_conditions(self, engine_with_mock, mock_gliner_model):
+        """Engine should detect HEALTH from medical condition samples."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {
+                "medical condition": [
+                    ("Type 2 diabetes", 0.92),
+                    ("hypertension", 0.88),
+                    ("metformin 500mg", 0.85),
+                ],
+            }
+        )
+        column = ColumnInput(
+            column_name="diagnosis",
+            column_id="col_health",
+            sample_values=["Type 2 diabetes", "hypertension", "metformin 500mg", "aspirin 81mg", "N/A"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.5)
+        assert len(findings) == 1
+        assert findings[0].entity_type == "HEALTH"
+        assert findings[0].engine == "gliner2"
+        assert findings[0].confidence > 0.5
+
+    def test_health_metadata(self, engine_with_mock, mock_gliner_model):
+        """HEALTH findings should have correct category, sensitivity, and regulatory."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {
+                "medical condition": [("diabetes", 0.90), ("asthma", 0.87)],
+            }
+        )
+        column = ColumnInput(
+            column_name="condition",
+            column_id="col_health",
+            sample_values=["diabetes", "asthma"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert len(findings) == 1
+        assert findings[0].category == "Health"
+        assert findings[0].sensitivity == "HIGH"
+        assert "HIPAA" in findings[0].regulatory
+        assert "GDPR" in findings[0].regulatory
+
+    def test_health_sample_analysis(self, engine_with_mock, mock_gliner_model):
+        """HEALTH finding should include matched condition texts."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {
+                "medical condition": [("Type 2 diabetes", 0.92)],
+            }
+        )
+        column = ColumnInput(
+            column_name="medical_notes",
+            column_id="col_health",
+            sample_values=["Type 2 diabetes", "healthy", "no issues"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert len(findings) == 1
+        assert "Type 2 diabetes" in findings[0].sample_analysis.sample_matches
+
+    def test_health_negative_person_names(self, engine_with_mock, mock_gliner_model):
+        """Person names should not trigger HEALTH detection."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
+        column = ColumnInput(
+            column_name="doctor_name",
+            column_id="col_doc",
+            sample_values=["Dr. Smith", "Dr. Garcia", "Dr. Chen"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert findings == []
+
+    def test_health_negative_status_codes(self, engine_with_mock, mock_gliner_model):
+        """Generic status values should not trigger HEALTH detection."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
+        column = ColumnInput(
+            column_name="status",
+            column_id="col_status",
+            sample_values=["active", "inactive", "pending", "closed"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert findings == []
+
+
+class TestFinancialDetection:
+    """Test FINANCIAL detection — promoted from experimental in Sprint 14."""
+
+    def test_detects_financial_values(self, engine_with_mock, mock_gliner_model):
+        """Engine should detect FINANCIAL from salary/income samples."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {
+                "financial information": [
+                    ("$85,000 annual salary", 0.91),
+                    ("net worth $250,000", 0.87),
+                    ("$4,500 monthly income", 0.89),
+                ],
+            }
+        )
+        column = ColumnInput(
+            column_name="compensation",
+            column_id="col_fin",
+            sample_values=[
+                "$85,000 annual salary",
+                "net worth $250,000",
+                "$4,500 monthly income",
+                "$12,000 bonus",
+                "N/A",
+            ],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.5)
+        assert len(findings) == 1
+        assert findings[0].entity_type == "FINANCIAL"
+        assert findings[0].engine == "gliner2"
+        assert findings[0].confidence > 0.5
+
+    def test_financial_metadata(self, engine_with_mock, mock_gliner_model):
+        """FINANCIAL findings should have correct category, sensitivity, and regulatory."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {
+                "financial information": [("$85,000", 0.91), ("$120,000", 0.88)],
+            }
+        )
+        column = ColumnInput(
+            column_name="salary",
+            column_id="col_fin",
+            sample_values=["$85,000", "$120,000"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert len(findings) == 1
+        assert findings[0].category == "Financial"
+        assert findings[0].sensitivity == "HIGH"
+        assert "GDPR" in findings[0].regulatory
+        assert "CCPA" in findings[0].regulatory
+
+    def test_financial_sample_analysis(self, engine_with_mock, mock_gliner_model):
+        """FINANCIAL finding should have correct sample analysis."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {
+                "financial information": [
+                    ("$85,000 annual salary", 0.91),
+                    ("net worth $250,000", 0.87),
+                ],
+            }
+        )
+        column = ColumnInput(
+            column_name="income",
+            column_id="col_fin",
+            sample_values=["$85,000 annual salary", "net worth $250,000", "undisclosed"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert len(findings) == 1
+        sa = findings[0].sample_analysis
+        assert sa is not None
+        assert sa.samples_scanned == 3
+        assert sa.samples_matched == 2
+
+    def test_financial_negative_phone_numbers(self, engine_with_mock, mock_gliner_model):
+        """Phone numbers with digits should not trigger FINANCIAL detection."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
+        column = ColumnInput(
+            column_name="phone",
+            column_id="col_phone",
+            sample_values=["555-123-4567", "800-555-0199", "212-555-1234"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert findings == []
+
+    def test_financial_negative_zip_codes(self, engine_with_mock, mock_gliner_model):
+        """Zip codes should not trigger FINANCIAL detection."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({})
+        column = ColumnInput(
+            column_name="postal_code",
+            column_id="col_zip",
+            sample_values=["10001", "90210", "60601", "02134"],
+        )
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        assert findings == []
+
+
+class TestDemographicRemoval:
+    """Test that DEMOGRAPHIC was removed from experimental labels (Sprint 14).
+
+    The GLiNER model was silent on all tested descriptions for DEMOGRAPHIC.
+    The entity type remains in standard.yaml for column-name-only detection
+    but is not part of GLiNER inference.
+    """
+
+    def test_demographic_not_in_entity_label_descriptions(self):
+        """DEMOGRAPHIC should not be in the core GLiNER label set."""
+        from data_classifier.engines.gliner_engine import ENTITY_LABEL_DESCRIPTIONS
+
+        assert "DEMOGRAPHIC" not in ENTITY_LABEL_DESCRIPTIONS
+
+    def test_demographic_not_in_experimental_labels(self):
+        """DEMOGRAPHIC should not be in the experimental label set."""
+        from data_classifier.engines.gliner_engine import EXPERIMENTAL_LABEL_DESCRIPTIONS
+
+        assert "DEMOGRAPHIC" not in EXPERIMENTAL_LABEL_DESCRIPTIONS
+
+    def test_demographic_not_in_gliner_labels(self):
+        """DEMOGRAPHIC should not be discoverable via the reverse label map."""
+        from data_classifier.engines.gliner_engine import GLINER_LABEL_TO_ENTITY
+
+        assert "DEMOGRAPHIC" not in GLINER_LABEL_TO_ENTITY.values()

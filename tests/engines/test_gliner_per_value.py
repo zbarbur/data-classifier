@@ -83,7 +83,7 @@ class TestClassifyPerValue:
 
     def test_runs_one_inference_per_sampled_value(self):
         def _predict(text, _labels, **_kwargs):
-            return [{"label": "email", "text": text[:10], "score": 0.9, "start": 0, "end": 10}]
+            return [{"text": text[:10], "label": "email", "score": 0.9, "start": 0, "end": 10}]
 
         stub = MagicMock()
         stub.predict_entities.side_effect = _predict
@@ -111,7 +111,7 @@ class TestClassifyPerValue:
             call_count["n"] += 1
             if call_count["n"] == 2:
                 raise RuntimeError("OOM on row 2")
-            return [{"label": "email", "text": "x", "score": 0.8, "start": 0, "end": 1}]
+            return [{"text": "x", "label": "email", "score": 0.8, "start": 0, "end": 1}]
 
         stub = MagicMock()
         stub.predict_entities.side_effect = _predict
@@ -130,7 +130,7 @@ class TestClassifyPerValue:
 
     def test_unknown_label_skipped(self):
         def _predict(text, _labels, **_kwargs):
-            return [{"label": "unknown_label", "text": "x", "score": 0.9, "start": 0, "end": 1}]
+            return [{"text": "x", "label": "unknown_label", "score": 0.9, "start": 0, "end": 1}]
 
         stub = MagicMock()
         stub.predict_entities.side_effect = _predict

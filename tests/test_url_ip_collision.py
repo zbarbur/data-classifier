@@ -10,7 +10,22 @@ from __future__ import annotations
 
 import pytest
 
-from data_classifier import ColumnInput, classify_columns, load_profile
+from data_classifier import ColumnInput, load_profile
+from data_classifier.engines.column_name_engine import ColumnNameEngine
+from data_classifier.engines.heuristic_engine import HeuristicEngine
+from data_classifier.engines.regex_engine import RegexEngine
+from data_classifier.engines.secret_scanner import SecretScannerEngine
+from data_classifier.orchestrator.orchestrator import Orchestrator
+
+
+def _classify_no_ml(columns, profile, **kwargs):
+    """Classify without GLiNER — tests cascade collision behavior only."""
+    engines = [ColumnNameEngine(), RegexEngine(), HeuristicEngine(), SecretScannerEngine()]
+    orch = Orchestrator(engines=engines, mode="structured")
+    results = []
+    for col in columns:
+        results.extend(orch.classify_column(col, profile, **kwargs))
+    return results
 
 
 @pytest.fixture
@@ -34,7 +49,7 @@ class TestUrlIpCollisionSuppression:
                 "http://203.0.113.42/status",
             ],
         )
-        findings = classify_columns([col], profile)
+        findings = _classify_no_ml([col], profile)
         types = {f.entity_type for f in findings}
         assert "IP_ADDRESS" not in types
 
@@ -44,7 +59,7 @@ class TestUrlIpCollisionSuppression:
             column_name="server_ip",
             sample_values=["192.168.1.1", "10.0.0.5", "203.0.113.42"],
         )
-        findings = classify_columns([col], profile)
+        findings = _classify_no_ml([col], profile)
         types = {f.entity_type for f in findings}
         assert "IP_ADDRESS" in types
         assert "URL" not in types
@@ -61,7 +76,7 @@ class TestUrlIpCollisionSuppression:
                 "10.0.0.5",  # standalone
             ],
         )
-        findings = classify_columns([col], profile)
+        findings = _classify_no_ml([col], profile)
         types = {f.entity_type for f in findings}
         assert "IP_ADDRESS" in types
         assert "URL" in types
@@ -72,7 +87,7 @@ class TestUrlIpCollisionSuppression:
             column_name="endpoint",
             sample_values=["http://192.168.1.1:8080/status"],
         )
-        findings = classify_columns([col], profile)
+        findings = _classify_no_ml([col], profile)
         types = {f.entity_type for f in findings}
         assert "IP_ADDRESS" not in types
 
@@ -85,6 +100,6 @@ class TestUrlIpCollisionSuppression:
             column_name="ref",
             sample_values=["https://198.51.100.17"],
         )
-        findings = classify_columns([col], profile)
+        findings = _classify_no_ml([col], profile)
         types = {f.entity_type for f in findings}
         assert "IP_ADDRESS" not in types

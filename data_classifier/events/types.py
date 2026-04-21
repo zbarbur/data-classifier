@@ -50,12 +50,13 @@ class ClassificationEvent:
 
 @dataclass
 class MetaClassifierEvent:
-    """Emitted after the meta-classifier produces a shadow prediction.
+    """Emitted after the meta-classifier produces a prediction.
 
-    Shadow events are observability-only — the prediction is NOT used to
-    modify ``classify_columns()`` return values in Phase 3. Consumers can
-    compare the shadow prediction against the live pipeline's top vote
-    via the :attr:`agreement` field.
+    When ``directive`` is ``False`` (shadow mode), the prediction is
+    observability-only — it does NOT modify ``classify_columns()`` return
+    values. When ``directive`` is ``True``, the meta-classifier's
+    prediction was used as the live classification output for this column
+    (Sprint 14 directive flip on ``structured_single`` columns).
     """
 
     column_id: str
@@ -63,6 +64,8 @@ class MetaClassifierEvent:
     confidence: float
     live_entity: str
     agreement: bool
+    directive: bool = False
+    """True when the prediction was used as the live output (directive mode)."""
     run_id: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 

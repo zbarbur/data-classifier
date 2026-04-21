@@ -85,6 +85,7 @@ research-ml = [
 
 [tool.setuptools.packages.find]
 include = ["data_classifier*"]
+exclude = ["data_classifier.clients*"]
 
 [tool.setuptools.package-data]
 data_classifier = [

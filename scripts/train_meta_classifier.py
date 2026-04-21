@@ -4,8 +4,8 @@ Usage (from repo root)::
 
     python -m scripts.train_meta_classifier \\
         --input tests/benchmarks/meta_classifier/training_data.jsonl \\
-        --output data_classifier/models/meta_classifier_v5.pkl \\
-        --metadata data_classifier/models/meta_classifier_v5.metadata.json
+        --output data_classifier/models/meta_classifier_v6.pkl \\
+        --metadata data_classifier/models/meta_classifier_v6.metadata.json
 
 The model artifact is a pickled dict (decision D5 in the Phase 2 dispatch):
 ``{model, scaler, feature_names, class_labels, dropped_features,
@@ -467,12 +467,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("data_classifier/models/meta_classifier_v5.pkl"),
+        default=Path("data_classifier/models/meta_classifier_v6.pkl"),
     )
     parser.add_argument(
         "--metadata",
         type=Path,
-        default=Path("data_classifier/models/meta_classifier_v5.metadata.json"),
+        default=Path("data_classifier/models/meta_classifier_v6.metadata.json"),
     )
     return parser.parse_args(argv)
 

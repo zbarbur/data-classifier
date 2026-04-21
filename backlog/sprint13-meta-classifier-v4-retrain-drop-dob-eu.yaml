@@ -1,10 +1,10 @@
-title: 'Sprint 14: Meta-classifier v4 retrain — drop DATE_OF_BIRTH_EU class label'
-status: backlog
+title: "Sprint 14: Meta-classifier v4 retrain \u2014 drop DATE_OF_BIRTH_EU class label"
+status: done
 priority: P3
-category: ml
+category: chore
 sprint_target: 14
 created: 2026-04-15
-updated: 2026-04-16
+updated: 2026-04-17
 depends_on:
 - sprint12-retire-date-of-birth-eu-subtype
 tags:
@@ -13,40 +13,32 @@ tags:
 - taxonomy
 - technical-debt
 - sprint13-deferred
-goal: 'Retrain the meta-classifier as v4 with DATE_OF_BIRTH_EU collapsed into
-  DATE_OF_BIRTH in the training data, bump FEATURE_SCHEMA_VERSION 3 → 4, drop
-  the orphan input-feature slot, and remove the compatibility alias in
-  ENTITY_TYPE_TO_FAMILY. Closes the technical debt left by the Sprint 12
-  Option B compat-alias approach.
-
-  '
+goal: "Retrain the meta-classifier as v4 with DATE_OF_BIRTH_EU collapsed into DATE_OF_BIRTH\
+  \ in the training data, bump FEATURE_SCHEMA_VERSION 3 \u2192 4, drop the orphan\
+  \ input-feature slot, and remove the compatibility alias in ENTITY_TYPE_TO_FAMILY.\
+  \ Closes the technical debt left by the Sprint 12 Option B compat-alias approach.\n"
 complexity: M
 technical_specs:
-- Collapse DATE_OF_BIRTH_EU → DATE_OF_BIRTH in the meta-classifier training
-  data (check corpus loaders and the 300 training rows labeled DOB_EU in
-  meta_classifier_v3.metadata.json::per_class_counts).
-- Bump FEATURE_SCHEMA_VERSION in data_classifier/orchestrator/meta_classifier.py
-  from 3 → 4.
-- Remove DATE_OF_BIRTH_EU from PRIMARY_ENTITY_TYPES in meta_classifier.py
-  (input feature one-hot vocabulary). This shifts downstream feature indices
-  by one slot — hence the schema bump.
-- Run the meta-classifier training pipeline to produce
-  meta_classifier_v4.pkl + meta_classifier_v4.metadata.json. Verify CV macro
-  F1 does not regress from the v3 baseline (cv_mean_macro_f1=0.569 per v3
-  metadata). Train with class_labels omitting DATE_OF_BIRTH_EU.
+- "Collapse DATE_OF_BIRTH_EU \u2192 DATE_OF_BIRTH in the meta-classifier training\
+  \ data (check corpus loaders and the 300 training rows labeled DOB_EU in meta_classifier_v3.metadata.json::per_class_counts)."
+- "Bump FEATURE_SCHEMA_VERSION in data_classifier/orchestrator/meta_classifier.py\
+  \ from 3 \u2192 4."
+- "Remove DATE_OF_BIRTH_EU from PRIMARY_ENTITY_TYPES in meta_classifier.py (input\
+  \ feature one-hot vocabulary). This shifts downstream feature indices by one slot\
+  \ \u2014 hence the schema bump."
+- Run the meta-classifier training pipeline to produce meta_classifier_v4.pkl + meta_classifier_v4.metadata.json.
+  Verify CV macro F1 does not regress from the v3 baseline (cv_mean_macro_f1=0.569
+  per v3 metadata). Train with class_labels omitting DATE_OF_BIRTH_EU.
 - Update the MetaClassifier loader to prefer v4 as the default artifact.
-- Remove the DATE_OF_BIRTH_EU → DATE compatibility alias from
-  data_classifier/core/taxonomy.py::ENTITY_TYPE_TO_FAMILY. Remove the
-  long-form explanatory comment introduced in Sprint 12.
-- Flip tests/test_date_of_birth_eu.py::TestDateOfBirthEuRetiredFromTaxonomy
-  ::test_family_map_keeps_date_of_birth_eu_as_date_alias back to assert
-  DOB_EU is absent from ENTITY_TYPE_TO_FAMILY. Same for
-  tests/test_family_taxonomy.py's DOB_EU alias assertion.
-- Run the family accuracy benchmark and verify cross_family_rate does not
-  regress vs the Sprint 12 baseline (0.0596 on 9870 shards). With v4
-  dropping DOB_EU class predictions entirely, the singleton-family warning
-  path in family_for() becomes unreachable — cross_family_rate should
-  strictly improve or hold.
+- "Remove the DATE_OF_BIRTH_EU \u2192 DATE compatibility alias from data_classifier/core/taxonomy.py::ENTITY_TYPE_TO_FAMILY.\
+  \ Remove the long-form explanatory comment introduced in Sprint 12."
+- Flip tests/test_date_of_birth_eu.py::TestDateOfBirthEuRetiredFromTaxonomy ::test_family_map_keeps_date_of_birth_eu_as_date_alias
+  back to assert DOB_EU is absent from ENTITY_TYPE_TO_FAMILY. Same for tests/test_family_taxonomy.py's
+  DOB_EU alias assertion.
+- "Run the family accuracy benchmark and verify cross_family_rate does not regress\
+  \ vs the Sprint 12 baseline (0.0596 on 9870 shards). With v4 dropping DOB_EU class\
+  \ predictions entirely, the singleton-family warning path in family_for() becomes\
+  \ unreachable \u2014 cross_family_rate should strictly improve or hold."
 description: "Sprint 12's DATE_OF_BIRTH_EU retirement (item\nsprint12-retire-date-of-birth-eu-subtype)\
   \ landed the emission-path\ncleanup (profile YAML, default_patterns.json, gliner_engine.py,\n\
   corpus_generator.py, shard_builder.py, taxonomy entry, tests) but\ndeferred the\
@@ -64,18 +56,20 @@ description: "Sprint 12's DATE_OF_BIRTH_EU retirement (item\nsprint12-retire-dat
   \ \u2192 DATE`` alias in\n   ``ENTITY_TYPE_TO_FAMILY``. This is a compat shim, NOT\
   \ an\n   emission target \u2014 see the long-form comment in\n   ``data_classifier/core/taxonomy.py``\
   \ for the full rationale.\n\nThis item does the proper cleanup: retrain v4 with\
-  \ DOB_EU\ncollapsed into DOB in the training data, bump the schema version,\n\
-  drop the orphan input feature slot, drop the class label, remove\nthe family alias,\
-  \ and re-run the family benchmark to verify the\ncross_family_rate improves or\
-  \ holds.\n\nThe v4 retrain is scheduled for Sprint 13 rather than bundled into\n\
-  Sprint 12 because:\n  a. Sprint 12's theme per the sprint reframe is\n     \"meta-classifier\
+  \ DOB_EU\ncollapsed into DOB in the training data, bump the schema version,\ndrop\
+  \ the orphan input feature slot, drop the class label, remove\nthe family alias,\
+  \ and re-run the family benchmark to verify the\ncross_family_rate improves or holds.\n\
+  \nThe v4 retrain is scheduled for Sprint 13 rather than bundled into\nSprint 12\
+  \ because:\n  a. Sprint 12's theme per the sprint reframe is\n     \"meta-classifier\
   \ v3 becomes the default\" \u2014 retraining in the\n     same sprint would conflict\
-  \ with that theme.\n  b. The retrain requires a supervised pipeline run with\n\
-  \     benchmark validation, not a mechanical code change.\n  c. v3 is a known-good\
+  \ with that theme.\n  b. The retrain requires a supervised pipeline run with\n \
+  \    benchmark validation, not a mechanical code change.\n  c. v3 is a known-good\
   \ artifact (CV macro F1 0.569, test macro\n     F1 0.X on 2034 rows); v4 is a new\
   \ untested artifact that\n     needs its own benchmark delta analysis.\n\nNot urgent\
   \ \u2014 the Sprint 12 compat alias is stable and the\ntechnical debt is narrow\
-  \ (3 lines of code + one test flip). Deferred\nfrom Sprint 13 to Sprint 14 per the Sprint 13 scoping Q4 decision\n(2026-04-16): Sprint 13 at 3 router items + observability is already\n~3 weeks of capacity; retrain is hygiene, not critical path.\n"
+  \ (3 lines of code + one test flip). Deferred\nfrom Sprint 13 to Sprint 14 per the\
+  \ Sprint 13 scoping Q4 decision\n(2026-04-16): Sprint 13 at 3 router items + observability\
+  \ is already\n~3 weeks of capacity; retrain is hygiene, not critical path.\n"
 acceptance_criteria:
 - meta_classifier_v4.pkl + meta_classifier_v4.metadata.json exist and load cleanly
   via MetaClassifier.
@@ -83,28 +77,26 @@ acceptance_criteria:
 - v4 metadata feature_names does NOT contain primary_entity_type=DATE_OF_BIRTH_EU.
 - FEATURE_SCHEMA_VERSION is 4 in meta_classifier.py.
 - DATE_OF_BIRTH_EU removed from PRIMARY_ENTITY_TYPES and ENTITY_TYPE_TO_FAMILY.
-- test_family_map_keeps_date_of_birth_eu_as_date_alias flipped back to
-  assert absence.
+- test_family_map_keeps_date_of_birth_eu_as_date_alias flipped back to assert absence.
 - CV macro F1 does not regress from v3 baseline (0.569).
-- Family benchmark cross_family_rate strictly decreases or holds vs Sprint 12
-  baseline (0.0596).
+- Family benchmark cross_family_rate strictly decreases or holds vs Sprint 12 baseline
+  (0.0596).
 - All tests green, lint + format clean.
 test_plan:
-- 'tests/test_meta_classifier_training.py: update class_labels fixture +
-  training-data smoke tests to reflect the new class count.'
-- 'tests/test_family_taxonomy.py + tests/test_date_of_birth_eu.py: flip the
-  DOB_EU alias assertions to assert absence.'
-- 'Manual: run the meta-classifier training pipeline end-to-end, verify v4
-  artifacts land in data_classifier/models/, load cleanly.'
-- 'Manual: run the family accuracy benchmark and compare to Sprint 12
-  baseline. Attach summary.json to Sprint 13 handover.'
-notes: 'Filed during Sprint 12 worktree B recovery (2026-04-15) as the
-  followup to the Option B compat-alias approach documented in the
-  sprint12-retire-date-of-birth-eu-subtype commit message and the
-  taxonomy.py long-form comment.
+- 'tests/test_meta_classifier_training.py: update class_labels fixture + training-data
+  smoke tests to reflect the new class count.'
+- 'tests/test_family_taxonomy.py + tests/test_date_of_birth_eu.py: flip the DOB_EU
+  alias assertions to assert absence.'
+- 'Manual: run the meta-classifier training pipeline end-to-end, verify v4 artifacts
+  land in data_classifier/models/, load cleanly.'
+- 'Manual: run the family accuracy benchmark and compare to Sprint 12 baseline. Attach
+  summary.json to Sprint 13 handover.'
+notes: 'Filed during Sprint 12 worktree B recovery (2026-04-15) as the followup to
+  the Option B compat-alias approach documented in the sprint12-retire-date-of-birth-eu-subtype
+  commit message and the taxonomy.py long-form comment.
 
   '
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

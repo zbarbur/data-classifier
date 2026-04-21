@@ -61,9 +61,8 @@ logger = logging.getLogger(__name__)
 #:
 #: The literal value encodes the upstream HuggingFace model ID
 #: (``urchade/gliner_multi_pii-v1``) with slashes replaced by dashes for
-#: filename compatibility. Future versions would look like
-#: ``urchade-gliner-multi-pii-v2`` or ``fastino-gliner2-base-v1`` etc.
-DEFAULT_MODEL_VERSION = "urchade-gliner-multi-pii-v1"
+#: filename compatibility.
+DEFAULT_MODEL_VERSION = "urchade-gliner_multi_pii-v1"
 
 #: Google Artifact Registry Generic repo URL template for the ONNX tarballs.
 #:

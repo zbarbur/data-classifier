@@ -1,0 +1,26 @@
+{
+  "source": {
+    "name": "secretlint",
+    "repo": "https://github.com/secretlint/secretlint",
+    "license": "MIT",
+    "commit_sha": "3e58badf8f8b",
+    "commit_date": "2026-04-14",
+    "pulled_date": "2026-04-17"
+  },
+  "patterns": [
+    {"name": "grafana_cloud_api_token", "source_rule": "@secretlint/secretlint-rule-grafana", "type": "new"},
+    {"name": "grafana_service_account_token", "source_rule": "@secretlint/secretlint-rule-grafana", "type": "new"},
+    {"name": "docker_hub_pat", "source_rule": "@secretlint/secretlint-rule-docker", "type": "new"},
+    {"name": "linear_api_token", "source_rule": "@secretlint/secretlint-rule-linear", "type": "new"},
+    {"name": "groq_api_key", "source_rule": "@secretlint/secretlint-rule-groq", "type": "new"},
+    {"name": "onepassword_service_token", "source_rule": "@secretlint/secretlint-rule-1password", "type": "new"},
+    {"name": "notion_integration_token", "source_rule": "@secretlint/secretlint-rule-notion", "type": "new"},
+    {"name": "figma_pat", "source_rule": "@secretlint/secretlint-rule-figma", "type": "new"},
+    {"name": "basicauth_url", "source_rule": "@secretlint/secretlint-rule-basicauth", "type": "new"},
+    {"name": "github_token", "source_rule": "@secretlint/secretlint-rule-github", "type": "upgrade"},
+    {"name": "slack_bot_token", "source_rule": "@secretlint/secretlint-rule-slack", "type": "upgrade"},
+    {"name": "openai_api_key", "source_rule": "@secretlint/secretlint-rule-openai", "type": "upgrade"},
+    {"name": "hashicorp_vault_token", "source_rule": "@secretlint/secretlint-rule-hashicorp-vault", "type": "upgrade"},
+    {"name": "huggingface_token", "source_rule": "@secretlint/secretlint-rule-huggingface", "type": "upgrade"}
+  ]
+}

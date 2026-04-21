@@ -95,6 +95,16 @@ profiles:
         patterns:
           - "(^|_)(phone|phone_number|phonenumber|telephone|tel|mobile|cell|fax)(_|$)"
 
+      - entity_type: DATE
+        category: PII
+        sensitivity: MEDIUM
+        regulatory: [PII]
+        confidence: 0.70
+        patterns:
+          # Only match column names where date content is semantically
+          # meaningful (not generic timestamps like created_at/updated_at).
+          - "(^|_)(date|effective_date|expiry_date|expiration_date|invoice_date|transaction_date|order_date|start_date|end_date|hire_date|termination_date|registration_date|signup_date)(_|$)"
+
       - entity_type: DATE_OF_BIRTH
         category: PII
         sensitivity: HIGH

@@ -187,7 +187,7 @@ _ENTITY_GENERATORS: dict[str, dict] = {
         "column_name": "test_credit_card_column",
         "generator": lambda fake, n: _generate_valid_cc(fake, n),
     },
-    "DATE_OF_BIRTH": {
+    "DATE": {
         "column_name": "test_dob_column",
         "generator": lambda fake, n: [fake.date_of_birth().strftime("%m/%d/%Y") for _ in range(n)],
     },

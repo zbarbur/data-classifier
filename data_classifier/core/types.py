@@ -204,6 +204,20 @@ class ClassificationFinding:
     evidence: str = ""
     """Human-readable explanation of the classification."""
 
+    # ── Detection detail ─────────────────────────────────
+    detection_type: str = ""
+    """Specific detection pattern identifier (e.g. ``aws_access_key``,
+    ``github_token``).  More granular than ``entity_type`` — multiple
+    detection_types may share the same entity_type (e.g. both
+    ``aws_access_key`` and ``github_token`` are ``API_KEY``).
+    Set by the regex engine from the pattern name; other engines may
+    leave it empty."""
+
+    display_name: str = ""
+    """Human-friendly label (e.g. ``AWS Access Key``, ``GitHub Token``).
+    Intended for end-user display.  Auto-populated from the pattern's
+    ``display_name`` field when available."""
+
     # ── Sample detail ─────────────────────────────────────
     sample_analysis: SampleAnalysis | None = None
     """Populated when finding was derived from sample value analysis."""

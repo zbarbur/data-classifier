@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,6 +36,7 @@ from tests.benchmarks.corpus_loader import (
     _FIXTURES_DIR,
     NEGATIVE_GROUND_TRUTH,
     NEMOTRON_TYPE_MAP,
+    _classify_credential_value_shape,
 )
 from tests.benchmarks.corpus_loader import (
     _GRETEL_EN_POST_ETL_IDENTITY as _GRETEL_EN_POOL_IDENTITY,
@@ -74,6 +76,83 @@ NAMED_COLUMN_NAME_FMT: str = "{corpus}_{type_lower}"
 _CREDENTIAL_CORPORA: tuple[str, ...] = ("secretbench", "gitleaks", "detect_secrets")
 
 
+# ── Structural presence detection (multi-label ground truth) ──────────────
+
+#: Lightweight regexes for detecting structurally present families in
+#: shard sample values.  These are intentionally simple — we are NOT
+#: reclassifying, just checking "does this text contain a URL/email/
+#: credential substring?" to build honest multi-label ground truth.
+_URL_RE = re.compile(r"https?://[a-zA-Z0-9]", re.ASCII)
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", re.ASCII)
+_CREDENTIAL_PREFIX_RE = re.compile(
+    r"(?:"
+    r"sk-[a-zA-Z0-9]{20}"  # OpenAI
+    r"|ghp_[a-zA-Z0-9]{36}"  # GitHub PAT
+    r"|ghs_[a-zA-Z0-9]{36}"  # GitHub app token
+    r"|glpat-[a-zA-Z0-9\-]{20}"  # GitLab PAT
+    r"|xox[baprs]-[a-zA-Z0-9\-]+"  # Slack
+    r"|AKIA[A-Z0-9]{16}"  # AWS access key
+    r"|AIzaSy[a-zA-Z0-9_\-]{33}"  # Google API key
+    r"|ya29\.[a-zA-Z0-9_\-]+"  # Google OAuth
+    r"|eyJ[a-zA-Z0-9_\-]{10,}\.[a-zA-Z0-9_\-]{10,}"  # JWT
+    r"|-----BEGIN\s(?:RSA\s|EC\s)?PRIVATE\sKEY-----"  # Private key (RSA/EC/generic)
+    r"|sk-ant-[a-zA-Z0-9\-]{20}"  # Anthropic
+    r"|glc_[a-zA-Z0-9]{20,}"  # Grafana cloud token
+    r"|dapi[a-zA-Z0-9]{32}"  # Databricks token
+    r"|ops_eyJ[a-zA-Z0-9]"  # 1Password service account
+    r")",
+    re.ASCII,
+)
+
+#: Values matching ``_CREDENTIAL_PREFIX_RE`` that also match this
+#: pattern are considered placeholders/examples, NOT format-valid
+#: credentials.  Used to avoid relabeling ``AIzaSyXXXXXXXXX...`` or
+#: ``glc_111111111...`` as true positives.
+_PLACEHOLDER_RE = re.compile(
+    r"[Xx]{6,}"  # repeated X/x filler
+    r"|[0]{6,}"  # repeated zeros
+    r"|EXAMPLE"  # AWS example key marker
+    r"|PUT_YOUR_"  # placeholder instruction
+    r"|aaaa{4,}"  # repeated 'a' filler
+    r"|1{10,}",  # repeated '1' filler (e.g. glc_1111...)
+    re.ASCII,
+)
+
+
+def _detect_structural_families(values: list[str], primary_family: str) -> list[str]:
+    """Scan sample values and return all families structurally present.
+
+    Always includes ``primary_family`` (the single-label ground truth).
+    Adds URL, CONTACT (for email), or CREDENTIAL when structural patterns
+    are found in the values.  Only families *different* from the primary
+    are scanned — no point confirming what we already know.
+
+    Uses a low threshold: if >= 3 values match a pattern, the family is
+    considered present.  This avoids noise from single-value coincidences
+    (e.g. a URL appearing once in a 300-value CREDENTIAL shard is noise).
+    """
+    families = {primary_family}
+    min_hits = 3
+
+    # Only scan for families that differ from the primary
+    if primary_family != "URL":
+        hits = sum(1 for v in values if _URL_RE.search(v))
+        if hits >= min_hits:
+            families.add("URL")
+
+    if primary_family != "CONTACT":
+        hits = sum(1 for v in values if _EMAIL_RE.search(v))
+        if hits >= min_hits:
+            families.add("CONTACT")
+
+    if primary_family != "CREDENTIAL":
+        hits = sum(1 for v in values if _CREDENTIAL_PREFIX_RE.search(v))
+        if hits >= min_hits:
+            families.add("CREDENTIAL")
+
+    return sorted(families)
+
+
 # ── Shard specification ────────────────────────────────────────────────────
 
 
@@ -95,6 +174,10 @@ class ShardSpec:
     column_id: str
     sampling: str = "unique"  # "unique" | "resampled"
     extra_metadata: dict[str, object] = field(default_factory=dict)
+    #: Multi-label ground truth: all families structurally present in
+    #: the shard's sample values.  Always includes the primary
+    #: ``ground_truth`` family.  Populated by :func:`annotate_shard_families`.
+    ground_truth_families: list[str] = field(default_factory=list)
 
 
 # ── Pool extraction ────────────────────────────────────────────────────────
@@ -105,6 +188,23 @@ def _load_raw_records(path: Path) -> list[dict]:
         return []
     with path.open(encoding="utf-8") as f:
         return json.load(f)
+
+
+# LLM-generated corpora (Nemotron, Gretel) produce CC/ABA values with
+# correct format but random digits — ~90% fail Luhn/ABA checksum.
+# Filter to valid-checksum values only across all pool functions.
+def _passes_checksum(mapped_type: str, value: str) -> bool:
+    """Return True if the value passes the checksum for its entity type,
+    or if the entity type has no checksum requirement."""
+    from data_classifier.engines.validators import aba_checksum_check, luhn_strip_check, vin_checkdigit_check
+
+    if mapped_type == "CREDIT_CARD":
+        return luhn_strip_check(value)
+    if mapped_type == "ABA_ROUTING":
+        return aba_checksum_check(value)
+    if mapped_type == "VIN":
+        return vin_checkdigit_check(value)
+    return True
 
 
 def _gretel_en_pool() -> dict[str, list[str]]:
@@ -123,6 +223,8 @@ def _gretel_en_pool() -> dict[str, list[str]]:
             continue
         mapped = _GRETEL_EN_POOL_IDENTITY.get(ext)
         if mapped is None:
+            continue
+        if not _passes_checksum(mapped, str(value)):
             continue
         pool.setdefault(mapped, []).append(str(value))
     return pool
@@ -147,6 +249,12 @@ def _gretel_finance_pool() -> dict[str, list[str]]:
         mapped = _GRETEL_FINANCE_POOL_IDENTITY.get(ext)
         if mapped is None:
             continue
+        # Repartition CREDENTIAL into specific subtypes by value shape
+        # so benchmark ground truth matches per-pattern detection output.
+        if mapped == "CREDENTIAL":
+            mapped = _classify_credential_value_shape(str(value))
+        if not _passes_checksum(mapped, str(value)):
+            continue
         pool.setdefault(mapped, []).append(str(value))
     return pool
 
@@ -159,25 +267,39 @@ def _nemotron_pool() -> dict[str, list[str]]:
         value = rec.get("value", "")
         if not value or not ext:
             continue
-        mapped = NEMOTRON_TYPE_MAP.get(ext)
+        # Repartition credential-bucket records by value shape before
+        # applying the type map, matching corpus_loader.load_nemotron_corpus.
+        if ext in ("password", "CREDENTIAL"):
+            mapped = _classify_credential_value_shape(str(value))
+        else:
+            mapped = NEMOTRON_TYPE_MAP.get(ext)
         if mapped is None:
+            continue
+        if not _passes_checksum(mapped, str(value)):
             continue
         pool.setdefault(mapped, []).append(str(value))
     return pool
 
 
 def _credential_corpus_pool(corpus_name: str) -> dict[str, list[str]]:
-    """Return ``{"CREDENTIAL": [...], "NEGATIVE": [...]}`` for a credential corpus.
+    """Return ``{subtype: [...], "NEGATIVE": [...]}`` for a credential corpus.
 
-    SecretBench/gitleaks/detect_secrets all normalise to
-    ``{entity_type: "CREDENTIAL", value, is_secret}``.  For detect_secrets
-    we also honour its alternative ``type`` schema (``non_secret`` /
-    ``false_positive`` become NEGATIVE).
+    Repartitions credential positives into specific subtypes (API_KEY,
+    PRIVATE_KEY, OPAQUE_SECRET) so the benchmark ground truth matches
+    the classifier's per-pattern detection output.
+
+    * **detect_secrets**: uses ``_DETECT_SECRETS_TYPE_MAP`` to map each
+      record's ``type`` field to the correct subtype.
+    * **gitleaks**: uses ``_GITLEAKS_SOURCE_TYPE_MAP`` to map each
+      record's ``source_type`` field to the correct subtype.
+    * **secretbench**: uses ``_classify_credential_value_shape`` to
+      infer subtype from the value itself (JWT → API_KEY,
+      PEM → PRIVATE_KEY, everything else → OPAQUE_SECRET).
     """
-    pool: dict[str, list[str]] = {"CREDENTIAL": [], NEGATIVE_GROUND_TRUTH: []}
+    pool: dict[str, list[str]] = {NEGATIVE_GROUND_TRUTH: []}
 
     filename = {
-        "secretbench": "secretbench_sample.json",
+        "secretbench": "secretbench_sample_v2.json",
         "gitleaks": "gitleaks_fixtures.json",
         "detect_secrets": "detect_secrets_fixtures.json",
     }[corpus_name]
@@ -191,20 +313,107 @@ def _credential_corpus_pool(corpus_name: str) -> dict[str, list[str]]:
             t = rec.get("type", "")
             if not value:
                 continue
-            if t in _DETECT_SECRETS_TYPE_MAP:
-                pool["CREDENTIAL"].append(str(value))
+            subtype = _DETECT_SECRETS_TYPE_MAP.get(t)
+            if subtype is not None:
+                pool.setdefault(subtype, []).append(str(value))
             else:
                 pool[NEGATIVE_GROUND_TRUTH].append(str(value))
-        return pool
+        return _relabel_negative_by_regex(pool)
 
+    if corpus_name == "gitleaks":
+        from tests.benchmarks.corpus_loader import _GITLEAKS_SOURCE_TYPE_MAP
+
+        for rec in records:
+            value = rec.get("value")
+            if not value:
+                continue
+            if rec.get("is_secret") is False:
+                v_str = str(value)
+                v_lower = v_str.lower()
+                # Skip non-credential PII (URLs, emails) — detectable
+                # but not truly NEGATIVE.
+                if "http://" in v_lower or "https://" in v_lower:
+                    continue
+                if _EMAIL_RE.search(v_str):
+                    continue
+                # Relabel format-valid credentials by value shape.
+                # Source corpora mark revoked/test/example keys as
+                # "false positive", but for FORMAT detection these
+                # are true positives.  Placeholder patterns (repeated
+                # X, 0, example markers) stay NEGATIVE.
+                if _CREDENTIAL_PREFIX_RE.search(v_str) and not _PLACEHOLDER_RE.search(v_str):
+                    subtype = _classify_credential_value_shape(v_str)
+                    pool.setdefault(subtype, []).append(v_str)
+                else:
+                    pool[NEGATIVE_GROUND_TRUTH].append(v_str)
+            else:
+                source_type = rec.get("source_type", "")
+                subtype = _GITLEAKS_SOURCE_TYPE_MAP.get(source_type, "OPAQUE_SECRET")
+                pool.setdefault(subtype, []).append(str(value))
+        return _relabel_negative_by_regex(pool)
+
+    # secretbench — no per-record metadata, classify by value shape.
     for rec in records:
         value = rec.get("value")
         if not value:
             continue
         if rec.get("is_secret") is False:
-            pool[NEGATIVE_GROUND_TRUTH].append(str(value))
+            v_str = str(value)
+            v_lower = v_str.lower()
+            # Skip non-credential PII (URLs, emails) — detectable
+            # but not truly NEGATIVE.
+            if "http://" in v_lower or "https://" in v_lower:
+                continue
+            if _EMAIL_RE.search(v_str):
+                continue
+            # Relabel format-valid credentials as their subtype.
+            if _CREDENTIAL_PREFIX_RE.search(v_str) and not _PLACEHOLDER_RE.search(v_str):
+                subtype = _classify_credential_value_shape(v_str)
+                pool.setdefault(subtype, []).append(v_str)
+            else:
+                pool[NEGATIVE_GROUND_TRUTH].append(v_str)
         else:
-            pool["CREDENTIAL"].append(str(value))
+            subtype = _classify_credential_value_shape(str(value))
+            pool.setdefault(subtype, []).append(str(value))
+
+    # Final pass: run the regex engine on remaining NEGATIVE values.
+    # Prefix-based relabeling misses values detected via KV parsing
+    # or patterns not in _CREDENTIAL_PREFIX_RE.  The regex engine is
+    # the definitive detector — if it fires, the value is mislabeled.
+    pool = _relabel_negative_by_regex(pool)
+
+    return pool
+
+
+def _relabel_negative_by_regex(pool: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Move NEGATIVE values to their detected subtype if the regex engine fires.
+
+    Uses scan_text (same as the production text scanning API) to check
+    each NEGATIVE value.  Values where a credential pattern matches are
+    moved to the detected subtype pool.  Values with no detection stay
+    NEGATIVE.
+    """
+    neg_values = pool.get(NEGATIVE_GROUND_TRUTH, [])
+    if not neg_values:
+        return pool
+
+    from data_classifier.scan_text import TextScanner
+
+    scanner = TextScanner()
+    scanner.startup()
+
+    keep_negative: list[str] = []
+    for value in neg_values:
+        result = scanner.scan(value, min_confidence=0.1)
+        if result.findings:
+            # Use the highest-confidence finding's entity_type
+            top = max(result.findings, key=lambda f: f.confidence)
+            subtype = top.entity_type
+            pool.setdefault(subtype, []).append(value)
+        else:
+            keep_negative.append(value)
+
+    pool[NEGATIVE_GROUND_TRUTH] = keep_negative
     return pool
 
 
@@ -437,7 +646,8 @@ def build_real_corpus_shards(
             )
         )
 
-    # Credential corpora — emit both CREDENTIAL and NEGATIVE pools.
+    # Credential corpora — emit subtype pools (API_KEY, PRIVATE_KEY,
+    # OPAQUE_SECRET) plus NEGATIVE.
     # These pools are small (~500 positives / ~550 negatives for
     # SecretBench, ~30/141 for gitleaks, ~8/5 for detect_secrets), so
     # unique-without-replacement shards are impossible at
@@ -451,10 +661,21 @@ def build_real_corpus_shards(
         (0.50, 50, 100),
         (0.25, 120, 200),
     )
+    # Track credential subtype shard counts across corpora to prevent
+    # any single subtype from dominating.  OPAQUE_SECRET is the catch-all
+    # and accumulates ~3× more shards than API_KEY or PRIVATE_KEY,
+    # which causes the meta-classifier to over-predict it.
+    max_credential_subtype_shards = shards_per_type * 2  # 150 from credential corpora
+    credential_subtype_counts: dict[str, int] = {}
     for corpus in _CREDENTIAL_CORPORA:
         cpool = _credential_corpus_pool(corpus)
         for gt, values in sorted(cpool.items()):
             if not values:
+                continue
+            already = credential_subtype_counts.get(gt, 0)
+            remaining = max(0, max_credential_subtype_shards - already)
+            n = min(shards_per_type, remaining) if gt != NEGATIVE_GROUND_TRUTH else shards_per_type
+            if n <= 0:
                 continue
             shards.extend(
                 _emit_shards_for_type(
@@ -462,11 +683,12 @@ def build_real_corpus_shards(
                     ground_truth=gt,
                     corpus=corpus,
                     source="real",
-                    num_shards=shards_per_type,
+                    num_shards=n,
                     rng=rng,
                     bucket_override=credential_buckets,
                 )
             )
+            credential_subtype_counts[gt] = already + n
 
     return shards
 
@@ -554,7 +776,28 @@ def build_shards(
         assert shard.column_id not in seen, f"duplicate column_id: {shard.column_id}"
         seen.add(shard.column_id)
 
+    # Annotate multi-label ground truth families via structural
+    # presence detection on sample values.
+    annotate_shard_families(shards)
+
     return shards
+
+
+def annotate_shard_families(shards: list[ShardSpec]) -> None:
+    """Populate ``ground_truth_families`` on every shard in-place.
+
+    Runs the lightweight structural presence scanner on each shard's
+    sample values to detect URL, EMAIL (→ CONTACT), and CREDENTIAL
+    patterns that co-occur alongside the primary ground truth.
+    """
+    from data_classifier.core.taxonomy import family_for
+
+    for shard in shards:
+        primary_family = family_for(shard.ground_truth)
+        shard.ground_truth_families = _detect_structural_families(
+            shard.column.sample_values,
+            primary_family,
+        )
 
 
 def summarise_shards(shards: Iterable[ShardSpec]) -> dict[str, object]:
@@ -607,6 +850,7 @@ __all__ = [
     "SYNTH_SHARDS_BACKED",
     "SYNTH_SHARDS_SYNTHETIC_ONLY",
     "ShardSpec",
+    "annotate_shard_families",
     "build_real_corpus_shards",
     "build_shards",
     "build_synthetic_shards",

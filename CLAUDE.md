@@ -31,10 +31,13 @@ Only docs 01-05 are relevant for iteration 1 (regex engine).
 ## Commands
 
 ### Testing & Quality
-- **Run tests**: `pytest tests/ -v`
+- **Run tests**: `.venv/bin/python -m pytest tests/ -v`
 - **Lint**: `ruff check . && ruff format --check .`
 - **Format**: `ruff check --fix . && ruff format .`
-- **Full CI**: `ruff check . && ruff format --check . && pytest tests/ -v`
+- **Full CI**: `ruff check . && ruff format --check . && .venv/bin/python -m pytest tests/ -v && bash scripts/ci_browser_parity.sh`
+- **Browser release**: `cd data_classifier/clients/browser && npm run release`
+- **IMPORTANT**: Always use `.venv/bin/python` — homebrew python3 is missing ML deps (gliner2, torch). Never use bare `pytest` or `python3`.
+- **Browser parity**: Any change to Python detection logic (validators, patterns, scoring) must be followed by `bash scripts/ci_browser_parity.sh` to verify JS stays in sync.
 
 ### Development
 - **Install (editable)**: `pip install -e ".[dev]"`
