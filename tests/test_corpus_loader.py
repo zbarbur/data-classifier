@@ -281,7 +281,7 @@ class TestGretelEnLoader:
         fixture = Path(__file__).parent / "fixtures" / "corpora" / "gretel_en_sample.json"
         assert fixture.exists(), f"Gretel-EN fixture missing at {fixture}"
         assert fixture.stat().st_size > 0
-        assert fixture.stat().st_size < 100 * 1024, "fixture must stay under 100KB for git"
+        # No size cap — fixture is DVC-tracked, not committed to git.
         with fixture.open(encoding="utf-8") as f:
             records = json.load(f)
         assert isinstance(records, list)
@@ -363,7 +363,7 @@ class TestGretelFinanceLoader:
         fixture = Path(__file__).parent / "fixtures" / "corpora" / "gretel_finance_sample.json"
         assert fixture.exists(), f"Gretel-finance fixture missing at {fixture}"
         assert fixture.stat().st_size > 0
-        assert fixture.stat().st_size < 100 * 1024, "fixture must stay under 100KB for git"
+        # No size cap — fixture is DVC-tracked, not committed to git.
         with fixture.open(encoding="utf-8") as f:
             records = json.load(f)
         assert isinstance(records, list)

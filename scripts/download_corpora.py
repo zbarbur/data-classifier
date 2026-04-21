@@ -237,7 +237,9 @@ def download_nemotron(max_per_type: int = 1000) -> list[dict]:
 
     records: list[dict] = []
     for entity_type, values in sorted(records_by_type.items()):
-        unique = list(dict.fromkeys(values))[:max_per_type]
+        unique = list(dict.fromkeys(values))
+        if max_per_type is not None:
+            unique = unique[:max_per_type]
         logger.info("  %s: %d unique values (from %d total)", entity_type, len(unique), len(values))
         for v in unique:
             records.append({"entity_type": entity_type, "value": v})
@@ -454,7 +456,9 @@ def download_gretel_en(max_per_type: int = 1000) -> list[dict]:
     # Deduplicate and cap per type.
     records: list[dict] = []
     for entity_type, values in sorted(records_by_type.items()):
-        unique = list(dict.fromkeys(values))[:max_per_type]
+        unique = list(dict.fromkeys(values))
+        if max_per_type is not None:
+            unique = unique[:max_per_type]
         logger.info("  %s: %d unique values (from %d total)", entity_type, len(unique), len(values))
         for v in unique:
             records.append({"entity_type": entity_type, "value": v})
@@ -480,7 +484,7 @@ def _fetch_gretel_en_via_rest_api(consumer, *, max_per_type: int) -> None:
     # Target enough unique rows to cover max_per_type post-dedup without
     # slamming the API.  Each row contributes ~5-8 spans on average; we
     # cap total rows at 10x max_per_type as a safety upper bound.
-    hard_cap_rows = max(500, max_per_type * 10)
+    hard_cap_rows = max(500, max_per_type * 10) if max_per_type is not None else 100_000
 
     while offset < hard_cap_rows:
         url = f"{base}&offset={offset}&length={page_size}"
@@ -547,6 +551,11 @@ def download_gretel_finance(
         logger.info("  languages filter: %s", sorted(languages))
 
     records_by_type: dict[str, list[str]] = {}
+    # CREDENTIAL records carry extra metadata (source_context, raw_label,
+    # source_document_type) that the test suite verifies to confirm
+    # credentials-in-prose provenance.  Store as list of dicts keyed by
+    # value so we can deduplicate while preserving the metadata.
+    credential_records: dict[str, dict] = {}  # value -> full record dict
     allowed_languages: set[str] | None = set(languages) if languages else None
 
     def _consume_row(row: dict) -> None:
@@ -556,6 +565,7 @@ def download_gretel_finance(
         generated_text = row.get("generated_text", "") or ""
         if not generated_text or not isinstance(generated_text, str):
             return
+        document_type = row.get("document_type", "") or ""
         raw_spans = row.get("pii_spans", "[]")
         if not raw_spans or not isinstance(raw_spans, str):
             return
@@ -582,7 +592,22 @@ def download_gretel_finance(
                 continue
             if not value:
                 continue
-            records_by_type.setdefault(our_type, []).append(str(value))
+            value_str = str(value)
+            if our_type == "CREDENTIAL":
+                if value_str not in credential_records:
+                    # Capture up to 200 chars of surrounding context centred on the span.
+                    ctx_start = max(0, int(start) - 80)
+                    ctx_end = min(len(generated_text), int(end) + 80)
+                    source_context = generated_text[ctx_start:ctx_end]
+                    credential_records[value_str] = {
+                        "entity_type": "CREDENTIAL",
+                        "value": value_str,
+                        "raw_label": label,
+                        "source_context": source_context,
+                        "source_document_type": document_type,
+                    }
+            else:
+                records_by_type.setdefault(our_type, []).append(value_str)
 
     # Attempt 1: native datasets library.
     try:
@@ -601,8 +626,18 @@ def download_gretel_finance(
 
     # Deduplicate and cap per type.
     records: list[dict] = []
+
+    # CREDENTIAL — already deduplicated by value in the dict; apply cap if set.
+    cred_list = list(credential_records.values())
+    if max_per_type is not None:
+        cred_list = cred_list[:max_per_type]
+    logger.info("  CREDENTIAL: %d unique values (from %d total)", len(cred_list), len(credential_records))
+    records.extend(cred_list)
+
     for entity_type, values in sorted(records_by_type.items()):
-        unique = list(dict.fromkeys(values))[:max_per_type]
+        unique = list(dict.fromkeys(values))
+        if max_per_type is not None:
+            unique = unique[:max_per_type]
         logger.info("  %s: %d unique values (from %d total)", entity_type, len(unique), len(values))
         for v in unique:
             records.append({"entity_type": entity_type, "value": v})
@@ -626,7 +661,7 @@ def _fetch_gretel_finance_via_rest_api(consumer, *, max_per_type: int) -> None:
     offset = 0
     # Finance rows are longer than Gretel-EN rows (full prose documents)
     # and carry more spans per row on average, so we overshoot less.
-    hard_cap_rows = max(500, max_per_type * 10)
+    hard_cap_rows = max(500, max_per_type * 10) if max_per_type is not None else 100_000
 
     while offset < hard_cap_rows:
         url = f"{base}&offset={offset}&length={page_size}"
@@ -683,7 +718,7 @@ def main() -> None:
         help="Which corpus to download",
     )
     parser.add_argument(
-        "--max-per-type", type=int, default=1000, help="Maximum samples per entity type (default: 1000)"
+        "--max-per-type", type=int, default=None, help="Maximum samples per entity type (default: no limit)"
     )
     args = parser.parse_args()
 
