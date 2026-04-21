@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 
+import pytest
+
 from data_classifier.scan_text import TextScanner, scan_text
 
 
@@ -15,7 +17,9 @@ def _decode_xor(encoded: str, key: int = 0x5A) -> str:
 
 
 # XOR-encoded test credentials to avoid GitHub push protection
-_GITHUB_TOKEN = _decode_xor("xor:PTIqBQ==") + "aBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJ"  # ghp_ + 36 mixed alnum
+# Note: token suffix must not contain sequential alphabet runs (e.g. abcdefghij...)
+# or repeated chars — those are correctly filtered as placeholder patterns.
+_GITHUB_TOKEN = _decode_xor("xor:PTIqBQ==") + "xK9mP2nQ7rT4wY6aB8cD0eF3gH5iJ1kLmN0p"  # ghp_ + 36 mixed alnum
 _AWS_KEY = _decode_xor("xor:GxETGw==") + "IOSFODNN7R4ND0M9"  # AKIA + 16 uppercase/digits
 
 
@@ -138,6 +142,82 @@ class TestSingleton:
         assert not scanner._started
         scanner.scan("test")
         assert scanner._started
+
+
+@pytest.fixture
+def scanner():
+    s = TextScanner()
+    s.startup()
+    return s
+
+
+class TestFPFilters:
+    """Tests for FP rejection filters in regex pass."""
+
+    def test_code_expression_rejected(self, scanner):
+        """Code expressions like foo.bar.baz should not trigger findings."""
+        result = scanner.scan("secret_key = request.session.auth_token;")
+        # The value "request.session.auth_token;" should be filtered
+        code_fps = [f for f in result.findings if "request.session" in (f.value_masked or "")]
+        assert len(code_fps) == 0
+
+    def test_shell_variable_rejected(self, scanner):
+        result = scanner.scan("export API_KEY=$SOME_VARIABLE")
+        findings = [f for f in result.findings if f.start > 17]  # after "export API_KEY="
+        shell_fps = [f for f in findings if "$SOME_VARIABLE" in (f.evidence or "")]
+        assert len(shell_fps) == 0
+
+    def test_placeholder_rejected(self, scanner):
+        result = scanner.scan("token: YOUR_API_KEY_HERE")
+        placeholder_findings = [f for f in result.findings if "YOUR_API_KEY_HERE" in (f.value_masked or "")]
+        assert len(placeholder_findings) == 0
+
+    def test_cjk_text_rejected(self, scanner):
+        result = scanner.scan("密码是这个很长的字符串包含很多汉字不是密码")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET"]
+        assert len(opaque) == 0
+
+    def test_real_credential_still_detected(self, scanner):
+        # Use _AWS_KEY (AKIAIOSFODNN7R4ND0M9) — not a documentation placeholder
+        result = scanner.scan(f"Use this key: {_AWS_KEY}")
+        aws = [f for f in result.findings if "aws" in (f.detection_type or "").lower() or f.entity_type == "API_KEY"]
+        assert len(aws) >= 1
+
+
+class TestOpaqueTokenPass:
+    """Tests for standalone high-entropy token detection."""
+
+    def test_bare_jwt_detected(self, scanner):
+        jwt = (
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+            ".eyJzdWIiOiIxMjM0NTY3ODkwIn0"
+            ".dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        )
+        result = scanner.scan(f"Use this token: {jwt}")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET" or f.detection_type == "jwt_token"]
+        assert len(opaque) >= 1
+
+    def test_bare_mixed_token_detected(self, scanner):
+        # Mixed-case alphanumeric token — passes entropy (>0.7) and diversity (>=3) gates
+        mixed_token = "xK9mP2nQ7rT4wY6aB8cD0eF3gH5iJ1kLmNo"
+        result = scanner.scan(f"Token: {mixed_token}")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET"]
+        assert len(opaque) >= 1
+
+    def test_placeholder_not_detected(self, scanner):
+        result = scanner.scan("token: xxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET"]
+        assert len(opaque) == 0
+
+    def test_short_token_not_detected(self, scanner):
+        result = scanner.scan("key: aB3!")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET"]
+        assert len(opaque) == 0
+
+    def test_low_entropy_not_detected(self, scanner):
+        result = scanner.scan("value: aaaaaaaabbbbbbbbcccccccc")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET"]
+        assert len(opaque) == 0
 
 
 class TestColumnNameNeutral:

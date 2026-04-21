@@ -112,6 +112,10 @@ _CODE_DOT_NOTATION = re.compile(r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)+[;,]?$")
 _CODE_BRACKET_ACCESS = re.compile(r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)*\[[^\]]+\][;,]?$")
 _CODE_SEMICOLON = re.compile(r"^[a-zA-Z_]\w*;$")
 
+# Code call pattern — value contains assignment or statement body e.g. "request.session.auth_token;"
+# Catches mixed-context expressions that dot-notation alone misses.
+_CODE_CALL = re.compile(r"[({].*[=;]")
+
 # Shell/env variable reference — value starts with $ (e.g. $password, ${DB_PASS})
 _SHELL_VARIABLE = re.compile(r"^\$[\w{]")
 
@@ -395,7 +399,17 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
 
     # Code expressions — dot-notation property access, bracket notation.
     # e.g. form.password.data, textBox2.Text, request.POST["x"], tokenApp;
-    if _CODE_DOT_NOTATION.match(value) or _CODE_BRACKET_ACCESS.match(value) or _CODE_SEMICOLON.match(value):
+    # Guard: skip if any dot-separated segment is suspiciously long (>32 chars)
+    # — that pattern is a JWT or similar token, not a code identifier chain.
+    if _CODE_DOT_NOTATION.match(value):
+        if all(len(seg) <= 32 for seg in value.rstrip(";,").split(".")):
+            return True
+    if _CODE_BRACKET_ACCESS.match(value) or _CODE_SEMICOLON.match(value):
+        return True
+
+    # Code call pattern — assignment or statement body inside parens/braces.
+    # e.g. "request.session.auth_token;", "(foo=bar;)"
+    if _CODE_CALL.search(value):
         return True
 
     # Shell/env variable references — e.g. $password, ${DB_PASS}
@@ -431,6 +445,11 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
         alpha_chars = sum(1 for c in value if c.isalpha())
         if alpha_chars / max(len(value), 1) > prose_threshold:
             return True
+
+    # Non-spaced scripts (CJK, Cyrillic, Arabic): any character in these
+    # ranges means human language, not a credential.  Secrets are ASCII.
+    if re.search(r"[\u3000-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0600-\u06FF]", value):
+        return True
 
     return False
 

@@ -11,27 +11,42 @@ Detection flow:
   2. **Secret scanner pass** — parse KV structures from the text, score key names
      against the dictionary with tiered entropy gating.  Uses regex findings from
      step 1 to enrich KV-extracted values (unified detection).
-
-TODO: the JS browser scanner has an additional ``opaqueTokenPass`` for standalone
-high-entropy tokens (JWTs, hex hashes).  This pass should be ported here to
-maintain parity between the two unstructured text scanners.
+  3. **Opaque token pass** — scan whitespace-delimited tokens for standalone
+     high-entropy opaque secrets (JWTs, hex hashes, random API keys).
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 
 import re2
 
 from data_classifier.core.types import ClassificationFinding, SampleAnalysis
+from data_classifier.engines.heuristic_engine import compute_char_class_diversity
 from data_classifier.engines.regex_engine import _get_global_stopwords
-from data_classifier.engines.secret_scanner import SecretScannerEngine
+from data_classifier.engines.secret_scanner import (
+    SecretScannerEngine,
+    _compute_relative_entropy,
+    _is_placeholder_value,
+    _value_is_obviously_not_secret,
+)
 from data_classifier.engines.validators import VALIDATORS
 from data_classifier.patterns import ContentPattern, load_default_patterns
 from data_classifier.profiles import load_profile
 
 logger = logging.getLogger(__name__)
+
+# ── Opaque token pass constants (mirrors JS scanner-core.js opaqueTokenPass) ─
+_OPAQUE_MIN_LENGTH = 16
+_OPAQUE_ENTROPY_THRESHOLD = 0.7
+_OPAQUE_DIVERSITY_THRESHOLD = 3
+_OPAQUE_BASE_CONFIDENCE = 0.65
+_OPAQUE_MAX_CONFIDENCE = 0.85
+_UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+_TOKEN_RE = re.compile(r"\S+")
+_STRIP_RE = re.compile(r'^["\'`]+|["\'`,.;:!?)\]]+$')
 
 
 @dataclass
@@ -96,6 +111,7 @@ class TextScanner:
         raw: list[TextFinding] = []
         raw.extend(self._regex_pass(text))
         raw.extend(self._secret_scanner_pass(text, raw))
+        raw.extend(self._opaque_token_pass(text))
 
         # Dedup: keep highest confidence per overlapping span
         deduped = self._dedup(raw)
@@ -120,6 +136,11 @@ class TextScanner:
                         continue
                     vfn = VALIDATORS.get(p.validator)
                     if vfn and not vfn(value):
+                        continue
+                    # FP filters — match JS scanner-core.js behavior
+                    if _value_is_obviously_not_secret(value):
+                        continue
+                    if _is_placeholder_value(value):
                         continue
                     out.append(
                         TextFinding(
@@ -195,6 +216,66 @@ class TextScanner:
                     end=end,
                     value_masked=_mask_value(value_for_mask),
                     evidence=f.evidence,
+                )
+            )
+        return out
+
+    def _opaque_token_pass(self, text: str) -> list[TextFinding]:
+        """Scan whitespace-delimited tokens for standalone high-entropy opaque secrets.
+
+        Mirrors JS scanner-core.js ``opaqueTokenPass``.  Tokens must pass entropy
+        and char-class diversity gates, and must not be UUIDs, placeholders, or
+        obviously not secret.
+        """
+        out: list[TextFinding] = []
+        ss_config = self._ss._config if self._ss else {}
+        anti_indicators = ss_config.get("anti_indicators", [])
+
+        for m in _TOKEN_RE.finditer(text):
+            token = m.group(0)
+            start = m.start()
+            cleaned = _STRIP_RE.sub("", token)
+
+            if len(cleaned) < _OPAQUE_MIN_LENGTH:
+                continue
+            if _value_is_obviously_not_secret(cleaned):
+                continue
+            if _UUID_RE.match(cleaned):
+                continue
+            if _is_placeholder_value(cleaned):
+                continue
+            lower = cleaned.lower()
+            if any(ai.lower() in lower for ai in anti_indicators):
+                continue
+
+            rel = _compute_relative_entropy(cleaned)
+            if rel < _OPAQUE_ENTROPY_THRESHOLD:
+                continue
+            diversity = compute_char_class_diversity(cleaned)
+            if diversity < _OPAQUE_DIVERSITY_THRESHOLD:
+                continue
+
+            confidence = _OPAQUE_BASE_CONFIDENCE
+            if rel > 0.85:
+                confidence += 0.10
+            if len(cleaned) > 24:
+                confidence += 0.05
+            confidence = min(confidence, _OPAQUE_MAX_CONFIDENCE)
+
+            out.append(
+                TextFinding(
+                    entity_type="OPAQUE_SECRET",
+                    detection_type="opaque_token",
+                    display_name="Opaque Token",
+                    category="Credential",
+                    confidence=confidence,
+                    engine="secret_scanner",
+                    start=start,
+                    end=start + len(token),
+                    value_masked=_mask_value(cleaned),
+                    evidence=(
+                        f"secret_scanner: opaque token — rel_entropy={rel:.2f} diversity={diversity} len={len(cleaned)}"
+                    ),
                 )
             )
         return out
