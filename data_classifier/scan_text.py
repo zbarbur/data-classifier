@@ -12,13 +12,9 @@ Detection flow:
      against the dictionary with tiered entropy gating.  Uses regex findings from
      step 1 to enrich KV-extracted values (unified detection).
 
-Note: the JS browser scanner has an additional ``opaqueTokenPass`` for standalone
-high-entropy tokens (JWTs, hex hashes) that appear inline in prompt text.  The
-Python ``scan_text`` does not include this pass — standalone opaque tokens are
-handled by the columnar ``classify_columns`` path via the opaque-token handler.
-This is an intentional parity gap: the browser operates on single prompts where
-standalone tokens are common; the Python side processes structured columns where
-the columnar path handles them.
+TODO: the JS browser scanner has an additional ``opaqueTokenPass`` for standalone
+high-entropy tokens (JWTs, hex hashes).  This pass should be ported here to
+maintain parity between the two unstructured text scanners.
 """
 
 from __future__ import annotations
