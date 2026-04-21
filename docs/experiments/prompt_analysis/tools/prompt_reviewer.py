@@ -214,6 +214,8 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
 /* Secret findings — inline highlights */
 .secret-highlight { background: rgba(255, 80, 80, 0.25); border-bottom: 2px solid #ff6b6b; cursor: help; position: relative; }
 .secret-highlight:hover { background: rgba(255, 80, 80, 0.4); }
+@keyframes flash-line { 0% { background: rgba(255, 80, 80, 0.5); } 100% { background: transparent; } }
+.line-flash { animation: flash-line 1.5s ease-out; }
 .secret-tooltip { display: none; position: absolute; bottom: 100%; left: 0; background: #2a0a0a; border: 1px solid #ff6b6b; border-radius: 4px; padding: 4px 8px; font-size: 10px; color: #ff6b6b; white-space: nowrap; z-index: 10; pointer-events: none; }
 .secret-highlight:hover .secret-tooltip { display: block; }
 
@@ -820,7 +822,12 @@ function renderSecretsList() {
     typeSpan.onclick = function(e) {
       e.stopPropagation();
       var lineEl = document.querySelector('.line[data-line-no="' + s.line + '"]');
-      if (lineEl) lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (lineEl) {
+        lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        lineEl.classList.remove('line-flash');
+        void lineEl.offsetWidth;  // force reflow to restart animation
+        lineEl.classList.add('line-flash');
+      }
     };
 
     var btnRow = document.createElement('span');
