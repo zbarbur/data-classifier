@@ -139,7 +139,7 @@ class TextScanner:
         """Run KV parsing on text, enriched by regex findings."""
         from data_classifier.core.types import ColumnInput
 
-        col = ColumnInput(column_id="text_scan", column_name="prompt", sample_values=[text])
+        col = ColumnInput(column_id="text_scan", column_name="_text_scan", sample_values=[text])
 
         # Build prior_findings for the SS to use
         prior: list[ClassificationFinding] = []
