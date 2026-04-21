@@ -1,11 +1,11 @@
 title: "HEALTH entity 0% recall at production threshold \u2014 min_confidence filters\
   \ engine findings before meta-classifier"
-status: backlog
+status: done
 priority: P2
 category: bug
 sprint_target: null
 created: 2026-04-20
-updated: 2026-04-20
+updated: 2026-04-21
 depends_on: []
 tags: []
 goal: ''

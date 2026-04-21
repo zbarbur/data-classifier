@@ -1,10 +1,10 @@
 title: Char-class diversity should boost composite score not just gate entry
-status: backlog
+status: doing
 priority: P1
 category: feature
-sprint_target: null
+sprint_target: 15
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-04-21
 depends_on: []
 tags: []
 goal: ''
@@ -20,7 +20,7 @@ description: 'Strong tier formula uses diversity >= 3 as a binary gate but doesn
 acceptance_criteria: []
 test_plan: []
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

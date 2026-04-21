@@ -1,7 +1,7 @@
 project_name: data_classifier
 language: python
 
-current_sprint: 14
+current_sprint: 15
 
 # Commands — Python toolchain
 # IMPORTANT: Always use .venv/bin/python — homebrew python3 is missing ML deps (gliner2, torch)

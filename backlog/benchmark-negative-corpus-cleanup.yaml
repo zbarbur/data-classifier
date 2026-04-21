@@ -1,37 +1,39 @@
-title: Benchmark NEGATIVE corpus cleanup — relabel credential-shaped values as TP
-status: backlog
+title: "Benchmark NEGATIVE corpus cleanup \u2014 relabel credential-shaped values\
+  \ as TP"
+status: doing
 priority: P1
 category: chore
-sprint_target: null
+sprint_target: 15
 created: 2026-04-19
-updated: 2026-04-19
+updated: 2026-04-21
 depends_on: []
 tags:
 - benchmark
 - precision
 - measurement
-goal: Fix mislabeled NEGATIVE shards in the family accuracy benchmark so
-  credential-shaped values are counted as true positives, not false positives
+goal: Fix mislabeled NEGATIVE shards in the family accuracy benchmark so credential-shaped
+  values are counted as true positives, not false positives
 complexity: M
 technical_specs:
-- "File: tests/benchmarks/meta_classifier/shard_builder.py — NEGATIVE pool construction
-  for gitleaks, secretbench, detect_secrets corpora"
-- "gitleaks NEGATIVE contains 17 AIzaSy* values that are format-valid Google API keys
-  (revoked/test) — these should be labeled CREDENTIAL, not NEGATIVE"
-- "gitleaks NEGATIVE contains format-valid Slack tokens (xoxp-XXXXXXXXXX), Grafana
-  tokens (glc_xxxx), etc. — placeholder-patterned ones (repeated X) are correctly
-  NEGATIVE; real-format ones should be relabeled"
-- "secretbench NEGATIVE contains email-like strings and password-like KV pairs that
-  need review"
-- "Also review Nemotron corpus for taxonomy-drift artifacts (Sprint 10 measurement
-  artifact: blind -0.047 was taxonomy mismatch, not real regression)"
-description: "The benchmark's NEGATIVE corpus contains values that look exactly like
-  real credentials (valid format, valid prefix, valid length) but are labeled NEGATIVE
-  because the source corpus (gitleaks, secretbench) considers them 'false positives'
-  due to being revoked, test, or example keys. For our use case — detecting credential
-  indicators — format-valid keys ARE true positives regardless of revocation status.
-  This mislabeling inflates our FP count by ~150 shards and deflates NEGATIVE family
-  F1 to 0.000. Cleaning this would give a more honest measurement of actual precision."
+- "File: tests/benchmarks/meta_classifier/shard_builder.py \u2014 NEGATIVE pool construction\
+  \ for gitleaks, secretbench, detect_secrets corpora"
+- "gitleaks NEGATIVE contains 17 AIzaSy* values that are format-valid Google API keys\
+  \ (revoked/test) \u2014 these should be labeled CREDENTIAL, not NEGATIVE"
+- "gitleaks NEGATIVE contains format-valid Slack tokens (xoxp-XXXXXXXXXX), Grafana\
+  \ tokens (glc_xxxx), etc. \u2014 placeholder-patterned ones (repeated X) are correctly\
+  \ NEGATIVE; real-format ones should be relabeled"
+- secretbench NEGATIVE contains email-like strings and password-like KV pairs that
+  need review
+- 'Also review Nemotron corpus for taxonomy-drift artifacts (Sprint 10 measurement
+  artifact: blind -0.047 was taxonomy mismatch, not real regression)'
+description: "The benchmark's NEGATIVE corpus contains values that look exactly like\
+  \ real credentials (valid format, valid prefix, valid length) but are labeled NEGATIVE\
+  \ because the source corpus (gitleaks, secretbench) considers them 'false positives'\
+  \ due to being revoked, test, or example keys. For our use case \u2014 detecting\
+  \ credential indicators \u2014 format-valid keys ARE true positives regardless of\
+  \ revocation status. This mislabeling inflates our FP count by ~150 shards and deflates\
+  \ NEGATIVE family F1 to 0.000. Cleaning this would give a more honest measurement\
+  \ of actual precision."
 acceptance_criteria:
 - Review all 450 NEGATIVE shards and relabel format-valid credentials as CREDENTIAL
 - Placeholder-patterned values (repeated X, repeated 0) remain NEGATIVE
@@ -39,4 +41,10 @@ acceptance_criteria:
 - Benchmark family_macro_f1 reflects true precision after relabeling
 - Nemotron taxonomy-drift artifact documented or corrected
 test_plan:
-- "tests/benchmarks/family_accuracy_benchmark: re-run and verify NEGATIVE F1 > 0"
+- 'tests/benchmarks/family_accuracy_benchmark: re-run and verify NEGATIVE F1 > 0'
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

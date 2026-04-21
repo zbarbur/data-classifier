@@ -1,10 +1,10 @@
 title: 'Sprint 14: BQ connector consumer bump to v0.12.0 (external coordination)'
-status: backlog
+status: done
 priority: P1
 category: chore
 sprint_target: 0
 created: 2026-04-16
-updated: 2026-04-17
+updated: 2026-04-21
 depends_on:
 - sprint12-v0.12.0-wheel-release
 tags:

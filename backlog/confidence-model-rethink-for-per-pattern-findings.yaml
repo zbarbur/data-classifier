@@ -1,10 +1,10 @@
 title: Confidence model rethink for per-pattern findings
-status: backlog
+status: doing
 priority: P1
 category: feature
-sprint_target: null
+sprint_target: 15
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-04-21
 depends_on: []
 tags:
 - multi-label
@@ -13,20 +13,21 @@ goal: Redesign the confidence formula so per-pattern findings reflect match qual
   not column homogeneity
 complexity: M
 technical_specs:
-- "File: data_classifier/engines/regex_engine.py — _compute_sample_confidence applies
-  a 0.65 penalty for single-match findings, which penalizes correct detections in
-  heterogeneous columns (e.g. LLM prompt columns with mixed secret types)"
-- "Current formula: 1 match → base * 0.65, 2-4 matches → base * 0.85, 5+ → base * 1.0"
-- "Per-pattern findings mean 1 match of AKIA in 3 samples is correct — the column
-  has 1 AWS key, not 'maybe an AWS key column'"
-- "Need to separate two concepts: (a) how confident are we this specific match IS
-  that type (match quality), (b) how prevalent is this type in the column (coverage)"
-description: "Sprint 14 changed findings from per-entity-type to per-pattern. A column
-  with AKIA + ghp_ + xoxb- now produces 3 findings instead of 1. But the confidence
-  formula still penalizes single-match patterns (0.65x), treating 1/3 as low confidence.
-  For heterogeneous columns this is wrong — each match IS the detected type with high
-  certainty. The penalty should only apply when assessing column-level homogeneity,
-  not individual match quality."
+- "File: data_classifier/engines/regex_engine.py \u2014 _compute_sample_confidence\
+  \ applies a 0.65 penalty for single-match findings, which penalizes correct detections\
+  \ in heterogeneous columns (e.g. LLM prompt columns with mixed secret types)"
+- "Current formula: 1 match \u2192 base * 0.65, 2-4 matches \u2192 base * 0.85, 5+\
+  \ \u2192 base * 1.0"
+- "Per-pattern findings mean 1 match of AKIA in 3 samples is correct \u2014 the column\
+  \ has 1 AWS key, not 'maybe an AWS key column'"
+- 'Need to separate two concepts: (a) how confident are we this specific match IS
+  that type (match quality), (b) how prevalent is this type in the column (coverage)'
+description: "Sprint 14 changed findings from per-entity-type to per-pattern. A column\
+  \ with AKIA + ghp_ + xoxb- now produces 3 findings instead of 1. But the confidence\
+  \ formula still penalizes single-match patterns (0.65x), treating 1/3 as low confidence.\
+  \ For heterogeneous columns this is wrong \u2014 each match IS the detected type\
+  \ with high certainty. The penalty should only apply when assessing column-level\
+  \ homogeneity, not individual match quality."
 acceptance_criteria:
 - Single-match findings for format-validated patterns (AKIA, ghp_, etc.) have confidence
   >= 0.85
@@ -34,5 +35,11 @@ acceptance_criteria:
 - Heterogeneous columns with mixed secret types report each type at appropriate confidence
 - Existing benchmarks do not regress
 test_plan:
-- "tests/test_regex_engine.py: test confidence for single-match validated patterns"
-- "tests/benchmarks/family_accuracy_benchmark: verify no regression"
+- 'tests/test_regex_engine.py: test confidence for single-match validated patterns'
+- 'tests/benchmarks/family_accuracy_benchmark: verify no regression'
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

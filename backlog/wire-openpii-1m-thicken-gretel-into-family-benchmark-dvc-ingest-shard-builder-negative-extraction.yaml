@@ -1,0 +1,38 @@
+title: "Wire openpii-1m + thicken Gretel into family benchmark \u2014 DVC ingest,\
+  \ shard builder, NEGATIVE extraction"
+status: doing
+priority: P1
+category: feature
+sprint_target: 15
+created: 2026-04-21
+updated: 2026-04-21
+depends_on: []
+tags: []
+goal: Add openpii-1m as 4th real corpus in the family benchmark shard builder + re-download
+  Gretel fixtures UNCAPPED (remove max_per_type limit); diversify NEGATIVE pool with
+  multilingual non-PII values; track raw data via DVC+GCS
+complexity: M
+technical_specs:
+- 'DVC migration scope: tests/fixtures/corpora/*.json, docs/sprints/*_bench.predictions.jsonl,
+  docs/experiments/prompt_analysis/s0_artifacts/**/*.jsonl, docs/experiments/prompt_analysis/s2_spike/report/*.json'
+- Use git rm --cached to untrack without deleting local copies, then dvc add each,
+  commit .dvc pointers
+- 'After migration: git filter-branch or BFG to purge old large blobs from git history
+  (optional, coordinate with team)'
+description: ''
+acceptance_criteria:
+- "ALL data files (corpus fixtures, benchmark predictions, research JSONL/JSON) tracked\
+  \ via DVC \u2014 no data files >10KB committed directly to git"
+- Existing ~45MB of data files migrated out of git into DVC+GCS
+test_plan:
+- 'tests/test_corpus_loader.py: test load_openpii_1m_corpus returns expected types
+  and counts'
+- 'tests/benchmarks/family_accuracy_benchmark: re-run and verify NATIONAL_ID coverage
+  + NEGATIVE diversity'
+- Verify DVC push/pull round-trip on GCS
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
