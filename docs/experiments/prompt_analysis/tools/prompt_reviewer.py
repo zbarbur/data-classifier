@@ -457,6 +457,14 @@ function renderList() {
     if (types.has('markup')) addBadge('badge-markup', 'markup');
     if (types.has('config')) addBadge('badge-config', 'config');
     if (types.has('structured_data')) addBadge('badge-structured', 'struct');
+    if (maxConf > 0) {
+      var confCls = maxConf >= 0.8 ? 'conf-high' : maxConf >= 0.65 ? 'conf-mid' : 'conf-low';
+      var confBadge = document.createElement('span');
+      confBadge.className = 'badge';
+      confBadge.style.cssText = 'background:transparent;color:' + (maxConf >= 0.8 ? '#52b788' : maxConf >= 0.65 ? '#ffd9a0' : '#f28b82') + ';font-size:10px;';
+      confBadge.textContent = Math.round(maxConf * 100) + '%';
+      badgesSpan.appendChild(confBadge);
+    }
     if (r.review && r.review.actual_blocks && r.review.actual_blocks.length > 0) addBadge('badge-correction', 'marked');
     if (r.review && r.review.correct === true) addBadge('badge-approved', 'ok');
     if (r.review && r.review.correct === false) addBadge('badge-rejected', 'X');
