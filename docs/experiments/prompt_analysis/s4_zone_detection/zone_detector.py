@@ -304,6 +304,27 @@ _MATH_PATTERN = re.compile(
     r"\\frac|\\begin|\\end|\\sum|\\int|\\alpha|\\beta|\\theta|\\phi)"
 )
 
+# Error/log output — looks syntactic but is output, not source code
+_ERROR_LOG_PATTERN = re.compile(
+    r"(?:Traceback \(most recent|"
+    r"^\s*File \"[^\"]+\", line \d+|"
+    r"^\s*at [a-zA-Z0-9_.]+\([^)]*\.(?:java|kt|scala|cs|js|ts):\d+\)|"  # Java/JS stack frames
+    r"^\s*at [a-zA-Z0-9_.]+\.<|"  # .NET stack frames
+    r"^\w+Error:|^\w+Exception:|^\w+Warning:|"
+    r"^(?:ERROR|WARN|INFO|DEBUG|FATAL|CRITICAL)\s|"
+    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}|"  # ISO timestamp prefix
+    r"^\[\d{4}-\d{2}-\d{2}|"  # bracketed timestamp
+    r"^>>>|"  # REPL output
+    r"^\s*\^+\s*$|"  # Python error caret lines
+    r"^\s*~~~+\s*$)",  # error underline
+    re.MULTILINE
+)
+
+# Numbered/bulleted list items — structured text, not code
+_LIST_ITEM_PATTERN = re.compile(
+    r"^\s*(?:\d+[.)]\s+|[-•*]\s+|[a-z][.)]\s+)[A-Z]"  # "1. Something" or "- Something"
+)
+
 # Prose sentences: start with capital, mostly alpha, end with period
 _PROSE_SENTENCE = re.compile(r"^[A-Z][a-z].*[.!?]$")
 
@@ -321,6 +342,16 @@ def _line_syntax_score(line: str) -> float:
     # Negative: math/statistics notation — brackets and equals signs are notation, not code
     if _MATH_PATTERN.search(stripped):
         return 0.0
+
+    # Negative: error/log output — syntactic but not source code
+    if _ERROR_LOG_PATTERN.match(stripped):
+        return 0.0
+
+    # Negative: numbered/bulleted list items with prose content
+    if _LIST_ITEM_PATTERN.match(stripped):
+        alpha_ratio_check = sum(c.isalpha() or c.isspace() for c in stripped) / max(len(stripped), 1)
+        if alpha_ratio_check > 0.7:
+            return 0.0
 
     # Negative: prose sentence (starts capital, ends punctuation, mostly words)
     alpha_ratio = sum(c.isalpha() or c.isspace() for c in stripped) / max(len(stripped), 1)
@@ -377,117 +408,131 @@ def _score_shell(lines: list[str]) -> float:
 # ---------------------------------------------------------------------------
 
 def _segment_unfenced(lines: list[str], fenced_ranges: set[int]) -> list[ZoneBlock]:
-    """Find code/structured blocks in unfenced regions using line-level scoring."""
+    """Find code/structured blocks in unfenced regions using line-level scoring.
+
+    Strategy: score every line, then find contiguous runs of code-like lines.
+    Breaks blocks at transitions where 3+ consecutive lines score 0 (prose,
+    error output, blank lines between sections).
+    """
     blocks = []
+
+    # Phase 1: try structured detection on contiguous non-empty regions
     i = 0
+    structured_ranges = set()
     while i < len(lines):
         if i in fenced_ranges or not lines[i].strip():
             i += 1
             continue
-
-        # Try multi-line structured detection first
-        # Look ahead for a contiguous block of non-empty lines
+        # Find extent of contiguous non-empty text
         j = i
-        while j < len(lines) and j not in fenced_ranges and lines[j].strip():
-            j += 1
-        # Also extend through single blank lines if surrounded by content
         while j < len(lines) and j not in fenced_ranges:
             if not lines[j].strip():
-                # Check if next non-empty line continues the block
                 k = j + 1
                 while k < len(lines) and not lines[k].strip():
                     k += 1
                 if k < len(lines) and k not in fenced_ranges and k - j <= 2:
                     j = k + 1
                     continue
-            elif lines[j].strip():
-                j += 1
-                continue
-            break
+                break
+            j += 1
 
         block_lines = lines[i:j]
         block_text = "\n".join(block_lines)
         non_empty = [l for l in block_lines if l.strip()]
 
-        # Minimum block size — small blocks are noisy (math snippets, error lines, etc.)
-        # Fenced blocks already handled above; unfenced needs >= 5 non-empty lines
-        if len(non_empty) < 5:
-            i = j if j > i else i + 1
-            continue
+        if len(non_empty) >= 5:
+            # Try structured formats (JSON, YAML, XML, env)
+            detected = False
+            if _try_json_block(block_text):
+                blocks.append(ZoneBlock(i, j, "config", 0.90, "json_parse", "json", block_text))
+                detected = True
+            elif _looks_like_yaml(non_empty):
+                blocks.append(ZoneBlock(i, j, "config", 0.80, "yaml_heuristic", "yaml", block_text))
+                detected = True
+            elif _looks_like_xml(block_text):
+                blocks.append(ZoneBlock(i, j, "markup", 0.80, "xml_heuristic", "xml", block_text))
+                detected = True
+            elif _looks_like_env(non_empty):
+                blocks.append(ZoneBlock(i, j, "config", 0.85, "env_heuristic", "env", block_text))
+                detected = True
 
-        # Try structured data detection
-        detected = False
-
-        if _try_json_block(block_text):
-            blocks.append(ZoneBlock(
-                start_line=i, end_line=j, zone_type="config",
-                confidence=0.90, method="json_parse",
-                language_hint="json", text=block_text,
-            ))
-            detected = True
-
-        elif _looks_like_yaml(non_empty):
-            blocks.append(ZoneBlock(
-                start_line=i, end_line=j, zone_type="config",
-                confidence=0.80, method="yaml_heuristic",
-                language_hint="yaml", text=block_text,
-            ))
-            detected = True
-
-        elif _looks_like_xml(block_text):
-            blocks.append(ZoneBlock(
-                start_line=i, end_line=j, zone_type="markup",
-                confidence=0.80, method="xml_heuristic",
-                language_hint="xml", text=block_text,
-            ))
-            detected = True
-
-        elif _looks_like_env(non_empty):
-            blocks.append(ZoneBlock(
-                start_line=i, end_line=j, zone_type="config",
-                confidence=0.85, method="env_heuristic",
-                language_hint="env", text=block_text,
-            ))
-            detected = True
-
-        # csv_heuristic and shell_heuristic removed — 0% accuracy in review
-
-        if not detected:
-            # Try code detection via line-level syntax scoring
-            line_scores = [_line_syntax_score(l) for l in non_empty]
-            avg_score = sum(line_scores) / max(len(line_scores), 1)
-            high_score_ratio = sum(1 for s in line_scores if s >= 0.25) / max(len(line_scores), 1)
-
-            if avg_score >= 0.25 and high_score_ratio >= 0.5 and len(non_empty) >= 3:
-                # Trim leading/trailing prose lines (high alpha ratio = natural language)
-                trim_start = i
-                trim_end = j
-                all_scores = [_line_syntax_score(l) for l in lines[i:j]]
-                while trim_start < trim_end and all_scores[trim_start - i] < 0.1:
-                    s = lines[trim_start].strip()
-                    alpha = sum(c.isalpha() or c.isspace() for c in s) / max(len(s), 1)
-                    if alpha > 0.8 and s:
-                        trim_start += 1
-                    else:
-                        break
-                while trim_end > trim_start and all_scores[trim_end - 1 - i] < 0.1:
-                    s = lines[trim_end - 1].strip()
-                    alpha = sum(c.isalpha() or c.isspace() for c in s) / max(len(s), 1)
-                    if alpha > 0.8 and s:
-                        trim_end -= 1
-                    else:
-                        break
-                trimmed_text = "\n".join(lines[trim_start:trim_end])
-                blocks.append(ZoneBlock(
-                    start_line=trim_start, end_line=trim_end, zone_type="code",
-                    confidence=min(0.4 + avg_score, 0.85),
-                    method="syntax_score",
-                    language_hint="", text=trimmed_text,
-                ))
+            if detected:
+                structured_ranges.update(range(i, j))
 
         i = j if j > i else i + 1
 
+    # Phase 2: score every line for code-likeness, then find runs
+    line_scores = []
+    for idx, line in enumerate(lines):
+        if idx in fenced_ranges or idx in structured_ranges:
+            line_scores.append(-1.0)  # already handled
+        else:
+            line_scores.append(_line_syntax_score(line))
+
+    # Find contiguous runs of code-like lines (score > 0)
+    # Allow single blank lines within a run, but break on 2+ zero-score non-empty lines
+    run_start = None
+    zero_streak = 0
+
+    for idx in range(len(lines)):
+        score = line_scores[idx]
+        is_blank = not lines[idx].strip()
+
+        if score < 0:  # already handled (fenced/structured)
+            if run_start is not None:
+                _emit_code_block(blocks, lines, line_scores, run_start, idx)
+                run_start = None
+            zero_streak = 0
+            continue
+
+        if score > 0:
+            if run_start is None:
+                run_start = idx
+            zero_streak = 0
+        elif is_blank:
+            # Blank lines: tolerate 1-2 within a run
+            zero_streak += 1
+            if zero_streak >= 3 and run_start is not None:
+                _emit_code_block(blocks, lines, line_scores, run_start, idx - zero_streak + 1)
+                run_start = None
+        else:
+            # Non-empty line with score 0 (prose/error/list)
+            zero_streak += 1
+            if zero_streak >= 2 and run_start is not None:
+                _emit_code_block(blocks, lines, line_scores, run_start, idx - zero_streak + 1)
+                run_start = None
+
+    if run_start is not None:
+        _emit_code_block(blocks, lines, line_scores, run_start, len(lines))
+
     return blocks
+
+
+def _emit_code_block(blocks, lines, line_scores, start, end):
+    """Create a code ZoneBlock from a run of high-scoring lines, with boundary trimming."""
+    # Trim leading/trailing zero-score lines
+    while start < end and (line_scores[start] <= 0 or not lines[start].strip()):
+        start += 1
+    while end > start and (line_scores[end - 1] <= 0 or not lines[end - 1].strip()):
+        end -= 1
+
+    non_empty = [l for l in lines[start:end] if l.strip()]
+    if len(non_empty) < 5:
+        return
+
+    scores = [line_scores[i] for i in range(start, end) if lines[i].strip() and line_scores[i] >= 0]
+    if not scores:
+        return
+    avg_score = sum(scores) / len(scores)
+    high_ratio = sum(1 for s in scores if s >= 0.25) / len(scores)
+
+    if avg_score >= 0.25 and high_ratio >= 0.5:
+        block_text = "\n".join(lines[start:end])
+        blocks.append(ZoneBlock(
+            start_line=start, end_line=end, zone_type="code",
+            confidence=min(0.4 + avg_score, 0.85),
+            method="syntax_score", language_hint="", text=block_text,
+        ))
 
 
 # ---------------------------------------------------------------------------
