@@ -140,7 +140,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; background: #1a1a2e; color: #e0e0e0; }
 .container { display: flex; height: 100vh; }
-.sidebar { width: 340px; border-right: 1px solid #333; overflow-y: auto; background: #16213e; flex-shrink: 0; }
+.sidebar { width: 400px; border-right: 1px solid #333; overflow-y: auto; background: #16213e; flex-shrink: 0; }
 .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .header { padding: 8px 16px; background: #0f3460; border-bottom: 1px solid #333; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .header h1 { font-size: 16px; color: #e94560; }
@@ -350,6 +350,7 @@ var corpus = [];
 var filteredIndices = [];
 var currentIdx = -1;
 var currentFilter = 'all';
+var activeFilters = new Set();  // for combinable filter mode
 var currentSecrets = [];  // secret findings for current prompt
 var selectedLines = new Set();  // lines selected by user for correction
 var userBlocks = [];  // user-marked correction blocks
@@ -377,9 +378,24 @@ function updateStats() {
 }
 
 function setFilter(f) {
-  currentFilter = f;
+  // "All" clears everything. Other filters toggle on/off and combine.
+  if (f === 'all') {
+    activeFilters.clear();
+    currentFilter = 'all';
+  } else {
+    if (activeFilters.has(f)) {
+      activeFilters.delete(f);
+    } else {
+      activeFilters.add(f);
+    }
+    currentFilter = activeFilters.size > 0 ? 'combined' : 'all';
+  }
   document.querySelectorAll('.filter-btn').forEach(function(b) {
-    b.classList.toggle('active', b.dataset.filter === f);
+    if (b.dataset.filter === 'all') {
+      b.classList.toggle('active', activeFilters.size === 0);
+    } else {
+      b.classList.toggle('active', activeFilters.has(b.dataset.filter));
+    }
   });
   filterList();
 }
@@ -388,16 +404,21 @@ function filterList() {
   var search = document.getElementById('search').value.toLowerCase();
   filteredIndices = [];
   corpus.forEach(function(r, i) {
-    if (currentFilter === 'code' && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'code'; })) return;
-    if (currentFilter === 'markup' && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'markup'; })) return;
-    if (currentFilter === 'config' && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'config'; })) return;
-    if (currentFilter === 'secret' && !(r.secrets && r.secrets.length > 0)) return;
-    if (currentFilter === 'none' && r.heuristic_has_blocks) return;
-    if (currentFilter === 'unreviewed' && r.review && r.review.correct !== null) return;
-    if (currentFilter === 'rejected' && (!r.review || r.review.correct !== false)) return;
-    if (currentFilter === 'low_conf') {
-      var maxConf = Math.max.apply(null, (r.heuristic_blocks || []).map(function(b) { return b.confidence; }).concat([0]));
-      if (maxConf === 0 || maxConf > 0.75) return;
+    // Combined filter: prompt must match ALL active filters
+    if (activeFilters.size > 0) {
+      var pass = true;
+      if (activeFilters.has('code') && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'code'; })) pass = false;
+      if (activeFilters.has('markup') && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'markup'; })) pass = false;
+      if (activeFilters.has('config') && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'config'; })) pass = false;
+      if (activeFilters.has('secret') && !(r.secrets && r.secrets.length > 0)) pass = false;
+      if (activeFilters.has('none') && r.heuristic_has_blocks) pass = false;
+      if (activeFilters.has('unreviewed') && r.review && r.review.correct !== null) pass = false;
+      if (activeFilters.has('rejected') && (!r.review || r.review.correct !== false)) pass = false;
+      if (activeFilters.has('low_conf')) {
+        var mc = Math.max.apply(null, (r.heuristic_blocks || []).map(function(b) { return b.confidence; }).concat([0]));
+        if (mc === 0 || mc > 0.75) pass = false;
+      }
+      if (!pass) return;
     }
     if (search && !(r.text || '').toLowerCase().includes(search) && !(r.prompt_id || '').includes(search)) return;
     filteredIndices.push(i);
@@ -465,7 +486,7 @@ function renderList() {
       confBadge.textContent = Math.round(maxConf * 100) + '%';
       badgesSpan.appendChild(confBadge);
     }
-    if (r.secrets && r.secrets.length > 0) addBadge('badge-secret', 'secret');
+    if (r.secrets && r.secrets.length > 0) addBadge('badge-secret', r.secrets.length + ' secret' + (r.secrets.length > 1 ? 's' : ''));
     if (r.review && r.review.actual_blocks && r.review.actual_blocks.length > 0) addBadge('badge-correction', 'marked');
     if (r.review && r.review.correct === true) addBadge('badge-approved', 'ok');
     if (r.review && r.review.correct === false) addBadge('badge-rejected', 'X');
@@ -509,6 +530,12 @@ async function selectPrompt(idx) {
     var result = await resp.json();
     r.secrets = result.findings;
     r._secrets_v2 = true;
+    // Persist secrets to corpus for offline analysis
+    fetch('/api/save_secrets', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ index: idx, secrets: result.findings })
+    });
   }
   currentSecrets = r.secrets || [];
 
@@ -1079,6 +1106,15 @@ class ReviewHandler(BaseHTTPRequestHandler):
             text = body.get("text", "")
             findings = _run_secret_detection(text)
             self._json_response({"findings": findings})
+
+        elif self.path == "/api/save_secrets":
+            idx = body.get("index", -1)
+            if 0 <= idx < len(CORPUS):
+                CORPUS[idx]["secrets"] = body.get("secrets", [])
+                _save_corpus()
+                self._json_response({"ok": True})
+            else:
+                self.send_error(400, "Invalid index")
 
         elif self.path == "/api/detect_all":
             text = body.get("text", "")
