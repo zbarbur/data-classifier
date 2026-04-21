@@ -2479,6 +2479,93 @@ scripts/m4d_phase3_build_worksheet.py     → data/m4d_phase3_corpus/review_work
 - Human spot-check of 50 stratified-sample rows shows ≥ 0.8 Jaccard to labeler output
 - Labels ingested by M4e without taxonomy drift
 
+### M4d Phase 3a review outcome (2026-04-21)
+
+**Gate: ✅ PASSED** — macro Jaccard `pred vs reviewer` = **0.9268** on 41 rows.
+
+Per-shape:
+- `structured_single` (n=15): **1.0000**
+- `free_text_heterogeneous` (n=22): **0.9091**
+- `opaque_tokens` (n=4): **0.7500** (3 ETH synth perfect, 1 base64 refusal → 0)
+
+3 rows disagreed with labeler — all surface distinct, addressable engineering items:
+
+1. **`cfpb_credit_card_m1, m2`** (2 rows) — labeler fired ADDRESS on `XXXX, NY` pattern (redacted city + state). Reviewer rejected per skip-redacted policy. Filed as **Phase 2 prompt revision item (redacted-pattern discipline)** below.
+
+2. **`sprint12_base64_encoded_payloads`** (1 row) — Anthropic safety refused. Reviewer amended to `[EMAIL]` per committed **base64 decoder + re-detection** design (see new item below).
+
+### M4f-d1 — base64 decoder + re-detection stage (pre-Phase-3b blocker)
+
+**Status:** ⏸ pre-commit, locked as direction 2026-04-21
+**Priority:** P1 — blocks Phase 3b greenlight
+**Estimated time:** ~2-3 days
+
+**Why:** base64 is a reversible encoding, not secrecy. Labeling
+decodable base64 content `OPAQUE_SECRET` is a **taxonomy category error**
+— the class must be reserved for genuinely opaque high-entropy residuals.
+Any column of base64-wrapped structured content (JWT-style payloads,
+JSON bodies, nested credentials) must be decoded first and re-detected
+on the decoded content.
+
+**What to build:**
+
+- **Decoder stage** (new engine / orchestrator step): attempts base64
+  decode on each value in an opaque-token column. If ≥ N% decode
+  successfully to structured content (valid JSON, valid ASCII text,
+  other recognizable shapes), replace the column's values with the
+  decoded forms and re-route through the detection pipeline.
+  - Threshold tuning (what fraction must decode successfully to count
+    as "decodable column") is an item to calibrate empirically on
+    Phase 3b corpus.
+- **Cascade logic:** decoder → on success, re-route; on failure, fall
+  through to existing surface-form OPAQUE_SECRET path.
+- **Shape-specific opaque stays on current path:** ETH (`0x` + 40 hex),
+  BTC hashes, non-base64 hashes. The decoder only fires on base64-shape
+  and hex-that-decodes-to-meaningful-bytes.
+- **Phase 2 prompt revision:** remove the "do NOT attempt to
+  base64-decode" guardrail in `OPAQUE_TOKENS_INSTRUCTIONS`. Replace with
+  "decoding happens upstream — label what you receive." Revalidate
+  Phase 2 Jaccard on the M4c gold set before Phase 3b runs.
+- **Related existing thread:** queue.md already references the
+  "D1a JWT-payload-classifier" — treat that as the concrete
+  implementation of this design commitment (or merge items).
+
+**Success criteria:**
+
+- Existing opaque-token coverage (ETH/BTC/hash-like) stays at Jaccard 1.0 on the gold set
+- Base64-wrapped structured columns produce decoded-content labels (not OPAQUE_SECRET)
+- Phase 2 prompt revision re-validated at ≥ 0.865 macro Jaccard before Phase 3b
+- No regression on Sprint 11 family benchmark
+
+### M4f-d2 — Phase 2 heterogeneous prompt: redacted-pattern discipline
+
+**Status:** ⏸ pre-commit, locked 2026-04-21 from Phase 3a review
+**Priority:** P2 — Phase 3b quality item (not blocker)
+**Estimated time:** ~1 day (prompt edit + re-validation)
+
+**Why:** Phase 2 heterogeneous prompt over-fired ADDRESS on
+`XXXX <CITY>, <STATE>` patterns — 2/41 Phase 3a rows. The existing
+redaction clause says "do NOT label the redacted entity on the basis
+of the placeholder alone," but the labeler interpreted the surviving
+state as sufficient evidence and added ADDRESS at the column level. On
+true CFPB traffic this is mostly noise; reviewer policy ("skip
+redacted data") wants redacted-city + bare-state to stay unlabeled.
+
+**What to change:**
+
+- Strengthen the `ADDRESS` clause in `HETEROGENEOUS_INSTRUCTIONS` to
+  explicitly cover the `XXXX, <STATE>` pattern: "redaction placeholders
+  like XXXX combined with a bare state code (e.g., `XXXX, NY`) should
+  NOT fire ADDRESS — the surviving state alone is biographical context."
+- Add a redaction-pattern few-shot example showing `XXXX, NY` → `[]`
+  so future iterations stay consistent.
+
+**Success criteria:**
+
+- Re-validate Phase 2 on M4c gold set: no regression on 29/50 Phase 1 perfect rows
+- Re-score the 2 CFPB Phase 3a rows: labeler output matches reviewer (`[]`)
+- No new over/under-fire modes surface on the other 38 Phase 3a rows
+
 ### M4e — Dual-report harness (Sprint 11 single-label + Sprint 13+ multi-label)
 
 **Status:** ⏸ blocked on M4a
