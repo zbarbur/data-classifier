@@ -265,6 +265,7 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
         <button class="filter-btn" data-filter="none" onclick="setFilter('none')">No detect</button>
         <button class="filter-btn" data-filter="unreviewed" onclick="setFilter('unreviewed')">Unreviewed</button>
         <button class="filter-btn" data-filter="rejected" onclick="setFilter('rejected')">Rejected</button>
+        <button class="filter-btn" data-filter="low_conf" onclick="setFilter('low_conf')">Low conf</button>
       </div>
     </div>
     <div class="sidebar-stats" id="stats"></div>
@@ -376,9 +377,21 @@ function filterList() {
     if (currentFilter === 'none' && r.heuristic_has_blocks) return;
     if (currentFilter === 'unreviewed' && r.review && r.review.correct !== null) return;
     if (currentFilter === 'rejected' && (!r.review || r.review.correct !== false)) return;
+    if (currentFilter === 'low_conf') {
+      var maxConf = Math.max.apply(null, (r.heuristic_blocks || []).map(function(b) { return b.confidence; }).concat([0]));
+      if (maxConf === 0 || maxConf > 0.75) return;
+    }
     if (search && !(r.text || '').toLowerCase().includes(search) && !(r.prompt_id || '').includes(search)) return;
     filteredIndices.push(i);
   });
+  // Sort low_conf by confidence ascending (most uncertain first)
+  if (currentFilter === 'low_conf') {
+    filteredIndices.sort(function(a, b) {
+      var ca = Math.max.apply(null, (corpus[a].heuristic_blocks || []).map(function(bl) { return bl.confidence; }).concat([0]));
+      var cb = Math.max.apply(null, (corpus[b].heuristic_blocks || []).map(function(bl) { return bl.confidence; }).concat([0]));
+      return ca - cb;
+    });
+  }
   renderList();
 }
 
@@ -393,9 +406,12 @@ function renderList() {
     item.className = 'item' + (idx === currentIdx ? ' active' : '');
     item.onclick = function() { selectPrompt(idx); };
 
+    var maxConf = Math.max.apply(null, (r.heuristic_blocks || []).map(function(b) { return b.confidence; }).concat([0]));
+
     var idSpan = document.createElement('span');
     idSpan.className = 'id';
-    idSpan.textContent = (r.prompt_id || '').slice(0, 10) + '.. (' + r.total_lines + 'L)';
+    var confStr = maxConf > 0 ? ' ' + Math.round(maxConf * 100) + '%' : '';
+    idSpan.textContent = (r.prompt_id || '').slice(0, 8) + '.. (' + r.total_lines + 'L)' + confStr;
 
     var badgesSpan = document.createElement('span');
     badgesSpan.className = 'badges';

@@ -20,7 +20,7 @@ from dataclasses import asdict, dataclass, field
 # Zone types
 # ---------------------------------------------------------------------------
 
-ZONE_TYPES = ("code", "structured_data", "cli_shell", "natural_language")
+ZONE_TYPES = ("code", "markup", "config", "query", "cli_shell", "data", "natural_language")
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -420,7 +420,7 @@ def _segment_unfenced(lines: list[str], fenced_ranges: set[int]) -> list[ZoneBlo
 
         if _try_json_block(block_text):
             blocks.append(ZoneBlock(
-                start_line=i, end_line=j, zone_type="structured_data",
+                start_line=i, end_line=j, zone_type="config",
                 confidence=0.90, method="json_parse",
                 language_hint="json", text=block_text,
             ))
@@ -428,7 +428,7 @@ def _segment_unfenced(lines: list[str], fenced_ranges: set[int]) -> list[ZoneBlo
 
         elif _looks_like_yaml(non_empty):
             blocks.append(ZoneBlock(
-                start_line=i, end_line=j, zone_type="structured_data",
+                start_line=i, end_line=j, zone_type="config",
                 confidence=0.80, method="yaml_heuristic",
                 language_hint="yaml", text=block_text,
             ))
@@ -436,7 +436,7 @@ def _segment_unfenced(lines: list[str], fenced_ranges: set[int]) -> list[ZoneBlo
 
         elif _looks_like_xml(block_text):
             blocks.append(ZoneBlock(
-                start_line=i, end_line=j, zone_type="structured_data",
+                start_line=i, end_line=j, zone_type="markup",
                 confidence=0.80, method="xml_heuristic",
                 language_hint="xml", text=block_text,
             ))
@@ -444,31 +444,13 @@ def _segment_unfenced(lines: list[str], fenced_ranges: set[int]) -> list[ZoneBlo
 
         elif _looks_like_env(non_empty):
             blocks.append(ZoneBlock(
-                start_line=i, end_line=j, zone_type="structured_data",
+                start_line=i, end_line=j, zone_type="config",
                 confidence=0.85, method="env_heuristic",
                 language_hint="env", text=block_text,
             ))
             detected = True
 
-        elif _looks_like_csv(non_empty):
-            blocks.append(ZoneBlock(
-                start_line=i, end_line=j, zone_type="structured_data",
-                confidence=0.75, method="csv_heuristic",
-                language_hint="csv", text=block_text,
-            ))
-            detected = True
-
-        if not detected:
-            # Try shell detection
-            shell_score = _score_shell(non_empty)
-            if shell_score > 0.3:
-                blocks.append(ZoneBlock(
-                    start_line=i, end_line=j, zone_type="cli_shell",
-                    confidence=min(0.5 + shell_score * 0.4, 0.90),
-                    method="shell_heuristic",
-                    language_hint="shell", text=block_text,
-                ))
-                detected = True
+        # csv_heuristic and shell_heuristic removed — 0% accuracy in review
 
         if not detected:
             # Try code detection via line-level syntax scoring
@@ -477,11 +459,30 @@ def _segment_unfenced(lines: list[str], fenced_ranges: set[int]) -> list[ZoneBlo
             high_score_ratio = sum(1 for s in line_scores if s >= 0.25) / max(len(line_scores), 1)
 
             if avg_score >= 0.25 and high_score_ratio >= 0.5 and len(non_empty) >= 3:
+                # Trim leading/trailing prose lines (high alpha ratio = natural language)
+                trim_start = i
+                trim_end = j
+                all_scores = [_line_syntax_score(l) for l in lines[i:j]]
+                while trim_start < trim_end and all_scores[trim_start - i] < 0.1:
+                    s = lines[trim_start].strip()
+                    alpha = sum(c.isalpha() or c.isspace() for c in s) / max(len(s), 1)
+                    if alpha > 0.8 and s:
+                        trim_start += 1
+                    else:
+                        break
+                while trim_end > trim_start and all_scores[trim_end - 1 - i] < 0.1:
+                    s = lines[trim_end - 1].strip()
+                    alpha = sum(c.isalpha() or c.isspace() for c in s) / max(len(s), 1)
+                    if alpha > 0.8 and s:
+                        trim_end -= 1
+                    else:
+                        break
+                trimmed_text = "\n".join(lines[trim_start:trim_end])
                 blocks.append(ZoneBlock(
-                    start_line=i, end_line=j, zone_type="code",
+                    start_line=trim_start, end_line=trim_end, zone_type="code",
                     confidence=min(0.4 + avg_score, 0.85),
                     method="syntax_score",
-                    language_hint="", text=block_text,
+                    language_hint="", text=trimmed_text,
                 ))
 
         i = j if j > i else i + 1
