@@ -1,0 +1,6 @@
+outs:
+- md5: 5f342bd41cf28edd3e8e343640c3228f.dir
+  size: 12498327
+  nfiles: 7
+  hash: md5
+  path: corpora

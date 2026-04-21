@@ -1,0 +1,6 @@
+outs:
+- md5: 048dbb668b780b7522f428e566e62a63.dir
+  size: 23507122
+  nfiles: 7
+  hash: md5
+  path: s0_artifacts
