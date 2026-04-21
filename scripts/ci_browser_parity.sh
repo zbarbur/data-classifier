@@ -17,7 +17,7 @@ echo "=== Browser PoC parity check ==="
 
 # 1. Regenerate JS assets from current Python source
 echo ">> Regenerating JS assets from Python..."
-python3 "$REPO_ROOT/scripts/generate_browser_patterns.py" "$@"
+"$REPO_ROOT/.venv/bin/python" "$REPO_ROOT/scripts/generate_browser_patterns.py" "$@"
 
 # 2. Install npm deps (skip if node_modules exists and is fresh)
 echo ">> Installing npm dependencies..."

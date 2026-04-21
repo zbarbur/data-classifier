@@ -11,6 +11,14 @@ Detection flow:
   2. **Secret scanner pass** — parse KV structures from the text, score key names
      against the dictionary with tiered entropy gating.  Uses regex findings from
      step 1 to enrich KV-extracted values (unified detection).
+
+Note: the JS browser scanner has an additional ``opaqueTokenPass`` for standalone
+high-entropy tokens (JWTs, hex hashes) that appear inline in prompt text.  The
+Python ``scan_text`` does not include this pass — standalone opaque tokens are
+handled by the columnar ``classify_columns`` path via the opaque-token handler.
+This is an intentional parity gap: the browser operates on single prompts where
+standalone tokens are common; the Python side processes structured columns where
+the columnar path handles them.
 """
 
 from __future__ import annotations
@@ -171,6 +179,14 @@ class TextScanner:
 
         out: list[TextFinding] = []
         for f in ss_findings:
+            # Try to locate the matched value within the text for accurate spans
+            start, end = 0, len(text)
+            if f.sample_analysis and f.sample_analysis.sample_matches:
+                matched = f.sample_analysis.sample_matches[0]
+                idx = text.find(matched)
+                if idx >= 0:
+                    start, end = idx, idx + len(matched)
+            value_for_mask = text[start:end] if end - start < len(text) else (text[:20] if len(text) > 20 else text)
             out.append(
                 TextFinding(
                     entity_type=f.entity_type,
@@ -179,9 +195,9 @@ class TextScanner:
                     category=f.category,
                     confidence=f.confidence,
                     engine="secret_scanner",
-                    start=0,
-                    end=len(text),
-                    value_masked=_mask_value(text[:20]) if len(text) > 20 else _mask_value(text),
+                    start=start,
+                    end=end,
+                    value_masked=_mask_value(value_for_mask),
                     evidence=f.evidence,
                 )
             )

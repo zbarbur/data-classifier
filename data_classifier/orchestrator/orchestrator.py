@@ -1197,8 +1197,10 @@ class Orchestrator:
                 )
                 del findings[k]
             return findings
-        # No winner present — check if phone matches have strong format signals
+        # No winner present — check if ANY phone key has strong format signals
         # (parens, country code, 10+ digit count) that indicate real phone data.
+        # If any key shows strong signals, keep ALL phone keys (don't suppress).
+        any_strong = False
         for k in phone_keys:
             f = findings[k]
             if f.sample_analysis and f.sample_analysis.sample_matches:
@@ -1207,12 +1209,13 @@ class Orchestrator:
                     if "(" in mv or mv.lstrip().startswith("+") or sum(c.isdigit() for c in mv) >= 10:
                         strong += 1
                 if strong > 0 and strong >= len(f.sample_analysis.sample_matches) * 0.3:
-                    logger.debug(
-                        "Skipping PHONE suppression — %d/%d matched values have strong phone format signals",
-                        strong,
-                        len(f.sample_analysis.sample_matches),
-                    )
-                    return findings
+                    any_strong = True
+                    break
+        if any_strong:
+            logger.debug(
+                "Skipping PHONE suppression — matched values have strong phone format signals",
+            )
+            return findings
         return findings
 
     @staticmethod
