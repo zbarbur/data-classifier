@@ -466,33 +466,37 @@ class TestGretelFinanceLoader:
 
 # ── OpenPII-1M loader (Sprint 14) ────────────────────────────────────────────
 
-# The 19 raw ai4privacy labels mapped by OPENPII_1M_TYPE_MAP.
+# The raw ai4privacy labels mapped by OPENPII_1M_TYPE_MAP.
+#
+# Originally specified as 19 labels (Sprint 14); empirical survey of 200k rows
+# on 2026-04-22 found that the following spec labels do not exist in the actual
+# dataset: USERNAME, STATE, COUNTY, ACCOUNTNUM, PHONENUMBER.  The actual phone
+# label is TELEPHONENUM.  Mapping updated to reflect verified reality; spec
+# comment "19 entity labels" refers to the total HuggingFace card count
+# including labels unmapped here (e.g. TITLE, AGE, SEX, GENDER).
 _OPENPII_1M_RAW_LABELS: frozenset[str] = frozenset(
     {
         "GIVENNAME",
         "SURNAME",
-        "USERNAME",
         "BUILDINGNUM",
         "STREET",
         "CITY",
         "ZIPCODE",
-        "STATE",
-        "COUNTY",
         "IDCARDNUM",
         "DRIVERLICENSENUM",
         "PASSPORTNUM",
         "TAXNUM",
         "SOCIALNUM",
         "CREDITCARDNUMBER",
-        "ACCOUNTNUM",
         "EMAIL",
-        "PHONENUMBER",
+        "TELEPHONENUM",
         "DATE",
     }
 )
 
 # Target entity types produced by the OpenPII-1M loader (post-ETL
 # data_classifier taxonomy labels).
+# Note: BANK_ACCOUNT removed — ACCOUNTNUM does not exist in the actual dataset.
 _OPENPII_1M_TARGET_TYPES: frozenset[str] = frozenset(
     {
         "PERSON_NAME",
@@ -500,7 +504,6 @@ _OPENPII_1M_TARGET_TYPES: frozenset[str] = frozenset(
         "NATIONAL_ID",
         "SSN",
         "CREDIT_CARD",
-        "BANK_ACCOUNT",
         "EMAIL",
         "PHONE",
         "DATE",
@@ -554,10 +557,12 @@ class TestOpenPII1mLoader:
             {"entity_type": "SSN", "value": "123-45-6789"},
             {"entity_type": "NATIONAL_ID", "value": "AB1234567"},
             {"entity_type": "CREDIT_CARD", "value": "4111111111111111"},
-            {"entity_type": "BANK_ACCOUNT", "value": "1234567890"},
             {"entity_type": "PHONE", "value": "+1-555-0100"},
             {"entity_type": "DATE", "value": "1990-01-15"},
         ]
+        # Note: BANK_ACCOUNT removed — ACCOUNTNUM does not exist in the actual
+        # ai4privacy/pii-masking-openpii-1m dataset (verified 2026-04-22 via
+        # 200k-row survey); BANK_ACCOUNT is not in _OPENPII_1M_POST_ETL_IDENTITY.
         fixture = tmp_path / "openpii_1m_test.json"
         fixture.write_text(json.dumps(records), encoding="utf-8")
 

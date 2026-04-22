@@ -124,14 +124,14 @@ OPENPII_1M_TYPE_MAP: dict[str, str] = {
     # Identity / PII
     "GIVENNAME": "PERSON_NAME",
     "SURNAME": "PERSON_NAME",
-    "USERNAME": "PERSON_NAME",
     # Address components
+    # NOTE: STATE/COUNTY not found in 200k-row survey (2026-04-22); BUILDINGNUM
+    # is present but rare.  USERNAME/ACCOUNTNUM/PHONENUMBER do not exist in
+    # the actual dataset — actual phone label is TELEPHONENUM.
     "BUILDINGNUM": "ADDRESS",
     "STREET": "ADDRESS",
     "CITY": "ADDRESS",
     "ZIPCODE": "ADDRESS",
-    "STATE": "ADDRESS",
-    "COUNTY": "ADDRESS",
     # Government-issued IDs
     "IDCARDNUM": "NATIONAL_ID",
     "DRIVERLICENSENUM": "NATIONAL_ID",
@@ -141,10 +141,9 @@ OPENPII_1M_TYPE_MAP: dict[str, str] = {
     "SOCIALNUM": "SSN",
     # Financial
     "CREDITCARDNUMBER": "CREDIT_CARD",
-    "ACCOUNTNUM": "BANK_ACCOUNT",
     # Contact
     "EMAIL": "EMAIL",
-    "PHONENUMBER": "PHONE",
+    "TELEPHONENUM": "PHONE",  # actual label; spec said PHONENUMBER (incorrect)
     # Date
     "DATE": "DATE",
 }
