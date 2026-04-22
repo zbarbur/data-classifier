@@ -44,6 +44,9 @@ from tests.benchmarks.corpus_loader import (
 from tests.benchmarks.corpus_loader import (
     _GRETEL_FINANCE_POST_ETL_IDENTITY as _GRETEL_FINANCE_POOL_IDENTITY,
 )
+from tests.benchmarks.corpus_loader import (
+    _OPENPII_1M_POST_ETL_IDENTITY as _OPENPII_1M_POOL_IDENTITY,
+)
 
 # ── Sharding parameters (Session A §7 TL;DR) ───────────────────────────────
 
@@ -273,6 +276,29 @@ def _nemotron_pool() -> dict[str, list[str]]:
             mapped = _classify_credential_value_shape(str(value))
         else:
             mapped = NEMOTRON_TYPE_MAP.get(ext)
+        if mapped is None:
+            continue
+        if not _passes_checksum(mapped, str(value)):
+            continue
+        pool.setdefault(mapped, []).append(str(value))
+    return pool
+
+
+def _openpii_1m_pool() -> dict[str, list[str]]:
+    """Return ``{mapped_type: [values...]}`` for the openpii-1m sample.
+
+    The fixture is already flattened with post-ETL data_classifier labels
+    (see ``corpus_loader.load_openpii_1m_corpus``), so ``entity_type``
+    values are passed through an identity map.
+    """
+    records = _load_raw_records(_FIXTURES_DIR / "openpii_1m_sample.json")
+    pool: dict[str, list[str]] = {}
+    for rec in records:
+        ext = rec.get("entity_type", rec.get("type", ""))
+        value = rec.get("value", "")
+        if not value or not ext:
+            continue
+        mapped = _OPENPII_1M_POOL_IDENTITY.get(ext)
         if mapped is None:
             continue
         if not _passes_checksum(mapped, str(value)):
@@ -580,10 +606,10 @@ def build_real_corpus_shards(
 ) -> list[ShardSpec]:
     """Emit shards for every ``(entity_type, real_corpus)`` combo.
 
-    Covers Nemotron, Gretel-EN, SecretBench, gitleaks, and detect_secrets
-    (including each corpus's NEGATIVE rows where applicable).  A legacy
-    300k-row corpus was retired in Sprint 9 due to a non-OSS license; see
-    ``docs/process/LICENSE_AUDIT.md``.
+    Covers Nemotron, Gretel-EN, Gretel-finance, openpii-1m, SecretBench,
+    gitleaks, and detect_secrets (including each corpus's NEGATIVE rows
+    where applicable).  A legacy 300k-row corpus was retired in Sprint 9
+    due to a non-OSS license; see ``docs/process/LICENSE_AUDIT.md``.
 
     Returns a flat list of :class:`ShardSpec` objects.  The caller runs
     feature extraction against each spec to produce a training row.
@@ -640,6 +666,21 @@ def build_real_corpus_shards(
                 values=values,
                 ground_truth=gt,
                 corpus="gretel_finance",
+                source="real",
+                num_shards=shards_per_type,
+                rng=rng,
+            )
+        )
+
+    # ai4privacy/openpii-1m — multilingual corpus (Sprint 15).
+    # First real-corpus source for NATIONAL_ID.
+    pool_openpii = _openpii_1m_pool()
+    for gt, values in sorted(pool_openpii.items()):
+        shards.extend(
+            _emit_shards_for_type(
+                values=values,
+                ground_truth=gt,
+                corpus="openpii_1m",
                 source="real",
                 num_shards=shards_per_type,
                 rng=rng,
