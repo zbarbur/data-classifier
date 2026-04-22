@@ -44,14 +44,22 @@ file. Detection logic is specified precisely enough that both runtimes
 produce identical output on identical input, validated by differential
 test.
 
-### 2.3 Performance is a feature
+### 2.3 Performance-aware, not performance-constrained
 
-Each detector has a computational budget. Pre-screen eliminates 97% of
-prompts in <0.1ms. Pre-compiled regexes avoid per-scan overhead. The
-architecture is designed for the browser's 100ms worker timeout budget
-(zone + secret scanning combined).
+Performance targets are benchmarks to measure against, not constraints
+that drive implementation decisions. Build for correctness first,
+measure, then optimize. Pre-screen eliminates 97% of prompts cheaply.
+Pre-compiled regexes avoid per-scan overhead. Performance budgets in
+§16 are targets, not gates — relax during development.
 
-### 2.4 Negative signals first
+### 2.4 Escalation over perfection
+
+No single detection tier handles every case. The architecture supports
+escalation from cheap heuristics to ML models to LLM oracles. Only
+~0.5% of prompts reach the ambiguous zone where escalation fires.
+Design the interface now, add tiers incrementally.
+
+### 2.5 Negative signals first
 
 From WildChat analysis: 79% of FPs are "not code at all" — structured
 text that superficially resembles code. Preventing these FPs (via
@@ -59,14 +67,14 @@ negative signals) is higher ROI than improving positive detection.
 The architecture dedicates an entire detector (NegativeFilter) to
 this.
 
-### 2.5 CRF-ready features
+### 2.6 CRF-ready features
 
 The line-level features computed by SyntaxDetector are designed to
 feed a CRF sequence labeler in a future upgrade. Adding a CRF layer
 requires no architectural changes — it replaces the rule-based scoring
 with a learned model over the same feature vector.
 
-### 2.6 Configurable sensitivity
+### 2.7 Configurable sensitivity
 
 Presets (`high_recall`, `balanced`, `high_precision`) adjust thresholds
 and detector toggles. Individual detectors can be enabled/disabled.
@@ -137,6 +145,14 @@ prompts with documented rationale.
           │  │ 6. LanguageDetector (optional)     │  │
           │  │    fragment accumulation →         │  │
           │  │    language probability per block  │  │
+          │  └──────────────┬─────────────────────┘  │
+          │                 │                         │
+          │                 ▼                         │
+          │  ┌────────────────────────────────────┐  │
+          │  │ 7. Escalator (ambiguous blocks)    │  │
+          │  │    conf 0.40-0.70 → Tier 2/3/4    │  │
+          │  │    local model / API / LLM         │  │
+          │  │    (~0.5% of prompts reach here)   │  │
           │  └────────────────────────────────────┘  │
           └──────────────────────────────────────────┘
                                  │
@@ -926,17 +942,362 @@ but are code.
 }
 ```
 
-### 9.4 Performance
+### 9.4 Semantic analysis (beyond surface features)
 
-- O(n) per line: feature extraction + 1 regex check per fragment family
-- Fragment families checked: up to 7 (c_family, python, markup, sql,
-  shell, assembly, rust) × ~8 patterns each = ~56 regex matches per
-  line in worst case
-- **Optimization:** Short-circuit on first family match (a line matching
-  Python fragments doesn't need to check assembly). Pre-compile all
-  fragment regexes at startup.
-- Context window: O(1) per line (just index neighbors)
-- Budget: <3ms for typical prompt
+The features in §9.1-9.3 are lexical — pattern matching on character
+sequences. The following additions provide structural understanding
+that distinguishes code from data, prevents fragmentation, and
+improves type disambiguation.
+
+#### 9.4.1 Lightweight tokenizer
+
+Classify each line's content into token types rather than just counting
+punctuation characters. The token profile provides a richer feature
+vector and directly answers "is this a statement or a data entry?"
+
+```python
+# Token types (language-agnostic)
+class TokenType:
+    IDENT    = "identifier"     # variable/function names
+    KEYWORD  = "keyword"        # language keywords (from code_keywords)
+    OPERATOR = "operator"       # = + - * / < > == != && || etc.
+    DELIM    = "delimiter"      # () [] {} , ;
+    STRING   = "string"         # "..." '...'
+    NUMBER   = "number"         # 42, 3.14, 0xFF
+    COMMENT  = "comment"        # # // /* -- %
+    DOT_ACC  = "dot_access"     # obj.method, pkg::func
+    OTHER    = "other"
+
+def tokenize_line(line: str) -> list[tuple[TokenType, str]]:
+    """Language-agnostic tokenizer using state machine.
+
+    Not a full lexer — sufficient to compute token profiles.
+    Handles: quoted strings (with escape), numbers (int/float/hex),
+    identifiers, keywords (checked against code_keywords set),
+    operators, delimiters, and dot/double-colon access chains.
+    """
+    tokens = []
+    i = 0
+    while i < len(line):
+        c = line[i]
+        if c in ('"', "'"):
+            # String: scan to matching quote, handle \\escape
+            j = i + 1
+            while j < len(line) and line[j] != c:
+                if line[j] == '\\':
+                    j += 1  # skip escaped char
+                j += 1
+            tokens.append((TokenType.STRING, line[i:j+1]))
+            i = j + 1
+        elif c.isdigit() or (c == '0' and i+1 < len(line) and line[i+1] in 'xXbBoO'):
+            # Number: int, float, hex, binary, octal
+            j = i + 1
+            while j < len(line) and (line[j].isalnum() or line[j] in '._'):
+                j += 1
+            tokens.append((TokenType.NUMBER, line[i:j]))
+            i = j
+        elif c.isalpha() or c == '_':
+            # Identifier or keyword
+            j = i + 1
+            while j < len(line) and (line[j].isalnum() or line[j] == '_'):
+                j += 1
+            word = line[i:j]
+            if word in CODE_KEYWORDS_SET:
+                tokens.append((TokenType.KEYWORD, word))
+            else:
+                tokens.append((TokenType.IDENT, word))
+            i = j
+        elif c in '()[]{}':
+            tokens.append((TokenType.DELIM, c))
+            i += 1
+        elif c in ',;':
+            tokens.append((TokenType.DELIM, c))
+            i += 1
+        elif c == '.' and i+1 < len(line) and line[i+1].isalpha():
+            tokens.append((TokenType.DOT_ACC, '.'))
+            i += 1
+        elif c in '=<>!+-*/%&|^~?:':
+            # Operator: consume multi-char operators (==, !=, <=, =>)
+            j = i + 1
+            while j < len(line) and line[j] in '=<>!&|':
+                j += 1
+            tokens.append((TokenType.OPERATOR, line[i:j]))
+            i = j
+        elif c == '#' or (c == '/' and i+1 < len(line) and line[i+1] == '/'):
+            # Line comment: rest of line
+            tokens.append((TokenType.COMMENT, line[i:]))
+            break
+        else:
+            i += 1  # skip whitespace and unrecognized
+    return tokens
+```
+
+**Token profile features (per line):**
+
+```python
+@dataclass
+class TokenProfile:
+    identifier_count: int = 0
+    keyword_count: int = 0
+    operator_count: int = 0
+    delimiter_count: int = 0
+    string_count: int = 0
+    number_count: int = 0
+    dot_access_count: int = 0
+    total_tokens: int = 0
+
+    @property
+    def identifier_ratio(self) -> float:
+        return self.identifier_count / max(self.total_tokens, 1)
+
+    @property
+    def string_ratio(self) -> float:
+        return self.string_count / max(self.total_tokens, 1)
+```
+
+**Discriminative power of token profiles:**
+
+| Content | identifier_ratio | string_ratio | operator_count | dot_access |
+|---|---|---|---|---|
+| `result = process(data)` | 0.50 | 0.00 | 1 | 0 |
+| `obj.method(arg, flag=True)` | 0.33 | 0.00 | 1 | 1 |
+| `"host": "localhost",` | 0.00 | 0.67 | 1 | 0 |
+| `4:3 is best for portrait` | 0.50 | 0.00 | 1 | 0 |
+| `Traceback (most recent` | 0.50 | 0.00 | 0 | 0 |
+
+Code has high identifier ratio + operators + dot access.
+Data has high string ratio + delimiters, low identifiers.
+The aspect ratio line has identifiers but no dot access and no
+operators in code positions — the tokenizer distinguishes it.
+
+**Integration:** Token profile features are added to the per-line
+feature vector alongside syntax score. They feed into the
+contextualized score and are available for CRF/ML upgrade.
+
+#### 9.4.2 Scope / indentation tracking
+
+Track indentation-based scope to prevent fragmentation within
+functions, classes, and control flow blocks:
+
+```python
+def track_scopes(lines: list[str], line_scores: list[float]) -> list[int]:
+    """Assign scope depth per line.
+
+    For Python-like languages (detected by colon at end of scored lines):
+      - Lines ending with ':' open a new scope
+      - Indentation determines scope membership
+      - Lines at same/deeper indent as opener are in scope
+
+    For C-family (detected by brace presence):
+      - '{' opens scope, '}' closes scope
+      - Brace depth tracked via counter
+
+    Returns scope_depth per line (0 = top level, 1+ = nested).
+    Lines inside a scope opened by a code line inherit code
+    classification even if their individual score is 0.
+    """
+    scope_stack = []  # (indent_level, line_index)
+    scope_depth = [0] * len(lines)
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            # Blank line inherits current scope depth
+            scope_depth[i] = scope_stack[-1][0] if scope_stack else 0
+            continue
+
+        indent = len(line) - len(line.lstrip())
+
+        # Close scopes that are deeper than current indent
+        while scope_stack and indent <= scope_stack[-1][0]:
+            scope_stack.pop()
+
+        scope_depth[i] = len(scope_stack)
+
+        # Open new scope if this is a code line with scope opener
+        if line_scores[i] > 0.3:
+            if stripped.endswith(':') or stripped.endswith('{'):
+                scope_stack.append((indent, i))
+
+    return scope_depth
+```
+
+**Impact on fragmentation:**
+
+```python
+def process(data):         # score=0.8, scope opens
+    x = data.clean()       # score=0.6, scope_depth=1
+    # clean the data       # score=0.0, BUT scope_depth=1 → stays code
+                           # blank, scope_depth=1 → stays code
+    for item in x:         # score=0.7, scope_depth=1
+        yield item.id      # score=0.5, scope_depth=2
+                           # blank, scope_depth=2 → stays code
+    return None            # score=0.5, scope_depth=1
+```
+
+Without scope tracking: block fragments at the blank line and
+comment. With scope tracking: lines inside an open scope inherit
+code classification. **This directly addresses the 70% boundary
+recall problem.**
+
+**Rule:** If a line has score=0 but `scope_depth > 0` and the scope
+was opened by a line with score > 0.3, the line is treated as code
+(score overridden to parent scope's score × 0.5).
+
+#### 9.4.3 Statement continuation detection
+
+Detect multi-line statements by tracking unclosed brackets:
+
+```python
+def detect_continuations(lines: list[str]) -> list[bool]:
+    """Mark lines that are continuations of a previous statement.
+
+    A line is a continuation if there are unclosed brackets from
+    a previous line. Continuation lines inherit their parent
+    statement's classification.
+    """
+    is_continuation = [False] * len(lines)
+    open_count = {"(": 0, "[": 0, "{": 0}
+    closers = {")": "(", "]": "[", "}": "{"}
+
+    for i, line in enumerate(lines):
+        # If we have unclosed brackets from before, this is a continuation
+        if any(v > 0 for v in open_count.values()):
+            is_continuation[i] = True
+
+        for c in line:
+            if c in open_count:
+                open_count[c] += 1
+            elif c in closers:
+                open_count[closers[c]] = max(0, open_count[closers[c]] - 1)
+
+    return is_continuation
+```
+
+**Impact:**
+
+```python
+result = process(
+    data,           # continuation → inherits code from line above
+    timeout=30,     # continuation
+    retries=3,      # continuation
+)                   # closes bracket
+```
+
+Without continuation tracking: inner lines might score low (just
+identifiers and commas, no keywords). With continuation tracking:
+they inherit the parent statement's code classification.
+
+#### 9.4.4 Expression validation (lightweight)
+
+For ambiguous lines, check if the line can be parsed as a valid
+expression/statement in any supported language. This is NOT full
+parsing — it's a structural check:
+
+```python
+def is_valid_expression(line: str, tokens: list[tuple[TokenType, str]]) -> bool:
+    """Check if tokens form a plausible code expression.
+
+    Valid patterns:
+      IDENT OP expr          → assignment
+      IDENT DELIM(expr)      → function call
+      KEYWORD ...            → statement
+      IDENT DOT IDENT (...)  → method call
+      DELIM ... DELIM        → nested expression
+
+    Invalid patterns:
+      STRING OP STRING       → data entry ("key": "value")
+      NUMBER OP NUMBER       → arithmetic notation (not code)
+      all STRING/NUMBER      → data row
+    """
+    if not tokens:
+        return False
+
+    first_type = tokens[0][0]
+
+    # Starts with keyword → statement
+    if first_type == TokenType.KEYWORD:
+        return True
+
+    # Starts with identifier + operator → assignment or comparison
+    if (first_type == TokenType.IDENT and len(tokens) >= 3
+            and tokens[1][0] == TokenType.OPERATOR):
+        # Check: is the RHS also identifiers/calls (code)?
+        # Or is it just strings/numbers (data)?
+        rhs_types = {t[0] for t in tokens[2:]}
+        if TokenType.IDENT in rhs_types or TokenType.KEYWORD in rhs_types:
+            return True
+        # RHS is all strings/numbers → data entry
+        if rhs_types <= {TokenType.STRING, TokenType.NUMBER, TokenType.DELIM}:
+            return False
+        return True
+
+    # Starts with identifier + dot → method chain
+    if (first_type == TokenType.IDENT and len(tokens) >= 2
+            and tokens[1][0] == TokenType.DOT_ACC):
+        return True
+
+    # All strings/numbers with delimiters → data
+    non_delim_types = {t[0] for t in tokens} - {TokenType.DELIM, TokenType.OTHER}
+    if non_delim_types <= {TokenType.STRING, TokenType.NUMBER}:
+        return False
+
+    return None  # ambiguous — don't override score
+```
+
+**Disambiguation:**
+
+```
+result = process(data, flag=True)
+  tokens: [IDENT, OP, IDENT, DELIM, IDENT, DELIM, IDENT, OP, IDENT, DELIM]
+  → starts with IDENT + OP, RHS has IDENTs → valid expression ✓
+
+"host": "localhost",
+  tokens: [STRING, OP, STRING, DELIM]
+  → all STRING/NUMBER with delimiters → data entry, not code ✗
+```
+
+**Integration:** Expression validation results are an additional
+feature in the line score. If `is_valid_expression` returns True,
+boost score by +0.15. If False, suppress by -0.15. If None
+(ambiguous), no adjustment.
+
+### 9.5 Feature vector summary
+
+Complete per-line feature vector available for scoring and CRF:
+
+| # | Feature | Source | Type |
+|---|---|---|---|
+| 1 | syntactic_char_density | §9.1 | float |
+| 2 | keyword_count | §9.1 | int |
+| 3 | line_ending_type | §9.1 | categorical |
+| 4 | has_assignment | §9.1 | bool |
+| 5 | indentation_depth | §9.1 | int |
+| 6 | fragment_family_match | §9.2 | categorical |
+| 7 | fragment_match_count | §9.2 | int |
+| 8 | neighbor_avg_score | §9.3 | float |
+| 9 | transition_context | §9.3 | categorical |
+| 10 | identifier_ratio | §9.4.1 | float |
+| 11 | string_ratio | §9.4.1 | float |
+| 12 | operator_count | §9.4.1 | int |
+| 13 | dot_access_count | §9.4.1 | int |
+| 14 | scope_depth | §9.4.2 | int |
+| 15 | is_continuation | §9.4.3 | bool |
+| 16 | is_valid_expression | §9.4.4 | bool/none |
+| 17 | negative_signal_type | §10 | categorical |
+
+17 features per line. All are cheap to compute (no external model
+calls). All are meaningful for a CRF or logistic regression upgrade.
+
+### 9.6 Performance notes
+
+- Tokenizer: O(n) per line, single pass, no regex
+- Scope tracking: O(n) single pass over all lines with stack
+- Continuation detection: O(n) single pass with bracket counter
+- Expression validation: O(t) per line where t = token count
+- Total SyntaxDetector: O(n) per line with constant-factor increase
+  from semantic features
+- All features are exportable for CRF training
 
 ---
 
@@ -1366,7 +1727,298 @@ Best-effort — if no specific markers hit, report `c_family`.
 
 ---
 
-## 13. Configuration Model
+## 13. Escalation Architecture
+
+### 13.1 Overview
+
+The heuristic pipeline (Tier 1) handles ~99.5% of prompts. The
+remaining ~0.5% produce ambiguous results (confidence 0.40-0.70)
+where heuristics lack sufficient signal. Rather than accepting low
+confidence or over-engineering the heuristics, these cases escalate
+to higher-tier classifiers.
+
+```
+Tier 0: Pre-screen                   97% handled    free        local
+  │ passes
+  ▼
+Tier 1: Heuristic pipeline           ~2.5%          free        local
+  │ ambiguous (conf 0.40-0.70)
+  ▼
+Tier 2: Small local model            ~0.4%          cheap       local or API
+  │ still uncertain
+  ▼
+Tier 3: Domain ML (GLiNER/BERT)      ~0.1%          moderate    API only
+  │ edge cases or gold labeling
+  ▼
+Tier 4: LLM (Claude/GPT)            batch only      expensive   API only
+```
+
+At ~0.5% escalation rate, Tier 2-4 costs are negligible even for
+expensive models. Correctness matters more than latency at this
+volume.
+
+### 13.2 Escalation interface
+
+```python
+class ZoneEscalator:
+    """Route ambiguous blocks to higher-tier classifiers."""
+
+    def __init__(self, config: EscalationConfig):
+        self.config = config
+        self._tier2_model = None
+        self._tier3_client = None
+
+    def should_escalate(self, block: ZoneBlock) -> bool:
+        """Is this block in the ambiguous confidence zone?"""
+        return (self.config.tier1_reject
+                <= block.confidence
+                < self.config.tier1_accept)
+
+    def escalate(self, block: ZoneBlock, text: str) -> ZoneBlock:
+        """Try higher tiers in order until one is confident."""
+        # Tier 2: small local model
+        if self.config.tier2_enabled and self._tier2_model:
+            result = self._tier2_classify(block, text)
+            if result and result.confidence >= self.config.tier2_accept:
+                return result
+
+        # Tier 3: GLiNER / transformer (via API if in browser)
+        if self.config.tier3_enabled:
+            result = self._tier3_classify(block, text)
+            if result:
+                return result
+
+        # No escalation resolved it — return original with low conf
+        return block
+```
+
+### 13.3 Tier 2: Small local model
+
+A lightweight classifier on the per-line feature vector from
+SyntaxDetector (§9.5 — 17 features per line). Operates on
+aggregated block-level features.
+
+**Model candidates:**
+- Logistic regression (trivially small, JSON weights, runs everywhere)
+- FastText character n-gram (<1MB, >90% accuracy from literature)
+- Small XGBoost (same pattern as meta-classifier, ~50KB)
+
+**Input:** Aggregated feature vector per block:
+
+```python
+@dataclass
+class BlockFeatures:
+    """Aggregated features for Tier 2 classification."""
+    avg_identifier_ratio: float
+    avg_string_ratio: float
+    avg_syntax_density: float
+    total_keywords: int
+    total_operators: int
+    total_dot_accesses: int
+    max_scope_depth: int
+    continuation_ratio: float
+    valid_expression_ratio: float
+    block_lines: int
+    fragment_family_distribution: dict[str, float]
+```
+
+**Output:** `{zone_type, confidence, language_hint}`
+
+**Training data:** 507+ reviewed prompts (human verdicts) + Tier 4
+LLM-labeled data (2-5K prompts). The reviewed corpus is the
+evaluation set; LLM labels are training data.
+
+**Browser deployment:** Model weights as JSON (<100KB), loaded
+alongside zone_patterns.json. No ONNX needed. OR: API call to
+server (see §13.6).
+
+### 13.4 Tier 3: Domain ML (GLiNER / small transformer)
+
+Already in the data_classifier stack for entity detection. Supports
+`classify_text()` for text classification:
+
+```python
+# GLiNER with zone-specific labels
+labels = [
+    "source_code", "configuration", "error_output",
+    "shell_command", "data_table", "natural_language"
+]
+predictions = gliner.classify_text(block_text, labels)
+# → [{"label": "source_code", "score": 0.87}, ...]
+```
+
+Provides semantic understanding that heuristics can't — GLiNER
+reads the content and judges meaning, not just surface features.
+Handles ambiguous cases:
+- Code that looks like data (long dict definitions)
+- Data that looks like code (Python-like comparison lists)
+- Pseudocode using real keywords
+- API documentation with mixed code/prose
+
+**Availability:** Python only (ONNX model loading). Browser access
+via API call.
+
+**Budget:** Max 5 blocks per prompt (configurable). At ~50ms per
+classify_text call, 5 blocks = 250ms — acceptable for 0.1% of
+prompts.
+
+### 13.5 Tier 4: LLM (batch/offline oracle)
+
+Not for real-time use. Three roles:
+
+**Role 1 — Gold labeling at scale:**
+
+```
+Analyze this text and identify all non-prose zones.
+For each zone, provide: start_line, end_line, type, language.
+Types: code, markup, config, query, cli_shell, data, error_output
+
+Text:
+{prompt_text}
+```
+
+Produces labeled training data for Tier 2-3 at scale (2-5K prompts
+from WildChat), replacing manual review for bulk labeling.
+
+**Role 2 — Boundary refinement:**
+
+```
+A heuristic detector found a code block at lines 5-25.
+A human reviewer marked it as lines 3-42.
+Where exactly does the code block start and end? Why?
+```
+
+Produces boundary correction data for training the scope tracker
+and block assembler.
+
+**Role 3 — Edge case analysis:**
+
+```
+Is this text source code, error output, or pseudocode?
+Explain your reasoning.
+
+{ambiguous_block}
+```
+
+Provides classification with explanations that inform new negative
+signals and heuristic improvements.
+
+### 13.6 Browser escalation via API
+
+Browser clients don't need local Tier 2-4. They call the server:
+
+```
+Browser:
+  ├─ Local (immediate, <5ms):
+  │   Tier 0-1 heuristic → show results to user
+  │
+  ├─ Ambiguous blocks? (conf 0.40-0.70)
+  │   └─ Async POST /api/zones/escalate
+  │       Body: { blocks: [{text, features, confidence}] }
+  │       Response: { blocks: [{zone_type, confidence, language}] }
+  │       → update UI with refined verdicts
+  │
+  └─ No ambiguity → done, no API call
+```
+
+User sees results immediately. Ambiguous cases refined in background.
+Works offline with Tier 0-1 only. Graceful degradation.
+
+**API endpoint:**
+
+```python
+@router.post("/zones/escalate")
+def escalate_zones(request: EscalateRequest) -> EscalateResponse:
+    """Refine ambiguous zone blocks via higher-tier classifiers.
+    Runs Tier 2 (local model) and optionally Tier 3 (GLiNER)."""
+    escalator = ZoneEscalator(config=get_escalation_config())
+    results = []
+    for block in request.blocks:
+        refined = escalator.escalate(block, block.text)
+        results.append(refined)
+    return EscalateResponse(blocks=results)
+```
+
+At ~0.5% escalation rate, API volume is trivial. No rate limiting
+or caching needed.
+
+### 13.7 Training flywheel
+
+Each tier generates training signal for the tier below:
+
+```
+Tier 4 (LLM) labels 2-5K prompts
+  → trains Tier 3 (GLiNER fine-tune)
+  → trains Tier 2 (logistic regression / XGBoost)
+    → tunes Tier 1 (threshold calibration, new negative signals)
+
+507+ human reviews = honest evaluation set (never used for training)
+```
+
+Over time, more cases migrate to cheaper tiers. The expensive tiers
+fire less often. Eventually Tier 2 handles everything that Tier 1
+can't, and Tier 3-4 are only for retraining.
+
+### 13.8 Runtime availability
+
+| Tier | Browser (local) | Browser (API) | Python server |
+|---|---|---|---|
+| 0: Pre-screen | Yes | — | Yes |
+| 1: Heuristic | Yes | — | Yes |
+| 2: Small model | Optional (<100KB) | Yes | Yes |
+| 3: GLiNER | No | Yes | Yes |
+| 4: LLM | No | Yes (batch) | Yes (batch) |
+
+### 13.9 Configuration
+
+```python
+@dataclass
+class EscalationConfig:
+    """Controls the escalation path. All tiers off by default."""
+
+    # Confidence thresholds for routing
+    tier1_accept: float = 0.70    # above → emit without escalation
+    tier1_reject: float = 0.40    # below → discard without escalation
+
+    # Tier 2: small local model
+    tier2_enabled: bool = False
+    tier2_model_path: str = ""    # path to model weights (JSON)
+    tier2_accept: float = 0.80   # model confidence to accept verdict
+
+    # Tier 3: GLiNER / transformer
+    tier3_enabled: bool = False
+    tier3_max_blocks: int = 5     # limit expensive calls per prompt
+
+    # Tier 4: LLM (never real-time)
+    tier4_enabled: bool = False   # batch mode only
+
+    # API escalation (browser → server)
+    api_endpoint: str = ""        # e.g., "/api/zones/escalate"
+    api_timeout_ms: int = 2000
+```
+
+### 13.10 Implementation sequencing
+
+1. **Now:** Design the `should_escalate()` / `escalate()` interface
+   in the orchestrator. Route ambiguous blocks through it. Default:
+   no escalation (all tiers disabled), just emit with low confidence.
+
+2. **After Tier 1 is validated:** Use Tier 4 (LLM) to label 2-5K
+   WildChat prompts. Evaluate label quality against human reviews.
+
+3. **Train Tier 2:** Logistic regression on LLM labels + human
+   corrections. Ship to server. Measure precision lift on ambiguous
+   blocks.
+
+4. **Optional Tier 3:** If Tier 2 doesn't resolve enough cases,
+   fine-tune GLiNER on zone labels.
+
+5. **API endpoint:** Wire up after Tier 2 is trained. Browser
+   calls server for ambiguous blocks.
+
+---
+
+## 15. Configuration Model
 
 ### 13.1 ZoneConfig
 
@@ -1501,7 +2153,7 @@ interface ZoneConfig {
 
 ---
 
-## 15. Performance Architecture
+## 16. Performance Architecture
 
 ### 15.1 Budget per component (browser, P99)
 
@@ -1571,7 +2223,7 @@ well within budget.
 
 ---
 
-## 16. Edge Cases
+## 17. Edge Cases
 
 ### 16.1 Markdown formatting in prose
 
@@ -1663,7 +2315,7 @@ empty result.
 
 ---
 
-## 17. Validation Plan
+## 18. Validation Plan
 
 ### 17.1 Metrics
 
@@ -1719,7 +2371,7 @@ Run on 10K WildChat prompts (reservoir sample, seed=42):
 
 ---
 
-## 18. FP Coverage Matrix
+## 19. FP Coverage Matrix
 
 All 35 known FPs mapped to v2 mechanisms:
 
@@ -1741,7 +2393,7 @@ All 35 known FPs mapped to v2 mechanisms:
 
 ---
 
-## 19. Implementation Sequencing
+## 20. Implementation Sequencing
 
 Recommended build order (each step is independently testable):
 
@@ -1759,7 +2411,7 @@ Recommended build order (each step is independently testable):
    delimiter pair scanning. Test against reviewed corpus.
 5. **FormatDetector** — Port JSON/YAML/XML/ENV from v1, tighten XML
    (require matched tags). Test.
-6. **SyntaxDetector** — Refactor v1 syntax scoring, add fragment
+6. **SyntaxDetector core** — Refactor v1 syntax scoring, add fragment
    matching, add context window. Test.
 7. **NegativeFilter** — All negative signal patterns. Test against
    35 known FPs.
@@ -1769,36 +2421,61 @@ Recommended build order (each step is independently testable):
 9. **LanguageDetector** — Fragment accumulation, C-family
    disambiguation. Test.
 
-### Phase 3: Orchestration
+### Phase 3: Semantic analysis
 
-10. **ZoneOrchestrator** — Wire detectors in order, manage claimed
+10. **Lightweight tokenizer** — Token profile features per line.
+    Validate code-vs-data discrimination on reviewed corpus.
+11. **Scope tracking** — Indentation/brace-based scope assignment.
+    Measure boundary recall improvement.
+12. **Statement continuation** — Bracket-tracking continuation
+    detection. Verify multi-line expression handling.
+13. **Expression validation** — Statement vs data-entry classifier.
+    Test on the 6 code→data mistype FPs.
+
+### Phase 4: Orchestration + Escalation
+
+14. **ZoneOrchestrator** — Wire detectors in order, manage claimed
     ranges, apply configuration. Run full evaluation on reviewed
     corpus, measure all metrics.
+15. **Escalation interface** — `should_escalate()` / `escalate()`
+    in orchestrator. Default: all tiers disabled (emit with low
+    confidence). Wire the routing thresholds.
 
-### Phase 4: JS port
+### Phase 5: JS port
 
-11. **Generate zone patterns** — Extend `generate_browser_patterns.py`
+16. **Generate zone patterns** — Extend `generate_browser_patterns.py`
     to emit `zone-patterns.js`.
-12. **JS implementation** — Port orchestrator + all detectors to JS.
-    Follow scanner-core.js patterns.
-13. **Differential test** — Create `zone_fixtures.json`, extend
+17. **JS implementation** — Port orchestrator + all detectors to JS
+    (except parse validation + escalation). Follow scanner-core.js
+    patterns.
+18. **Differential test** — Create `zone_fixtures.json`, extend
     `differential.spec.js`, validate parity.
-14. **Worker integration** — Add zone detection dispatch to worker.js.
+19. **Worker integration** — Add zone detection dispatch to worker.js.
 
-### Phase 5: Validation
+### Phase 6: Validation
 
-15. **Full evaluation** — Run on reviewed corpus, measure all metrics
-    from §17.1. Compare to v1 baseline.
-16. **Performance benchmark** — Run on 10K WildChat, measure throughput
+20. **Full evaluation** — Run on reviewed corpus, measure all metrics
+    from §18.1. Compare to v1 baseline.
+21. **Performance benchmark** — Run on 10K WildChat, measure throughput
     and latency.
-17. **Review tool update** — Update prompt_reviewer.py to use v2
+22. **Review tool update** — Update prompt_reviewer.py to use v2
     detector, verify UI compatibility.
+
+### Phase 7: Escalation tiers (after validation)
+
+23. **Tier 4: LLM labeling** — Label 2-5K WildChat prompts via Claude.
+    Evaluate label quality against human reviews.
+24. **Tier 2: Train small model** — Logistic regression / XGBoost on
+    LLM labels + human corrections. Measure precision lift.
+25. **API endpoint** — Wire `/api/zones/escalate` for browser clients.
+26. **Tier 3: GLiNER** — Optional. Fine-tune on zone labels if Tier 2
+    doesn't resolve enough cases.
 
 ---
 
-## 20. Upgrade Paths
+## 21. Upgrade Paths
 
-### 20.1 CRF sequence labeler
+### 21.1 CRF sequence labeler
 
 The SyntaxDetector features are designed as a CRF feature vector.
 Adding a CRF layer:
@@ -1814,7 +2491,7 @@ that rule-based gap bridging approximates.
 
 **Prerequisite:** 500+ reviewed prompts (already available).
 
-### 20.2 Incremental detection
+### 21.2 Incremental detection
 
 For real-time browser use (user typing), detect zones incrementally:
 
@@ -1825,7 +2502,7 @@ For real-time browser use (user typing), detect zones incrementally:
 
 **Prerequisite:** Stable API + performance baseline.
 
-### 20.3 Confidence calibration
+### 21.3 Confidence calibration
 
 Use the reviewed corpus to calibrate confidence → precision:
 
@@ -1949,4 +2626,4 @@ Research location (current):
 `docs/experiments/prompt_analysis/s4_zone_detection/zone_detector.py`
 
 Promotion: via sprint backlog item, after v2 validation passes all
-metrics in §17.
+metrics in §18.
