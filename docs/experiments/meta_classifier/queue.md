@@ -2555,9 +2555,19 @@ on the decoded content.
 
 ### M4f-d2 — Phase 2 heterogeneous prompt: redacted-pattern discipline
 
-**Status:** ⏸ pre-commit, locked 2026-04-21 from Phase 3a review
-**Priority:** P2 — Phase 3b quality item (not blocker)
-**Estimated time:** ~1 day (prompt edit + re-validation)
+**Status:** ✅ shipped 2026-04-22 (research-side, research/meta-classifier branch)
+**Priority:** ~~P2~~ → done before Phase 3b
+**Estimated time:** ~~1 day~~ → delivered same day
+
+**Delivered:**
+- ADDRESS clause in `HETEROGENEOUS_INSTRUCTIONS` — added explicit carve-out: redacted-city + surviving bare state (`XXXX, NY`, `XXXX XXXX, MI`) does not qualify as ADDRESS; surviving state alone is biographical context.
+- CFPB few-shot example in `HETEROGENEOUS_FEW_SHOT` — added 2 values demonstrating the exact failure mode with label `[]`.
+
+**Revalidation** (see `docs/experiments/meta_classifier/runs/20260422-m4d-phase2-revalidation-after-m4f-d2/design_revalidation.md`):
+- Phase 2 M4c gold set: macro Jaccard `0.8630` → `0.8671` (+0.0041, net positive).
+- Phase 2 heterogeneous branch: `0.8043` → `0.8102` (+0.0059).
+- Phase 3a CFPB targets: both over-fires resolved; pred goes `[ADDRESS]` → `[]`, matching reviewer.
+- **Phase 3a aggregate pred-vs-reviewer Jaccard: `1.0000`** — perfect agreement on all 41 rows.
 
 **Why:** Phase 2 heterogeneous prompt over-fired ADDRESS on
 `XXXX <CITY>, <STATE>` patterns — 2/41 Phase 3a rows. The existing

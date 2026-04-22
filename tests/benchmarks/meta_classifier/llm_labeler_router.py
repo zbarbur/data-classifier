@@ -242,6 +242,16 @@ postal address qualifies. Bio mentions like "I'm from Boston", "work in
 SF", "based in Europe", "California dev" do NOT qualify — these are
 biographical context, not address data.
 
+Redaction carve-out for ADDRESS specifically: redaction placeholders
+combined with a surviving bare state code (``XXXX, NY``,
+``XXXX XXXX, MI``, ``at XXXX NJ``) do NOT qualify. The redacted
+portion is not evidence of the pre-redaction entity (per the general
+redaction-handling rule below), and the surviving state alone is
+biographical context per the rule above. An entire column of narratives
+using this ``XXXX, <STATE>`` pattern is correctly labeled ``[]`` even
+though the pre-redaction content was likely an address. This is the
+dominant CFPB complaint pattern and must stay unlabeled.
+
 URL — label when a value contains an ``http(s)://`` URL OR a bare domain
 embedded in narrative text. Bare-domain examples that DO qualify:
 ``Loanme.com``, ``Xoom.com``, ``github.com/user/repo``,
@@ -353,11 +363,16 @@ HETEROGENEOUS_FEW_SHOT: tuple[dict[str, Any], ...] = (
         "labels": ["PERSON_NAME", "URL"],
     },
     {
-        "description": "CFPB-style narrative with XXXX redactions — empty list is the correct answer",
+        "description": (
+            "CFPB-style narrative with XXXX redactions — empty list is the correct answer. "
+            "Redacted-city + bare-state (XXXX, NY) does NOT restore ADDRESS"
+        ),
         "values": [
             "Called XXXX about my account XX/XX/XXXX and they said XXXX would help.",
             "My account ending XXXX was charged {$500.00} on XX/XX/XXXX.",
             "I contacted XXXX XXXX XXXX about the debt; they never responded.",
+            "I was at the ATM in XXXX, NJ when my card was declined. I live in XXXX XXXX, MI.",
+            "The merchant XXXX XXXX in XXXX, NY was unauthorized to charge my account.",
         ],
         "labels": [],
     },

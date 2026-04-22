@@ -2,15 +2,15 @@
   "n_columns": 41,
   "n_errors": 0,
   "n_unknown_label_emissions": 0,
-  "n_empty_predictions": 7,
+  "n_empty_predictions": 9,
   "by_shape_count": {
     "free_text_heterogeneous": 22,
     "opaque_tokens": 4,
     "structured_single": 15
   },
   "pred_label_distribution": {
-    "ADDRESS": 14,
     "EMAIL": 13,
+    "ADDRESS": 12,
     "PERSON_NAME": 12,
     "URL": 10,
     "ETHEREUM_ADDRESS": 4,
@@ -38,8 +38,8 @@
       "EMAIL": 12,
       "URL": 10,
       "PERSON_NAME": 6,
-      "ADDRESS": 5,
       "IP_ADDRESS": 4,
+      "ADDRESS": 3,
       "PHONE": 3,
       "ABA_ROUTING": 1,
       "API_KEY": 1,
@@ -70,15 +70,15 @@
   },
   "usage": {
     "input_tokens": 333778,
-    "output_tokens": 3089,
-    "cache_read_input_tokens": 65274,
+    "output_tokens": 3075,
+    "cache_read_input_tokens": 65958,
     "cache_creation_input_tokens": 0,
-    "cache_hit_rate_pct": 16.36
+    "cache_hit_rate_pct": 16.5
   },
-  "estimated_cost_usd": 1.7788,
+  "estimated_cost_usd": 1.7787,
   "errors": [],
   "unknown_label_rows": [],
   "model": "claude-opus-4-7",
-  "run_timestamp": "2026-04-21T20:41:53+00:00",
-  "notes": "Updated 2026-04-21 after M4f-d1: base64 decoder stage re-labeled sprint12_base64_encoded_payloads from [] (refused) to [EMAIL]."
+  "run_timestamp": "2026-04-22T10:06:57+00:00",
+  "notes": "Updated 2026-04-22 after M4f-d2 (heterogeneous prompt redaction discipline): the 2 CFPB credit_card over-fires resolved; pilot Jaccard pred-vs-reviewer is now 1.0000 on all 41 rows."
 }
