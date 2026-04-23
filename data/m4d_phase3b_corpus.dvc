@@ -1,0 +1,6 @@
+outs:
+- md5: 39df106e08410a66d4fa4b5221b35d0b.dir
+  size: 120265322
+  nfiles: 5
+  hash: md5
+  path: m4d_phase3b_corpus

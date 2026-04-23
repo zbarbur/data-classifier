@@ -1,6 +1,6 @@
 """Driver for M4d Phase 3 — router-labeler over the unlabeled scale corpus.
 
-Consumes ``data/m4d_phase3_corpus/unlabeled.jsonl`` (produced by
+Consumes ``data/m4d_phase3b_corpus/unlabeled.jsonl`` (produced by
 ``scripts.m4d_phase3_build_scale_corpus``), routes each column to its
 Phase 2 branch by ``true_shape``, calls the router-labeler, and emits:
 
@@ -23,8 +23,8 @@ Usage::
 
     # Custom input / output paths:
     .venv/bin/python -m scripts.run_m4d_phase3_scale \\
-        --input-path data/m4d_phase3_corpus/unlabeled.jsonl \\
-        --output-dir  data/m4d_phase3_corpus
+        --input-path data/m4d_phase3b_corpus/unlabeled.jsonl \\
+        --output-dir  data/m4d_phase3b_corpus
 
 Partial-progress safety: each row is flushed to ``labeled.jsonl`` as soon
 as the API call returns, so a mid-run crash preserves every successful
@@ -56,8 +56,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_INPUT = REPO_ROOT / "data/m4d_phase3_corpus/unlabeled.jsonl"
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "data/m4d_phase3_corpus"
+DEFAULT_INPUT = REPO_ROOT / "data/m4d_phase3b_corpus/unlabeled.jsonl"
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "data/m4d_phase3b_corpus"
 
 # Claude Opus 4.7 pricing ($/MTok); keep in sync with llm_labeler_router cost telemetry.
 COST_IN = 5.0e-6
@@ -202,19 +202,29 @@ def run(
     systems_by_shape = {shape: build_system_prompt_for_shape(shape) for shape in VALID_SHAPES}
     client = anthropic.Anthropic()
 
-    # Append mode so partial progress survives mid-run crashes. If not resuming,
-    # truncate first so a prior-run's stale rows don't mix with this run's.
-    file_mode = "a" if skip_existing else "w"
-    output_rows: list[dict[str, Any]] = []
-
-    # If resuming, re-load existing rows into our in-memory summary.
+    # On resume we re-load existing successful rows in-memory, skip them on
+    # this pass, and rewrite the file at end (dedupe). This prevents the
+    # append-on-retry bug where errored rows + their successful retries
+    # both end up in labeled.jsonl.
+    existing_by_id: dict[str, dict[str, Any]] = {}
     if skip_existing and labeled_path.exists():
         with labeled_path.open() as f:
             for line in f:
-                if line.strip():
-                    output_rows.append(json.loads(line))
+                if not line.strip():
+                    continue
+                obj = json.loads(line)
+                # Prefer the latest record per column_id (handles historical dupes).
+                existing_by_id[obj["column_id"]] = obj
 
-    with labeled_path.open(file_mode) as f_out:
+    # Collect new rows in memory; write to disk at end (with dedup merge on resume).
+    new_rows: list[dict[str, Any]] = []
+
+    # In non-resume mode we truncate up front so partial progress from this
+    # run is preserved on crash (flushed per-row).
+    if not skip_existing:
+        labeled_path.write_text("")
+
+    with labeled_path.open("a") as f_out:
         for i, row in enumerate(rows, start=1):
             cid = row["column_id"]
             if cid in skip_ids:
@@ -239,7 +249,7 @@ def run(
                         error=f"{type(exc).__name__}: {exc}",
                     )
             out_row = _call_to_output_row(call, row)
-            output_rows.append(out_row)
+            new_rows.append(out_row)
             f_out.write(json.dumps(out_row, ensure_ascii=False) + "\n")
             f_out.flush()
             log.info(
@@ -253,6 +263,17 @@ def run(
             )
             if sleep_between_calls > 0:
                 time.sleep(sleep_between_calls)
+
+    # Merge existing + new into a dedup'd dict keyed on column_id (new wins).
+    # Then rewrite labeled.jsonl from the merged set — this removes any
+    # historical duplicate rows (e.g., errored-then-retried on prior runs).
+    merged = dict(existing_by_id)
+    for r in new_rows:
+        merged[r["column_id"]] = r
+    output_rows: list[dict[str, Any]] = list(merged.values())
+    with labeled_path.open("w") as f_final:
+        for r in output_rows:
+            f_final.write(json.dumps(r, ensure_ascii=False) + "\n")
 
     summary = _compute_summary(output_rows)
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")

@@ -1,6 +1,6 @@
 """Build the M4d Phase 3 spot-check review worksheet.
 
-Consumes ``data/m4d_phase3_corpus/labeled.jsonl`` (produced by
+Consumes ``data/m4d_phase3b_corpus/labeled.jsonl`` (produced by
 ``scripts.run_m4d_phase3_scale``) and emits a JSONL worksheet the human
 reviewer fills in, plus a markdown companion for quick scanning.
 
@@ -43,8 +43,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_INPUT = REPO_ROOT / "data/m4d_phase3_corpus/labeled.jsonl"
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "data/m4d_phase3_corpus"
+DEFAULT_INPUT = REPO_ROOT / "data/m4d_phase3b_corpus/labeled.jsonl"
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "data/m4d_phase3b_corpus"
 DEFAULT_SAMPLE_VALUES = 10  # per row shown to the reviewer
 
 

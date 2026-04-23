@@ -55,7 +55,7 @@ import logging
 import subprocess
 import sys
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -85,13 +85,21 @@ SHAPE_OPAQUE_TOKENS = "opaque_tokens"
 
 @dataclass
 class GoldSetRow:
-    """One gold-set entry — a column with ≤100 sample values + labels."""
+    """One gold-set entry — a column with ≤N sample values + labels.
+
+    ``values`` holds the train portion (what the labeler sees via
+    ``build_user_message``). ``values_test`` is an optional holdout
+    portion that is **never** passed to the labeler — it exists for
+    downstream evaluation (meta-classifier holdout, scanner validation,
+    ablations with a different labeler window). Default empty for
+    backwards compatibility with callers that don't split.
+    """
 
     column_id: str
     source: str  # dataset/project name, e.g. "bigquery-public-data.cfpb_complaints"
     source_reference: str  # table.column or fixture name
     encoding: str  # "plaintext" or "xor"
-    values: list[str]  # ≤SAMPLE_SIZE, encoded per policy
+    values: list[str]  # ≤SAMPLE_SIZE, encoded per policy (train portion if split)
     true_shape: str  # one of SHAPE_*
     true_labels: list[str]  # fine-grained entity types (best-guess pre-fill)
     true_labels_family: list[str]  # derived from true_labels via family_for()
@@ -100,6 +108,7 @@ class GoldSetRow:
     annotator: str  # "claude-opus-4-6-prefill" or human name after review
     annotated_on: str  # ISO-8601 UTC
     notes: str = ""
+    values_test: list[str] = field(default_factory=list)  # holdout; never labeler-seen
 
 
 # --------------------------------------------------------------------------- #

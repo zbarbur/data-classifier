@@ -1,32 +1,41 @@
-"""Build the M4d Phase 3a PILOT scale corpus (~45 cols / ~115 GB / ~$2.25).
+"""Build the M4d Phase 3b scale corpus.
 
-Pilot stage: exercise the full fetcher → router → labeler → worksheet
-pipeline on every source shape before committing to Phase 3b full scale.
+Default config (2026-04-23): ~120 cols, ~400 GB BQ scan, 1000 values per
+column with 20% held out for evaluation. Phase 3a pilot at
+``data/m4d_phase3a_corpus/`` is preserved as a frozen baseline.
 
-Output schema matches the gold set (same fields, so downstream consumers
-can treat scale + gold uniformly) but ``review_status`` is always
-``"prefilled"`` and ``true_labels`` are the fetcher's pre-fills — the
-authoritative Phase 3 labels come from the router-labeler pipeline run
-in ``scripts/run_m4d_phase3_scale.py``.
+Sampling policy
+---------------
+- SAMPLE_SIZE = 1000 values fetched per column (up from pilot's 100).
+- TEST_HOLDOUT_SIZE = 200 values per column held out from the labeler
+  and stored under ``values_test``. **Never** shown to the labeler, so
+  downstream consumers (meta-classifier holdout, scanner validation,
+  ablations) can evaluate on untouched data. Seeded shuffle per column
+  before splitting (seed = sha256(column_id)) so the split is
+  reproducible and order-agnostic.
+
+Output schema matches ``GoldSetRow`` (with the ``values_test`` field
+populated). ``review_status`` is ``"prefilled"`` and ``true_labels``
+are the fetcher's pre-fills — the authoritative Phase 3 labels come
+from the router-labeler pipeline run in
+``scripts/run_m4d_phase3_scale.py``.
 
 Output
 ------
-Writes to ``data/m4d_phase3_corpus/unlabeled.jsonl`` (DVC-tracked).
+Writes to ``data/m4d_phase3b_corpus/unlabeled.jsonl`` (DVC-tracked).
 Post-run workflow:
 
     .venv/bin/python -m scripts.m4d_phase3_build_scale_corpus
-    .venv/bin/dvc add data/m4d_phase3_corpus
-    git add data/m4d_phase3_corpus.dvc data/.gitignore
-    git commit -m "data(m4d-phase3a): add unlabeled pilot corpus"
+    .venv/bin/dvc add data/m4d_phase3b_corpus
+    git add data/m4d_phase3b_corpus.dvc data/.gitignore
+    git commit -m "data(m4d-phase3b): add unlabeled scale corpus"
     .venv/bin/dvc push
 
 See ``docs/process/dataset_management.md`` for the full DVC workflow.
 
-Caches BQ responses under ``/tmp/m4d_phase3_staging/``. Delete to force
-a fresh fetch.
-
-Phase 3b full-scale (next stage) bumps the ``PILOT_*`` constants — see
-the inline comments next to each for the stage-2 target.
+Caches BQ responses under ``/tmp/m4d_phase3b_staging/``. Delete to
+force a fresh fetch. Separate from the pilot cache so bumping
+``SAMPLE_SIZE`` doesn't return pilot-sized rows.
 """
 
 from __future__ import annotations
@@ -34,6 +43,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import random
 import sys
 from collections import Counter
 from dataclasses import asdict
@@ -57,11 +67,14 @@ log = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # DVC-tracked output directory (per docs/process/dataset_management.md).
 # The data/ dir is gitignored; after running this fetcher, run
-# ``dvc add data/m4d_phase3_corpus`` and commit the .dvc pointer.
-OUTPUT_DIR = REPO_ROOT / "data" / "m4d_phase3_corpus"
+# ``dvc add data/m4d_phase3b_corpus`` and commit the .dvc pointer.
+OUTPUT_DIR = REPO_ROOT / "data" / "m4d_phase3b_corpus"
 OUTPUT_PATH = OUTPUT_DIR / "unlabeled.jsonl"
-STAGING_DIR = Path("/tmp/m4d_phase3_staging")
-SAMPLE_SIZE = 100  # values per column, same as gold set
+# Separate staging dir from Phase 3a so bumping SAMPLE_SIZE invalidates
+# the cache (pilot stored 100 rows per query; Phase 3b wants 1000).
+STAGING_DIR = Path("/tmp/m4d_phase3b_staging")
+SAMPLE_SIZE = 1000  # values fetched per column (was 100 in pilot)
+TEST_HOLDOUT_SIZE = 200  # values held out from labeler per column (20% of SAMPLE_SIZE)
 BQ_PROJECT = "dag-bigquery-dev"
 
 
@@ -69,23 +82,24 @@ BQ_PROJECT = "dag-bigquery-dev"
 # Pilot slice budgets — bump for Phase 3b (see inline comments per source)
 # --------------------------------------------------------------------------- #
 
-# CFPB:        3 × 3 =  9 cols / ~45 GB   (full: 15 × 10 = 150 / ~225 GB)
-PILOT_CFPB_PRODUCTS = 3
-PILOT_CFPB_MODS = 3
-# SO about_me: 2 × 3 =  6 cols / ~14 GB   (full: 10 × 10 = 100 / ~45 GB)
-PILOT_SO_ABOUT_BUCKETS = 2
-PILOT_SO_ABOUT_MODS = 3
-# HN:          1 × 2 =  2 cols / ~100 GB  (full: 5 × 10 = 50 / ~1275 GB; hacker_news.full isn't partitioned)
+# Phase 3b (2026-04-22): ~3× bump from 3a pilot.
+# CFPB:        8 × 5 = 40 cols  (pilot was 3×3=9; full spec was 15×10)
+PILOT_CFPB_PRODUCTS = 8
+PILOT_CFPB_MODS = 5
+# SO about_me: 4 × 5 = 20 cols  (pilot was 2×3=6)
+PILOT_SO_ABOUT_BUCKETS = 4
+PILOT_SO_ABOUT_MODS = 5
+# HN:          1 × 3 = 3 cols   (pilot was 1×2=2; trimmed because unpartitioned → each slice rescans ~50 GB)
 PILOT_HN_YEARS = 1
-PILOT_HN_MODS = 2
-# SO location: 1 × 5 =  5 cols / ~2 GB    (full: 3 × 10 = 30 / ~11 GB)
-PILOT_SO_LOCATION_BUCKETS = 1
+PILOT_HN_MODS = 3
+# SO location: 3 × 5 = 15 cols  (pilot was 1×5=5)
+PILOT_SO_LOCATION_BUCKETS = 3
 PILOT_SO_LOCATION_MODS = 5
-# SO display:  2 × 3 =  6 cols / ~3 GB    (full: 4 × 5 = 20 / ~10 GB)
-PILOT_SO_DISPLAY_BUCKETS = 2
-PILOT_SO_DISPLAY_MODS = 3
-# Austin311:   2 × 2 =  4 cols / ~0.2 GB  (full: 10 × 2 = 20 / ~1 GB)
-PILOT_AUSTIN_DISTRICTS = 2
+# SO display:  4 × 5 = 20 cols  (pilot was 2×3=6)
+PILOT_SO_DISPLAY_BUCKETS = 4
+PILOT_SO_DISPLAY_MODS = 5
+# Austin311:   6 × 2 = 12 cols  (pilot was 2×2=4)
+PILOT_AUSTIN_DISTRICTS = 6
 PILOT_AUSTIN_MODS = 2
 
 
@@ -128,6 +142,37 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _seeded_shuffle(column_id: str, values: list[str]) -> list[str]:
+    """Deterministic shuffle per column (seed = sha256(column_id)).
+
+    Matters because BQ row ordering is unspecified but can carry hidden
+    structure (clustering, recency). A seeded shuffle randomizes that
+    before the train/test split so the holdout isn't systematically
+    biased by scan order.
+    """
+    seed = int(hashlib.sha256(column_id.encode()).hexdigest()[:16], 16)
+    rng = random.Random(seed)
+    shuffled = list(values)
+    rng.shuffle(shuffled)
+    return shuffled
+
+
+def _split_train_test(column_id: str, values: list[str]) -> tuple[list[str], list[str]]:
+    """Shuffle + split values into (train, test).
+
+    Test size is the smaller of ``TEST_HOLDOUT_SIZE`` or 20% of the
+    column — ensures we never hold out so much that the train portion
+    starves on short columns.
+    """
+    shuffled = _seeded_shuffle(column_id, values)
+    n_test = min(TEST_HOLDOUT_SIZE, len(shuffled) // 5)
+    if n_test == 0:
+        return shuffled, []
+    train = shuffled[:-n_test]
+    test = shuffled[-n_test:]
+    return train, test
+
+
 def _row(
     *,
     column_id: str,
@@ -142,28 +187,33 @@ def _row(
 ) -> GoldSetRow:
     """Assemble one GoldSetRow for the scale corpus.
 
-    Encoding policy matches m4c: XOR for any source that may contain
-    credential-shaped substrings (user-authored text, synth fixtures),
-    plaintext for public-registry structured data.
+    Splits ``values`` into train + test holdout (seeded shuffle) so the
+    labeler never sees test values. Encoding policy matches m4c:
+    XOR for any source that may contain credential-shaped substrings
+    (user-authored text, synth fixtures), plaintext for public-registry
+    structured data.
     """
     from data_classifier.core.taxonomy import family_for
 
+    train_values, test_values = _split_train_test(column_id, values)
     if encoding == "xor":
         # ``encode_xor`` already returns the ``xor:`` prefix — don't add another.
-        values = [encode_xor(v) for v in values]
+        train_values = [encode_xor(v) for v in train_values]
+        test_values = [encode_xor(v) for v in test_values]
     families = sorted({family_for(label) or label for label in true_labels})
     return GoldSetRow(
         column_id=column_id,
         source=source,
         source_reference=source_reference,
         encoding=encoding,
-        values=values[:SAMPLE_SIZE],
+        values=train_values,
+        values_test=test_values,
         true_shape=true_shape,
         true_labels=sorted(true_labels),
         true_labels_family=families,
         true_labels_prevalence=true_labels_prevalence or {},
         review_status="prefilled",
-        annotator="phase3a-pilot-fetcher",
+        annotator="phase3b-scale-fetcher",
         annotated_on=_now_iso(),
         notes=notes,
     )
@@ -437,7 +487,7 @@ def fetch_eth_synthetic_pilot() -> list[GoldSetRow]:
     checksum case) is not enforced by the ETHEREUM_ADDRESS detector.
     """
     out: list[GoldSetRow] = []
-    for shard in range(3):
+    for shard in range(5):
         values = [f"0x{hashlib.sha256(f'shard{shard}_row{i}'.encode()).hexdigest()[:40]}" for i in range(SAMPLE_SIZE)]
         out.append(
             _row(
@@ -524,13 +574,17 @@ def print_summary(rows: list[GoldSetRow]) -> None:
     by_shape = Counter(r.true_shape for r in rows)
     by_source = Counter(r.source.split(".")[-1] for r in rows)
     by_encoding = Counter(r.encoding for r in rows)
+    total_train = sum(len(r.values) for r in rows)
+    total_test = sum(len(r.values_test) for r in rows)
     print()  # noqa: T201
     print("─" * 60)  # noqa: T201
-    print(f"M4d Phase 3a PILOT corpus — {len(rows)} columns")  # noqa: T201
+    print(f"M4d Phase 3b scale corpus — {len(rows)} columns")  # noqa: T201
     print("─" * 60)  # noqa: T201
     print(f"By shape:    {dict(by_shape)}")  # noqa: T201
     print(f"By source:   {dict(by_source)}")  # noqa: T201
     print(f"By encoding: {dict(by_encoding)}")  # noqa: T201
+    print(f"Train values: {total_train:,} (avg {total_train / max(len(rows), 1):.0f}/col)")  # noqa: T201
+    print(f"Test values:  {total_test:,} (avg {total_test / max(len(rows), 1):.0f}/col, held out from labeler)")  # noqa: T201
 
 
 def main() -> int:
