@@ -82,25 +82,24 @@ BQ_PROJECT = "dag-bigquery-dev"
 # Pilot slice budgets — bump for Phase 3b (see inline comments per source)
 # --------------------------------------------------------------------------- #
 
-# Phase 3b (2026-04-22): ~3× bump from 3a pilot.
-# CFPB:        8 × 5 = 40 cols  (pilot was 3×3=9; full spec was 15×10)
-PILOT_CFPB_PRODUCTS = 8
-PILOT_CFPB_MODS = 5
-# SO about_me: 4 × 5 = 20 cols  (pilot was 2×3=6)
-PILOT_SO_ABOUT_BUCKETS = 4
-PILOT_SO_ABOUT_MODS = 5
-# HN:          1 × 3 = 3 cols   (pilot was 1×2=2; trimmed because unpartitioned → each slice rescans ~50 GB)
-PILOT_HN_YEARS = 1
-PILOT_HN_MODS = 3
-# SO location: 3 × 5 = 15 cols  (pilot was 1×5=5)
-PILOT_SO_LOCATION_BUCKETS = 3
-PILOT_SO_LOCATION_MODS = 5
-# SO display:  4 × 5 = 20 cols  (pilot was 2×3=6)
-PILOT_SO_DISPLAY_BUCKETS = 4
-PILOT_SO_DISPLAY_MODS = 5
-# Austin311:   6 × 2 = 12 cols  (pilot was 2×2=4)
-PILOT_AUSTIN_DISTRICTS = 6
-PILOT_AUSTIN_MODS = 2
+# Phase 3b-extended (2026-04-23): ~6× bump from 3a pilot targeting 260 cols.
+# Modulus caps (defined in SQL WHERE) limit some sources:
+#   CFPB/SO-about_me/HN/SO-location = MOD 10 (supports up to 10 mods)
+#   SO-display = MOD 5 (supports up to 5 mods)
+#   Austin311  = MOD 2 (supports up to 2 mods)
+# Bumps below stay within those caps so cached queries remain valid.
+PILOT_CFPB_PRODUCTS = 15  # all 15 defined (was 8)
+PILOT_CFPB_MODS = 8  # 8 of 10 possible (was 5)  → 120 cols / ~600 GB scan
+PILOT_SO_ABOUT_BUCKETS = 10  # all 10 defined (was 4)
+PILOT_SO_ABOUT_MODS = 5  # 5 of 10 possible (was 5)  → 50 cols
+PILOT_HN_YEARS = 1  # HN table isn't partitioned → each slice re-scans ~50 GB
+PILOT_HN_MODS = 4  # (was 3) → 4 cols / ~200 GB scan
+PILOT_SO_LOCATION_BUCKETS = 3  # all 3 defined
+PILOT_SO_LOCATION_MODS = 10  # (was 5) → 30 cols
+PILOT_SO_DISPLAY_BUCKETS = 4  # all 4 defined
+PILOT_SO_DISPLAY_MODS = 5  # (was 5, cap) → 20 cols — MOD 5 in SQL caps here
+PILOT_AUSTIN_DISTRICTS = 10  # (was 6, all 10 possible)
+PILOT_AUSTIN_MODS = 2  # (cap)  → 20 cols
 
 
 _bq_client: bigquery.Client | None = None
@@ -487,7 +486,7 @@ def fetch_eth_synthetic_pilot() -> list[GoldSetRow]:
     checksum case) is not enforced by the ETHEREUM_ADDRESS detector.
     """
     out: list[GoldSetRow] = []
-    for shard in range(5):
+    for shard in range(10):
         values = [f"0x{hashlib.sha256(f'shard{shard}_row{i}'.encode()).hexdigest()[:40]}" for i in range(SAMPLE_SIZE)]
         out.append(
             _row(
