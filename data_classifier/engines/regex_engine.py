@@ -470,11 +470,22 @@ class RegexEngine(ClassificationEngine):
                 if _matches_allowlist(value, p):
                     continue
 
+                # Extract the regex match for validation.
+                # Validators must see the matched substring, not the
+                # full sample value — e.g. not_placeholder_credential
+                # needs "AKIAIOSFODNN7EXAMPLE", not "aws_access_key: AKIA...".
+                # Similarly ssn_zeros and iban_checksum fail on full values
+                # like "SSN: 123-45-6789" but work on "123-45-6789".
+                extracted = value
+                m = pset.individual[idx].search(value)
+                if m:
+                    extracted = m.group()
+
                 # Run validator if present
                 validated = True
                 if validator is not None:
                     try:
-                        validated = validator(value)
+                        validated = validator(extracted)
                     except Exception:
                         validated = False
 
