@@ -69,6 +69,24 @@ export function charClassDiversity(value) {
   return +hasLower + +hasUpper + +hasDigit + +hasSymbol;
 }
 
+export function charClassEvenness(value) {
+  if (!value) return 0;
+  const counts = [0, 0, 0, 0]; // upper, lower, digit, symbol
+  for (const ch of value) {
+    if (ch >= 'A' && ch <= 'Z') counts[0]++;
+    else if (ch >= 'a' && ch <= 'z') counts[1]++;
+    else if (ch >= '0' && ch <= '9') counts[2]++;
+    else counts[3]++;
+  }
+  const n = counts.reduce((a, b) => a + b, 0);
+  if (n === 0) return 0;
+  const present = counts.filter(c => c > 0).map(c => c / n);
+  if (present.length <= 1) return 0;
+  const H = -present.reduce((sum, p) => sum + p * Math.log2(p), 0);
+  const Hmax = Math.log2(present.length);
+  return H / Hmax;
+}
+
 export function scoreRelativeEntropy(rel) {
   if (rel < 0.5) return 0;
   return Math.min(1.0, rel);

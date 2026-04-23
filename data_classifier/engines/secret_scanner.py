@@ -28,7 +28,11 @@ from data_classifier.core.types import (
     ColumnInput,
     SampleAnalysis,
 )
-from data_classifier.engines.heuristic_engine import compute_char_class_diversity, compute_shannon_entropy
+from data_classifier.engines.heuristic_engine import (
+    compute_char_class_diversity,
+    compute_char_class_evenness,
+    compute_shannon_entropy,
+)
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.engines.parsers import parse_key_values
 from data_classifier.engines.structural_parsers import detect_structural_secrets
@@ -899,14 +903,18 @@ class SecretScannerEngine(ClassificationEngine):
             rel_entropy = _compute_relative_entropy(value)
             diversity = compute_char_class_diversity(value)
             if rel_entropy >= strong_rel or diversity >= diversity_min:
-                return key_score * max(strong_min, _score_relative_entropy(rel_entropy))
+                base_score = key_score * max(strong_min, _score_relative_entropy(rel_entropy))
+                evenness_bonus = compute_char_class_evenness(value) * 0.15
+                return min(base_score + evenness_bonus, 1.0)
             return 0.0
 
         # contextual tier — need strong value signal
         rel_entropy = _compute_relative_entropy(value)
         diversity = compute_char_class_diversity(value)
         if rel_entropy >= contextual_rel and diversity >= diversity_min:
-            return key_score * _score_relative_entropy(rel_entropy)
+            base_score = key_score * _score_relative_entropy(rel_entropy)
+            evenness_bonus = compute_char_class_evenness(value) * 0.15
+            return min(base_score + evenness_bonus, 1.0)
         return 0.0
 
     @staticmethod

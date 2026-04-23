@@ -241,6 +241,47 @@ def compute_char_class_diversity(value: str) -> int:
     return classes
 
 
+def compute_char_class_evenness(value: str) -> float:
+    """Measure how evenly characters are distributed across character classes.
+
+    Uses normalized Shannon entropy over the 4-class histogram
+    (uppercase, lowercase, digits, symbols). Returns 0.0 when one
+    class dominates, 1.0 when perfectly even across all present classes.
+
+    This complements :func:`compute_char_class_diversity` which only
+    counts how many classes are present (0-4). Evenness measures the
+    balance within those classes.
+    """
+    if not value:
+        return 0.0
+
+    counts = [0, 0, 0, 0]  # upper, lower, digit, symbol
+    for c in value:
+        if c.isupper():
+            counts[0] += 1
+        elif c.islower():
+            counts[1] += 1
+        elif c.isdigit():
+            counts[2] += 1
+        else:
+            counts[3] += 1
+
+    n = sum(counts)
+    if n == 0:
+        return 0.0
+
+    present = [c / n for c in counts if c > 0]
+    num_classes = len(present)
+    if num_classes <= 1:
+        return 0.0
+
+    from math import log2
+
+    h = -sum(p * log2(p) for p in present)
+    h_max = log2(num_classes)
+    return h / h_max
+
+
 def compute_avg_char_class_diversity(values: list[str]) -> float:
     """Average character class diversity across all values.
 

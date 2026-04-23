@@ -16,6 +16,7 @@ import {
   relativeEntropy,
   detectCharset,
   charClassDiversity,
+  charClassEvenness,
   scoreRelativeEntropy,
 } from './entropy.js';
 
@@ -169,14 +170,17 @@ function tieredScore(keyScore, tier, value) {
   }
   const rel = relativeEntropy(value);
   const div = charClassDiversity(value);
+  const evennessBonus = charClassEvenness(value) * 0.15;
   if (tier === 'strong') {
     if (rel >= SECRET_SCANNER.relativeEntropyStrong || div >= SECRET_SCANNER.diversityThreshold) {
-      return keyScore * Math.max(SECRET_SCANNER.strongMinEntropyScore, scoreRelativeEntropy(rel));
+      const base = keyScore * Math.max(SECRET_SCANNER.strongMinEntropyScore, scoreRelativeEntropy(rel));
+      return Math.min(base + evennessBonus, 1.0);
     }
     return 0;
   }
   if (rel >= SECRET_SCANNER.relativeEntropyContextual && div >= SECRET_SCANNER.diversityThreshold) {
-    return keyScore * scoreRelativeEntropy(rel);
+    const base = keyScore * scoreRelativeEntropy(rel);
+    return Math.min(base + evennessBonus, 1.0);
   }
   return 0;
 }
