@@ -8,6 +8,7 @@ Usage:
         --input data/wildchat_1m_credential_prompts.jsonl \
         --output data/wildchat_eval/wildchat_eval.jsonl
 """
+
 from __future__ import annotations
 
 import argparse

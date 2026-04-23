@@ -10,6 +10,7 @@ Usage:
         --eval-data data/wildchat_eval/wildchat_eval.jsonl \
         --summary /tmp/text_bench.summary.json
 """
+
 from __future__ import annotations
 
 import argparse

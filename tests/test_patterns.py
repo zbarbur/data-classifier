@@ -143,7 +143,9 @@ class TestSsnConfidenceGating:
         ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_no_dashes")
         # No count multiplier — confidence is just base (0.40), independent of count
         conf = _compute_sample_confidence(
-            ssn_pattern.confidence, matched_count=50, validated_count=50,
+            ssn_pattern.confidence,
+            matched_count=50,
+            validated_count=50,
             has_validator=bool(ssn_pattern.validator),
         )
         assert conf < 0.50, f"SSN no-dashes with 50 matches: {conf} >= 0.50"
@@ -155,7 +157,9 @@ class TestSsnConfidenceGating:
         ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_formatted")
         # Validated high-base pattern floors at 0.95
         conf = _compute_sample_confidence(
-            ssn_pattern.confidence, matched_count=3, validated_count=3,
+            ssn_pattern.confidence,
+            matched_count=3,
+            validated_count=3,
             has_validator=bool(ssn_pattern.validator),
         )
         assert conf >= 0.50, f"SSN formatted with 3 matches: {conf} < 0.50"

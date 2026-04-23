@@ -282,7 +282,8 @@ class TestConfidenceMatchQuality:
 
         # 1 match
         col1 = ColumnInput(
-            column_id="t1", column_name="d",
+            column_id="t1",
+            column_name="d",
             sample_values=["test@example.com"] + ["text"] * 99,
         )
         f1 = engine.classify_column(col1, profile=profile, min_confidence=0.0)
@@ -290,7 +291,8 @@ class TestConfidenceMatchQuality:
 
         # 50 matches
         col50 = ColumnInput(
-            column_id="t2", column_name="d",
+            column_id="t2",
+            column_name="d",
             sample_values=["test@example.com"] * 50 + ["text"] * 50,
         )
         f50 = engine.classify_column(col50, profile=profile, min_confidence=0.0)
