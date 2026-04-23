@@ -67,6 +67,7 @@ class TestDataProfiles:
         p = tokenize_line("1.5, 2.3, 4.8, 9.1")
         assert p.number_count >= 3
         assert p.identifier_count == 0
+        assert p.dot_access_count == 0  # decimals are not method calls
 
     def test_hex_number(self):
         p = tokenize_line("color = 0xFF00AA")

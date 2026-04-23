@@ -62,13 +62,14 @@ def tokenize_line(line: str, keywords: frozenset[str] | None = None) -> TokenPro
     strings = _STRING_RE.findall(stripped)
     no_strings = _STRING_RE.sub(_PLACEHOLDER, stripped)
 
-    # 2. Dot access on the string-free text (word.word pattern).
-    dot_accesses = _DOT_ACCESS_RE.findall(no_strings)
-
-    # 3. Numbers (extract before identifiers so 0xFF doesn't leave stray
-    #    letters that look like identifiers).
+    # 2. Numbers (extract before identifiers so 0xFF doesn't leave stray
+    #    letters that look like identifiers, and before dot_access so
+    #    decimals like 1.5 don't count as method calls).
     numbers = _NUMBER_RE.findall(no_strings)
     no_nums = _NUMBER_RE.sub(" ", no_strings)
+
+    # 3. Dot access on the number-free text (word.word pattern).
+    dot_accesses = _DOT_ACCESS_RE.findall(no_nums)
 
     # 4. Identifiers (skip our placeholder token).
     raw_idents = [m for m in _IDENT_RE.findall(no_nums) if m != "__S__"]
