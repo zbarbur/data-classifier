@@ -250,6 +250,21 @@
     "comment_marker_pattern": "^\\s*(?:#(?!include|define|ifdef|ifndef|endif|pragma)|//|--|/\\*|\\*(?!/)| \\*\\s|%|REM\\s)"
   },
 
+  "tokenizer": {
+    "semantic_weights": {
+      "code_dot_boost": 1.3,
+      "code_operator_boost": 1.2,
+      "prose_suppress": 0.3,
+      "data_suppress": 0.4,
+      "no_ident_suppress": 0.3,
+      "min_ident_for_prose": 4,
+      "max_keyword_for_prose": 1,
+      "data_string_ratio_threshold": 0.4,
+      "expression_call_boost": 0.10,
+      "expression_data_suppress": -0.10
+    }
+  },
+
   "negative": {
     "error_output": [
       "^\\s*Traceback \\(most recent call last\\)",

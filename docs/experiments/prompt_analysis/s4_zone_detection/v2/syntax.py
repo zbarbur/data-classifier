@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import re
 
+from docs.experiments.prompt_analysis.s4_zone_detection.v2.tokenizer import tokenize_line
+
 
 class SyntaxDetector:
     """Score lines for code-likeness using syntactic features and fragment patterns."""
@@ -72,6 +74,22 @@ class SyntaxDetector:
             )
         )
 
+        # --- tokenizer integration ---
+        self._keyword_set: frozenset[str] = frozenset(syntax.get("code_keywords", []))
+        tok_cfg = patterns.get("tokenizer", {}).get("semantic_weights", {})
+        self._code_dot_boost: float = tok_cfg.get("code_dot_boost", 1.3)
+        self._code_operator_boost: float = tok_cfg.get("code_operator_boost", 1.2)
+        self._prose_suppress: float = tok_cfg.get("prose_suppress", 0.3)
+        self._data_suppress: float = tok_cfg.get("data_suppress", 0.4)
+        self._no_ident_suppress: float = tok_cfg.get("no_ident_suppress", 0.3)
+        self._min_ident_for_prose: int = tok_cfg.get("min_ident_for_prose", 4)
+        self._max_keyword_for_prose: int = tok_cfg.get("max_keyword_for_prose", 1)
+        self._data_string_ratio_threshold: float = tok_cfg.get("data_string_ratio_threshold", 0.4)
+        self._expr_call_boost: float = tok_cfg.get("expression_call_boost", 0.10)
+        self._expr_data_suppress: float = tok_cfg.get("expression_data_suppress", -0.10)
+        # Regex for function call pattern: ident(
+        self._func_call_re: re.Pattern[str] = re.compile(r"\b[a-zA-Z_]\w*\s*\(")
+
     # ------------------------------------------------------------------
     # line_syntax_score
     # ------------------------------------------------------------------
@@ -112,7 +130,67 @@ class SyntaxDetector:
         if leading >= 2:
             score += self._indentation_weight
 
-        return min(score, 1.0)
+        # --- Semantic modifier (tokenizer-based) ---
+        profile = tokenize_line(stripped, keywords=self._keyword_set)
+        modifier = self._semantic_modifier(profile)
+        score *= modifier
+
+        # --- Expression adjustment (tie-breaker) ---
+        score += self._expression_adjustment(profile, stripped)
+
+        return max(min(score, 1.0), 0.0)
+
+    def _semantic_modifier(self, profile) -> float:
+        """Score multiplier based on token profile.
+
+        Returns a value in [0.3, 1.3] that scales the raw syntax score.
+        Code patterns boost, prose/data patterns suppress.
+        """
+        # Code: identifiers + dot access (method calls, chaining)
+        if profile.dot_access_count >= 1 and profile.identifier_count >= 1:
+            return self._code_dot_boost
+
+        # Code: identifiers + operators (assignments, comparisons)
+        if profile.identifier_count >= 1 and profile.operator_count >= 1:
+            return self._code_operator_boost
+
+        # Prose: many word-like tokens, no code structure
+        if (
+            profile.identifier_count >= self._min_ident_for_prose
+            and profile.operator_count == 0
+            and profile.dot_access_count == 0
+            and profile.keyword_count <= self._max_keyword_for_prose
+        ):
+            return self._prose_suppress
+
+        # Data: dominated by string literals
+        if profile.string_ratio > self._data_string_ratio_threshold:
+            return self._data_suppress
+
+        # No identifiers or keywords at all (non-Latin text with parens, etc.)
+        if profile.identifier_count == 0 and profile.keyword_count == 0 and profile.total_tokens > 0:
+            return self._no_ident_suppress
+
+        return 1.0
+
+    def _expression_adjustment(self, profile, line: str) -> float:
+        """Small score adjustment for expression-level signals.
+
+        Returns a value in [-0.10, +0.10] added to the score after
+        the semantic modifier.  Catches function calls that lack
+        operators (e.g. ``print(data)``) and penalizes pure
+        number/string rows.
+        """
+        # Function call: ident( — boost when there's an identifier and parens
+        if self._func_call_re.search(line) and profile.identifier_count >= 1:
+            return self._expr_call_boost
+
+        # All numbers/strings with no identifiers or keywords — data row
+        if profile.identifier_count == 0 and profile.keyword_count == 0:
+            if profile.number_count + profile.string_count > 0:
+                return self._expr_data_suppress
+
+        return 0.0
 
     # ------------------------------------------------------------------
     # score_with_fragments
