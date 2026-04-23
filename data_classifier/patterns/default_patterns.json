@@ -589,6 +589,127 @@
       "display_name": "UK National Insurance Number"
     },
     {
+      "name": "bg_egn",
+      "regex": "\\b\\d{10}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.35,
+      "description": "Bulgarian EGN (Единен граждански номер) — 10-digit civil number with weighted checksum",
+      "validator": "bulgarian_egn",
+      "display_name": "Bulgarian EGN",
+      "examples_match": [
+        "7501010010"
+      ],
+      "examples_no_match": [
+        "12345678",
+        "12345678901",
+        "abcdefghij"
+      ],
+      "context_words_boost": [
+        "egn",
+        "egn:",
+        "булстат",
+        "лична карта",
+        "citizen",
+        "national_id",
+        "personal_number"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "fax",
+        "mobile"
+      ]
+    },
+    {
+      "name": "cz_rodne_cislo",
+      "regex": "\\b\\d{6}/?\\d{4}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.5,
+      "description": "Czech rodné číslo (birth number) — YYMMDD/NNNN, divisible by 11",
+      "validator": "czech_rodne_cislo",
+      "display_name": "Czech Birth Number",
+      "examples_match": [
+        "800101/0006",
+        "8001010006"
+      ],
+      "examples_no_match": [
+        "12345",
+        "80010100067",
+        "abcdef/1234"
+      ],
+      "context_words_boost": [
+        "rodne",
+        "cislo",
+        "birth_number",
+        "national_id",
+        "personal_number"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "date"
+      ]
+    },
+    {
+      "name": "ch_ahv",
+      "regex": "\\b756[\\.\\s-]?\\d{4}[\\.\\s-]?\\d{4}[\\.\\s-]?\\d{2}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.9,
+      "description": "Swiss AHV/AVS social security number — 756.XXXX.XXXX.XX with EAN-13 checksum",
+      "validator": "swiss_ahv",
+      "display_name": "Swiss AHV Number",
+      "examples_match": [
+        "756.1234.5678.04"
+      ],
+      "examples_no_match": [
+        "123.4567.8901.23",
+        "756.1234"
+      ],
+      "context_words_boost": [
+        "ahv",
+        "avs",
+        "social",
+        "versicherung"
+      ],
+      "context_words_suppress": []
+    },
+    {
+      "name": "dk_cpr",
+      "regex": "\\b\\d{6}-\\d{4}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.5,
+      "description": "Danish CPR number (civil registration) — DDMMYY-NNNN with mod-11 check",
+      "validator": "danish_cpr",
+      "display_name": "Danish CPR Number",
+      "examples_match": [
+        "010180-0008"
+      ],
+      "examples_no_match": [
+        "32018012",
+        "0113801234",
+        "01018a-1234"
+      ],
+      "context_words_boost": [
+        "cpr",
+        "personnummer",
+        "civil",
+        "national_id"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "date"
+      ]
+    },
+    {
       "name": "url",
       "regex": "\\bhttps?://[a-zA-Z0-9][a-zA-Z0-9\\-]*\\.[a-zA-Z]{2,}[^\\s]*",
       "entity_type": "URL",

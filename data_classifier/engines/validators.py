@@ -881,6 +881,80 @@ def huggingface_token_check(value: str) -> bool:
     return True
 
 
+def bulgarian_egn_check(value: str) -> bool:
+    """Validate a 10-digit Bulgarian EGN (civil number).
+
+    Weighted sum: digits × [2,4,8,5,10,9,7,3,6], sum mod 11.
+    If remainder < 10 → check digit; if remainder == 10 → check digit is 0.
+    """
+    digits = re.sub(r"\D", "", value)
+    if len(digits) != 10:
+        return False
+    weights = [2, 4, 8, 5, 10, 9, 7, 3, 6]
+    total = sum(int(digits[i]) * weights[i] for i in range(9))
+    remainder = total % 11
+    expected = 0 if remainder >= 10 else remainder
+    return int(digits[9]) == expected
+
+
+def czech_rodne_cislo_check(value: str) -> bool:
+    """Validate a Czech rodné číslo (birth number).
+
+    Format: YYMMDD/NNNN or YYMMDNNNNN (10 digits total).
+    The full 10-digit number must be divisible by 11.
+    Month may be +50 for females, +20 for exceptional cases.
+    """
+    cleaned = re.sub(r"[/\s-]", "", value)
+    if len(cleaned) != 10 or not cleaned.isdigit():
+        return False
+    # Month validation (01-12, 51-62 for females, 21-32 exceptional)
+    month = int(cleaned[2:4])
+    if not (1 <= month <= 12 or 21 <= month <= 32 or 51 <= month <= 62):
+        return False
+    # Day validation
+    day = int(cleaned[4:6])
+    if not (1 <= day <= 31):
+        return False
+    return int(cleaned) % 11 == 0
+
+
+def swiss_ahv_check(value: str) -> bool:
+    """Validate a Swiss AHV/AVS number (new format).
+
+    13-digit EAN-13 format starting with 756.
+    Check digit: EAN-13 algorithm (alternating weights 1,3).
+    """
+    digits = re.sub(r"\D", "", value)
+    if len(digits) != 13:
+        return False
+    if not digits.startswith("756"):
+        return False
+    total = sum(int(d) * (1 if i % 2 == 0 else 3) for i, d in enumerate(digits[:12]))
+    expected = (10 - (total % 10)) % 10
+    return int(digits[12]) == expected
+
+
+def danish_cpr_check(value: str) -> bool:
+    """Validate a Danish CPR number (civil registration number).
+
+    Format: DDMMYY-NNNN (10 digits).
+    Modulo 11 weighted check: digits × [4,3,2,7,6,5,4,3,2,1], sum mod 11 == 0.
+    Note: since 2007, some CPR numbers don't pass mod 11. We still validate
+    the date portion and format.
+    """
+    cleaned = re.sub(r"[/\s-]", "", value)
+    if len(cleaned) != 10 or not cleaned.isdigit():
+        return False
+    day = int(cleaned[0:2])
+    month = int(cleaned[2:4])
+    if not (1 <= day <= 31 and 1 <= month <= 12):
+        return False
+    # Modulo 11 check (pre-2007 guarantee, best-effort for newer)
+    weights = [4, 3, 2, 7, 6, 5, 4, 3, 2, 1]
+    total = sum(int(cleaned[i]) * weights[i] for i in range(10))
+    return total % 11 == 0
+
+
 # Registry mapping validator names to functions
 VALIDATORS: dict[str, typing.Callable] = {
     "luhn": luhn_check,
@@ -906,4 +980,9 @@ VALIDATORS: dict[str, typing.Callable] = {
     "swift_bic_country_code": swift_bic_country_code_check,
     "openai_legacy_key": _openai_legacy_key_check,
     "huggingface_token": huggingface_token_check,
+    # Sprint 15 — EU government IDs
+    "bulgarian_egn": bulgarian_egn_check,
+    "czech_rodne_cislo": czech_rodne_cislo_check,
+    "swiss_ahv": swiss_ahv_check,
+    "danish_cpr": danish_cpr_check,
 }

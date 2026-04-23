@@ -502,7 +502,8 @@ _OPENPII_1M_TARGET_TYPES: frozenset[str] = frozenset(
         "PERSON_NAME",
         "ADDRESS",
         "NATIONAL_ID",
-        "SSN",
+        # SSN removed — TAXNUM/SOCIALNUM are international tax/social IDs,
+        # not US SSNs. Mapped to NATIONAL_ID since Sprint 15.
         "CREDIT_CARD",
         "EMAIL",
         "PHONE",
@@ -554,7 +555,6 @@ class TestOpenPII1mLoader:
             {"entity_type": "EMAIL", "value": "alice@example.com"},
             {"entity_type": "EMAIL", "value": "bob@example.com"},
             {"entity_type": "ADDRESS", "value": "123 Main St"},
-            {"entity_type": "SSN", "value": "123-45-6789"},
             {"entity_type": "NATIONAL_ID", "value": "AB1234567"},
             {"entity_type": "CREDIT_CARD", "value": "4111111111111111"},
             {"entity_type": "PHONE", "value": "+1-555-0100"},

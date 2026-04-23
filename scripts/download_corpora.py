@@ -715,9 +715,11 @@ OPENPII_1M_TYPE_MAP: dict[str, str] = {
     "IDCARDNUM": "NATIONAL_ID",
     "DRIVERLICENSENUM": "NATIONAL_ID",
     "PASSPORTNUM": "NATIONAL_ID",
-    # Tax / social security
-    "TAXNUM": "SSN",
-    "SOCIALNUM": "SSN",
+    # Tax / social security — mapped to NATIONAL_ID (not SSN).
+    # openpii-1m is multilingual: these are country-specific tax/social IDs
+    # (BG EGN, CZ rodné číslo, CH AHV, DK CPR, etc.), not US SSNs.
+    "TAXNUM": "NATIONAL_ID",
+    "SOCIALNUM": "NATIONAL_ID",
     # Financial
     "CREDITCARDNUMBER": "CREDIT_CARD",
     # Contact
