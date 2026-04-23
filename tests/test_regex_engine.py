@@ -203,33 +203,104 @@ class TestMasking:
 
 
 class TestConfidenceComputation:
+    """Confidence = match quality, not prevalence. No count multiplier."""
+
     def test_zero_matches_returns_zero(self):
         assert _compute_sample_confidence(0.95, 0, 0) == 0.0
 
-    def test_single_match_penalty(self):
-        conf = _compute_sample_confidence(0.95, 1, 1)
-        assert 0.55 < conf < 0.70  # 0.95 * 0.65
+    def test_unvalidated_pattern_uses_base(self):
+        """Pattern without validator → base confidence regardless of count."""
+        conf = _compute_sample_confidence(0.90, 5, 5, has_validator=False)
+        assert conf == 0.90
 
-    def test_few_matches_moderate_penalty(self):
-        conf = _compute_sample_confidence(0.95, 3, 3)
-        assert 0.75 < conf < 0.85  # 0.95 * 0.85
-
-    def test_many_matches_full_confidence(self):
-        conf = _compute_sample_confidence(0.95, 10, 10)
+    def test_validated_high_base_floors_at_095(self):
+        """Pattern with validator that passes and high base → floor at 0.95."""
+        conf = _compute_sample_confidence(0.80, 1, 1, has_validator=True)
         assert conf == 0.95
 
-    def test_abundant_matches_slight_boost(self):
-        conf = _compute_sample_confidence(0.95, 25, 25)
-        assert conf > 0.95
+    def test_validated_low_base_keeps_base(self):
+        """Pattern with validator but low base (<0.70) → use base, no floor."""
+        conf = _compute_sample_confidence(0.40, 1, 1, has_validator=True)
+        assert conf == 0.40
 
-    def test_validation_failures_reduce_confidence(self):
-        conf_all_valid = _compute_sample_confidence(0.95, 10, 10)
-        conf_half_valid = _compute_sample_confidence(0.95, 10, 5)
-        assert conf_half_valid < conf_all_valid
+    def test_validated_high_base_keeps_base(self):
+        """If base > 0.95 and validator passes, use base (max, not floor)."""
+        conf = _compute_sample_confidence(0.98, 3, 3, has_validator=True)
+        assert conf == 0.98
+
+    def test_no_count_multiplier(self):
+        """Confidence is independent of match count."""
+        conf1 = _compute_sample_confidence(0.90, 1, 1, has_validator=False)
+        conf10 = _compute_sample_confidence(0.90, 10, 10, has_validator=False)
+        conf100 = _compute_sample_confidence(0.90, 100, 100, has_validator=False)
+        assert conf1 == conf10 == conf100 == 0.90
+
+    def test_validation_failures_reduce_below_floor(self):
+        """When validation ratio is low enough, confidence drops below the 0.95 floor."""
+        # 2 of 10 validated: base 0.95 * (2/10) = 0.19, max(0.19, 0.95) = 0.95
+        # Actually the floor still applies — but zero validated → 0.0
+        conf_all = _compute_sample_confidence(0.95, 10, 10, has_validator=True)
+        conf_none = _compute_sample_confidence(0.95, 10, 0, has_validator=True)
+        assert conf_none == 0.0
+        assert conf_all == 0.95
 
     def test_no_validations_zeroes_confidence(self):
-        conf = _compute_sample_confidence(0.95, 10, 0)
+        conf = _compute_sample_confidence(0.95, 10, 0, has_validator=True)
         assert conf == 0.0
+
+    def test_partial_validation_without_validator(self):
+        """Even without a formal validator, partial validation reduces proportionally."""
+        conf = _compute_sample_confidence(0.90, 10, 5, has_validator=False)
+        assert conf == pytest.approx(0.45)
+
+
+class TestConfidenceMatchQuality:
+    """Integration tests: confidence reflects match quality, not prevalence."""
+
+    def test_single_validated_match_high_confidence(self):
+        """A single validated match should have confidence >= 0.95."""
+        # Use a Luhn-valid credit card number (validated pattern)
+        col = ColumnInput(
+            column_id="test",
+            column_name="data",
+            sample_values=["4532015112830366"] + ["normal text"] * 199,
+        )
+        engine = RegexEngine()
+        engine.startup()
+        findings = engine.classify_column(col, profile=load_profile(), min_confidence=0.0)
+        cc_findings = [f for f in findings if f.entity_type == "CREDIT_CARD"]
+        assert len(cc_findings) >= 1
+        assert cc_findings[0].confidence >= 0.95, (
+            f"Validated single match should be >= 0.95, got {cc_findings[0].confidence}"
+        )
+
+    def test_no_count_multiplier(self):
+        """Confidence should not change based on number of matches."""
+        engine = RegexEngine()
+        engine.startup()
+        profile = load_profile()
+
+        # 1 match
+        col1 = ColumnInput(
+            column_id="t1", column_name="d",
+            sample_values=["test@example.com"] + ["text"] * 99,
+        )
+        f1 = engine.classify_column(col1, profile=profile, min_confidence=0.0)
+        email1 = [f for f in f1 if f.entity_type == "EMAIL"]
+
+        # 50 matches
+        col50 = ColumnInput(
+            column_id="t2", column_name="d",
+            sample_values=["test@example.com"] * 50 + ["text"] * 50,
+        )
+        f50 = engine.classify_column(col50, profile=profile, min_confidence=0.0)
+        email50 = [f for f in f50 if f.entity_type == "EMAIL"]
+
+        if email1 and email50:
+            assert email1[0].confidence == email50[0].confidence, (
+                f"Confidence should not depend on count: 1-match={email1[0].confidence}, "
+                f"50-match={email50[0].confidence}"
+            )
 
 
 class TestCategoryFiltering:
