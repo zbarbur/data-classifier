@@ -33,7 +33,7 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent.parent))
 
-from docs.experiments.prompt_analysis.s4_zone_detection.zone_detector import detect_zones
+from docs.experiments.prompt_analysis.s4_zone_detection.v2 import detect_zones
 
 log = logging.getLogger(__name__)
 
