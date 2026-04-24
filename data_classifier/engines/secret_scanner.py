@@ -511,6 +511,20 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
     if re.match(r'^[a-zA-Z_]\w*="https?://', value):
         return True
 
+    # Template literals with interpolation — e.g. `...${data.txnId.toString()}`
+    # Code expressions, not secrets.
+    if "${" in value:
+        return True
+
+    # Vulkan/OpenGL validation IDs — e.g. VUID-VkFramebufferCreateInfo-height-00887
+    if re.match(r"^VUID-", value):
+        return True
+
+    # Values starting with open bracket/paren (code syntax, not credentials) —
+    # e.g. [TransactionTypes.PURCHASE_BILL_PAYMENT, (async function() {
+    if value.startswith(("[", "(")):
+        return True
+
     # Backslash-separated paths (Windows / stealer logs) — e.g.
     # 227\Logs\[GB]86.138.93.39\Chrome\Default\Cookies.txt
     # [2024-04-11T9_50_34]\Cookies\Google_[Chrome]_Default

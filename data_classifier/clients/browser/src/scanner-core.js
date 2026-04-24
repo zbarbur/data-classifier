@@ -250,6 +250,12 @@ function valueIsObviouslyNotSecret(value) {
   if (/^(?:xmlns|cargo):/.test(value)) return true;
   // key="url" assignments: archivo="https://github.com/..."
   if (/^[a-zA-Z_]\w*="https?:\/\//.test(value)) return true;
+  // Template literals with interpolation: `...${data.txnId}`
+  if (value.includes('${')) return true;
+  // Vulkan/OpenGL validation IDs: VUID-VkFramebufferCreateInfo-...
+  if (/^VUID-/.test(value)) return true;
+  // Values starting with bracket/paren (code syntax)
+  if (value.startsWith('[') || value.startsWith('(')) return true;
   // Backslash-separated paths (Windows/stealer logs): 227\Logs\...\Cookies.txt
   if ((value.match(/\\/g) || []).length >= 2) return true;
   // Python f-string URLs: f'https://api.bscscan.com/...{api_key}'
