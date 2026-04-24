@@ -149,8 +149,12 @@ function secretScannerPass(text, verbose, includeRaw) {
   return out;
 }
 
+function camelToSnake(name) {
+  return name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+}
+
 function scoreKeyName(key) {
-  const lower = key.toLowerCase();
+  const lower = camelToSnake(key);
   let best = { score: 0, tier: '', subtype: 'OPAQUE_SECRET' };
   for (const entry of COMPILED_KEY_NAMES) {
     if (!matchKey(lower, entry)) continue;

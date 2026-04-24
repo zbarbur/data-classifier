@@ -580,6 +580,17 @@ def _match_key_pattern(key_lower: str, pattern: str, match_type: str) -> bool:
 
 _DEFAULT_SUBTYPE = "OPAQUE_SECRET"
 
+_CAMEL_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
+
+
+def _camel_to_snake(name: str) -> str:
+    """Convert camelCase to snake_case for key-name matching.
+
+    ``privateKey`` → ``private_key``, ``apiSecret`` → ``api_secret``.
+    Already snake_case or UPPER_CASE names pass through unchanged.
+    """
+    return _CAMEL_BOUNDARY.sub(r"\1_\2", name).lower()
+
 
 def _score_key_name(key: str, key_entries: list[dict]) -> tuple[float, str, str]:
     """Score a key name against the secret key-name dictionary.
@@ -588,6 +599,9 @@ def _score_key_name(key: str, key_entries: list[dict]) -> tuple[float, str, str]
     word_boundary, or suffix.  Returns the highest matching score, its tier,
     and its credential subtype (one of ``API_KEY``, ``PRIVATE_KEY``,
     ``PASSWORD_HASH``, or ``OPAQUE_SECRET``).
+
+    CamelCase keys are normalized to snake_case before matching so that
+    ``privateKey`` matches the ``private_key`` pattern.
 
     Args:
         key: The key name to score (e.g. ``"DB_PASSWORD"``).
@@ -598,7 +612,7 @@ def _score_key_name(key: str, key_entries: list[dict]) -> tuple[float, str, str]
         Tuple of (score, tier, subtype).  ``(0.0, "", "OPAQUE_SECRET")`` if no
         pattern matches.
     """
-    key_lower = key.lower()
+    key_lower = _camel_to_snake(key)
     best_score = 0.0
     best_tier = ""
     best_subtype = _DEFAULT_SUBTYPE
