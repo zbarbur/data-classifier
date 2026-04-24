@@ -320,7 +320,7 @@
     "math": [
       "\\\\frac|\\\\begin|\\\\end|\\\\sum|\\\\int|\\\\alpha|\\\\beta|\\\\theta",
       "(?:\\u2229|\\u222A|\\u2264|\\u2265|\\u2282|\\u2286|\\u2208|\\u2209|\\u2192|\\u2190|\\u2194|\\u2200|\\u2203|\\u2205)",
-      "\\b(?:cos|sin|tan|log|ln|exp|sqrt|lim|inf|sup|det|dim|ker|deg)\\b",
+      "(?<!\\.)\\b(?:cos|sin|tan|log|ln|exp|sqrt|lim|inf|sup|det|dim|ker|deg)\\b",
       "\\b(?:theorem|lemma|proof|corollary|hypothesis|proposition)\\b",
       "Prob\\[|P\\[|E\\[|Var\\[|Cov\\["
     ],
