@@ -332,6 +332,8 @@
   "assembly": {
     "min_block_lines": 8,
     "min_confidence": 0.50,
+    "short_block_min_score": 0.50,
+    "short_block_min_lines": 3,
     "max_blank_gap": 3,
     "max_comment_gap": 2,
     "repetitive_threshold": 0.50,

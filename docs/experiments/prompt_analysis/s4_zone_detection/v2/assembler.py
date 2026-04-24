@@ -22,6 +22,8 @@ class BlockAssembler:
         assembly = patterns.get("assembly", {})
         self._min_block_lines = config.min_block_lines if config.min_block_lines else assembly.get("min_block_lines", 8)
         self._min_confidence = config.min_confidence if config.min_confidence else assembly.get("min_confidence", 0.50)
+        self._short_block_min_score: float = assembly.get("short_block_min_score", 0.50)
+        self._short_block_min_lines: int = assembly.get("short_block_min_lines", 3)
         self._max_blank_gap = assembly.get("max_blank_gap", 3)
         self._max_comment_gap = assembly.get("max_comment_gap", 2)
         self._repetitive_threshold = assembly.get("repetitive_threshold", 0.50)
@@ -66,9 +68,14 @@ class BlockAssembler:
             zone_type = run["type"]
             line_count = end - start
 
-            # Filter by min_block_lines
+            # Compute average score early (needed for adaptive threshold)
+            non_zero = [s for s in block_scores if s > 0]
+            avg_score = sum(non_zero) / len(non_zero) if non_zero else 0.0
+
+            # Adaptive min_block_lines: allow short blocks with strong signals
             if line_count < self._min_block_lines:
-                continue
+                if line_count < self._short_block_min_lines or avg_score < self._short_block_min_score:
+                    continue
 
             # Check repetitive structure
             rep_prefix = self.detect_repetitive_structure(block_lines)
@@ -77,8 +84,6 @@ class BlockAssembler:
                 zone_type = "error_output"
 
             # Compute confidence
-            non_zero = [s for s in block_scores if s > 0]
-            avg_score = sum(non_zero) / len(non_zero) if non_zero else 0.0
             high_ratio = sum(1 for s in block_scores if s >= 0.4) / max(len(block_scores), 1)
 
             if zone_type == "error_output":

@@ -31,8 +31,9 @@ class TestGapBridging:
 
 class TestMinBlockLines:
     def test_small_block_discarded(self):
+        # Low scores: avg_score 0.15 < short_block_min_score 0.50, so block is filtered
         lines = ["x = 1", "y = 2", "z = 3"]
-        scores = [0.5, 0.5, 0.5]
+        scores = [0.15, 0.15, 0.15]
         line_types = [None, None, None]
         asm = _make_assembler(min_block_lines=8)
         blocks = asm.assemble(lines, scores, line_types)
@@ -80,6 +81,47 @@ class TestRepetitiveStructure:
         ]
         prefix = asm.detect_repetitive_structure(lines)
         assert prefix is None
+
+
+class TestAdaptiveMinBlockLines:
+    def test_short_high_score_block_passes(self):
+        """A 4-line block with high avg score should pass despite min_block_lines=8."""
+        patterns = load_zone_patterns()
+        config = ZoneConfig(min_block_lines=8)
+        asm = BlockAssembler(patterns, config)
+
+        lines = ["x = 1", "y = 2", "z = x + y", "print(z)"]
+        scores = [0.6, 0.6, 0.7, 0.5]
+        line_types = [None] * 4
+
+        blocks = asm.assemble(lines, scores, line_types)
+        assert len(blocks) == 1, f"Short high-score block should pass, got {len(blocks)} blocks"
+
+    def test_short_low_score_block_filtered(self):
+        """A 4-line block with low avg score should still be filtered."""
+        patterns = load_zone_patterns()
+        config = ZoneConfig(min_block_lines=8)
+        asm = BlockAssembler(patterns, config)
+
+        lines = ["maybe code", "or maybe not", "hard to tell", "really unclear"]
+        scores = [0.15, 0.10, 0.12, 0.15]
+        line_types = [None] * 4
+
+        blocks = asm.assemble(lines, scores, line_types)
+        assert len(blocks) == 0, "Short low-score block should be filtered"
+
+    def test_two_line_block_always_filtered(self):
+        """Blocks under short_block_min_lines (3) should always be filtered."""
+        patterns = load_zone_patterns()
+        config = ZoneConfig(min_block_lines=8)
+        asm = BlockAssembler(patterns, config)
+
+        lines = ["x = 1", "y = 2"]
+        scores = [0.8, 0.8]
+        line_types = [None] * 2
+
+        blocks = asm.assemble(lines, scores, line_types)
+        assert len(blocks) == 0, "2-line block should always be filtered"
 
 
 class TestErrorOutputRetype:
