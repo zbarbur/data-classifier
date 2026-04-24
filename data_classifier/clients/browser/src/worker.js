@@ -1,11 +1,23 @@
 // Worker shim. Receives {id, text, opts} and posts {id, result} or {id, error}.
-// Any exception inside scanText is caught and surfaced so the pool can react.
+// Zone detection: WASM is lazy-loaded on first zone-enabled scan.
 
-import { scanText } from './scanner-core.js';
+import { scanText, initZones } from './scanner-core.js';
 
-self.addEventListener('message', (event) => {
+let zonesInitialized = false;
+let zonesInitializing = false;
+
+self.addEventListener('message', async (event) => {
   const { id, text, opts } = event.data || {};
   try {
+    const runZones = (opts && opts.zones) !== false;
+
+    // Lazy-init WASM on first zone-enabled scan
+    if (runZones && !zonesInitialized && !zonesInitializing) {
+      zonesInitializing = true;
+      zonesInitialized = await initZones();
+      zonesInitializing = false;
+    }
+
     const result = scanText(text, opts);
     self.postMessage({ id, result });
   } catch (err) {
