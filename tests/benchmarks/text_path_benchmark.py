@@ -49,8 +49,8 @@ def run_benchmark(
     for row in rows:
         gt_has_cred = row["has_credential"]
 
-        # Decode prompt from xor encoding
-        [text] = decode_encoded_strings([row["prompt_xor"]])
+        # Decode prompt from xor encoding (raw base64, no xor: prefix)
+        [text] = decode_encoded_strings(["xor:" + row["prompt_xor"]])
 
         t0 = time.perf_counter()
         result = scanner.scan(text, min_confidence=min_confidence)

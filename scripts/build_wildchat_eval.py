@@ -43,11 +43,11 @@ def main() -> None:
         for line in fin:
             row = json.loads(line)
 
-            # Decode xor-encoded prompt
+            # Decode xor-encoded prompt (raw base64, no xor: prefix)
             prompt_xor = row.get("prompt_xor", "")
             if not prompt_xor:
                 continue
-            [text] = decode_encoded_strings([prompt_xor])
+            [text] = decode_encoded_strings(["xor:" + prompt_xor])
 
             result = scanner.scan(text, min_confidence=args.min_confidence)
             findings_data = [

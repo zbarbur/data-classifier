@@ -46,4 +46,13 @@ npx playwright install chromium --with-deps 2>/dev/null || npx playwright instal
 echo ">> Running differential parity test..."
 npx playwright test tests/e2e/differential.spec.js
 
+# 7. Run WildChat parity test (if eval dataset exists)
+EVAL_DATA="$REPO_ROOT/data/wildchat_eval/wildchat_eval.jsonl"
+if [ -f "$EVAL_DATA" ]; then
+  echo ">> Running WildChat parity test (200 sampled prompts)..."
+  npx playwright test tests/e2e/wildchat-parity.spec.js
+else
+  echo ">> Skipping WildChat parity (eval dataset not found — run scripts/build_wildchat_eval.py)"
+fi
+
 echo "=== Browser PoC parity check PASSED ==="
