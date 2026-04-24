@@ -69,6 +69,7 @@ function regexPass(text, categoryFilter, verbose, includeRaw) {
   const matches = backend.iterate(text);
   const out = [];
   for (const m of matches) {
+    if (isPlaceholderPattern(m.value)) continue;
     const validated = m.validator(m.value);
     if (!validated) continue;
     const p = m.pattern;
@@ -268,7 +269,7 @@ function isPlaceholderPattern(value) {
 // as suspicious at lower confidence — same heuristics as Python Path 4.
 function opaqueTokenPass(text, verbose, includeRaw) {
   const out = [];
-  const minLen = SECRET_SCANNER.minValueLength;
+  const minLen = SECRET_SCANNER.opaqueTokenMinLength;
   const entropyThreshold = SECRET_SCANNER.opaqueTokenEntropyThreshold;
   const diversityThreshold = SECRET_SCANNER.opaqueTokenDiversityThreshold;
   const baseConfidence = SECRET_SCANNER.opaqueTokenBaseConfidence;
