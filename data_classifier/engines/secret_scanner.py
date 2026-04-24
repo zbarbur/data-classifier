@@ -464,6 +464,19 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
     if re.match(r"^sha(?:256|384|512)-[A-Za-z0-9+/=]+$", value):
         return True
 
+    # SSH/TLS fingerprints — e.g. SHA256:NkM/srqYj7zGKHzICaoq5963pLDX/578Yz56J53XYX0
+    # Public key fingerprints, not secrets.
+    if re.match(r"^SHA(?:256|384|512):", value):
+        return True
+
+    # Purely-alpha CamelCase identifiers (≥3 CamelCase words, >95% letters) —
+    # e.g. FFlagSimCSGV3CacheVerboseBSPMemory, TransactionTypesPurchaseBillPayment.
+    # Real secrets always contain digits or symbols; pure-alpha CamelCase is
+    # code identifiers, feature flags, or enum names.
+    alpha_ratio = sum(1 for c in value if c.isalpha()) / max(len(value), 1)
+    if alpha_ratio > 0.90 and len(re.findall(r"[A-Z][a-z]+", value)) >= 3:
+        return True
+
     # Android/JVM bytecode class references — e.g.
     # Ldalvik/system/CloseGuard;->warnIfOpen()V
     # Lcom/nathnetwork/xciptv/UsersHistoryActivity  (after strip of trailing ;)

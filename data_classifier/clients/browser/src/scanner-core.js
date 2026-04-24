@@ -231,6 +231,11 @@ function valueIsObviouslyNotSecret(value) {
   if (/^(?:href|src|integrity|action|id|class|data-\w+)\s*=\s*"/i.test(value)) return true;
   // SRI hashes: public subresource integrity, not secrets
   if (/^sha(?:256|384|512)-[A-Za-z0-9+/=]+$/.test(value)) return true;
+  // SSH/TLS fingerprints: SHA256:NkM/srqYj7zG...
+  if (/^SHA(?:256|384|512):/.test(value)) return true;
+  // Purely-alpha CamelCase identifiers (≥3 words, >95% alpha): feature flags, enums
+  { const alphaCount = [...value].filter(c => /[a-zA-Z]/.test(c)).length;
+    if (alphaCount / value.length > 0.90 && (value.match(/[A-Z][a-z]+/g) || []).length >= 3) return true; }
   // Android/JVM bytecode class references: Ldalvik/system/..., Lcom/android/...
   if (/^L[a-z][a-z0-9]*\//.test(value)) return true;
   // Dict/config bracket key access: app.config['SQLALCHEMY_DATABASE_URI (after strip)
