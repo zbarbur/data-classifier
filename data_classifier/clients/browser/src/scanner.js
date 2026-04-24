@@ -1,7 +1,7 @@
 // Public API. Example:
 //   import { createScanner } from '@data-classifier/browser';
 //   const scanner = createScanner();
-//   const { findings, redactedText } = await scanner.scan(text);
+//   const { findings, zones, redactedText } = await scanner.scan(text);
 
 import { createPool } from './pool.js';
 
@@ -16,10 +16,12 @@ export function createScanner(opts = {}) {
   });
 
   async function scan(text, scanOpts = {}) {
+    // Higher timeout on first zone-enabled scan (WASM init ~20ms + detect ~0.5ms)
+    const defaultTimeout = scanOpts.zones !== false ? 5000 : 100;
     return pool.run({
       text,
       opts: scanOpts,
-      timeoutMs: scanOpts.timeoutMs || 100,
+      timeoutMs: scanOpts.timeoutMs || defaultTimeout,
       failMode: scanOpts.failMode || 'open',
     });
   }
