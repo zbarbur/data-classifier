@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from docs.experiments.prompt_analysis.s4_zone_detection.v2.block_validator import count_code_constructs
+from docs.experiments.prompt_analysis.s4_zone_detection.v2.block_validator import count_code_constructs, has_math_notation
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.types import ZoneBlock, ZoneConfig
 
 
@@ -73,9 +73,18 @@ class BlockAssembler:
             non_zero = [s for s in block_scores if s > 0]
             avg_score = sum(non_zero) / len(non_zero) if non_zero else 0.0
 
-            # Adaptive min_block_lines: allow short blocks with strong signals
+            # Compute block text and code constructs early (used by
+            # both short-block filter and block validation below).
+            block_text = "\n".join(block_lines)
+            evidence = count_code_constructs(block_text) if zone_type == "code" else 0
+
+            # Adaptive min_block_lines: allow short blocks with strong signals.
+            # A short block passes if it has a good avg score OR 2+ code
+            # constructs (the block validator confirms it's real code).
             if line_count < self._min_block_lines:
-                if line_count < self._short_block_min_lines or avg_score < self._short_block_min_score:
+                if line_count < self._short_block_min_lines:
+                    continue
+                if avg_score < self._short_block_min_score and evidence < 2:
                     continue
 
             # Check repetitive structure
@@ -98,10 +107,11 @@ class BlockAssembler:
 
             # Block-level code construct validation (suppress / boost)
             if zone_type == "code":
-                block_text = "\n".join(block_lines)
-                evidence = count_code_constructs(block_text)
                 if evidence == 0:
                     # No recognizable code constructs → not code
+                    continue
+                elif has_math_notation(block_text) and evidence <= 2:
+                    # Math/LaTeX notation with weak code evidence → not code
                     continue
                 elif evidence >= 3:
                     # Strong code evidence → boost confidence

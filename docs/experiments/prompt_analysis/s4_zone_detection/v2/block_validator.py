@@ -120,15 +120,35 @@ _ALL_PATTERNS = [
     _R_ASSIGNMENT_RE,
 ]
 
+# --- Math / LaTeX negative indicators ---
+# These signal that a block contains mathematical notation, not code.
+# Used to suppress blocks with weak code evidence (≤2 constructs)
+# that are really math/academic text.
+
+# LaTeX commands: \frac, \left, \cdot, \sum, etc.
+_LATEX_CMD_RE = re.compile(
+    r"\\(?:left|right|frac|cdot|sum|int|sqrt|begin|end|text|mathbb|infty|partial|nabla)\b"
+)
+
+# Unicode math symbols (Greek letters used as variables, operators, etc.)
+_UNICODE_MATH_RE = re.compile(
+    r"[∑∏∫∂∇λΔΣΩπμθαβγδεζηξρστφχψω≈≠≤≥±∓∈∉⊂⊃∪∩∞⟹]"
+)
+
 
 def count_code_constructs(block_text: str) -> int:
     """Count distinct code construct types found in *block_text*.
 
     Each pattern is counted at most once (we care about construct
-    diversity, not repetition).  Returns 0-10.
+    diversity, not repetition).  Returns 0-13.
     """
     count = 0
     for pattern in _ALL_PATTERNS:
         if pattern.search(block_text):
             count += 1
     return count
+
+
+def has_math_notation(block_text: str) -> bool:
+    """Return True if the block contains LaTeX commands or Unicode math symbols."""
+    return bool(_LATEX_CMD_RE.search(block_text) or _UNICODE_MATH_RE.search(block_text))

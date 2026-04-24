@@ -177,65 +177,25 @@ class StructuralDetector:
             return offset_to_line[offset]
 
         # ----------------------------------------------------------------
-        # /* ... */
+        # /* ... */  — NOT claimed.
+        #
+        # Multi-line C-style comments (including /** doc comments */) are
+        # part of the surrounding code context, not separate zones.  The
+        # syntax scorer's comment_bridge handles them naturally — comment
+        # lines between code lines inherit their neighbors' scores.
+        #
+        # Claiming them here as natural_language used to fragment code
+        # files with doc comments into dozens of tiny blocks.
         # ----------------------------------------------------------------
-        for m_open in re.finditer(r"/\*", text):
-            start_off = m_open.start()
-            start_line = char_to_line(start_off)
-            if start_line in fenced_ranges:
-                continue
-            m_close = re.search(r"\*/", text[m_open.end():])
-            if not m_close:
-                continue
-            close_off = m_open.end() + m_close.end()
-            end_line = char_to_line(close_off - 1) + 1  # exclusive
-
-            # Skip if any interior line is already fenced
-            if any(ln in fenced_ranges for ln in range(start_line, end_line)):
-                continue
-
-            blocks.append(
-                ZoneBlock(
-                    start_line=start_line,
-                    end_line=end_line,
-                    zone_type="natural_language",  # comment interior — no structural re-label
-                    confidence=self._delimiter_confidence,
-                    method="structural_delimiter",
-                    language_hint="",
-                )
-            )
-            # Register the claimed range so later patterns skip it
-            claimed_this = set(range(start_line, end_line))
-            fenced_ranges = fenced_ranges | claimed_this
 
         # ----------------------------------------------------------------
-        # <!-- ... -->
+        # <!-- ... -->  — NOT claimed.
+        #
+        # HTML comments are part of the surrounding markup context,
+        # just like /* */ comments are part of code.  Claiming them
+        # fragments HTML documents with inline comments into dozens
+        # of tiny blocks.  The format detector handles HTML naturally.
         # ----------------------------------------------------------------
-        for m_open in re.finditer(r"<!--", text):
-            start_off = m_open.start()
-            start_line = char_to_line(start_off)
-            if start_line in fenced_ranges:
-                continue
-            m_close = re.search(r"-->", text[m_open.end():])
-            if not m_close:
-                continue
-            close_off = m_open.end() + m_close.end()
-            end_line = char_to_line(close_off - 1) + 1
-
-            if any(ln in fenced_ranges for ln in range(start_line, end_line)):
-                continue
-
-            blocks.append(
-                ZoneBlock(
-                    start_line=start_line,
-                    end_line=end_line,
-                    zone_type="markup",
-                    confidence=self._delimiter_confidence,
-                    method="structural_delimiter",
-                    language_hint="",
-                )
-            )
-            fenced_ranges = fenced_ranges | set(range(start_line, end_line))
 
         # ----------------------------------------------------------------
         # <script ...> ... </script>

@@ -239,8 +239,9 @@ class SyntaxDetector:
         ):
             return self._prose_suppress
 
-        # Data: dominated by string literals
-        if profile.string_ratio > self._data_string_ratio_threshold:
+        # Data: dominated by string literals (but not if a keyword is present —
+        # e.g. #include "file.h" has high string ratio but is code)
+        if profile.string_ratio > self._data_string_ratio_threshold and profile.keyword_count == 0:
             return self._data_suppress
 
         # No identifiers or keywords at all (non-Latin text with parens, etc.)
@@ -345,6 +346,48 @@ class SyntaxDetector:
 
             blended = raw[i] * self._self_weight + neighbor_avg * self._neighbor_weight + transition_boost + comment_bridge
             result[i] = blended
+
+        # --- pass 3: multi-line comment block bridge ---
+        # The per-line comment bridge (pass 2) only works for isolated
+        # comment lines next to code.  Multi-line comment blocks (/** ... */)
+        # have interior lines whose neighbors are also 0-score comments.
+        # This pass finds contiguous comment blocks and bridges them all
+        # if they're adjacent to code on either side.
+        i = 0
+        while i < n:
+            if result[i] != 0.0 or raw[i] < 0 or not self._comment_marker_re.match(lines[i]):
+                i += 1
+                continue
+            # Found a zero-score comment line — find the full block
+            block_start = i
+            while i < n and result[i] == 0.0 and raw[i] >= 0 and self._comment_marker_re.match(lines[i]):
+                i += 1
+            block_end = i  # exclusive
+
+            # Check for code near above or below (scan up to 3 lines
+            # past closing */ and blank lines to find the real code)
+            above = 0.0
+            for j in range(block_start - 1, max(block_start - 4, -1), -1):
+                if raw[j] < 0:
+                    break
+                if result[j] > above:
+                    above = result[j]
+                if above > 0.2:
+                    break
+
+            below = 0.0
+            for j in range(block_end, min(block_end + 4, n)):
+                if raw[j] < 0:
+                    break
+                if result[j] > below:
+                    below = result[j]
+                if below > 0.2:
+                    break
+
+            if above > 0.2 or below > 0.2:
+                bridge = max(above, below) * self._comment_bridge_factor
+                for j in range(block_start, block_end):
+                    result[j] = bridge
 
         return result
 

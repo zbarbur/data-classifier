@@ -1,5 +1,5 @@
 """Tests for block-level code construct validator."""
-from docs.experiments.prompt_analysis.s4_zone_detection.v2.block_validator import count_code_constructs
+from docs.experiments.prompt_analysis.s4_zone_detection.v2.block_validator import count_code_constructs, has_math_notation
 
 
 class TestCodeBlocks:
@@ -110,3 +110,30 @@ class TestNonCodeBlocks:
             "for each concept provided by the user.",
         ])
         assert count_code_constructs(block) == 0
+
+
+class TestMathNotation:
+    def test_latex_commands(self):
+        """LaTeX with \\frac, \\left — detected as math."""
+        block = r"\left( 2^x \right)^2 \cdot \frac{2^7}{2^5} = 16"
+        assert has_math_notation(block) is True
+
+    def test_unicode_math_symbols(self):
+        """Unicode Greek letters and math operators — detected as math."""
+        block = "z_i=e^(λ_i Δt)⟹λ_i=(ln⁡(z_i ))/Δt"
+        assert has_math_notation(block) is True
+
+    def test_stats_notation(self):
+        """Statistical notation with μ, Σ, π — detected as math."""
+        block = "Mean ages: E(U) = 40, E(V) = 50\nVariances: Var(U) = 100\nΣ is the covariance matrix"
+        assert has_math_notation(block) is True
+
+    def test_real_code_no_math(self):
+        """Real Python code — NOT detected as math."""
+        block = "def process(data):\n    result = []\n    for item in data:\n        result.append(item)\n    return result"
+        assert has_math_notation(block) is False
+
+    def test_real_code_with_comments(self):
+        """Code with comments mentioning math — NOT math (no LaTeX/unicode)."""
+        block = "# compute the sum of squares\nresult = sum(x**2 for x in data)\nreturn result"
+        assert has_math_notation(block) is False

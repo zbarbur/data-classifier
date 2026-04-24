@@ -168,7 +168,7 @@
       "type", "using", "unsafe", "virtual", "select", "go",
       "self", "super", "this"
     ],
-    "assignment_pattern": "^\\s*[a-z_]\\w*\\s*[:=]",
+    "assignment_pattern": "^\\s*[a-zA-Z_]\\w*\\s*[:=]",
     "scoring_weights": {
       "syn_density_high": 0.15,
       "syn_density_high_weight": 0.30,
@@ -339,8 +339,8 @@
     "min_confidence": 0.50,
     "short_block_min_score": 0.40,
     "short_block_min_lines": 3,
-    "max_blank_gap": 3,
-    "max_comment_gap": 2,
+    "max_blank_gap": 4,
+    "max_comment_gap": 4,
     "repetitive_threshold": 0.50,
     "max_parse_attempts": 10,
     "bracket_extension_limit": 5

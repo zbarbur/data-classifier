@@ -72,19 +72,25 @@ class TestFencedBlocks:
 
 
 class TestDelimiterPairs:
-    def test_multiline_comment(self):
+    def test_multiline_comment_not_claimed(self):
+        """/* ... */ comments are NOT claimed — they're part of the code context.
+
+        The syntax scorer's comment_bridge handles them naturally.
+        Claiming them used to fragment code with doc comments.
+        """
         text = "code\n/* this is\na comment */\ncode"
         det = _make_detector()
         blocks, claimed = det.detect(text.split("\n"))
-        assert 1 in claimed
-        assert 2 in claimed
+        assert 1 not in claimed
+        assert 2 not in claimed
 
-    def test_html_comment(self):
+    def test_html_comment_not_claimed(self):
+        """<!-- --> comments are NOT claimed — they're part of the markup context."""
         text = "<!-- this is\na comment -->\n<div>hi</div>"
         det = _make_detector()
         blocks, claimed = det.detect(text.split("\n"))
-        assert 0 in claimed
-        assert 1 in claimed
+        assert 0 not in claimed
+        assert 1 not in claimed
 
     def test_script_tag(self):
         text = "<div>\n<script>\nconst x = 1;\n</script>\n</div>"
