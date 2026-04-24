@@ -25,7 +25,7 @@
   <pre id="output"></pre>
 
 <script type="module">
-  import init, { detect_zones_with_patterns } from '../pkg/data_classifier_core.js';
+  import wasmInit, { init_detector, detect, detect_zones_with_patterns } from '../pkg/data_classifier_core.js';
 
   let wasmReady = false;
   let corpus = null;
@@ -38,10 +38,10 @@
     try {
       status.textContent = 'Loading WASM module...';
       const t0 = performance.now();
-      await init();
+      await wasmInit();
       const wasmTime = performance.now() - t0;
 
-      status.textContent = 'Loading corpus...';
+      status.textContent = 'Loading corpus + patterns...';
       const t1 = performance.now();
       const [corpusResp, patternsResp] = await Promise.all([
         fetch('corpus_subset.json'),
@@ -52,13 +52,20 @@
       patternsJson = JSON.stringify(patterns);
       const dataTime = performance.now() - t1;
 
-      wasmReady = true;
+      // Initialize detector ONCE (compiles ~100 regex patterns)
+      status.textContent = 'Compiling detector patterns...';
+      const t2 = performance.now();
+      const ok = init_detector(patternsJson);
+      const initTime = performance.now() - t2;
+
+      wasmReady = ok;
       document.getElementById('btnBench').disabled = false;
       document.getElementById('btnParity').disabled = false;
 
       out.textContent = [
         `WASM module loaded in ${wasmTime.toFixed(0)}ms`,
         `Corpus: ${corpus.length} prompts loaded in ${dataTime.toFixed(0)}ms`,
+        `Detector initialized in ${initTime.toFixed(0)}ms (regex compilation)`,
         `WASM size: ~1.6MB (pre gzip)`,
         '',
         'Ready to benchmark.',
@@ -82,13 +89,13 @@
     setTimeout(() => {
       try {
         // Warmup run (1 prompt)
-        detect_zones_with_patterns(corpus[0].text, corpus[0].prompt_id, patternsJson);
+        detect(corpus[0].text, corpus[0].prompt_id);
 
-        // Timed run
+        // Timed run — uses pre-initialized detector (no re-compilation)
         const t0 = performance.now();
         let totalBlocks = 0;
         for (const rec of corpus) {
-          const resultJson = detect_zones_with_patterns(rec.text, rec.prompt_id, patternsJson);
+          const resultJson = detect(rec.text, rec.prompt_id);
           const result = JSON.parse(resultJson);
           totalBlocks += (result.blocks || []).length;
         }
@@ -98,7 +105,7 @@
         // Second run
         const t1 = performance.now();
         for (const rec of corpus) {
-          detect_zones_with_patterns(rec.text, rec.prompt_id, patternsJson);
+          detect(rec.text, rec.prompt_id);
         }
         const elapsed2 = performance.now() - t1;
         const throughput2 = (corpus.length / (elapsed2 / 1000)).toFixed(0);
@@ -106,7 +113,7 @@
         // Third run
         const t2 = performance.now();
         for (const rec of corpus) {
-          detect_zones_with_patterns(rec.text, rec.prompt_id, patternsJson);
+          detect(rec.text, rec.prompt_id);
         }
         const elapsed3 = performance.now() - t2;
         const throughput3 = (corpus.length / (elapsed3 / 1000)).toFixed(0);
@@ -151,7 +158,7 @@
         const results = [];
 
         for (const rec of corpus) {
-          const resultJson = detect_zones_with_patterns(rec.text, rec.prompt_id, patternsJson);
+          const resultJson = detect(rec.text, rec.prompt_id);
           const result = JSON.parse(resultJson);
           const blocks = result.blocks || [];
           if (blocks.length > 0) {
