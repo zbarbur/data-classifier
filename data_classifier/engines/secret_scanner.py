@@ -444,9 +444,10 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
     # Java/Python fully-qualified class names — e.g.
     # org.gradle.api.internal.project.DefaultProjectStateRegistry
     # Detected by: 4+ dot-separated segments (3 catches VK tokens like vk1.a.xxx),
-    # each starting with a letter, and no segment >40 chars (JWTs have long segments).
+    # each starting with a letter, and no segment >50 chars (JWTs have long segments).
+    # Allows $ for Java inner classes (e.g. DefaultProjectStateRegistry$ProjectStateImpl).
     segments = value.rstrip(";,()").split(".")
-    if len(segments) >= 4 and all(s and s[0].isalpha() and len(s) <= 40 for s in segments):
+    if len(segments) >= 4 and all(s and s[0].isalpha() and len(s) <= 50 for s in segments):
         return True
 
     # URLs without protocol — e.g. //seller.dhgate.com/...,
@@ -516,6 +517,10 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
 
     # file:// URI scheme — e.g. Container:file:///C:/Users/...
     if "file://" in value:
+        return True
+
+    # Ethereum/blockchain addresses — 0x + 40 hex chars. Public addresses, not secrets.
+    if re.match(r"^0x[0-9a-fA-F]{40}$", value):
         return True
 
     # Relative paths — ../foo/bar, ./src/file.ts

@@ -229,7 +229,7 @@ function valueIsObviouslyNotSecret(value) {
   if (/^[A-Za-z]:[/\\]/.test(strippedQ)) return true;
   // Java/Python FQCNs: 4+ dot-separated segments, each ≤40 chars starting with letter
   const segs = value.replace(/[;,()]+$/, '').split('.');
-  if (segs.length >= 4 && segs.every(s => s && /^[a-zA-Z]/.test(s) && s.length <= 40)) return true;
+  if (segs.length >= 4 && segs.every(s => s && /^[a-zA-Z]/.test(s) && s.length <= 50)) return true;
   // URLs without protocol: //domain.com/..., colab.research.google.com/drive/...
   if (/^\/\/\w/.test(value)) return true;
   if (/^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*){2,}\//.test(value)) return true;
@@ -254,6 +254,8 @@ function valueIsObviouslyNotSecret(value) {
   if (/^[\w-]+="(?:https?:\/\/|\/|~\/|\$|\.\.?\/)/.test(value)) return true;
   // file:// URI scheme: Container:file:///C:/Users/...
   if (value.includes('file://')) return true;
+  // Ethereum/blockchain addresses: 0x + 40 hex chars (public, not secrets)
+  if (/^0x[0-9a-fA-F]{40}$/.test(value)) return true;
   // Relative paths: ../foo/bar, ./src/file
   if (/^\.\.?\//.test(value)) return true;
   // CLI flags with URL values: --tunnel_url=https://...
