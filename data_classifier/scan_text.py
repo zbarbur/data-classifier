@@ -203,6 +203,14 @@ class TextScanner:
                 idx = text.find(matched)
                 if idx >= 0:
                     start, end = idx, idx + len(matched)
+
+            # Skip findings where the "value" is an entire code block (>500 chars).
+            # The KV pass sometimes captures whole code pastes as a single value;
+            # real secret values are short (tokens ≤256 chars typically).
+            span_len = end - start
+            if span_len > 500:
+                continue
+
             value_for_mask = text[start:end] if end - start < len(text) else (text[:20] if len(text) > 20 else text)
             out.append(
                 TextFinding(
@@ -237,6 +245,10 @@ class TextScanner:
             cleaned = _STRIP_RE.sub("", token)
 
             if len(cleaned) < _OPAQUE_MIN_LENGTH:
+                continue
+            # Real tokens/secrets are short — skip absurdly long tokens
+            # (e.g. concatenated base64 blobs, minified code chunks)
+            if len(cleaned) > 512:
                 continue
             if _value_is_obviously_not_secret(cleaned):
                 continue

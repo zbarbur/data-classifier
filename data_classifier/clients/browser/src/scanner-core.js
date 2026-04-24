@@ -103,6 +103,8 @@ function secretScannerPass(text, verbose, includeRaw) {
   const out = [];
   for (const { key, value, valueStart, valueEnd } of pairs) {
     if (value.length < SECRET_SCANNER.minValueLength) continue;
+    // Skip code-block-sized values — real secrets are ≤500 chars
+    if (value.length > 500) continue;
     if (hasAntiIndicator(key, value)) continue;
     if (PLACEHOLDER_VALUES.has(value.toLowerCase())) continue;
     if (isPlaceholderPattern(value)) continue;
@@ -222,12 +224,27 @@ function valueIsObviouslyNotSecret(value) {
   // Java/Python FQCNs: 4+ dot-separated segments, each ≤40 chars starting with letter
   const segs = value.replace(/[;,()]+$/, '').split('.');
   if (segs.length >= 4 && segs.every(s => s && /^[a-zA-Z]/.test(s) && s.length <= 40)) return true;
-  // URLs without protocol: //domain.com/...
+  // URLs without protocol: //domain.com/..., colab.research.google.com/drive/...
   if (/^\/\/\w/.test(value)) return true;
-  // HTML attributes: href="...", src="...", integrity="..."
-  if (/^(?:href|src|integrity|action|data-\w+)\s*=\s*"/i.test(value)) return true;
+  if (/^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*){2,}\//.test(value)) return true;
+  // HTML attributes: href="...", src="...", integrity="...", id="..."
+  if (/^(?:href|src|integrity|action|id|class|data-\w+)\s*=\s*"/i.test(value)) return true;
   // SRI hashes: public subresource integrity, not secrets
   if (/^sha(?:256|384|512)-[A-Za-z0-9+/=]+$/.test(value)) return true;
+  // Android/JVM bytecode class references: Ldalvik/system/..., Lcom/android/...
+  if (/^L[a-z][a-z0-9]*\//.test(value)) return true;
+  // Dict/config bracket key access: app.config['SQLALCHEMY_DATABASE_URI (after strip)
+  if (/^[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*\[/.test(value)) return true;
+  // Code with function calls: Objects.requireNonNull(...), ON_EVENT(...), if(!CAppDialog::Create(...))
+  if (!value.includes(' ') && /^[a-zA-Z_!][\w:.]*\(/.test(value)) return true;
+  // XML namespace / build system directives: xmlns:xs="...", cargo:rerun-if-env-changed=...
+  if (/^(?:xmlns|cargo):/.test(value)) return true;
+  // key="url" assignments: archivo="https://github.com/..."
+  if (/^[a-zA-Z_]\w*="https?:\/\//.test(value)) return true;
+  // Backslash-separated paths (Windows/stealer logs): 227\Logs\...\Cookies.txt
+  if ((value.match(/\\/g) || []).length >= 2) return true;
+  // Python f-string URLs: f'https://api.bscscan.com/...{api_key}'
+  if (/^f['"]https?:\/\//.test(value)) return true;
   // Single word: letters + hyphens only, max 30 chars (longer = possible API key)
   if (value.trim().length <= 30 && /^[a-zA-Z]+(-[a-zA-Z]+)*$/.test(value.trim())) return true;
   const stripped = value.trim().replace(/^["']+|["']+$/g, '').trim();
@@ -239,9 +256,9 @@ function valueIsObviouslyNotSecret(value) {
     for (const c of value) if (/[A-Za-z]/.test(c)) alpha++;
     if (alpha / value.length > SECRET_SCANNER.proseAlphaThreshold) return true;
   }
-  // Non-spaced scripts (CJK, etc.): any non-ASCII Unicode letter means
-  // this is human-language text, not a credential.  Secrets are ASCII.
-  if (/[\u3000-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0600-\u06FF]/.test(value)) return true;
+  // Non-Latin scripts (CJK, Cyrillic, Arabic, Indic, Thai, etc.):
+  // any such character means human language, not a credential.
+  if (/[\u0900-\u0DFF\u0E00-\u0E7F\u3000-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0600-\u06FF]/.test(value)) return true;
   return false;
 }
 
@@ -300,6 +317,7 @@ function opaqueTokenPass(text, verbose, includeRaw) {
     const start = m.index;
     const cleaned = token.replace(/^["'`]+|["'`,.;:!?)}\]]+$/g, '');
     if (cleaned.length < minLen) continue;
+    if (cleaned.length > 512) continue;
     if (valueIsObviouslyNotSecret(cleaned)) continue;
     if (_UUID_RE.test(cleaned)) continue;
     if (PLACEHOLDER_VALUES.has(cleaned.toLowerCase())) continue;

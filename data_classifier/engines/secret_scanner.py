@@ -135,7 +135,7 @@ _CONSTANT_NAME = re.compile(r"^[A-Z][A-Z0-9]*([_-][A-Z0-9]+)+$")
 _CODE_PUNCTUATION = re.compile(r"^[\[\](){};<>,./\\|!@#%^&*\-+=~`\s]+$")
 
 # File/directory path — e.g. /home/user/.config/token, C:\Users\secret
-_FILE_PATH = re.compile(r"^[/~][\w./\-]+$|^[A-Z]:\\[\w\\.\-]+$")
+_FILE_PATH = re.compile(r"^[/~][\w./\-:+]+$|^[A-Z]:\\[\w\\.\-:+]+$")
 
 # ── Known secret prefixes (KV fast-path gate only) ───────────────────────────
 # These prefixes activate KV parsing even when no `=`/`:` is present.
@@ -450,16 +450,64 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
         return True
 
     # URLs without protocol — e.g. //seller.dhgate.com/...,
-    # fonts.googleapis.com/...
+    # fonts.googleapis.com/..., colab.research.google.com/drive/...
     if re.match(r"^//\w", value):
         return True
+    if re.match(r"^[a-z][a-z0-9\-]*(?:\.[a-z][a-z0-9\-]*){2,}/", value):
+        return True
 
-    # HTML attributes containing values — href="...", src="...", integrity="..."
-    if re.match(r'^(?:href|src|integrity|action|data-\w+)\s*=\s*"', value, re.I):
+    # HTML attributes containing values — href="...", src="...", integrity="...", id="..."
+    if re.match(r'^(?:href|src|integrity|action|id|class|data-\w+)\s*=\s*"', value, re.I):
         return True
 
     # SRI integrity hashes — public subresource integrity, not secrets
     if re.match(r"^sha(?:256|384|512)-[A-Za-z0-9+/=]+$", value):
+        return True
+
+    # Android/JVM bytecode class references — e.g.
+    # Ldalvik/system/CloseGuard;->warnIfOpen()V
+    # Lcom/nathnetwork/xciptv/UsersHistoryActivity  (after strip of trailing ;)
+    # Pattern: starts with L + lowercase package path with slashes.
+    if re.match(r"^L[a-z][a-z0-9]*/", value):
+        return True
+
+    # Dict/config bracket key access — e.g. app.config['SQLALCHEMY_DATABASE_URI']
+    # After _STRIP_RE, trailing ] and quotes are stripped, so we just look for
+    # identifier.identifier[ pattern.
+    if re.match(r"^[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*\[", value):
+        return True
+
+    # Code with function calls — e.g.
+    # Objects.requireNonNull(getSupportActionBar()).setDisplayHomeAsUpEnabled(true
+    # validationLayers.push_back("VK_LAYER_KHRONOS_validation"
+    # ON_EVENT(ON_CHANGE,m_editPipsToDownChange,OnPipsToDownChangeEdit
+    # if(!CAppDialog::Create(chart,name,subwin,x1,y1,x2,y2
+    # Detected by: starts with identifier/keyword followed by parens, no spaces.
+    # Guard: values where ( is not a function call (random chars in secrets) are
+    # excluded by requiring identifier( pattern.
+    if " " not in value and re.match(r"^[a-zA-Z_!][\w:.]*\(", value):
+        return True
+
+    # XML namespace declarations — xmlns:xs="http://..."
+    # Build system directives — cargo:rerun-if-env-changed=..., cargo:warning=...
+    if re.match(r"^(?:xmlns|cargo):", value):
+        return True
+
+    # key="url" assignments — e.g. archivo="https://github.com/..."
+    # The value includes the key= prefix because it's one whitespace-delimited token.
+    if re.match(r'^[a-zA-Z_]\w*="https?://', value):
+        return True
+
+    # Backslash-separated paths (Windows / stealer logs) — e.g.
+    # 227\Logs\[GB]86.138.93.39\Chrome\Default\Cookies.txt
+    # [2024-04-11T9_50_34]\Cookies\Google_[Chrome]_Default
+    # Contains 2+ backslash-separated segments.
+    if value.count("\\") >= 2:
+        return True
+
+    # Python f-string URLs — e.g. f'https://api.bscscan.com/...{api_key}'
+    # Contains { and } wrapping a variable reference inside a URL.
+    if re.match(r"^f['\"]https?://", value):
         return True
 
     # Single plain word — only letters and hyphens, no digits or special chars
@@ -482,9 +530,17 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
         if alpha_chars / max(len(value), 1) > prose_threshold:
             return True
 
-    # Non-spaced scripts (CJK, Cyrillic, Arabic): any character in these
-    # ranges means human language, not a credential.  Secrets are ASCII.
-    if re.search(r"[\u3000-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0600-\u06FF]", value):
+    # Non-Latin scripts (CJK, Cyrillic, Arabic, Indic, Thai, etc.): any character
+    # in these ranges means human language, not a credential.  Secrets are ASCII.
+    if re.search(
+        r"[\u0900-\u0DFF"  # Devanagari, Bengali, Gurmukhi, Gujarati, Oriya, Tamil, Telugu, Kannada, Malayalam
+        r"\u0E00-\u0E7F"  # Thai
+        r"\u3000-\u9FFF"  # CJK
+        r"\uAC00-\uD7AF"  # Korean Hangul
+        r"\u0400-\u04FF"  # Cyrillic
+        r"\u0600-\u06FF]",  # Arabic
+        value,
+    ):
         return True
 
     return False
