@@ -15,14 +15,17 @@ def test_patterns_has_required_sections():
         assert section in patterns, f"Missing section: {section}"
 
 
-def test_syntax_has_code_keywords():
+def test_syntax_has_keywords():
     patterns = load_zone_patterns()
-    keywords = patterns["syntax"]["code_keywords"]
-    assert "import" in keywords
-    assert "def" in keywords
-    assert "function" in keywords
-    assert "defer" in keywords  # Go keyword
-    assert len(keywords) >= 60
+    strict = patterns["syntax"]["strict_keywords"]
+    contextual = patterns["syntax"]["contextual_keywords"]
+    assert "def" in strict
+    assert "const" in strict
+    assert "defer" in strict  # Go keyword — never English
+    assert "for" in contextual  # common English word — needs validation
+    assert "function" in contextual
+    assert "import" in contextual
+    assert len(strict) + len(contextual) >= 60
 
 
 def test_syntax_has_fragment_patterns():

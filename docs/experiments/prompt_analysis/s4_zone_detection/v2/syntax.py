@@ -24,10 +24,30 @@ class SyntaxDetector:
         self._syntactic_chars: set[str] = set(syntax.get("syntactic_chars", "{}()[];=<>|&!@#$^*/\\~"))
         self._syntactic_endings: set[str] = set(syntax.get("syntactic_endings", "{;)],:" ))
 
-        # --- keyword regex ---
-        keywords = syntax.get("code_keywords", [])
-        kw_alt = "|".join(re.escape(k) for k in keywords)
-        self._keyword_re: re.Pattern[str] = re.compile(rf"\b(?:{kw_alt})\b")
+        # --- two-tier keyword matching ---
+        # Strict keywords: programming jargon that never appears in English
+        # prose (def, elif, const, async, await, lambda, ...).
+        # Contextual keywords: common English words that need structural
+        # validation (for, function, class, if, return, new, ...).
+        strict = syntax.get("strict_keywords", [])
+        contextual = syntax.get("contextual_keywords", [])
+        all_keywords = strict + contextual
+        if strict:
+            strict_alt = "|".join(re.escape(k) for k in strict)
+            self._strict_kw_re: re.Pattern[str] | None = re.compile(rf"\b(?:{strict_alt})\b")
+        else:
+            self._strict_kw_re = None
+        if contextual:
+            ctx_alt = "|".join(re.escape(k) for k in contextual)
+            self._contextual_kw_re: re.Pattern[str] | None = re.compile(rf"\b(?:{ctx_alt})\b")
+        else:
+            self._contextual_kw_re = None
+        # Combined regex for backward-compat (fragment matching, etc.)
+        if all_keywords:
+            kw_alt = "|".join(re.escape(k) for k in all_keywords)
+            self._keyword_re: re.Pattern[str] = re.compile(rf"\b(?:{kw_alt})\b")
+        else:
+            self._keyword_re = re.compile(r"(?!)")  # never matches
 
         # --- assignment pattern ---
         self._assignment_re: re.Pattern[str] = re.compile(syntax.get("assignment_pattern", r"^\s*[a-z_]\w*\s*[:=]"))
@@ -75,7 +95,9 @@ class SyntaxDetector:
         )
 
         # --- tokenizer integration ---
-        self._keyword_set: frozenset[str] = frozenset(syntax.get("code_keywords", []))
+        # Tokenizer only knows about strict keywords (contextual ones are
+        # validated by structural context, which the tokenizer can't check).
+        self._keyword_set: frozenset[str] = frozenset(strict)
         tok_cfg = patterns.get("tokenizer", {}).get("semantic_weights", {})
         self._code_dot_boost: float = tok_cfg.get("code_dot_boost", 1.3)
         self._code_operator_boost: float = tok_cfg.get("code_operator_boost", 1.2)
@@ -110,8 +132,9 @@ class SyntaxDetector:
         elif density > self._syn_density_med:
             score += self._syn_density_med_weight
 
-        # 2. keyword matches
-        kw_hits = len(self._keyword_re.findall(stripped))
+        # 2. keyword matches (two-tier: strict always count,
+        #    contextual only count with structural validation)
+        kw_hits = self._count_keywords(stripped)
         if kw_hits >= 2:
             score += self._keyword_multi_weight
         elif kw_hits >= 1:
@@ -132,6 +155,12 @@ class SyntaxDetector:
 
         # --- Semantic modifier (tokenizer-based) ---
         profile = tokenize_line(stripped, keywords=self._keyword_set)
+        # Override keyword_count with the structurally-validated count.
+        # The tokenizer only knows strict keywords; contextual keywords
+        # that passed validation should also count so the modifier's
+        # prose_suppress rule doesn't fire on lines like
+        # "public static void main(String[] args) {".
+        profile.keyword_count = kw_hits
         modifier = self._semantic_modifier(profile)
         score *= modifier
 
@@ -139,6 +168,53 @@ class SyntaxDetector:
         score += self._expression_adjustment(profile, stripped)
 
         return max(min(score, 1.0), 0.0)
+
+    def _count_keywords(self, line: str) -> int:
+        """Count keywords with structural validation.
+
+        Strict keywords (``def``, ``async``, ``const``, ...) always count.
+        Contextual keywords (``for``, ``function``, ``class``, ...) only
+        count when accompanied by code structure — at the start of the
+        line, or followed by ``(``, ``{``, ``:``, an identifier + ``=``,
+        or an identifier + ``(``.
+
+        This prevents English prose like *"generator for a generative AI"*
+        from getting keyword score, while still catching *"for (i = 0"* or
+        *"function foo("*.
+        """
+        count = 0
+
+        # Strict: always count
+        if self._strict_kw_re:
+            count += len(self._strict_kw_re.findall(line))
+
+        # Contextual: validate structural context.
+        # A contextual keyword counts only when it has code structure
+        # nearby — at line start, or a structural token within 20 chars.
+        if self._contextual_kw_re:
+            for m in self._contextual_kw_re.finditer(line):
+                pos = m.start()
+                after = line[m.end():]
+                before = line[:pos]
+
+                # Valid if at start of line (after whitespace)
+                if not before.strip():
+                    count += 1
+                    continue
+
+                # Valid if a structural token appears within 20 chars.
+                # Catches: static void main(  /  new MyClass(  /  let x =
+                # Rejects: "generator for a generative AI"
+                if re.search(r"[\(\{\[:=]", after[:20]):
+                    count += 1
+                    continue
+
+                # Valid if preceded by dot: obj.this, self.match
+                if before.endswith("."):
+                    count += 1
+                    continue
+
+        return count
 
     def _semantic_modifier(self, profile) -> float:
         """Score multiplier based on token profile.
