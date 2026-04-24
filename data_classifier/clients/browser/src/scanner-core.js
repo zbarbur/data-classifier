@@ -250,8 +250,10 @@ function valueIsObviouslyNotSecret(value) {
   if (!value.includes(' ') && /^[a-zA-Z_!][\w:.]*\(/.test(value)) return true;
   // XML namespace / build system directives: xmlns:xs="...", cargo:rerun-if-env-changed=...
   if (/^(?:xmlns|cargo):/.test(value)) return true;
-  // key="url" assignments: archivo="https://github.com/..."
-  if (/^[a-zA-Z_]\w*="https?:\/\//.test(value)) return true;
+  // key="path/url" assignments: WEAVIATE_PATH="/home/...", --flag="/Users/..."
+  if (/^[\w-]+="(?:https?:\/\/|\/|~\/|\$|\.\.?\/)/.test(value)) return true;
+  // file:// URI scheme: Container:file:///C:/Users/...
+  if (value.includes('file://')) return true;
   // Template literals with interpolation: `...${data.txnId}`
   if (value.includes('${')) return true;
   // Vulkan/OpenGL validation IDs: VUID-VkFramebufferCreateInfo-...

@@ -506,9 +506,16 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
     if re.match(r"^(?:xmlns|cargo):", value):
         return True
 
-    # key="url" assignments — e.g. archivo="https://github.com/..."
-    # The value includes the key= prefix because it's one whitespace-delimited token.
-    if re.match(r'^[a-zA-Z_]\w*="https?://', value):
+    # key="path/url" assignments where the value is a path or URL — e.g.
+    # archivo="https://github.com/...", WEAVIATE_EMBEDDED_PATH="/home/me/..."
+    # --directory="/Users/jiahanli/...", --map-file-parser="/Applications/..."
+    # Guard: only when the value after =" starts with a path/URL indicator,
+    # NOT when it's a cookie/token (x-main="M2hkpCq..." is a real secret).
+    if re.match(r'^[\w-]+="(?:https?://|/|~/|\$|\.\.?/)', value):
+        return True
+
+    # file:// URI scheme — e.g. Container:file:///C:/Users/...
+    if "file://" in value:
         return True
 
     # Template literals with interpolation — e.g. `...${data.txnId.toString()}`
