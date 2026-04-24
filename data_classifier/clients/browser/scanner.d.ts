@@ -47,6 +47,19 @@ export interface ScanOptions {
    * @default ['Credential']
    */
   categoryFilter?: string[];
+
+  /**
+   * Run the secret detection engine (regex + secret_scanner + opaque_token).
+   * @default true
+   */
+  secrets?: boolean;
+
+  /**
+   * Run the zone detection engine (code/markup/config identification via WASM).
+   * When true, the WASM module is lazy-loaded on first use (~15-25ms init).
+   * @default true
+   */
+  zones?: boolean;
 }
 
 /** Options passed to `createScanner()`. */
@@ -125,6 +138,36 @@ export interface FindingDetails {
   tier?: string;
 }
 
+/** A detected zone block (code, markup, config, etc.). */
+export interface ZoneBlock {
+  /** Start line (0-indexed, inclusive). */
+  start_line: number;
+
+  /** End line (0-indexed, exclusive). */
+  end_line: number;
+
+  /** Zone classification. */
+  zone_type: 'code' | 'markup' | 'config' | 'query' | 'cli_shell' | 'data' | 'error_output' | 'natural_language';
+
+  /** Detection confidence, 0–1. */
+  confidence: number;
+
+  /** Detected programming language (e.g., "python", "javascript"). Empty string if unknown. */
+  language_hint: string;
+
+  /** Language detection confidence, 0–1. */
+  language_confidence: number;
+}
+
+/** Zone detection result. */
+export interface ZonesResult {
+  /** Total lines in the input text. */
+  total_lines: number;
+
+  /** Detected zone blocks. */
+  blocks: ZoneBlock[];
+}
+
 /** A single detected secret. */
 export interface Finding {
   /** Entity type (e.g., `"API_KEY"`, `"OPAQUE_SECRET"`, `"PRIVATE_KEY"`, `"PASSWORD_HASH"`). */
@@ -178,6 +221,12 @@ export interface ScanResult {
    * engines fired and what was dropped by dedup.
    */
   allFindings?: Finding[];
+
+  /**
+   * Zone detection result. Contains detected code/markup/config blocks.
+   * `null` when `zones: false` was passed to `scan()`.
+   */
+  zones: ZonesResult | null;
 }
 
 // ── Public API ───────────────────────────────────────────────────
