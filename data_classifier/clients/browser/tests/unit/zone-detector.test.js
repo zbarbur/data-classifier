@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // We test the module's export shape and option-gating logic.
 // Full WASM integration is tested in e2e (Playwright).
