@@ -196,11 +196,12 @@ impl BlockAssembler {
         let mut prefixes: Vec<String> = Vec::new();
         for ln in &non_empty {
             let stripped = ln.trim();
-            let tokens: Vec<&str> = stripped.splitn(3, char::is_whitespace).collect();
-            if tokens.len() >= 2 {
-                prefixes.push(format!("{} {}", tokens[0], tokens[1]));
-            } else if !tokens.is_empty() {
-                prefixes.push(tokens[0].to_string());
+            // Use split_whitespace (collapses runs) to match Python's split(None, 2)
+            let words: Vec<&str> = stripped.split_whitespace().take(2).collect();
+            if words.len() >= 2 {
+                prefixes.push(format!("{} {}", words[0], words[1]));
+            } else if !words.is_empty() {
+                prefixes.push(words[0].to_string());
             }
         }
 

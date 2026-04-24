@@ -289,13 +289,17 @@ impl StructuralDetector {
     }
 
     /// Build a byte-offset to line-number mapping.
+    ///
+    /// fancy_regex returns byte offsets (not character offsets), so this map
+    /// must also be byte-based. One entry per byte of the joined text.
     fn build_offset_map(lines: &[&str]) -> Vec<usize> {
         let mut map = Vec::new();
         for (lineno, line) in lines.iter().enumerate() {
-            for _ in line.chars() {
+            // line.len() is byte count — matches regex byte offsets
+            for _ in 0..line.len() {
                 map.push(lineno);
             }
-            map.push(lineno); // account for '\n' separator
+            map.push(lineno); // '\n' separator (1 byte)
         }
         map
     }
