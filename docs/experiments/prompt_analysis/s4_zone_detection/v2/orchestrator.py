@@ -9,6 +9,7 @@ Pipeline order:
     2. StructuralDetector   → fenced blocks, delimiter pairs  → claimed_ranges
     3. FormatDetector        → JSON/XML/YAML/ENV on unclaimed → claimed_ranges
     4. SyntaxDetector        → per-line scores (unclaimed)
+    4.5 ScopeTracker          → bracket continuation + indentation scope
     5. NegativeFilter        → per-line suppression / retype   → filtered scores
     6. BlockAssembler        → group scored lines into blocks
     7. LanguageDetector      → enrich blocks with language info
@@ -23,6 +24,7 @@ from docs.experiments.prompt_analysis.s4_zone_detection.v2.format_detector impor
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.language import LanguageDetector
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.negative import NegativeFilter
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.pre_screen import pre_screen
+from docs.experiments.prompt_analysis.s4_zone_detection.v2.scope import ScopeTracker
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.structural import StructuralDetector
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.syntax import SyntaxDetector
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.types import PromptZones, ZoneBlock, ZoneConfig
@@ -58,6 +60,7 @@ class ZoneOrchestrator:
         self._negative = NegativeFilter(patterns)
         self._assembler = BlockAssembler(patterns, self._config)
         self._language = LanguageDetector(patterns)
+        self._scope = ScopeTracker(patterns)
 
     def detect_zones(self, text: str, prompt_id: str = "") -> PromptZones:
         """Run the full detection pipeline on *text*.
@@ -89,6 +92,9 @@ class ZoneOrchestrator:
 
         # 5. Syntax scoring (claimed lines get -1.0)
         scores = self._syntax.score_lines(lines, claimed_ranges) if self._config.syntax_enabled else [0.0] * total_lines
+
+        # 5.5. Scope tracking (bracket continuation + indentation scope)
+        scores = self._scope.adjust_scores(lines, scores, claimed_ranges)
 
         # 6. Negative filter on unclaimed lines
         line_types: list[str | None] = [None] * total_lines
