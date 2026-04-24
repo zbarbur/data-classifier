@@ -14,10 +14,14 @@
       "default": "./dist/scanner.esm.js"
     },
     "./worker": "./dist/worker.esm.js",
-    "./tester": "./tester/index.html"
+    "./tester": "./tester/index.html",
+    "./wasm": "./dist/data_classifier_core_bg.wasm",
+    "./zone-patterns": "./dist/zone_patterns.json"
   },
   "files": [
     "dist/*.js",
+    "dist/*.wasm",
+    "dist/*.json",
     "scanner.d.ts",
     "tester/index.html",
     "tester/tester.js",

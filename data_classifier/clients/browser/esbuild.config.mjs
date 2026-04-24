@@ -1,5 +1,9 @@
 import esbuild from 'esbuild';
+import { copyFileSync, mkdirSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const watch = process.argv.includes('--watch');
 const dev = process.argv.includes('--dev');
 
@@ -25,11 +29,25 @@ const builds = [
   },
 ];
 
+function copyAssets() {
+  mkdirSync(resolve(__dirname, 'dist'), { recursive: true });
+  copyFileSync(
+    resolve(__dirname, 'assets/data_classifier_core_bg.wasm'),
+    resolve(__dirname, 'dist/data_classifier_core_bg.wasm'),
+  );
+  copyFileSync(
+    resolve(__dirname, 'assets/zone_patterns.json'),
+    resolve(__dirname, 'dist/zone_patterns.json'),
+  );
+}
+
 if (watch) {
   const ctxs = await Promise.all(builds.map((b) => esbuild.context(b)));
   await Promise.all(ctxs.map((c) => c.watch()));
+  copyAssets();
   console.log('esbuild: watching...');
 } else {
   await Promise.all(builds.map((b) => esbuild.build(b)));
+  copyAssets();
   console.log('esbuild: done');
 }
