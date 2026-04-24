@@ -18,6 +18,7 @@ import {
   charClassDiversity,
   scoreRelativeEntropy,
 } from './entropy.js';
+import { initZoneDetector, detectZones, isZoneDetectorReady } from './zone-detector.js';
 
 // Pre-compile word_boundary/suffix regexes for SECRET_KEY_NAMES once at
 // module init (one worker scope). Avoids O(pairs * N) regex constructions
@@ -44,22 +45,41 @@ function getBackend(categoryFilter) {
   return backend;
 }
 
+export async function initZones(wasmUrl, patternsUrl) {
+  return initZoneDetector(wasmUrl, patternsUrl);
+}
+
 export function scanText(text, opts = {}) {
   const t0 = performanceNowSafe();
   const verbose = !!opts.verbose;
   const includeRaw = !!opts.dangerouslyIncludeRawValues;
   const categoryFilter = opts.categoryFilter || ['Credential'];
   const redactStrategy = opts.redactStrategy || 'type-label';
+  const runSecrets = opts.secrets !== false;
+  const runZones = opts.zones !== false;
 
-  const raw = [];
-  raw.push(...regexPass(text, categoryFilter, verbose, includeRaw));
-  raw.push(...secretScannerPass(text, verbose, includeRaw));
-  raw.push(...opaqueTokenPass(text, verbose, includeRaw));
-  const findings = dedup(raw);
+  // Secret detection (existing JS passes)
+  let findings = [];
+  let allFindings;
+  if (runSecrets) {
+    const raw = [];
+    raw.push(...regexPass(text, categoryFilter, verbose, includeRaw));
+    raw.push(...secretScannerPass(text, verbose, includeRaw));
+    raw.push(...opaqueTokenPass(text, verbose, includeRaw));
+    findings = dedup(raw);
+    if (verbose) allFindings = raw;
+  }
 
-  const redactedText = redact(text, findings, redactStrategy);
-  const result = { findings, redactedText, scannedMs: performanceNowSafe() - t0 };
-  if (verbose) result.allFindings = raw;
+  const redactedText = runSecrets ? redact(text, findings, redactStrategy) : text;
+
+  // Zone detection (WASM)
+  let zones = null;
+  if (runZones && isZoneDetectorReady()) {
+    zones = detectZones(text, opts._promptId || '');
+  }
+
+  const result = { findings, redactedText, scannedMs: performanceNowSafe() - t0, zones };
+  if (verbose && allFindings) result.allFindings = allFindings;
   return result;
 }
 
