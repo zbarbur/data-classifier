@@ -30,6 +30,19 @@ impl ZoneType {
             _ => None,
         }
     }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Code => "code",
+            Self::Markup => "markup",
+            Self::Config => "config",
+            Self::Query => "query",
+            Self::CliShell => "cli_shell",
+            Self::Data => "data",
+            Self::ErrorOutput => "error_output",
+            Self::NaturalLanguage => "natural_language",
+        }
+    }
 }
 
 /// A single detected zone block within a prompt.
