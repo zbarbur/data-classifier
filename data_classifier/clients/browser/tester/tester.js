@@ -256,7 +256,7 @@ function renderRedacted(el, text) {
   if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
 }
 
-function renderZones(findings, zones) {
+function renderZones(_findings, zones) {
   if (!zones || !zones.blocks) {
     zoneResultsEl.style.display = 'none';
     return;
