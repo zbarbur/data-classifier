@@ -23,18 +23,19 @@ from dataclasses import dataclass
 
 import re2
 
-from data_classifier.core.types import ClassificationFinding, SampleAnalysis
 from data_classifier.engines.heuristic_engine import compute_char_class_diversity
+from data_classifier.engines.parsers import parse_key_values_with_spans
 from data_classifier.engines.regex_engine import _get_global_stopwords
 from data_classifier.engines.secret_scanner import (
     SecretScannerEngine,
     _compute_relative_entropy,
+    _is_compound_non_secret,
     _is_placeholder_value,
+    _score_key_name,
     _value_is_obviously_not_secret,
 )
 from data_classifier.engines.validators import VALIDATORS
 from data_classifier.patterns import ContentPattern, load_default_patterns
-from data_classifier.profiles import load_profile
 
 logger = logging.getLogger(__name__)
 
@@ -161,69 +162,68 @@ class TextScanner:
         return out
 
     def _secret_scanner_pass(self, text: str, regex_findings: list[TextFinding]) -> list[TextFinding]:
-        """Run KV parsing on text, enriched by regex findings."""
-        from data_classifier.core.types import ColumnInput
+        """Run KV parsing on text — calls parse_key_values directly for accurate spans.
 
-        col = ColumnInput(column_id="text_scan", column_name="_text_scan", sample_values=[text])
+        Mirrors the JS ``secretScannerPass`` which calls ``parseKeyValues(text)``
+        and scores each (key, value) pair against the secret key-name dictionary.
+        Unlike the old approach (routing through SecretScannerEngine.classify_column),
+        this gives accurate value spans instead of whole-text spans.
+        """
+        pairs = parse_key_values_with_spans(text)
+        if not pairs:
+            return []
 
-        # Build prior_findings for the SS to use
-        prior: list[ClassificationFinding] = []
-        for rf in regex_findings:
-            matched_value = text[rf.start : rf.end]
-            prior.append(
-                ClassificationFinding(
-                    column_id="text_scan",
-                    entity_type=rf.entity_type,
-                    category=rf.category,
-                    sensitivity="CRITICAL",
-                    confidence=rf.confidence,
-                    regulatory=[],
-                    engine="regex",
-                    detection_type=rf.detection_type,
-                    display_name=rf.display_name,
-                    sample_analysis=SampleAnalysis(
-                        samples_scanned=1,
-                        samples_matched=1,
-                        samples_validated=1,
-                        match_ratio=1.0,
-                        sample_matches=[matched_value],
-                    ),
-                )
-            )
-
-        profile = load_profile()
-        ss_findings = self._ss.classify_column(col, profile=profile, min_confidence=0.3, prior_findings=prior)
+        ss_config = self._ss._config if self._ss else {}
+        key_entries = self._ss._key_entries if self._ss else []
+        anti_indicators = ss_config.get("anti_indicators", [])
+        min_value_len = ss_config.get("min_value_length", 6)
+        placeholder_values = self._ss._placeholder_values if self._ss else set()
 
         out: list[TextFinding] = []
-        for f in ss_findings:
-            # Try to locate the matched value within the text for accurate spans
-            start, end = 0, len(text)
-            if f.sample_analysis and f.sample_analysis.sample_matches:
-                matched = f.sample_analysis.sample_matches[0]
-                idx = text.find(matched)
-                if idx >= 0:
-                    start, end = idx, idx + len(matched)
-
-            # Skip findings where the "value" is an entire code block (>500 chars).
-            # The KV pass sometimes captures whole code pastes as a single value;
-            # real secret values are short (tokens ≤256 chars typically).
-            span_len = end - start
-            if span_len > 500:
+        for key, value, value_start, value_end in pairs:
+            if len(value) < min_value_len:
+                continue
+            if len(value) > 500:
                 continue
 
-            value_for_mask = text[start:end] if end - start < len(text) else (text[:20] if len(text) > 20 else text)
+            # Anti-indicators
+            kv_lower = (key + value).lower()
+            if any(ai.lower() in kv_lower for ai in anti_indicators):
+                continue
+
+            # Placeholder values
+            if value.lower() in placeholder_values:
+                continue
+            if _is_placeholder_value(value):
+                continue
+
+            # Compound non-secret keys (e.g. "token_address", "key_type")
+            if _is_compound_non_secret(key):
+                continue
+
+            # Score key name
+            key_score, tier, subtype = _score_key_name(key, key_entries)
+            if key_score <= 0:
+                continue
+
+            # Score value with tiered logic
+            composite = self._ss._compute_tiered_score(key_score, tier, value)
+            if composite <= 0:
+                continue
+
+            entity_type = subtype or "OPAQUE_SECRET"
             out.append(
                 TextFinding(
-                    entity_type=f.entity_type,
-                    detection_type=f.detection_type or "",
-                    display_name=f.display_name or f.entity_type,
-                    category=f.category,
-                    confidence=f.confidence,
+                    entity_type=entity_type,
+                    detection_type="",
+                    display_name=entity_type,
+                    category="Credential",
+                    confidence=round(composite, 4),
                     engine="secret_scanner",
-                    start=start,
-                    end=end,
-                    value_masked=_mask_value(value_for_mask),
-                    evidence=f.evidence,
+                    start=value_start,
+                    end=value_end,
+                    value_masked=_mask_value(value),
+                    evidence=(f'secret_scanner: key "{key}" score={key_score:.2f} tier={tier}'),
                 )
             )
         return out

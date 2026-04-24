@@ -69,6 +69,59 @@ class TestSecretScannerPass:
             assert f.entity_type, "Finding must have entity_type"
             assert f.confidence > 0, "Finding must have positive confidence"
 
+    def test_kv_in_code_block_finds_secret_not_block(self):
+        """KV pass should find the secret VALUE, not the entire code block."""
+        code = (
+            "import requests\n"
+            "import time\n\n"
+            "API_KEY = 'CXTB4IUT31N836G93ZI3YQBEWBQEGGH5QS'\n"
+            "TOKEN_CONTRACT = '0x4401E60E39F7d3F8D5021F11'\n\n"
+            "def get_data():\n"
+            "    return requests.get(url)\n"
+        )
+        result = scan_text(code)
+        ss_findings = [f for f in result.findings if f.engine == "secret_scanner"]
+        assert len(ss_findings) >= 1, f"Expected KV finding in code block, got {ss_findings}"
+        for f in ss_findings:
+            span = f.end - f.start
+            assert span < 100, f"KV finding span should cover the value, not the whole block (got {span} chars)"
+            matched = code[f.start : f.end]
+            assert "import" not in matched, f"Span should not include code: {matched!r}"
+
+    def test_kv_span_points_to_value(self):
+        """KV pass span should point to the actual secret value."""
+        text = 'db_password = "xK9mP2nQ7rT4wY6aB8cD0eF3gH5iJ1kL"'
+        result = scan_text(text)
+        ss_findings = [f for f in result.findings if f.engine == "secret_scanner"]
+        assert len(ss_findings) >= 1, "Expected KV finding"
+        f = ss_findings[0]
+        matched = text[f.start : f.end]
+        assert matched == "xK9mP2nQ7rT4wY6aB8cD0eF3gH5iJ1kL", f"Span should match the value, got {matched!r}"
+
+    def test_kv_env_format_span(self):
+        """Env-style KEY=VALUE gets accurate span."""
+        text = "export SECRET_TOKEN=R4nD0m_S3cr3t_V4lu3!"
+        result = scan_text(text)
+        ss_findings = [f for f in result.findings if f.engine == "secret_scanner"]
+        if ss_findings:
+            f = ss_findings[0]
+            matched = text[f.start : f.end]
+            assert matched == "R4nD0m_S3cr3t_V4lu3!", f"Expected value, got {matched!r}"
+
+    def test_kv_placeholder_rejected(self):
+        """KV pass should reject placeholder values."""
+        text = 'api_key = "your_api_key_here"'
+        result = scan_text(text)
+        ss_findings = [f for f in result.findings if f.engine == "secret_scanner"]
+        assert len(ss_findings) == 0, "Placeholder should not trigger KV finding"
+
+    def test_kv_prose_value_rejected(self):
+        """KV pass should reject prose descriptions as values."""
+        text = 'password = "Please enter your password in the field below"'
+        result = scan_text(text)
+        ss_findings = [f for f in result.findings if f.engine == "secret_scanner"]
+        assert len(ss_findings) == 0, "Prose value should not trigger KV finding"
+
 
 class TestDedup:
     """Dedup keeps highest confidence per overlapping span."""
