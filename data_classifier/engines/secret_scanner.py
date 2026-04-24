@@ -518,6 +518,23 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
     if "file://" in value:
         return True
 
+    # Relative paths — ../foo/bar, ./src/file.ts
+    if re.match(r"^\.\.?/", value):
+        return True
+
+    # CLI flags with URL values — e.g. --tunnel_url=https://colab...
+    if re.match(r"^--[\w-]+=https?://", value):
+        return True
+
+    # Slash-separated readable words (4+ segments, each starts with letter, ≤30 chars) — e.g.
+    # ISE/ACS/Sourcefire/Firesight/FireAMP/Splunk/Snort
+    # Assets/_GallopResources/SourceResources/3d/Motion
+    # Guard: requires 4+ segments and letter-starts to avoid catching tokens like
+    # wJalrXUtnFEMI/K7MDENG/bPxRfiCY9aBc4dZz8qRtY2 (AWS secret keys with slashes).
+    slash_segs = [s for s in value.split("/") if s]
+    if len(slash_segs) >= 4 and all(s[0].isalpha() and len(s) <= 30 for s in slash_segs):
+        return True
+
     # Template literals with interpolation — e.g. `...${data.txnId.toString()}`
     # Code expressions, not secrets.
     if "${" in value:

@@ -254,6 +254,13 @@ function valueIsObviouslyNotSecret(value) {
   if (/^[\w-]+="(?:https?:\/\/|\/|~\/|\$|\.\.?\/)/.test(value)) return true;
   // file:// URI scheme: Container:file:///C:/Users/...
   if (value.includes('file://')) return true;
+  // Relative paths: ../foo/bar, ./src/file
+  if (/^\.\.?\//.test(value)) return true;
+  // CLI flags with URL values: --tunnel_url=https://...
+  if (/^--[\w-]+=https?:\/\//.test(value)) return true;
+  // Slash-separated readable words (4+ segments, each starts with letter): ISE/ACS/Sourcefire/...
+  { const segs = value.split('/').filter(Boolean);
+    if (segs.length >= 4 && segs.every(s => /^[a-zA-Z]/.test(s) && s.length <= 30)) return true; }
   // Template literals with interpolation: `...${data.txnId}`
   if (value.includes('${')) return true;
   // Vulkan/OpenGL validation IDs: VUID-VkFramebufferCreateInfo-...
