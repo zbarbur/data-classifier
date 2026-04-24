@@ -52,10 +52,12 @@ export function scanText(text, opts = {}) {
   const categoryFilter = opts.categoryFilter || ['Credential'];
   const redactStrategy = opts.redactStrategy || 'type-label';
 
+  const { pemSpans, pemFindings } = detectPemBlocks(text);
   const raw = [];
+  raw.push(...pemFindings);
   raw.push(...regexPass(text, categoryFilter, verbose, includeRaw));
   raw.push(...secretScannerPass(text, verbose, includeRaw));
-  raw.push(...opaqueTokenPass(text, verbose, includeRaw));
+  raw.push(...opaqueTokenPass(text, verbose, includeRaw, pemSpans));
   const findings = dedup(raw);
 
   const redactedText = redact(text, findings, redactStrategy);
@@ -313,11 +315,44 @@ function isPlaceholderPattern(value) {
   return false;
 }
 
+// ── PEM block detection ──────────────────────────────────────────────────
+const _PEM_RE = /-----BEGIN\s+([\w\s]+?)-----([\s\S]*?)-----END\s+\1-----/g;
+const _PEM_PRIVATE_LABELS = new Set([
+  'PRIVATE KEY', 'RSA PRIVATE KEY', 'EC PRIVATE KEY', 'DSA PRIVATE KEY',
+  'ENCRYPTED PRIVATE KEY', 'OPENSSH PRIVATE KEY', 'PGP PRIVATE KEY BLOCK',
+]);
+
+function detectPemBlocks(text) {
+  const pemSpans = [];
+  const pemFindings = [];
+  _PEM_RE.lastIndex = 0;
+  let m;
+  while ((m = _PEM_RE.exec(text)) !== null) {
+    const label = m[1].trim().toUpperCase();
+    pemSpans.push([m.index, m.index + m[0].length]);
+    if (!_PEM_PRIVATE_LABELS.has(label)) continue;
+    pemFindings.push(makeFinding({
+      entityType: 'PRIVATE_KEY',
+      category: 'Credential',
+      sensitivity: 'CRITICAL',
+      confidence: 0.95,
+      engine: 'secret_scanner',
+      evidence: 'secret_scanner: PEM block — ' + label,
+      match: {
+        valueMasked: '-----BEGIN ' + label + '-----...',
+        start: m.index,
+        end: m.index + m[0].length,
+      },
+    }));
+  }
+  return { pemSpans, pemFindings };
+}
+
 // ── Opaque token detection (suspicious high-entropy tokens) ─────────────
 // Scans text for standalone tokens that look like opaque secrets: high
 // entropy, high char-class diversity, not a UUID/IP/date/URL. Flagged
 // as suspicious at lower confidence — same heuristics as Python Path 4.
-function opaqueTokenPass(text, verbose, includeRaw) {
+function opaqueTokenPass(text, verbose, includeRaw, pemSpans) {
   const out = [];
   const minLen = SECRET_SCANNER.opaqueTokenMinLength;
   const entropyThreshold = SECRET_SCANNER.opaqueTokenEntropyThreshold;
@@ -327,9 +362,12 @@ function opaqueTokenPass(text, verbose, includeRaw) {
 
   const tokenRe = /\S+/g;
   let m;
+  const spans = pemSpans || [];
   while ((m = tokenRe.exec(text)) !== null) {
     const token = m[0];
     const start = m.index;
+    // Suppress tokens inside PEM blocks
+    if (spans.some(function(s) { return start >= s[0] && start < s[1]; })) continue;
     const cleaned = token.replace(/^["'`]+|["'`,.;:!?)}\]]+$/g, '');
     if (cleaned.length < minLen) continue;
     if (cleaned.length > 512) continue;

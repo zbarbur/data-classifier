@@ -49,6 +49,31 @@ _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F
 _TOKEN_RE = re.compile(r"\S+")
 _STRIP_RE = re.compile(r'^["\'`]+|["\'`,.;:!?)\]]+$')
 
+# PEM block detection — matches -----BEGIN X----- to -----END X-----
+_PEM_RE = re.compile(
+    r"-----BEGIN\s+([\w\s]+?)-----"  # header: captures the label (e.g. "RSA PRIVATE KEY")
+    r"(.*?)"  # body (base64 lines)
+    r"-----END\s+\1-----",  # matching footer
+    re.DOTALL,
+)
+
+# Map PEM labels to entity types
+_PEM_ENTITY_MAP = {
+    "PRIVATE KEY": "PRIVATE_KEY",
+    "RSA PRIVATE KEY": "PRIVATE_KEY",
+    "EC PRIVATE KEY": "PRIVATE_KEY",
+    "DSA PRIVATE KEY": "PRIVATE_KEY",
+    "ENCRYPTED PRIVATE KEY": "PRIVATE_KEY",
+    "OPENSSH PRIVATE KEY": "PRIVATE_KEY",
+    "PGP PRIVATE KEY BLOCK": "PRIVATE_KEY",
+    "CERTIFICATE": "CERTIFICATE",
+    "PUBLIC KEY": "PUBLIC_KEY",
+    "RSA PUBLIC KEY": "PUBLIC_KEY",
+    "SSH2 PUBLIC KEY": "PUBLIC_KEY",
+    "PGP PUBLIC KEY BLOCK": "PUBLIC_KEY",
+    "CERTIFICATE REQUEST": "CERTIFICATE",
+}
+
 
 @dataclass
 class TextScanResult:
@@ -109,10 +134,15 @@ class TextScanner:
         if not self._started:
             self.startup()
 
+        # Pre-scan: detect PEM blocks (-----BEGIN/END-----) so the opaque token
+        # pass can suppress per-line findings inside them.
+        pem_spans, pem_findings = self._detect_pem_blocks(text)
+
         raw: list[TextFinding] = []
+        raw.extend(pem_findings)
         raw.extend(self._regex_pass(text))
         raw.extend(self._secret_scanner_pass(text, raw))
-        raw.extend(self._opaque_token_pass(text))
+        raw.extend(self._opaque_token_pass(text, pem_spans=pem_spans))
 
         # Dedup: keep highest confidence per overlapping span
         deduped = self._dedup(raw)
@@ -228,20 +258,71 @@ class TextScanner:
             )
         return out
 
-    def _opaque_token_pass(self, text: str) -> list[TextFinding]:
+    @staticmethod
+    def _detect_pem_blocks(text: str) -> tuple[list[tuple[int, int]], list[TextFinding]]:
+        """Find PEM-encoded key/cert blocks and emit one finding per block.
+
+        Returns:
+            Tuple of (pem_spans, pem_findings):
+            - pem_spans: list of (start, end) positions to suppress opaque tokens within
+            - pem_findings: list of TextFinding for each PEM block
+        """
+        spans: list[tuple[int, int]] = []
+        findings: list[TextFinding] = []
+
+        for m in _PEM_RE.finditer(text):
+            label = m.group(1).strip().upper()
+            entity_type = _PEM_ENTITY_MAP.get(label, "OPAQUE_SECRET")
+            start, end = m.start(), m.end()
+            spans.append((start, end))
+
+            # Private keys are secrets; public keys and certs are not
+            if "PRIVATE" in label:
+                confidence = 0.95
+            else:
+                # Public keys and certificates are not secrets — skip
+                continue
+
+            findings.append(
+                TextFinding(
+                    entity_type=entity_type,
+                    detection_type="pem_block",
+                    display_name=f"PEM {label.title()}",
+                    category="Credential",
+                    confidence=confidence,
+                    engine="secret_scanner",
+                    start=start,
+                    end=end,
+                    value_masked=_mask_value(text[start : min(start + 40, end)]),
+                    evidence=f"secret_scanner: PEM block — {label}",
+                )
+            )
+
+        return spans, findings
+
+    def _opaque_token_pass(self, text: str, *, pem_spans: list[tuple[int, int]] | None = None) -> list[TextFinding]:
         """Scan whitespace-delimited tokens for standalone high-entropy opaque secrets.
 
         Mirrors JS scanner-core.js ``opaqueTokenPass``.  Tokens must pass entropy
         and char-class diversity gates, and must not be UUIDs, placeholders, or
         obviously not secret.
+
+        Tokens inside PEM blocks (``-----BEGIN/END-----``) are suppressed to avoid
+        per-line false positives on base64-encoded key material.
         """
         out: list[TextFinding] = []
         ss_config = self._ss._config if self._ss else {}
         anti_indicators = ss_config.get("anti_indicators", [])
+        pem_spans = pem_spans or []
 
         for m in _TOKEN_RE.finditer(text):
             token = m.group(0)
             start = m.start()
+
+            # Suppress tokens inside PEM blocks — already detected as whole blocks
+            if pem_spans and any(ps <= start < pe for ps, pe in pem_spans):
+                continue
+
             cleaned = _STRIP_RE.sub("", token)
 
             if len(cleaned) < _OPAQUE_MIN_LENGTH:
