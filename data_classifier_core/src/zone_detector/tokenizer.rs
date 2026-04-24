@@ -41,6 +41,10 @@ static OPERATOR_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"[+\-*/=<>!&|^~%]+").unwrap()
 });
 
+static DELIMITER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"[{}()\[\];,:]").unwrap()
+});
+
 /// Tokenize a single line and return its profile.
 ///
 /// Extraction order (matches Python):
@@ -80,11 +84,12 @@ pub fn tokenize_line(line: &str, keywords: &HashSet<String>) -> TokenProfile {
         }
     }
 
-    // 5. Operators
+    // 5. Operators and delimiters
     let operator_count = OPERATOR_RE.find_iter(&no_strings).count();
+    let delimiter_count = DELIMITER_RE.find_iter(&no_strings).count();
 
     let total_tokens = identifier_count + keyword_count + operator_count
-        + string_count + number_count;
+        + string_count + number_count + delimiter_count;
     let string_ratio = if total_tokens > 0 {
         string_count as f64 / total_tokens as f64
     } else {
