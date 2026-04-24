@@ -43,7 +43,7 @@ export function initZoneDetector(wasmUrl, patternsUrl) {
       // Compile WASM
       const wasmBytes = await wasmResp.arrayBuffer();
       const imports = buildWasmImports();
-      const { instance, module: mod } = await WebAssembly.instantiate(wasmBytes, imports);
+      const { instance } = await WebAssembly.instantiate(wasmBytes, imports);
       wasmModule = instance.exports;
 
       // Initialize externref table (required by wasm-bindgen)
