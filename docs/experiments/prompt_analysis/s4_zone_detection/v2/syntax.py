@@ -306,13 +306,13 @@ class SyntaxDetector:
         """
         n = len(lines)
 
-        # --- pass 1: raw scores ---
+        # --- pass 1: raw scores (including fragment boost) ---
         raw: list[float] = []
         for i in range(n):
             if i in claimed_ranges:
                 raw.append(-1.0)
             else:
-                raw.append(self.line_syntax_score(lines[i]))
+                raw.append(self.score_with_fragments(lines[i])[0])
 
         # --- pass 2: context-aware smoothing ---
         result: list[float] = list(raw)

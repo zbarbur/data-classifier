@@ -216,7 +216,8 @@
         "^\\s*(GROUP\\s+BY|ORDER\\s+BY|HAVING|LIMIT|OFFSET|UNION|EXCEPT|INTERSECT)\\s",
         "^\\s*(BEGIN|COMMIT|ROLLBACK|GRANT|REVOKE|EXPLAIN|ANALYZE)\\s",
         "^\\s*(CREATE|ALTER)\\s+(TABLE|INDEX|VIEW|FUNCTION|PROCEDURE|TRIGGER)\\s",
-        "^\\s*(SET|DECLARE|EXEC|EXECUTE|CALL|RETURN)\\s"
+        "^\\s*(SET|DECLARE|EXEC|EXECUTE|CALL|RETURN)\\s",
+        "^\\s*\\([^()]*\\)\\s*[,;]\\s*$"
       ],
       "shell": [
         "^\\s*\\$\\s+\\w",
@@ -229,10 +230,10 @@
         "\\|\\s*(grep|awk|sed|sort|head|tail|wc|xargs|cut|tr)\\s"
       ],
       "assembly": [
-        "^\\s*(mov|push|pop|call|ret|jmp|jne|je|jz|jnz|jge|jle|cmp|test|add|sub|mul|imul|div|idiv|xor|and|or|not|shl|shr|lea|nop|int|hlt)\\s",
-        "\\b(eax|ebx|ecx|edx|esi|edi|esp|ebp|rax|rbx|rcx|rdx|rsi|rdi|rsp|rbp|r[89]|r1[0-5]|r0|r1|r2|r3|r4|r5|r6|r7|sp|lr|pc|fp)\\b",
-        "^\\s*section\\s+\\.",
-        "^\\s*\\.?(text|data|bss|global|extern|align|byte|word|long|quad|ascii|asciz)\\b"
+        "(?i)^\\s*(mov|push|pop|call|ret|jmp|jne|je|jz|jnz|jge|jle|cmp|test|add|sub|mul|imul|div|idiv|xor|and|or|not|shl|shr|lea|nop|int|hlt)\\s",
+        "(?i)\\b(eax|ebx|ecx|edx|esi|edi|esp|ebp|rax|rbx|rcx|rdx|rsi|rdi|rsp|rbp|r[89]|r1[0-5]|r0|r1|r2|r3|r4|r5|r6|r7|sp|lr|pc|fp)\\b",
+        "(?i)^\\s*section\\s+\\.",
+        "(?i)^\\s*\\.?(text|data|bss|global|extern|align|byte|word|long|quad|ascii|asciz)\\b"
       ],
       "rust": [
         "^\\s*(fn|let\\s+mut|pub\\s+fn|pub\\s+struct|pub\\s+enum|impl|trait|mod|use|crate|extern)\\s",
