@@ -120,8 +120,10 @@ _CODE_SEMICOLON = re.compile(r"^[a-zA-Z_]\w*;$")
 # Catches mixed-context expressions that dot-notation alone misses.
 _CODE_CALL = re.compile(r"[({].*[=;]")
 
-# Shell/env variable reference — value starts with $ (e.g. $password, ${DB_PASS})
-_SHELL_VARIABLE = re.compile(r"^\$[\w{]")
+# Shell/env variable reference — value starts with $ (e.g. $password, ${DB_PASS}).
+# Excludes password hash prefixes: $2b$, $2y$, $2a$, $5$, $6$, $argon2, $scrypt
+# which use the crypt(3) $algorithm$params$hash convention.
+_SHELL_VARIABLE = re.compile(r"^\$(?!2[aby]\$|[56]\$|argon2|scrypt)[\w{]")
 
 # ALL_CAPS constant names — e.g. API_KEY_BINANCE, ARGILLA_API_KEY, VERACODE-HMAC-SHA-256.
 # Separators can be underscores or hyphens. Must have at least one separator
@@ -434,7 +436,9 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
 
     # Single plain word — only letters and hyphens, no digits or special chars
     # (e.g. "Steganography", "authorization-text"). Real secrets have mixed classes.
-    if re.fullmatch(r"[a-zA-Z]+(-[a-zA-Z]+)*", value.strip()):
+    # Guard: skip if value is long (>30 chars) — long alpha-hyphen strings like
+    # "pk-LMZITIrROWZRwazmrhTnzuXMDjHRhbtKNAKSkyQciVKwteQc" are real API keys.
+    if len(value.strip()) <= 30 and re.fullmatch(r"[a-zA-Z]+(-[a-zA-Z]+)*", value.strip()):
         return True
 
     # String concatenation — value is a variable reference or expression.

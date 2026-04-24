@@ -194,7 +194,8 @@ function tieredScore(keyScore, tier, value) {
 const _CODE_DOT_RE = /^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)+[;,]?$/;
 const _CODE_BRACKET_RE = /^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)*\[[^\]]+\][;,]?$/;
 const _CODE_SEMI_RE = /^[a-zA-Z_]\w*;$/;
-const _SHELL_VAR_RE = /^\$[\w{]/;
+// Excludes crypt(3) password hash prefixes: $2b$, $2y$, $2a$, $5$, $6$, $argon2, $scrypt
+const _SHELL_VAR_RE = /^\$(?!2[aby]\$|[56]\$|argon2|scrypt)[\w{]/;
 const _CONSTANT_NAME_RE = /^[A-Z][A-Z0-9]*([_-][A-Z0-9]+)+$/;
 const _CODE_PUNCT_RE = /^[\[\](){};<>,./\\|!@#%^&*\-+=~`\s]+$/;
 const _FILE_PATH_RE = /^[/~][\w./\-]+$|^[A-Z]:\\[\w\\.\-]+$/;
