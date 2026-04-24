@@ -219,24 +219,12 @@ class BlockAssembler:
             else:
                 line_want_type = None  # zero-score non-blank
 
-            # Handle blank lines: potential gap bridging
+            # Blank lines carry no information — skip them without
+            # breaking the current run.  Only non-blank zero-score lines
+            # (actual prose/content) should create zone boundaries.
             if is_blank and not has_score and lt != "error_output":
                 consecutive_blanks += 1
                 consecutive_zero_nonblank = 0
-                if consecutive_blanks >= self._max_blank_gap and current_start is not None:
-                    # Too many blanks — close current run
-                    end_pos = i - consecutive_blanks + 1
-                    runs.append(
-                        {
-                            "start": current_start,
-                            "end": end_pos,
-                            "type": current_type,
-                            "scores": current_scores[:],
-                        }
-                    )
-                    current_start = None
-                    current_type = None
-                    current_scores = []
                 continue
 
             # Non-blank line

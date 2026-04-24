@@ -20,14 +20,14 @@ class TestGapBridging:
         assert blocks[0].start_line == 0
         assert blocks[0].end_line == 4
 
-    def test_break_on_five_blank_lines(self):
-        """5 blanks exceeds both max_blank_gap(4) and max_comment_gap(4)."""
+    def test_blank_lines_do_not_break_blocks(self):
+        """Blank lines carry no information — they never create zone boundaries."""
         lines = ["x = 1", "y = 2", "", "", "", "", "", "z = 3", "w = 4"]
         scores = [0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5]
         line_types = [None] * 9
         asm = _make_assembler(min_block_lines=2)
         blocks = asm.assemble(lines, scores, line_types)
-        assert len(blocks) == 2
+        assert len(blocks) == 1  # blank lines don't break
 
 
 class TestMinBlockLines:

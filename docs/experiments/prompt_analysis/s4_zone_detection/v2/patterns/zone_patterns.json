@@ -157,7 +157,7 @@
       "import", "from", "class", "function", "return",
       "if", "else", "for", "while", "do",
       "try", "except", "catch", "throw", "throws", "finally",
-      "new", "let",
+      "new", "let", "local",
       "public", "private", "protected", "static", "abstract",
       "int", "string", "bool", "float", "double", "char", "long",
       "package", "interface", "implements", "extends", "override",

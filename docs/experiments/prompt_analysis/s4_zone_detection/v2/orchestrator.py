@@ -140,6 +140,12 @@ class ZoneOrchestrator:
         all_blocks.sort(key=lambda b: b.start_line)
         all_blocks = [b for b in all_blocks if b.confidence >= self._config.min_confidence]
 
+        # 10. Merge adjacent compatible blocks.
+        # Adjacent code + error_output is one zone (error output
+        # accompanies code — stack traces, compilation errors).
+        # Adjacent same-type blocks with small gaps are one zone.
+        all_blocks = self._merge_adjacent(all_blocks, lines)
+
         return PromptZones(
             prompt_id=prompt_id,
             total_lines=total_lines,
@@ -149,6 +155,36 @@ class ZoneOrchestrator:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    _COMPATIBLE_TYPES = {
+        frozenset({"code", "error_output"}),  # error output accompanies code
+    }
+
+    @staticmethod
+    def _merge_adjacent(blocks: list[ZoneBlock], lines: list[str]) -> list[ZoneBlock]:
+        """Merge adjacent blocks of compatible types.
+
+        Two blocks are merged when they are the same type, or when
+        their types form a compatible pair (e.g. code + error_output).
+        """
+        if len(blocks) < 2:
+            return blocks
+
+        merged: list[ZoneBlock] = [blocks[0]]
+        for b in blocks[1:]:
+            prev = merged[-1]
+            same = prev.zone_type == b.zone_type
+            compatible = frozenset({prev.zone_type, b.zone_type}) in ZoneOrchestrator._COMPATIBLE_TYPES
+            adjacent = b.start_line <= prev.end_line + 1
+
+            if adjacent and (same or compatible):
+                prev.end_line = max(prev.end_line, b.end_line)
+                prev.confidence = max(prev.confidence, b.confidence)
+                prev.text = "\n".join(lines[prev.start_line : prev.end_line])
+            else:
+                merged.append(b)
+
+        return merged
 
     @staticmethod
     def _absorb_error_interior(
