@@ -431,7 +431,35 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
         return True
 
     # File paths — e.g. /home/user/.yt/token, ~/config/secret
+    # Also catches Windows paths (C:\Users\...), quoted paths ("/c:/..."),
+    # and long path-like strings with many slashes.
     if _FILE_PATH.match(value):
+        return True
+    stripped_q = value.strip().strip("\"'")
+    if _FILE_PATH.match(stripped_q):
+        return True
+    if re.match(r"^[A-Za-z]:[/\\]", stripped_q):
+        return True
+
+    # Java/Python fully-qualified class names — e.g.
+    # org.gradle.api.internal.project.DefaultProjectStateRegistry
+    # Detected by: 4+ dot-separated segments (3 catches VK tokens like vk1.a.xxx),
+    # each starting with a letter, and no segment >40 chars (JWTs have long segments).
+    segments = value.rstrip(";,()").split(".")
+    if len(segments) >= 4 and all(s and s[0].isalpha() and len(s) <= 40 for s in segments):
+        return True
+
+    # URLs without protocol — e.g. //seller.dhgate.com/...,
+    # fonts.googleapis.com/...
+    if re.match(r"^//\w", value):
+        return True
+
+    # HTML attributes containing values — href="...", src="...", integrity="..."
+    if re.match(r'^(?:href|src|integrity|action|data-\w+)\s*=\s*"', value, re.I):
+        return True
+
+    # SRI integrity hashes — public subresource integrity, not secrets
+    if re.match(r"^sha(?:256|384|512)-[A-Za-z0-9+/=]+$", value):
         return True
 
     # Single plain word — only letters and hyphens, no digits or special chars

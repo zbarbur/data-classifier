@@ -215,7 +215,21 @@ function valueIsObviouslyNotSecret(value) {
   if (_CONSTANT_NAME_RE.test(value)) return true;
   if (_CODE_PUNCT_RE.test(value)) return true;
   if (_FILE_PATH_RE.test(value)) return true;
-  if (/^[a-zA-Z]+(-[a-zA-Z]+)*$/.test(value.trim())) return true;
+  // Quoted/Windows file paths
+  const strippedQ = value.trim().replace(/^["']+|["']+$/g, '');
+  if (_FILE_PATH_RE.test(strippedQ)) return true;
+  if (/^[A-Za-z]:[/\\]/.test(strippedQ)) return true;
+  // Java/Python FQCNs: 4+ dot-separated segments, each ≤40 chars starting with letter
+  const segs = value.replace(/[;,()]+$/, '').split('.');
+  if (segs.length >= 4 && segs.every(s => s && /^[a-zA-Z]/.test(s) && s.length <= 40)) return true;
+  // URLs without protocol: //domain.com/...
+  if (/^\/\/\w/.test(value)) return true;
+  // HTML attributes: href="...", src="...", integrity="..."
+  if (/^(?:href|src|integrity|action|data-\w+)\s*=\s*"/i.test(value)) return true;
+  // SRI hashes: public subresource integrity, not secrets
+  if (/^sha(?:256|384|512)-[A-Za-z0-9+/=]+$/.test(value)) return true;
+  // Single word: letters + hyphens only, max 30 chars (longer = possible API key)
+  if (value.trim().length <= 30 && /^[a-zA-Z]+(-[a-zA-Z]+)*$/.test(value.trim())) return true;
   const stripped = value.trim().replace(/^["']+|["']+$/g, '').trim();
   if (stripped.startsWith('+') || stripped.endsWith('+')) return true;
   // Prose detection for spaced scripts (English, etc.): count ASCII
