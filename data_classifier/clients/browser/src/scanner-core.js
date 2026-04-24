@@ -165,8 +165,11 @@ function matchKey(keyLower, entry) {
 }
 
 function tieredScore(keyScore, tier, value) {
+  // Pre-filter: reject values that are obviously not credentials,
+  // regardless of tier. Mirrors Python _compute_tiered_score pre-filter.
+  if (valueIsObviouslyNotSecret(value)) return 0;
+
   if (tier === 'definitive') {
-    if (valueIsObviouslyNotSecret(value)) return 0;
     return keyScore * SECRET_SCANNER.definitiveMultiplier;
   }
   const rel = relativeEntropy(value);
