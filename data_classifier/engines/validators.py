@@ -876,7 +876,10 @@ def huggingface_token_check(value: str) -> bool:
     suffix = value[3:] if value.startswith("hf_") else value
     has_camel = bool(_CAMEL_CASE_RE.search(suffix))
     has_digit = any(c.isdigit() for c in suffix)
-    if has_camel and not has_digit:
+    # camelCase + no digits + short = code identifier (Objective-C method names)
+    # but real HF tokens are exactly 34 chars of base62; a token that is 34 chars
+    # and purely alphanumeric is almost certainly real even without digits.
+    if has_camel and not has_digit and (len(suffix) > 40 or not suffix.isalnum()):
         return False
     return True
 

@@ -54,8 +54,9 @@ export function huggingfaceToken(value) {
   const suffix = value.startsWith('hf_') ? value.slice(3) : value;
   const hasCamel = _CAMEL_CASE_RE.test(suffix);
   const hasDigit = /[0-9]/.test(suffix);
-  // camelCase + no digits = code identifier (e.g. Objective-C method name)
-  if (hasCamel && !hasDigit) return false;
+  // camelCase + no digits + long/non-alnum = code identifier (Objective-C method names)
+  // but short purely-alphanumeric suffixes (≤40 chars) are likely real tokens
+  if (hasCamel && !hasDigit && (suffix.length > 40 || !/^[a-zA-Z0-9]+$/.test(suffix))) return false;
   return true;
 }
 
