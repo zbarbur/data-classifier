@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+from docs.experiments.prompt_analysis.s4_zone_detection.v2.block_validator import count_code_constructs
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.types import ZoneBlock, ZoneConfig
 
 
@@ -94,6 +95,17 @@ class BlockAssembler:
                 confidence = self._compute_confidence(typed_ratio * 0.5, typed_ratio, block_lines)
             else:
                 confidence = self._compute_confidence(avg_score, high_ratio, block_lines)
+
+            # Block-level code construct validation (suppress / boost)
+            if zone_type == "code":
+                block_text = "\n".join(block_lines)
+                evidence = count_code_constructs(block_text)
+                if evidence == 0:
+                    # No recognizable code constructs → not code
+                    continue
+                elif evidence >= 3:
+                    # Strong code evidence → boost confidence
+                    confidence = min(confidence + 0.10, 0.95)
 
             if confidence < self._min_confidence:
                 continue
