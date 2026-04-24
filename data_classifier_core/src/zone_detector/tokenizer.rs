@@ -17,10 +17,8 @@ pub struct TokenProfile {
     pub dot_access_count: usize,
     pub string_count: usize,
     pub number_count: usize,
-    pub delimiter_count: usize,
     pub total_tokens: usize,
     pub string_ratio: f64,
-    pub identifier_ratio: f64,
 }
 
 static STRING_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -41,10 +39,6 @@ static IDENTIFIER_RE: LazyLock<Regex> = LazyLock::new(|| {
 
 static OPERATOR_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"[+\-*/=<>!&|^~%]+").unwrap()
-});
-
-static DELIMITER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"[{}()\[\];,:]").unwrap()
 });
 
 /// Tokenize a single line and return its profile.
@@ -86,19 +80,13 @@ pub fn tokenize_line(line: &str, keywords: &HashSet<String>) -> TokenProfile {
         }
     }
 
-    // 5. Operators and delimiters
+    // 5. Operators
     let operator_count = OPERATOR_RE.find_iter(&no_strings).count();
-    let delimiter_count = DELIMITER_RE.find_iter(&no_strings).count();
 
     let total_tokens = identifier_count + keyword_count + operator_count
-        + string_count + number_count + delimiter_count;
+        + string_count + number_count;
     let string_ratio = if total_tokens > 0 {
         string_count as f64 / total_tokens as f64
-    } else {
-        0.0
-    };
-    let identifier_ratio = if total_tokens > 0 {
-        identifier_count as f64 / total_tokens as f64
     } else {
         0.0
     };
@@ -110,10 +98,8 @@ pub fn tokenize_line(line: &str, keywords: &HashSet<String>) -> TokenProfile {
         dot_access_count,
         string_count,
         number_count,
-        delimiter_count,
         total_tokens,
         string_ratio,
-        identifier_ratio,
     }
 }
 

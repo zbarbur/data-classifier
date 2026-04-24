@@ -155,4 +155,44 @@ mod tests {
         let (lang, _, _) = d.detect_language(&lines, &hits);
         assert_eq!(lang, "javascript");
     }
+
+    #[test]
+    fn test_c_family_disambiguated_to_java() {
+        let d = make_detector();
+        let mut hits = HashMap::new();
+        hits.insert("c_family".to_string(), 10);
+        let lines = vec![
+            "public static void main(String[] args) {",
+            "    System.out.println(\"hello\");",
+            "}",
+        ];
+        let (lang, _, _) = d.detect_language(&lines, &hits);
+        assert_eq!(lang, "java");
+    }
+
+    #[test]
+    fn test_c_family_no_markers_stays_c_family() {
+        let d = make_detector();
+        let mut hits = HashMap::new();
+        hits.insert("c_family".to_string(), 10);
+        // Lines with no language-specific markers
+        let lines = vec![
+            "int x = 0;",
+            "x++;",
+        ];
+        let (lang, _, _) = d.detect_language(&lines, &hits);
+        assert_eq!(lang, "c_family");
+    }
+
+    #[test]
+    fn test_c_family_below_threshold_no_disambiguation() {
+        let d = make_detector();
+        let mut hits = HashMap::new();
+        hits.insert("c_family".to_string(), 3);
+        hits.insert("python".to_string(), 4);
+        // c_family is not dominant (< 50%), so no disambiguation
+        let lines = vec!["console.log('hi');"];
+        let (lang, _, _) = d.detect_language(&lines, &hits);
+        assert_eq!(lang, "python"); // python wins by hit count
+    }
 }

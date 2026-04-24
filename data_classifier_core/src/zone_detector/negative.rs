@@ -81,7 +81,8 @@ impl NegativeFilter {
             .get("pattern")
             .and_then(|v| v.as_str())
             .unwrap_or(r"^[A-Z][a-z].+[.!?]$");
-        let prose_re = Regex::new(prose_pattern).unwrap();
+        let prose_re = Regex::new(prose_pattern)
+            .unwrap_or_else(|_| Regex::new(r"^[A-Z][a-z].+[.!?]$").expect("default"));
         let prose_min_alpha = prose_cfg
             .get("min_alpha_ratio")
             .and_then(|v| v.as_f64())
@@ -92,7 +93,8 @@ impl NegativeFilter {
             .get("pattern")
             .and_then(|v| v.as_str())
             .unwrap_or(r"^\s*(?:\d+[.):]?\s+|[-\u2022*]\s+|[a-z][.)]\s+)");
-        let list_prefix_re = Regex::new(list_pattern).unwrap();
+        let list_prefix_re = Regex::new(list_pattern)
+            .unwrap_or_else(|_| Regex::new(r"^\s*(?:\d+[.):]?\s+|[-*]\s+|[a-z][.)]\s+)").expect("default"));
         let list_threshold = list_cfg
             .get("threshold")
             .and_then(|v| v.as_f64())

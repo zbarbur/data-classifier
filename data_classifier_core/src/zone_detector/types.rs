@@ -68,3 +68,61 @@ pub struct PromptZones {
     pub total_lines: usize,
     pub blocks: Vec<ZoneBlock>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_zone_type_from_str_roundtrip() {
+        let cases = [
+            ("code", ZoneType::Code),
+            ("markup", ZoneType::Markup),
+            ("config", ZoneType::Config),
+            ("query", ZoneType::Query),
+            ("cli_shell", ZoneType::CliShell),
+            ("data", ZoneType::Data),
+            ("error_output", ZoneType::ErrorOutput),
+            ("natural_language", ZoneType::NaturalLanguage),
+        ];
+        for (s, expected) in &cases {
+            let parsed = ZoneType::from_str(s);
+            assert_eq!(parsed.as_ref(), Some(expected), "from_str({})", s);
+            assert_eq!(parsed.unwrap().as_str(), *s, "as_str round-trip for {}", s);
+        }
+    }
+
+    #[test]
+    fn test_zone_type_from_str_invalid() {
+        assert_eq!(ZoneType::from_str("unknown"), None);
+        assert_eq!(ZoneType::from_str(""), None);
+        assert_eq!(ZoneType::from_str("Code"), None); // case-sensitive
+    }
+
+    #[test]
+    fn test_zone_block_serde_roundtrip() {
+        let block = ZoneBlock {
+            start_line: 5,
+            end_line: 15,
+            zone_type: ZoneType::Code,
+            confidence: 0.85,
+            method: "syntax_score".to_string(),
+            language_hint: "python".to_string(),
+            language_confidence: 0.9,
+            text: "should be skipped".to_string(),
+        };
+        let json = serde_json::to_string(&block).unwrap();
+        assert!(!json.contains("should be skipped"), "text must be skip_serializing");
+        assert!(json.contains("\"zone_type\":\"code\""), "zone_type must be snake_case");
+    }
+
+    #[test]
+    fn test_prompt_zones_default() {
+        let pz = PromptZones {
+            prompt_id: "test".to_string(),
+            total_lines: 0,
+            blocks: vec![],
+        };
+        assert!(pz.blocks.is_empty());
+    }
+}

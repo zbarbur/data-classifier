@@ -125,7 +125,7 @@ impl SyntaxDetector {
                 .map(|k| fancy_regex::escape(k))
                 .collect::<Vec<_>>()
                 .join("|");
-            Some(Regex::new(&format!(r"\b(?:{})\b", alt)).unwrap())
+            Regex::new(&format!(r"\b(?:{})\b", alt)).ok()
         } else {
             None
         };
@@ -136,7 +136,7 @@ impl SyntaxDetector {
                 .map(|k| fancy_regex::escape(k))
                 .collect::<Vec<_>>()
                 .join("|");
-            Some(Regex::new(&format!(r"\b(?:{})\b", alt)).unwrap())
+            Regex::new(&format!(r"\b(?:{})\b", alt)).ok()
         } else {
             None
         };
@@ -146,7 +146,8 @@ impl SyntaxDetector {
             .get("assignment_pattern")
             .and_then(|v| v.as_str())
             .unwrap_or(r"^\s*[a-zA-Z_]\w*\s*[:=]");
-        let assignment_re = Regex::new(assignment_pattern).unwrap();
+        let assignment_re = Regex::new(assignment_pattern)
+            .unwrap_or_else(|_| Regex::new(r"^\s*[a-zA-Z_]\w*\s*[:=]").expect("default"));
 
         // --- scoring weights ---
         let sw = syntax.get("scoring_weights").unwrap_or(&empty_obj);
@@ -198,7 +199,9 @@ impl SyntaxDetector {
                 r"(?:example|code|output|command|result|script|snippet|run this|here is|as follows|shown below|see below).*:?\s*$",
             );
         // Python uses re.IGNORECASE → prepend (?i)
-        let intro_phrase_re = Regex::new(&format!("(?i){}", intro_pattern)).unwrap();
+        let intro_default = r"(?i)(?:example|code|output|command|result|script|snippet|run this|here is|as follows|shown below|see below).*:?\s*$";
+        let intro_phrase_re = Regex::new(&format!("(?i){}", intro_pattern))
+            .unwrap_or_else(|_| Regex::new(intro_default).expect("default"));
 
         let comment_pattern = syntax
             .get("comment_marker_pattern")
@@ -206,7 +209,9 @@ impl SyntaxDetector {
             .unwrap_or(
                 r"^\s*(?:#(?!include|define|ifdef|ifndef|endif|pragma)|//|--|/\*|\*(?!/)| \*\s|%|REM\s)",
             );
-        let comment_marker_re = Regex::new(comment_pattern).unwrap();
+        let comment_default = r"^\s*(?:#(?!include|define|ifdef|ifndef|endif|pragma)|//|--|/\*|\*(?!/)| \*\s|%|REM\s)";
+        let comment_marker_re = Regex::new(comment_pattern)
+            .unwrap_or_else(|_| Regex::new(comment_default).expect("default"));
 
         // --- tokenizer integration ---
         // Tokenizer only knows strict keywords (contextual are validated by
@@ -646,10 +651,6 @@ impl SyntaxDetector {
         hits
     }
 
-    /// Whether a line matches the comment marker pattern.
-    pub fn is_comment(&self, line: &str) -> bool {
-        self.comment_marker_re.is_match(line).unwrap_or(false)
-    }
 }
 
 #[cfg(test)]

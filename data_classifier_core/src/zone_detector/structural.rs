@@ -441,4 +441,64 @@ mod tests {
         assert!(blocks.is_empty());
         assert!(claimed.is_empty());
     }
+
+    #[test]
+    fn test_style_tag_detected() {
+        let d = make_detector();
+        let lines = vec![
+            "<html>",
+            "<style>",
+            "body { color: red; }",
+            "</style>",
+            "</html>",
+        ];
+        let (blocks, _) = d.detect(&lines);
+        let style_block = blocks.iter().find(|b| b.language_hint == "css");
+        assert!(style_block.is_some(), "should detect <style> block");
+    }
+
+    #[test]
+    fn test_untagged_fence_with_code_interior() {
+        let d = make_detector();
+        let lines = vec![
+            "```",
+            "def foo():",
+            "    return bar(x)",
+            "```",
+        ];
+        let (blocks, _) = d.detect(&lines);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].zone_type, ZoneType::Code);
+    }
+
+    #[test]
+    fn test_tilde_fence() {
+        let d = make_detector();
+        let lines = vec![
+            "~~~json",
+            r#"{"key": "value"}"#,
+            "~~~",
+        ];
+        let (blocks, _) = d.detect(&lines);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].language_hint, "json");
+        assert_eq!(blocks[0].zone_type, ZoneType::Config);
+    }
+
+    #[test]
+    fn test_nested_fences_longer_close() {
+        let d = make_detector();
+        // Closing fence must be >= opening fence length
+        let lines = vec![
+            "````python",
+            "code here",
+            "```",           // too short — doesn't close
+            "more code",
+            "````",          // this closes
+        ];
+        let (blocks, _) = d.detect(&lines);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].start_line, 0);
+        assert_eq!(blocks[0].end_line, 5);
+    }
 }

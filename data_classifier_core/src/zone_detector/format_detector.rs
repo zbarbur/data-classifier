@@ -53,7 +53,6 @@ static YAML_KEY_EXTRACT: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Detect structured format blocks (JSON, XML, YAML, ENV) in unclaimed lines.
 pub struct FormatDetector {
-    min_non_empty_lines: usize,
     max_blank_gap: usize,
     json_confidence: f64,
     xml_confidence: f64,
@@ -80,7 +79,6 @@ impl FormatDetector {
         };
 
         Self {
-            min_non_empty_lines: gu("min_non_empty_lines", 5),
             max_blank_gap: gu("max_blank_gap", 2),
             json_confidence: g("json_confidence", 0.90),
             xml_confidence: g("xml_confidence", 0.80),
