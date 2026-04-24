@@ -78,6 +78,27 @@
       .perf-note { font-size: 11px; color: #9ca3af; font-style: italic; }
       .perf-bar { height: 4px; background: #e5e7eb; border-radius: 2px; margin-top: 6px; overflow: hidden; }
       .perf-bar-fill { height: 100%; background: #059669; border-radius: 2px; transition: width 0.3s; }
+
+    .zone-block {
+      display: flex;
+      align-items: center;
+      padding: 4px 8px;
+      margin: 2px 0;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .zone-block .zone-type { font-weight: 600; min-width: 120px; }
+    .zone-block .zone-lines { color: #666; min-width: 100px; }
+    .zone-block .zone-conf { color: #888; min-width: 60px; }
+    .zone-block .zone-lang { color: #0066cc; }
+    .zone-code { background: #f0f4ff; border-left: 3px solid #3b82f6; }
+    .zone-config { background: #fef9ee; border-left: 3px solid #f59e0b; }
+    .zone-markup { background: #fef2f2; border-left: 3px solid #ef4444; }
+    .zone-query { background: #f0fdf4; border-left: 3px solid #22c55e; }
+    .zone-cli_shell { background: #f5f3ff; border-left: 3px solid #8b5cf6; }
+    .zone-error_output { background: #fff7ed; border-left: 3px solid #f97316; }
+    .zone-data { background: #f0f9ff; border-left: 3px solid #06b6d4; }
+    .zone-natural_language { background: #f9fafb; border-left: 3px solid #9ca3af; }
     </style>
   </head>
   <body>
@@ -91,6 +112,9 @@
       <label for="stories">Real-world examples</label>
       <select id="stories">
         <option value="">(paste your own text)</option>
+      </select>
+      <select id="zone-stories" style="display:none; margin-left: 8px;">
+        <option value="">-- zone examples --</option>
       </select>
       <div class="annotation" id="annotation"></div>
     </div>
@@ -112,6 +136,9 @@
           <option value="none">none</option>
         </select>
       </label>
+      <label style="margin-left: 12px; font-size: 13px;">
+        <input type="checkbox" id="zones-enabled" checked /> Zones
+      </label>
     </div>
 
     <div class="results" id="results">
@@ -131,6 +158,13 @@
           <div class="panel-header">Redacted output</div>
           <div class="panel-body" id="redacted-out"></div>
         </div>
+      </div>
+
+      <!-- Zone Detection Results -->
+      <div id="zone-results" style="display:none; margin-top: 16px;">
+        <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #333;">Zone Detection</h3>
+        <div id="zone-summary" style="font-size: 13px; color: #666; margin-bottom: 8px;"></div>
+        <div id="zone-blocks" style="font-family: ui-monospace, 'SF Mono', Monaco, monospace; font-size: 13px;"></div>
       </div>
 
       <span class="raw-toggle" id="raw-toggle">Show raw JSON</span>

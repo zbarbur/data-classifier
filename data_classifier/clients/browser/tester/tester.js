@@ -26,8 +26,14 @@ const storiesRow = document.getElementById('stories-row');
 const annotationEl = document.getElementById('annotation');
 const rawToggle = document.getElementById('raw-toggle');
 const rawJson = document.getElementById('raw-json');
+const zonesEnabledEl = document.getElementById('zones-enabled');
+const zoneResultsEl = document.getElementById('zone-results');
+const zoneSummaryEl = document.getElementById('zone-summary');
+const zoneBlocksEl = document.getElementById('zone-blocks');
+const zoneStoriesEl = document.getElementById('zone-stories');
 
 let stories = [];
+let zoneStories = [];
 
 async function loadStories() {
   try {
@@ -46,6 +52,33 @@ async function loadStories() {
   } catch { /* stories not available */ }
 }
 loadStories();
+
+async function loadZoneStories() {
+  try {
+    const res = await fetch('./corpus/zone-showcase.jsonl');
+    if (!res.ok) return;
+    const text = await res.text();
+    if (text.startsWith('<')) return;
+    zoneStories = text.split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    for (const s of zoneStories) {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.title;
+      zoneStoriesEl.appendChild(opt);
+    }
+    zoneStoriesEl.style.display = '';
+  } catch { /* zone stories not available */ }
+}
+loadZoneStories();
+
+zoneStoriesEl.addEventListener('change', () => {
+  const story = zoneStories.find((s) => s.id === zoneStoriesEl.value);
+  if (story) {
+    inputEl.value = decodeXor(story.prompt_xor);
+    annotationEl.textContent = story.annotation || '';
+    annotationEl.style.display = 'block';
+  }
+});
 
 storiesEl.addEventListener('change', () => {
   const story = stories.find((s) => s.id === storiesEl.value);
@@ -73,15 +106,17 @@ btnEl.addEventListener('click', async () => {
     verbose: verboseEl.checked,
     redactStrategy: strategyEl.value,
     dangerouslyIncludeRawValues: true, // tester is a diagnostic tool — show what was matched
+    zones: zonesEnabledEl.checked,
   };
   try {
-    const { findings, redactedText, scannedMs } = await scanner.scan(text, opts);
+    const { findings, redactedText, scannedMs, zones } = await scanner.scan(text, opts);
     resultsEl.style.display = 'block';
     scanTimeEl.textContent = `${scannedMs.toFixed(1)} ms`;
     renderFindings(findings);
     renderOriginalWithHighlights(originalOut, text, findings);
     renderRedacted(redactedOut, redactedText);
-    findingsJson.textContent = JSON.stringify({ scannedMs, findings }, null, 2);
+    renderZones(findings, zones);
+    findingsJson.textContent = JSON.stringify({ scannedMs, findings, zones }, null, 2);
   } catch (err) {
     resultsEl.style.display = 'block';
     findingsSummary.textContent = '';
@@ -219,6 +254,54 @@ function renderRedacted(el, text) {
     last = m.index + m[0].length;
   }
   if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
+}
+
+function renderZones(findings, zones) {
+  if (!zones || !zones.blocks) {
+    zoneResultsEl.style.display = 'none';
+    return;
+  }
+
+  zoneResultsEl.style.display = '';
+  zoneSummaryEl.textContent = zones.blocks.length + ' zone(s) detected in ' + zones.total_lines + ' lines';
+  zoneBlocksEl.textContent = '';
+
+  if (!zones.blocks.length) {
+    const div = document.createElement('div');
+    div.style.cssText = 'color: #888; font-style: italic; padding: 4px;';
+    div.textContent = 'No structured zones detected (pure prose).';
+    zoneBlocksEl.appendChild(div);
+    return;
+  }
+
+  for (const block of zones.blocks) {
+    const el = document.createElement('div');
+    el.className = 'zone-block zone-' + block.zone_type;
+
+    const typeSpan = document.createElement('span');
+    typeSpan.className = 'zone-type';
+    typeSpan.textContent = block.zone_type;
+    el.appendChild(typeSpan);
+
+    const linesSpan = document.createElement('span');
+    linesSpan.className = 'zone-lines';
+    linesSpan.textContent = 'L' + block.start_line + '\u2013L' + block.end_line;
+    el.appendChild(linesSpan);
+
+    const confSpan = document.createElement('span');
+    confSpan.className = 'zone-conf';
+    confSpan.textContent = (block.confidence * 100).toFixed(0) + '%';
+    el.appendChild(confSpan);
+
+    if (block.language_hint) {
+      const langSpan = document.createElement('span');
+      langSpan.className = 'zone-lang';
+      langSpan.textContent = block.language_hint;
+      el.appendChild(langSpan);
+    }
+
+    zoneBlocksEl.appendChild(el);
+  }
 }
 
 // Benchmark
