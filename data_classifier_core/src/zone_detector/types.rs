@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// The eight zone types recognized by the detector.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ZoneType {
     Code,
@@ -14,6 +14,22 @@ pub enum ZoneType {
     Data,
     ErrorOutput,
     NaturalLanguage,
+}
+
+impl ZoneType {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "code" => Some(Self::Code),
+            "markup" => Some(Self::Markup),
+            "config" => Some(Self::Config),
+            "query" => Some(Self::Query),
+            "cli_shell" => Some(Self::CliShell),
+            "data" => Some(Self::Data),
+            "error_output" => Some(Self::ErrorOutput),
+            "natural_language" => Some(Self::NaturalLanguage),
+            _ => None,
+        }
+    }
 }
 
 /// A single detected zone block within a prompt.
