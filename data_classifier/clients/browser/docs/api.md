@@ -35,30 +35,46 @@ const scanner = createScanner({
 
 ## `scanner.scan(text, opts?)`
 
-Scan text for secrets. Returns findings + redacted text.
+Scan text for secrets and code zones. Returns findings, zone blocks, and redacted text.
 
 ```js
-const { findings, redactedText, scannedMs } = await scanner.scan(text);
+const { findings, zones, redactedText, scannedMs } = await scanner.scan(text);
 ```
 
 ### Parameters
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `timeoutMs` | `number` | `100` | Worker kill budget (ms). If scan exceeds this, behavior depends on `failMode` |
+| `secrets` | `boolean` | `true` | Run secret detection (regex + secret_scanner + opaque_token passes) |
+| `zones` | `boolean` | `true` | Run zone detection (code/markup/config classification via WASM). First call lazy-loads the WASM module (~15-25ms init) |
+| `timeoutMs` | `number` | `5000` (zones) / `100` (secrets-only) | Worker kill budget (ms). Higher default when zones enabled to allow WASM init |
 | `failMode` | `'open' \| 'closed'` | `'open'` | `open`: resolve with empty findings on timeout. `closed`: reject with `{ code: 'TIMEOUT' }` |
 | `redactStrategy` | `'type-label' \| 'asterisk' \| 'placeholder' \| 'none'` | `'type-label'` | How to redact secrets in the output text |
 | `verbose` | `boolean` | `false` | Attach a `details` block to each finding with pattern name, validator status, entropy breakdown |
 | `dangerouslyIncludeRawValues` | `boolean` | `false` | Populate `match.valueRaw` with unmasked value. **Never enable in production.** |
 | `categoryFilter` | `string[]` | `['Credential']` | Pattern categories to scan. Currently supports `Credential` only |
 
+### Selective scanning
+
+```js
+// Both engines (default)
+const result = await scanner.scan(text);
+
+// Secrets only — WASM never loads
+const result = await scanner.scan(text, { secrets: true, zones: false });
+
+// Zones only — JS secret scanner skipped
+const result = await scanner.scan(text, { secrets: false, zones: true });
+```
+
 ### Returns: `ScanResult`
 
 ```typescript
 {
-  findings: Finding[];    // detected secrets, deduplicated by offset
-  redactedText: string;   // input with secrets replaced per redactStrategy
-  scannedMs: number;      // wall-clock scan time in milliseconds
+  findings: Finding[];          // detected secrets, deduplicated by offset
+  zones: ZonesResult | null;    // zone blocks, or null when zones: false / WASM not loaded
+  redactedText: string;         // input with secrets replaced per redactStrategy
+  scannedMs: number;            // wall-clock scan time in milliseconds
 }
 ```
 
@@ -160,6 +176,47 @@ Present when `verbose: true`.
 }
 ```
 
+### `ZonesResult`
+
+Zone detection result. `null` when `zones: false` or WASM failed to load.
+
+```typescript
+{
+  total_lines: number;     // total lines in input text
+  blocks: ZoneBlock[];     // detected zone blocks (may be empty for pure prose)
+}
+```
+
+### `ZoneBlock`
+
+A single detected zone.
+
+```typescript
+{
+  start_line: number;          // 0-indexed, inclusive
+  end_line: number;            // 0-indexed, exclusive
+  zone_type: string;           // "code", "config", "markup", "query", "cli_shell", "data", "error_output", "natural_language"
+  confidence: number;          // 0–1
+  language_hint: string;       // detected language (e.g., "python", "json") or "" if unknown
+  language_confidence: number; // 0–1
+}
+```
+
+### Zone types
+
+| Zone type | Description | Detection method |
+|-----------|-------------|-----------------|
+| `code` | Programming source code | Structural (fences), syntax scoring |
+| `config` | Configuration (JSON, YAML, ENV) | Structural (fences), format detection |
+| `markup` | HTML, XML, SVG | Structural (fences), format detection |
+| `query` | SQL, GraphQL | Structural (fences with `sql`/`graphql` tag) |
+| `cli_shell` | Shell commands | Structural (fences with `bash`/`sh`/`shell` tag) |
+| `data` | Structured data (CSV, logs) | Format detection |
+| `error_output` | Stack traces, error logs | Negative filter (reclassified from code) |
+| `natural_language` | Prose inside fenced blocks | Interior classification |
+
+See [zone-detection.md](zone-detection.md) for the full 10-step pipeline and detection logic.
+
 ---
 
 ## Redaction strategies
@@ -197,37 +254,49 @@ import { createScanner } from '@data-classifier/browser';
 
 const scanner = createScanner({ poolSize: 2 });
 
-const text = `
-export GITHUB_TOKEN=ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-db_password = "S3cureP@ss!xyz"
-`;
+const text = `Fix this Python script:
 
-const result = await scanner.scan(text, {
-  redactStrategy: 'type-label',
-  verbose: true,
-});
+\`\`\`python
+import os
+API_KEY = os.environ.get("OPENAI_KEY", "sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx234")
 
-console.log(result.findings.length);
-// → 2
+def call_api(prompt):
+    return requests.post("https://api.openai.com/v1/chat", headers={"Authorization": f"Bearer {API_KEY}"})
+\`\`\`
 
-console.log(result.findings[0].entity_type);
-// → "API_KEY"
+It should handle rate limiting.`;
 
-console.log(result.findings[0].detection_type);
-// → "github_token"
+const result = await scanner.scan(text, { verbose: true });
 
-console.log(result.findings[0].display_name);
-// → "GitHub Token"
+// Secret detection
+console.log(result.findings.length);       // → 1
+console.log(result.findings[0].entity_type); // → "API_KEY"
+console.log(result.findings[0].display_name); // → "OpenAI API Key"
 
-console.log(result.findings[0].match.valueMasked);
-// → "g]************************************a"
+// Zone detection
+console.log(result.zones.blocks.length);    // → 1
+console.log(result.zones.blocks[0].zone_type); // → "code"
+console.log(result.zones.blocks[0].language_hint); // → "python"
+console.log(result.zones.blocks[0].start_line);  // → 2
+console.log(result.zones.blocks[0].end_line);    // → 9
 
-console.log(result.findings[0].details.pattern);
-// → "github_token"
-
+// Redacted output
 console.log(result.redactedText);
-// → "\nexport GITHUB_TOKEN=[REDACTED:API_KEY]\ndb_password = [REDACTED:OPAQUE_SECRET]\n"
+// → "Fix this Python script:\n\n```python\nimport os\nAPI_KEY = os.environ.get(\"OPENAI_KEY\", \"[REDACTED:API_KEY]\")..."
 
-console.log(result.scannedMs);
-// → 0.12
+console.log(result.scannedMs); // → 1.2
+```
+
+### Secrets-only (skip WASM loading)
+
+```js
+const { findings, redactedText } = await scanner.scan(text, { zones: false });
+// zones field is null, WASM never loaded
+```
+
+### Zones-only (skip secret scanning)
+
+```js
+const { zones } = await scanner.scan(text, { secrets: false });
+// findings is [], no redaction applied
 ```
