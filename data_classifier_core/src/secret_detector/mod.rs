@@ -1,7 +1,7 @@
 pub mod config;
+pub mod entropy;
 pub mod types;
 // Future submodules (uncomment as implemented):
-// pub mod entropy;
 // pub mod fp_filters;
 // pub mod pattern_matcher;
 // pub mod opaque_token;
