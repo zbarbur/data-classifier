@@ -9,6 +9,7 @@
 //! identical detection behavior with zero parity gaps.
 
 pub mod zone_detector;
+pub mod secret_detector;
 
 // =========================================================================
 // WASM API (feature = "wasm")
