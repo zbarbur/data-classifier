@@ -12,10 +12,9 @@ test('tester page detects a GitHub PAT', async ({ page }) => {
   const findingType = await page.locator('.finding-card .finding-type').first().textContent();
   expect(findingType).toBeTruthy();
 
-  const redacted = await page.locator('#redacted-out').textContent();
-  expect(redacted).not.toContain('ghp_aBcDeFgHiJk');
-
-  // Verify original text highlights the secret
-  const highlight = await page.locator('#original-out .secret-highlight').first().textContent();
-  expect(highlight).toContain('ghp_');
+  // Verify the unified output shows the secret as a redacted pill
+  const redactedPill = page.locator('#unified-out .secret-redacted').first();
+  await expect(redactedPill).toBeVisible();
+  const pillText = await redactedPill.textContent();
+  expect(pillText).toContain('GitHub Token');
 });
