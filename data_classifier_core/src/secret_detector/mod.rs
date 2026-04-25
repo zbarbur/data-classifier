@@ -1,6 +1,7 @@
 pub mod config;
 pub mod entropy;
 pub mod types;
+pub mod validators;
 // Future submodules (uncomment as implemented):
 // pub mod fp_filters;
 // pub mod pattern_matcher;
