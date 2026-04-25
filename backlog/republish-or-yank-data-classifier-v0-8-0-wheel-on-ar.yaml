@@ -1,0 +1,47 @@
+title: Republish or yank data_classifier v0.8.0 wheel on AR
+status: done
+priority: P3
+category: chore
+sprint_target: null
+created: 2026-04-24
+updated: 2026-04-24
+depends_on:
+- v0-12-0-wheel-integrity-audit
+tags: []
+goal: Eliminate the stale v0.8.0 wheel from AR, either by republishing it from the
+  v0.8.0 tagged source or by yanking the version entirely.
+complexity: S
+technical_specs:
+- 'Yank command: gcloud artifacts versions delete 0.8.0 --project=dag-bigquery-dev
+  --location=us-central1 --repository=data-classifier --package=data-classifier'
+- Republish path requires checking out v0.8.0 tag, running the Sprint 15 release pipeline
+  against that source (the new content-verified idempotency check will allow the upload
+  since the existing AR wheel differs from the built one), or yanking first then re-running.
+- 'Decision criterion: yank if no consumer pins v0.8.0 anywhere (cheaper, cleaner).
+  Republish if anyone still has v0.8.0 pinned (preserves the hash).'
+description: "The v0.8.0 wheel on AR was built from commit c47ed1c (pre-fix) and serves\
+  \ a broken download_models.py default URL pointing at us-central1-docker.pkg.dev/data-classifier-prod/...\
+  \ The v0.8.0 git tag itself sits on commit 40ced63 which has the corrected AR REST\
+  \ URL. The preflight check in cloudbuild-release.yaml exited 0 when the fix commit\
+  \ 8374128 tried to republish, freezing the broken wheel in place. Once BQ integrates\
+  \ v0.15.0 and drops the Dockerfile --url override, this stale wheel is orphaned\
+  \ \u2014 either republish from the tagged source or yank."
+acceptance_criteria:
+- BQ has migrated to v0.15.0 and confirmed no production code depends on data_classifier==0.8.0
+- 'Either: (a) v0.8.0 has been yanked via gcloud artifacts versions delete; OR (b)
+  v0.8.0 has been rebuilt from git tag v0.8.0 and the new AR-published wheel''s data_classifier/download_models.py
+  SHA-256 matches git show v0.8.0 of that file'
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments:
+- text: "Won't do \u2014 per owner decision 2026-04-24: Sprint 15 / v0.15.0 is the\
+    \ forward path; the stale v0.8.0 wheel stays on AR as-is. BQ migrates to v0.15.0\
+    \ and drops the --url override; no republish, no yank."
+  flagged: false
+  resolved: false
+  created: '2026-04-24'
+  author: agent
+images: []
