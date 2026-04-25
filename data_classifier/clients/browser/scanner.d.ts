@@ -234,9 +234,9 @@ export interface ScanResult {
 /** Scanner instance returned by `createScanner()`. */
 export interface Scanner {
   /**
-   * Scan text for secrets.
+   * Scan text for secrets and code zones.
    *
-   * Dispatches to a Web Worker pool, returns findings + redacted text.
+   * Dispatches to a Web Worker pool, returns findings, zone blocks, and redacted text.
    * If the scan exceeds `timeoutMs`, behavior depends on `failMode`:
    * - `'open'` (default): resolves with empty findings
    * - `'closed'`: rejects with `{ code: 'TIMEOUT' }`
@@ -260,7 +260,7 @@ export interface Scanner {
  * import { createScanner } from '@data-classifier/browser';
  *
  * const scanner = createScanner();
- * const { findings, redactedText } = await scanner.scan('export API_KEY=ghp_...');
+ * const { findings, zones, redactedText } = await scanner.scan('export API_KEY=ghp_...');
  * ```
  *
  * @example Chrome extension integration

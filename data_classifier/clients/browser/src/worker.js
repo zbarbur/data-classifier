@@ -4,18 +4,16 @@
 import { scanText, initZones } from './scanner-core.js';
 
 let zonesInitialized = false;
-let zonesInitializing = false;
 
 self.addEventListener('message', async (event) => {
   const { id, text, opts } = event.data || {};
   try {
     const runZones = (opts && opts.zones) !== false;
 
-    // Lazy-init WASM on first zone-enabled scan
-    if (runZones && !zonesInitialized && !zonesInitializing) {
-      zonesInitializing = true;
+    // Lazy-init WASM on first zone-enabled scan.
+    // initZones() deduplicates concurrent calls internally.
+    if (runZones && !zonesInitialized) {
       zonesInitialized = await initZones();
-      zonesInitializing = false;
     }
 
     const result = scanText(text, opts);
