@@ -48,7 +48,14 @@ LOGIC_FILES = [
 
 # Keep in sync with src/validators.js (PORTED dict keys). Names not listed here
 # emit a warning and load as always-true stubs in JS.
-PORTED_VALIDATORS = {"aws_secret_not_hex", "random_password", "not_placeholder_credential", "huggingface_token", ""}
+PORTED_VALIDATORS = {
+    "aws_secret_not_hex",
+    "random_password",
+    "not_placeholder_credential",
+    "huggingface_token",
+    "swift_bic_country_code",
+    "",
+}
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger("generate_browser_patterns")
