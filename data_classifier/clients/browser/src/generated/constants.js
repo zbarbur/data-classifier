@@ -1,13 +1,13 @@
 // GENERATED - do not edit. Run: npm run generate
-export const PYTHON_LOGIC_VERSION = "532b032fea26de61";
+export const PYTHON_LOGIC_VERSION = "e1d3e44fe4489b1c";
 
 export const PYTHON_LOGIC_FILE_HASHES = {
   "engine_defaults.yaml": "a713f4fcdac41035",
   "heuristic_engine.py": "a0abc2e0c91110cf",
-  "parsers.py": "58bbce7a7c514566",
+  "parsers.py": "5a490f79c6f7d162",
   "regex_engine.py": "02c7c19a66072343",
-  "secret_scanner.py": "8377eedf95450602",
-  "validators.py": "42b2901a97775b8e"
+  "secret_scanner.py": "d7cb20fe609bc397",
+  "validators.py": "ddbbf2b6d42a2116"
 };
 
 export const SECRET_SCANNER = {

@@ -351,6 +351,7 @@ class TextScanner:
             confidence = _OPAQUE_BASE_CONFIDENCE
             if rel > 0.85:
                 confidence += 0.10
+            confidence += max(0, diversity - _OPAQUE_DIVERSITY_THRESHOLD) * 0.05
             if len(cleaned) > 24:
                 confidence += 0.05
             confidence = min(confidence, _OPAQUE_MAX_CONFIDENCE)

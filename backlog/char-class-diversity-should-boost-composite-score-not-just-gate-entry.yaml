@@ -4,7 +4,7 @@ priority: P1
 category: feature
 sprint_target: 15
 created: 2026-04-18
-updated: 2026-04-21
+updated: 2026-04-24
 depends_on: []
 tags: []
 goal: ''
@@ -20,7 +20,7 @@ description: 'Strong tier formula uses diversity >= 3 as a binary gate but doesn
 acceptance_criteria: []
 test_plan: []
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

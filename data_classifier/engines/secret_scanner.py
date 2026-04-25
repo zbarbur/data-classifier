@@ -470,12 +470,14 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
     if re.match(r"^SHA(?:256|384|512):", value):
         return True
 
-    # Purely-alpha CamelCase identifiers (≥3 CamelCase words, >95% letters) —
+    # Purely-alpha CamelCase identifiers (≥3 long CamelCase words, >90% letters) —
     # e.g. FFlagSimCSGV3CacheVerboseBSPMemory, TransactionTypesPurchaseBillPayment.
     # Real secrets always contain digits or symbols; pure-alpha CamelCase is
     # code identifiers, feature flags, or enum names.
+    # Require words with ≥4 lowercase chars to avoid false-matching API keys
+    # like AIzayDNSXIbFmlXbIE6mCzDLQAqITYefhixbX4A (accidental short "words").
     alpha_ratio = sum(1 for c in value if c.isalpha()) / max(len(value), 1)
-    if alpha_ratio > 0.90 and len(re.findall(r"[A-Z][a-z]+", value)) >= 3:
+    if alpha_ratio > 0.90 and len(re.findall(r"[A-Z][a-z]{3,}", value)) >= 3:
         return True
 
     # Android/JVM bytecode class references — e.g.
@@ -1063,7 +1065,8 @@ class SecretScannerEngine(ClassificationEngine):
             if rel_entropy >= strong_rel or diversity >= diversity_min:
                 base_score = key_score * max(strong_min, _score_relative_entropy(rel_entropy))
                 evenness_bonus = compute_char_class_evenness(value) * 0.15
-                return min(base_score + evenness_bonus, 1.0)
+                diversity_bonus = max(0, diversity - diversity_min) * 0.05
+                return min(base_score + evenness_bonus + diversity_bonus, 1.0)
             return 0.0
 
         # contextual tier — need strong value signal
@@ -1072,7 +1075,8 @@ class SecretScannerEngine(ClassificationEngine):
         if rel_entropy >= contextual_rel and diversity >= diversity_min:
             base_score = key_score * _score_relative_entropy(rel_entropy)
             evenness_bonus = compute_char_class_evenness(value) * 0.15
-            return min(base_score + evenness_bonus, 1.0)
+            diversity_bonus = max(0, diversity - diversity_min) * 0.05
+            return min(base_score + evenness_bonus + diversity_bonus, 1.0)
         return 0.0
 
     @staticmethod

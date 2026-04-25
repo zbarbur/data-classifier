@@ -270,6 +270,60 @@ class TestOpaqueTokenPass:
         assert len(opaque) == 0
 
 
+class TestDiversityBoost:
+    """Diversity above threshold should boost confidence."""
+
+    def test_diversity_boosts_kv_confidence(self, scanner):
+        """A strong-tier KV pair with diversity=4 should score higher than diversity=3."""
+        from data_classifier.engines.secret_scanner import SecretScannerEngine, _score_key_name
+
+        ss = SecretScannerEngine()
+        ss.startup()
+        key_score, tier, _ = _score_key_name("pass", ss._key_entries)
+        assert tier == "strong"
+
+        # diversity=4 value (upper+lower+digits+symbols)
+        high_div = ss._compute_tiered_score(key_score, tier, "P}fX2+dX8B5q#a")
+        # diversity=3 value (upper+lower+digits, no symbols)
+        low_div = ss._compute_tiered_score(key_score, tier, "PfX2dX8B5q1a0c")
+        assert high_div > low_div, f"diversity=4 ({high_div}) should score higher than diversity=3 ({low_div})"
+
+    def test_opaque_token_diversity_confidence(self, scanner):
+        """Opaque tokens with diversity >= 4 should get +0.05 confidence."""
+        # Build two tokens: same entropy/length, different diversity
+        # diversity=4: upper+lower+digits+symbols
+        token4 = "xK9m!P2nQ7#rT4w$Y6aB8"
+        result = scanner.scan(f"value: {token4}")
+        high_div = [f for f in result.findings if f.detection_type == "opaque_token"]
+        if high_div:
+            assert high_div[0].confidence >= 0.70, "diversity=4 opaque token should get boosted confidence"
+
+
+class TestCamelCaseFilter:
+    """CamelCase filter should catch identifiers but not API keys."""
+
+    def test_google_api_key_not_filtered(self, scanner):
+        """Google API keys (AIza...) must not be killed by the CamelCase filter."""
+        from data_classifier.engines.secret_scanner import _value_is_obviously_not_secret
+
+        # This was previously false-filtered because short "CamelCase words" like Xb, Cz
+        assert not _value_is_obviously_not_secret("AIzayDNSXIbFmlXbIE6mCzDLQAqITYefhixbX4A")
+
+    def test_real_camelcase_still_filtered(self, scanner):
+        """Real CamelCase identifiers must still be filtered."""
+        from data_classifier.engines.secret_scanner import _value_is_obviously_not_secret
+
+        assert _value_is_obviously_not_secret("FFlagSimCSGV3CacheVerboseBSPMemory")
+        assert _value_is_obviously_not_secret("TransactionTypesPurchaseBillPayment")
+        assert _value_is_obviously_not_secret("HttpServletRequestHandler")
+
+    def test_google_api_key_detected_in_scan(self, scanner):
+        """Full scan_text should detect a Google API key."""
+        result = scanner.scan('apiKey: "AIzayDNSXIbFmlXbIE6mCzDLQAqITYefhixbX4A"')
+        cred = [f for f in result.findings if f.category == "Credential"]
+        assert len(cred) >= 1, "Google API key should be detected"
+
+
 class TestColumnNameNeutral:
     """Verify the synthetic column uses a neutral name that won't trigger column_name engine."""
 

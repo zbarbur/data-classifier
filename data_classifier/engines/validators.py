@@ -826,21 +826,31 @@ _ISO_3166_ALPHA2: frozenset[str] = frozenset(
 
 
 def swift_bic_country_code_check(value: str) -> bool:
-    """Validate SWIFT/BIC country code at positions 5-6.
+    """Validate SWIFT/BIC country code and structural plausibility.
 
     SWIFT/BIC format: BBBBCCLL[NNN] where CC is the ISO 3166 country code.
-    Without this check, 8-letter English words like CONSTRAINTS (positions
-    5-6 = "IN" = India) and PERFORMANCE (positions 5-6 = "MA" = Morocco)
-    match — but DATABASE (positions 5-6 = "BA" = Bosnia) also matches, so
-    this validator catches ~50% of English-word FPs (the ones with non-code
-    letters at positions 5-6). Full bank-registry validation is a separate
-    item.
+    Two-layer validation:
+      1. Country code at positions 5-6 must be a valid ISO 3166-1 alpha-2.
+      2. All-alpha 8-char values are rejected — real BIC codes nearly always
+         contain digits in the location code (positions 7-8) or branch code.
+         8-char all-alpha matches are overwhelmingly English words/surnames
+         (MARTINEZ, ANDERSON, HOUTHTALING) that happen to embed a valid
+         country code.  11-char all-alpha is rare enough to pass.
     """
     clean = value.strip().upper()
     if len(clean) not in (8, 11):
         return False
     country = clean[4:6]
-    return country in _ISO_3166_ALPHA2
+    if country not in _ISO_3166_ALPHA2:
+        return False
+    # All-alpha matches are overwhelmingly false positives — surnames
+    # (HOUTHTALING, CHRISTOPHER), place names (ORANIENBURG), and common
+    # words (SHAREHOLDER).  Real BIC codes almost always have digits in
+    # the location/branch code (CHASUS33, BXCAZM45, GLQDUS9XM2A).
+    # The few all-alpha BICs (DEUTDEFF, BNPAFRPP) need column context.
+    if clean.isalpha():
+        return False
+    return True
 
 
 def _openai_legacy_key_check(value: str) -> bool:

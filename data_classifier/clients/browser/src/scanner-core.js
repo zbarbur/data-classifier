@@ -183,16 +183,17 @@ function tieredScore(keyScore, tier, value) {
   const rel = relativeEntropy(value);
   const div = charClassDiversity(value);
   const evennessBonus = charClassEvenness(value) * 0.15;
+  const diversityBonus = Math.max(0, div - SECRET_SCANNER.diversityThreshold) * 0.05;
   if (tier === 'strong') {
     if (rel >= SECRET_SCANNER.relativeEntropyStrong || div >= SECRET_SCANNER.diversityThreshold) {
       const base = keyScore * Math.max(SECRET_SCANNER.strongMinEntropyScore, scoreRelativeEntropy(rel));
-      return Math.min(base + evennessBonus, 1.0);
+      return Math.min(base + evennessBonus + diversityBonus, 1.0);
     }
     return 0;
   }
   if (rel >= SECRET_SCANNER.relativeEntropyContextual && div >= SECRET_SCANNER.diversityThreshold) {
     const base = keyScore * scoreRelativeEntropy(rel);
-    return Math.min(base + evennessBonus, 1.0);
+    return Math.min(base + evennessBonus + diversityBonus, 1.0);
   }
   return 0;
 }
@@ -239,9 +240,10 @@ function valueIsObviouslyNotSecret(value) {
   if (/^sha(?:256|384|512)-[A-Za-z0-9+/=]+$/.test(value)) return true;
   // SSH/TLS fingerprints: SHA256:NkM/srqYj7zG...
   if (/^SHA(?:256|384|512):/.test(value)) return true;
-  // Purely-alpha CamelCase identifiers (≥3 words, >95% alpha): feature flags, enums
+  // Purely-alpha CamelCase identifiers (≥3 long words, >90% alpha): feature flags, enums
+  // Require words with ≥4 lowercase chars to avoid false-matching API keys (e.g. AIza...)
   { const alphaCount = [...value].filter(c => /[a-zA-Z]/.test(c)).length;
-    if (alphaCount / value.length > 0.90 && (value.match(/[A-Z][a-z]+/g) || []).length >= 3) return true; }
+    if (alphaCount / value.length > 0.90 && (value.match(/[A-Z][a-z]{3,}/g) || []).length >= 3) return true; }
   // Android/JVM bytecode class references: Ldalvik/system/..., Lcom/android/...
   if (/^L[a-z][a-z0-9]*\//.test(value)) return true;
   // Dict/config bracket key access: app.config['SQLALCHEMY_DATABASE_URI (after strip)
@@ -395,6 +397,7 @@ function opaqueTokenPass(text, verbose, includeRaw, pemSpans) {
 
     let confidence = baseConfidence;
     if (rel > 0.85) confidence += 0.1;
+    confidence += Math.max(0, div - diversityThreshold) * 0.05;
     if (cleaned.length > 24) confidence += 0.05;
     confidence = Math.min(maxConfidence, confidence);
 
