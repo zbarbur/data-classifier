@@ -74,6 +74,8 @@ function regexPass(text, categoryFilter, verbose, includeRaw) {
     if (isPlaceholderPattern(m.value)) continue;
     const validated = m.validator(m.value);
     if (!validated) continue;
+    // FP filters — match Python scan_text._regex_pass behavior
+    if (valueIsObviouslyNotSecret(m.value)) continue;
     const p = m.pattern;
     const match = { valueMasked: maskValue(m.value, p.entity_type), start: m.start, end: m.end };
     if (includeRaw) match.valueRaw = m.value;
@@ -207,7 +209,7 @@ const _CODE_SEMI_RE = /^[a-zA-Z_]\w*;$/;
 const _SHELL_VAR_RE = /^\$(?!2[aby]\$|[56]\$|argon2|scrypt)[\w{]/;
 const _CONSTANT_NAME_RE = /^[A-Z][A-Z0-9]*([_-][A-Z0-9]+)+$/;
 const _CODE_PUNCT_RE = /^[\[\](){};<>,./\\|!@#%^&*\-+=~`\s]+$/;
-const _FILE_PATH_RE = /^[/~][\w./\-]+$|^[A-Z]:\\[\w\\.\-]+$/;
+const _FILE_PATH_RE = /^[/~][\w./\-:+]+$|^[A-Z]:\\[\w\\.\-:+]+$/;
 // Tokens containing both parens and equals/semicolons are code fragments
 // (e.g. `OleDbConnection("Provider=Microsoft.Jet.OLEDB.4.0;Data`), not secrets.
 const _CODE_CALL_RE = /[({].*[=;]/;
@@ -219,7 +221,12 @@ function valueIsObviouslyNotSecret(value) {
   if (_DATE_LIKE_RE.test(value)) return true;
   if (_IP_LIKE_RE.test(value)) return true;
   if (_NUMERIC_ONLY_RE.test(value)) return true;
-  if (_CODE_DOT_RE.test(value) || _CODE_BRACKET_RE.test(value) || _CODE_SEMI_RE.test(value) || _CODE_CALL_RE.test(value)) return true;
+  // Dot-notation: guard against long segments (>32 chars) which are JWTs, not code chains
+  if (_CODE_DOT_RE.test(value)) {
+    const segs = value.replace(/[;,]$/, '').split('.');
+    if (segs.every(s => s.length <= 32)) return true;
+  }
+  if (_CODE_BRACKET_RE.test(value) || _CODE_SEMI_RE.test(value) || _CODE_CALL_RE.test(value)) return true;
   if (_SHELL_VAR_RE.test(value)) return true;
   if (_CONSTANT_NAME_RE.test(value)) return true;
   if (_CODE_PUNCT_RE.test(value)) return true;

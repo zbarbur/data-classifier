@@ -47,7 +47,7 @@ _OPAQUE_BASE_CONFIDENCE = 0.65
 _OPAQUE_MAX_CONFIDENCE = 0.85
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 _TOKEN_RE = re.compile(r"\S+")
-_STRIP_RE = re.compile(r'^["\'`]+|["\'`,.;:!?)\]]+$')
+_STRIP_RE = re.compile(r'^["\'`]+|["\'`,.;:!?)\]}]+$')
 
 # PEM block detection — matches -----BEGIN X----- to -----END X-----
 _PEM_RE = re.compile(
