@@ -176,6 +176,47 @@ def _parse_code_literals(text: str) -> list[tuple[str, str]]:
     return results
 
 
+def parse_key_values_with_spans(text: str) -> list[tuple[str, str, int, int]]:
+    """Extract key-value pairs with value positions — for text scanning.
+
+    Like :func:`parse_key_values`, but returns (key, value, value_start, value_end)
+    tuples so the caller knows exactly where the value appears in the original text.
+
+    Only uses env and code-literal parsers (JSON/YAML don't apply to free text).
+
+    Args:
+        text: Free text that may contain embedded key=value assignments.
+
+    Returns:
+        List of (key, value, value_start, value_end) tuples.
+    """
+    if not text or not text.strip():
+        return []
+
+    results: list[tuple[str, str, int, int]] = []
+
+    # Env format: KEY=VALUE, export KEY=VALUE
+    for match in _ENV_PATTERN.finditer(text):
+        key = match.group(1)
+        # Value is in group 2, 3, or 4
+        for g in (2, 3, 4):
+            value = match.group(g)
+            if value:
+                results.append((key, value, match.start(g), match.end(g)))
+                break
+
+    # Code literals: identifier = "value" or identifier = 'value'
+    for match in _CODE_LITERAL_PATTERN.finditer(text):
+        key = match.group(1)
+        for g in (2, 3):
+            value = match.group(g)
+            if value:
+                results.append((key, value, match.start(g), match.end(g)))
+                break
+
+    return results
+
+
 def _flatten_dict(data: dict, prefix: str = "") -> list[tuple[str, str]]:
     """Recursively flatten a nested dict into (dotted_key, str_value) pairs.
 

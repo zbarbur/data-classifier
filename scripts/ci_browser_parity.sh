@@ -17,7 +17,13 @@ echo "=== Browser PoC parity check ==="
 
 # 1. Regenerate JS assets from current Python source
 echo ">> Regenerating JS assets from Python..."
-"$REPO_ROOT/.venv/bin/python" "$REPO_ROOT/scripts/generate_browser_patterns.py" "$@"
+# Prefer .venv/bin/python (local dev) but fall back to system python (CI runner)
+if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
+  PYTHON="$REPO_ROOT/.venv/bin/python"
+else
+  PYTHON="python"
+fi
+"$PYTHON" "$REPO_ROOT/scripts/generate_browser_patterns.py" "$@"
 
 # 2. Install npm deps (skip if node_modules exists and is fresh)
 echo ">> Installing npm dependencies..."
@@ -39,5 +45,14 @@ npx playwright install chromium --with-deps 2>/dev/null || npx playwright instal
 # 6. Run differential test
 echo ">> Running differential parity test..."
 npx playwright test tests/e2e/differential.spec.js
+
+# 7. Run WildChat parity test (if eval dataset exists)
+EVAL_DATA="$REPO_ROOT/data/wildchat_eval/wildchat_eval.jsonl"
+if [ -f "$EVAL_DATA" ]; then
+  echo ">> Running WildChat parity test (200 sampled prompts)..."
+  npx playwright test tests/e2e/wildchat-parity.spec.js
+else
+  echo ">> Skipping WildChat parity (eval dataset not found — run scripts/build_wildchat_eval.py)"
+fi
 
 echo "=== Browser PoC parity check PASSED ==="

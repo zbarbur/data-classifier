@@ -19,7 +19,89 @@ cherry-picks as `0.{sprint}.{patch}`.
 
 ## [Unreleased]
 
-No unreleased changes. Sprint 13 work will land here.
+No unreleased changes.
+
+## [0.15.0] — Sprints 13 / 14 / 15 (2026-04-16 → 2026-04-25)
+
+Second BQ-facing release. Bundles three sprints of changes since
+`v0.12.0`. **This release includes one behavior change:** the
+meta-classifier directive flip (Sprint 14) makes the v5 meta-classifier
+the live decision-maker on `structured_single` columns, improving
+family-macro F1 from 0.83 to 0.95. See
+`docs/migrations/v0.8.0-to-v0.15.0.md` for integration guidance.
+
+### Added
+
+- **`scan_text()` public API** (Sprint 14). Free-text credential
+  scanning for prompts, logs, and configs. Three-pass pipeline: regex,
+  KV secret scanner, and opaque token detection. Available via
+  `from data_classifier import scan_text`.
+- **`health_check()` probe** (Sprint 14). Safe readiness probe for
+  `/health` endpoints — never raises.
+- **3-branch column-shape router** (Sprint 13). Columns are classified
+  as `structured_single`, `free_text_heterogeneous`, or `opaque_tokens`
+  and routed to specialised detection pipelines.
+- **Per-value GLiNER union** (Sprint 13). Heterogeneous columns get
+  per-value ML classification instead of column-level aggregation.
+- **PEM block detection** (Sprint 15). `-----BEGIN/END-----` blocks
+  are detected as whole private keys instead of per-line noise.
+- **CamelCase key-name normalisation** (Sprint 15). `privateKey` and
+  `apiSecret` now match the snake_case secret key-name dictionary.
+- **Opaque token pass** (Sprint 15). Standalone high-entropy token
+  detection (JWTs, hex hashes, random API keys) in `scan_text`.
+
+### Changed
+
+- **Meta-classifier directive flip** (Sprint 14). The v5
+  meta-classifier is now the live directive on `structured_single`
+  columns. Shadow-only since Sprint 12, promoted after passing the
+  safety audit. `family_macro_f1` 0.83 → 0.95.
+- **Confidence model rethink** (Sprint 15). Single-match validated
+  patterns (AKIA, ghp_) now floor at 0.95 confidence. The count-based
+  multiplier is removed — confidence reflects match quality, not
+  column prevalence. `match_ratio` available separately via
+  `SampleAnalysis`.
+- **Char-class diversity boost** (Sprint 15). Values with high
+  character-class diversity (upper+lower+digits+symbols) get a small
+  confidence lift in both the KV scorer and opaque token pass.
+- **SWIFT_BIC validator tightened** (Sprint 15). All-alpha matches
+  are rejected — real BIC codes almost always contain digits. Eliminates
+  false positives from surnames and common words. FINANCIAL benchmark
+  precision recovered from 0.838 to 0.996.
+
+### Fixed
+
+- **25+ structural FP filters** (Sprint 15). Opaque token and KV
+  pass false positive rate reduced by ~80% on WildChat corpus. Filters
+  cover: file paths, code expressions, CamelCase identifiers, JVM
+  bytecode references, config bracket access, SSH fingerprints, template
+  literals, Ethereum addresses, and more. All mirrored in Python + JS.
+- **KV pass span accuracy** (Sprint 15). `scan_text` KV pass now
+  reports the matched value span, not the whole text span.
+- **CREDENTIAL split into subtypes** (Sprint 14). Benchmark ground
+  truth uses `API_KEY` / `PRIVATE_KEY` / `OPAQUE_SECRET` instead of
+  monolithic `CREDENTIAL` (runtime emission already used subtypes
+  since v0.8.0).
+
+### Removed
+
+- **DOB_EU entity type** (Sprint 12, carried forward). `DOB_EU` is
+  no longer emitted; use `DOB` instead. Family alias (`DATE`)
+  preserved.
+
+### Benchmark
+
+Family accuracy benchmark (Sprint 15, `DATA_CLASSIFIER_DISABLE_ML=1`):
+
+| Metric | v0.12.0 (S12) | v0.14.0 (S14) | v0.15.0 (S15) |
+|---|---|---|---|
+| `cross_family_rate` | 0.1627 | 0.1182 | **0.1066** |
+| `family_macro_f1` | 0.8329 | 0.8566 | **0.9477** |
+| `NEGATIVE` F1 | 0.000 | 0.000 | **1.000** |
+| `FINANCIAL` F1 | — | 0.996 | 0.972 |
+| `CREDENTIAL` F1 | — | 0.871 | 0.896 |
+
+Test suite: **2343 tests**, 1 skipped, 1 xfailed.
 
 ## [0.12.0] — Sprints 9 / 10 / 11 / 12 (2026-04-13 → 2026-04-16)
 

@@ -124,27 +124,30 @@ OPENPII_1M_TYPE_MAP: dict[str, str] = {
     # Identity / PII
     "GIVENNAME": "PERSON_NAME",
     "SURNAME": "PERSON_NAME",
-    "USERNAME": "PERSON_NAME",
     # Address components
+    # NOTE: STATE/COUNTY not found in 200k-row survey (2026-04-22); BUILDINGNUM
+    # is present but rare.  USERNAME/ACCOUNTNUM/PHONENUMBER do not exist in
+    # the actual dataset — actual phone label is TELEPHONENUM.
     "BUILDINGNUM": "ADDRESS",
     "STREET": "ADDRESS",
     "CITY": "ADDRESS",
     "ZIPCODE": "ADDRESS",
-    "STATE": "ADDRESS",
-    "COUNTY": "ADDRESS",
     # Government-issued IDs
     "IDCARDNUM": "NATIONAL_ID",
     "DRIVERLICENSENUM": "NATIONAL_ID",
     "PASSPORTNUM": "NATIONAL_ID",
-    # Tax / social security
-    "TAXNUM": "SSN",
-    "SOCIALNUM": "SSN",
+    # Tax / social security — mapped to NATIONAL_ID (not SSN).
+    # openpii-1m is multilingual (23 languages, 6 EU regions): TAXNUM values
+    # are country-specific tax IDs (CZ DIČ, CH UID, AT Steuernummer, etc.)
+    # and SOCIALNUM values are national social numbers (BG EGN, CZ rodné
+    # číslo, CH AHV, DK CPR, etc.) — none are US SSNs.  Sprint 15 fix.
+    "TAXNUM": "NATIONAL_ID",
+    "SOCIALNUM": "NATIONAL_ID",
     # Financial
     "CREDITCARDNUMBER": "CREDIT_CARD",
-    "ACCOUNTNUM": "BANK_ACCOUNT",
     # Contact
     "EMAIL": "EMAIL",
-    "PHONENUMBER": "PHONE",
+    "TELEPHONENUM": "PHONE",  # actual label; spec said PHONENUMBER (incorrect)
     # Date
     "DATE": "DATE",
 }

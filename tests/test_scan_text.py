@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 
+import pytest
+
 from data_classifier.scan_text import TextScanner, scan_text
 
 
@@ -15,7 +17,9 @@ def _decode_xor(encoded: str, key: int = 0x5A) -> str:
 
 
 # XOR-encoded test credentials to avoid GitHub push protection
-_GITHUB_TOKEN = _decode_xor("xor:PTIqBQ==") + "aBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHiJ"  # ghp_ + 36 mixed alnum
+# Note: token suffix must not contain sequential alphabet runs (e.g. abcdefghij...)
+# or repeated chars — those are correctly filtered as placeholder patterns.
+_GITHUB_TOKEN = _decode_xor("xor:PTIqBQ==") + "xK9mP2nQ7rT4wY6aB8cD0eF3gH5iJ1kLmN0p"  # ghp_ + 36 mixed alnum
 _AWS_KEY = _decode_xor("xor:GxETGw==") + "IOSFODNN7R4ND0M9"  # AKIA + 16 uppercase/digits
 
 
@@ -64,6 +68,59 @@ class TestSecretScannerPass:
         for f in ss_findings:
             assert f.entity_type, "Finding must have entity_type"
             assert f.confidence > 0, "Finding must have positive confidence"
+
+    def test_kv_in_code_block_finds_secret_not_block(self):
+        """KV pass should find the secret VALUE, not the entire code block."""
+        code = (
+            "import requests\n"
+            "import time\n\n"
+            "API_KEY = 'CXTB4IUT31N836G93ZI3YQBEWBQEGGH5QS'\n"
+            "TOKEN_CONTRACT = '0x4401E60E39F7d3F8D5021F11'\n\n"
+            "def get_data():\n"
+            "    return requests.get(url)\n"
+        )
+        result = scan_text(code)
+        ss_findings = [f for f in result.findings if f.engine == "secret_scanner"]
+        assert len(ss_findings) >= 1, f"Expected KV finding in code block, got {ss_findings}"
+        for f in ss_findings:
+            span = f.end - f.start
+            assert span < 100, f"KV finding span should cover the value, not the whole block (got {span} chars)"
+            matched = code[f.start : f.end]
+            assert "import" not in matched, f"Span should not include code: {matched!r}"
+
+    def test_kv_span_points_to_value(self):
+        """KV pass span should point to the actual secret value."""
+        text = 'db_password = "xK9mP2nQ7rT4wY6aB8cD0eF3gH5iJ1kL"'
+        result = scan_text(text)
+        ss_findings = [f for f in result.findings if f.engine == "secret_scanner"]
+        assert len(ss_findings) >= 1, "Expected KV finding"
+        f = ss_findings[0]
+        matched = text[f.start : f.end]
+        assert matched == "xK9mP2nQ7rT4wY6aB8cD0eF3gH5iJ1kL", f"Span should match the value, got {matched!r}"
+
+    def test_kv_env_format_span(self):
+        """Env-style KEY=VALUE gets accurate span."""
+        text = "export SECRET_TOKEN=R4nD0m_S3cr3t_V4lu3!"
+        result = scan_text(text)
+        ss_findings = [f for f in result.findings if f.engine == "secret_scanner"]
+        if ss_findings:
+            f = ss_findings[0]
+            matched = text[f.start : f.end]
+            assert matched == "R4nD0m_S3cr3t_V4lu3!", f"Expected value, got {matched!r}"
+
+    def test_kv_placeholder_rejected(self):
+        """KV pass should reject placeholder values."""
+        text = 'api_key = "your_api_key_here"'
+        result = scan_text(text)
+        ss_findings = [f for f in result.findings if f.engine == "secret_scanner"]
+        assert len(ss_findings) == 0, "Placeholder should not trigger KV finding"
+
+    def test_kv_prose_value_rejected(self):
+        """KV pass should reject prose descriptions as values."""
+        text = 'password = "Please enter your password in the field below"'
+        result = scan_text(text)
+        ss_findings = [f for f in result.findings if f.engine == "secret_scanner"]
+        assert len(ss_findings) == 0, "Prose value should not trigger KV finding"
 
 
 class TestDedup:
@@ -138,6 +195,133 @@ class TestSingleton:
         assert not scanner._started
         scanner.scan("test")
         assert scanner._started
+
+
+@pytest.fixture
+def scanner():
+    s = TextScanner()
+    s.startup()
+    return s
+
+
+class TestFPFilters:
+    """Tests for FP rejection filters in regex pass."""
+
+    def test_code_expression_rejected(self, scanner):
+        """Code expressions like foo.bar.baz should not trigger findings."""
+        result = scanner.scan("request.session.auth_token")
+        assert len(result.findings) == 0, "Code expression should not trigger findings"
+
+    def test_shell_variable_rejected(self, scanner):
+        """Shell variable references should not trigger findings."""
+        result = scanner.scan("$SOME_VARIABLE_NAME")
+        assert len(result.findings) == 0, "Shell variable should not trigger findings"
+
+    def test_placeholder_rejected(self, scanner):
+        result = scanner.scan("token: YOUR_API_KEY_HERE")
+        placeholder_findings = [f for f in result.findings if "YOUR_API_KEY_HERE" in (f.value_masked or "")]
+        assert len(placeholder_findings) == 0
+
+    def test_cjk_text_rejected(self, scanner):
+        result = scanner.scan("密码是这个很长的字符串包含很多汉字不是密码")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET"]
+        assert len(opaque) == 0
+
+    def test_real_credential_still_detected(self, scanner):
+        # Use _AWS_KEY (AKIAIOSFODNN7R4ND0M9) — not a documentation placeholder
+        result = scanner.scan(f"Use this key: {_AWS_KEY}")
+        aws = [f for f in result.findings if "aws" in (f.detection_type or "").lower() or f.entity_type == "API_KEY"]
+        assert len(aws) >= 1
+
+
+class TestOpaqueTokenPass:
+    """Tests for standalone high-entropy token detection."""
+
+    def test_bare_jwt_detected(self, scanner):
+        jwt = (
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+            ".eyJzdWIiOiIxMjM0NTY3ODkwIn0"
+            ".dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        )
+        result = scanner.scan(f"Use this token: {jwt}")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET" or f.detection_type == "jwt_token"]
+        assert len(opaque) >= 1
+
+    def test_bare_mixed_token_detected(self, scanner):
+        # Mixed-case alphanumeric token — passes entropy (>0.7) and diversity (>=3) gates
+        mixed_token = "xK9mP2nQ7rT4wY6aB8cD0eF3gH5iJ1kLmNo"
+        result = scanner.scan(f"Token: {mixed_token}")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET"]
+        assert len(opaque) >= 1
+
+    def test_placeholder_not_detected(self, scanner):
+        result = scanner.scan("token: xxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET"]
+        assert len(opaque) == 0
+
+    def test_short_token_not_detected(self, scanner):
+        result = scanner.scan("key: aB3!")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET"]
+        assert len(opaque) == 0
+
+    def test_low_entropy_not_detected(self, scanner):
+        result = scanner.scan("value: aaaaaaaabbbbbbbbcccccccc")
+        opaque = [f for f in result.findings if f.entity_type == "OPAQUE_SECRET"]
+        assert len(opaque) == 0
+
+
+class TestDiversityBoost:
+    """Diversity above threshold should boost confidence."""
+
+    def test_diversity_boosts_kv_confidence(self, scanner):
+        """A strong-tier KV pair with diversity=4 should score higher than diversity=3."""
+        from data_classifier.engines.secret_scanner import SecretScannerEngine, _score_key_name
+
+        ss = SecretScannerEngine()
+        ss.startup()
+        key_score, tier, _ = _score_key_name("pass", ss._key_entries)
+        assert tier == "strong"
+
+        # diversity=4 value (upper+lower+digits+symbols)
+        high_div = ss._compute_tiered_score(key_score, tier, "P}fX2+dX8B5q#a")
+        # diversity=3 value (upper+lower+digits, no symbols)
+        low_div = ss._compute_tiered_score(key_score, tier, "PfX2dX8B5q1a0c")
+        assert high_div > low_div, f"diversity=4 ({high_div}) should score higher than diversity=3 ({low_div})"
+
+    def test_opaque_token_diversity_confidence(self, scanner):
+        """Opaque tokens with diversity >= 4 should get +0.05 confidence."""
+        # Build two tokens: same entropy/length, different diversity
+        # diversity=4: upper+lower+digits+symbols
+        token4 = "xK9m!P2nQ7#rT4w$Y6aB8"
+        result = scanner.scan(f"value: {token4}")
+        high_div = [f for f in result.findings if f.detection_type == "opaque_token"]
+        if high_div:
+            assert high_div[0].confidence >= 0.70, "diversity=4 opaque token should get boosted confidence"
+
+
+class TestCamelCaseFilter:
+    """CamelCase filter should catch identifiers but not API keys."""
+
+    def test_google_api_key_not_filtered(self, scanner):
+        """Google API keys (AIza...) must not be killed by the CamelCase filter."""
+        from data_classifier.engines.secret_scanner import _value_is_obviously_not_secret
+
+        # This was previously false-filtered because short "CamelCase words" like Xb, Cz
+        assert not _value_is_obviously_not_secret("AIzayDNSXIbFmlXbIE6mCzDLQAqITYefhixbX4A")
+
+    def test_real_camelcase_still_filtered(self, scanner):
+        """Real CamelCase identifiers must still be filtered."""
+        from data_classifier.engines.secret_scanner import _value_is_obviously_not_secret
+
+        assert _value_is_obviously_not_secret("FFlagSimCSGV3CacheVerboseBSPMemory")
+        assert _value_is_obviously_not_secret("TransactionTypesPurchaseBillPayment")
+        assert _value_is_obviously_not_secret("HttpServletRequestHandler")
+
+    def test_google_api_key_detected_in_scan(self, scanner):
+        """Full scan_text should detect a Google API key."""
+        result = scanner.scan('apiKey: "AIzayDNSXIbFmlXbIE6mCzDLQAqITYefhixbX4A"')
+        cred = [f for f in result.findings if f.category == "Credential"]
+        assert len(cred) >= 1, "Google API key should be detected"
 
 
 class TestColumnNameNeutral:

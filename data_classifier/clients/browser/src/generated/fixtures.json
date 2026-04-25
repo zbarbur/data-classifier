@@ -1,0 +1,172 @@
+{
+  "python_logic_version": "e1d3e44fe4489b1c",
+  "cases": [
+    {
+      "id": "seed_01_plain_prose",
+      "text": "please help me write a cover letter",
+      "findings": []
+    },
+    {
+      "id": "seed_02_env_github_pat",
+      "text": "export GITHUB_TOKEN=ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "findings": []
+    },
+    {
+      "id": "seed_03_json_aws_secret",
+      "text": "{\"aws_secret_access_key\": \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\"}",
+      "findings": []
+    },
+    {
+      "id": "seed_04_code_literal_password",
+      "text": "db_password = \"S3cureP@ss!xyz\"",
+      "findings": [
+        {
+          "entity_type": "OPAQUE_SECRET",
+          "category": "Credential",
+          "engine": "secret_scanner"
+        }
+      ]
+    },
+    {
+      "id": "seed_05_placeholder_only",
+      "text": "export API_KEY=YOUR_API_KEY_HERE",
+      "findings": []
+    },
+    {
+      "id": "seed_06_definitive_tier",
+      "text": "secret_key = \"Kj9mNx2vRpLw4QzT\"",
+      "findings": [
+        {
+          "entity_type": "API_KEY",
+          "category": "Credential",
+          "engine": "secret_scanner"
+        }
+      ]
+    },
+    {
+      "id": "seed_07_strong_tier_high_entropy",
+      "text": "export MY_TOKEN=Xk7mRp2vNj9LwQz4Ty8B",
+      "findings": [
+        {
+          "entity_type": "OPAQUE_SECRET",
+          "category": "Credential",
+          "engine": "secret_scanner"
+        }
+      ]
+    },
+    {
+      "id": "seed_08_strong_tier_low_entropy",
+      "text": "session_id = \"helloworld\"",
+      "findings": []
+    },
+    {
+      "id": "seed_09_contextual_tier",
+      "text": "encryption_salt = \"aB3cD9eF2gH7jK4m\"",
+      "findings": []
+    },
+    {
+      "id": "seed_10_contextual_tier_low_diversity",
+      "text": "nonce = \"83749201657483920165\"",
+      "findings": []
+    },
+    {
+      "id": "seed_11_aws_secret_valid",
+      "text": "aws_secret_access_key = \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYzzzz\"}",
+      "findings": [
+        {
+          "entity_type": "API_KEY",
+          "category": "Credential",
+          "engine": "secret_scanner"
+        }
+      ]
+    },
+    {
+      "id": "seed_12_aws_secret_hex_only",
+      "text": "commit_hash = \"a]1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b\"",
+      "findings": []
+    },
+    {
+      "id": "seed_13_random_password_valid",
+      "text": "db_password = \"Tr0ub4dor&3x\"",
+      "findings": [
+        {
+          "entity_type": "OPAQUE_SECRET",
+          "category": "Credential",
+          "engine": "secret_scanner"
+        }
+      ]
+    },
+    {
+      "id": "seed_14_random_password_too_short",
+      "text": "db_password = \"ab!\"",
+      "findings": []
+    },
+    {
+      "id": "seed_15_placeholder_credential",
+      "text": "secret_key = \"changeme\"",
+      "findings": []
+    },
+    {
+      "id": "seed_16_url_value",
+      "text": "api_url = \"https://api.myservice.com/v1\"",
+      "findings": []
+    },
+    {
+      "id": "seed_17_date_value",
+      "text": "password_changed = \"2024-01-15T08:00:00Z\"",
+      "findings": []
+    },
+    {
+      "id": "seed_18_config_value",
+      "text": "secret_mode = \"production\"",
+      "findings": []
+    },
+    {
+      "id": "seed_19_prose_value",
+      "text": "password_policy = \"must be at least eight characters long\"",
+      "findings": []
+    },
+    {
+      "id": "seed_20_anti_indicator",
+      "text": "example_key = \"sk_live_abc123def456ghi789\"",
+      "findings": [
+        {
+          "entity_type": "API_KEY",
+          "category": "Credential",
+          "engine": "regex"
+        }
+      ]
+    },
+    {
+      "id": "seed_21_multi_finding",
+      "text": "export GITHUB_TOKEN=ghp_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\ndb_password = \"Vu8@wXq3!mNz\"",
+      "findings": [
+        {
+          "entity_type": "OPAQUE_SECRET",
+          "category": "Credential",
+          "engine": "secret_scanner"
+        }
+      ]
+    },
+    {
+      "id": "seed_22_empty_text",
+      "text": "",
+      "findings": []
+    },
+    {
+      "id": "seed_23_no_kv_no_pattern",
+      "text": "The quick brown fox jumps over the lazy dog near the river bank.",
+      "findings": []
+    },
+    {
+      "id": "seed_24_template_mustache",
+      "text": "api_key = \"{{API_KEY}}\"",
+      "findings": []
+    },
+    {
+      "id": "seed_25_repeated_chars",
+      "text": "token = \"aaaaaaaaaaaaaaaaaaaaaa\"",
+      "findings": []
+    }
+  ]
+}

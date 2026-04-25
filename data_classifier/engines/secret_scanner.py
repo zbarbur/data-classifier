@@ -28,7 +28,11 @@ from data_classifier.core.types import (
     ColumnInput,
     SampleAnalysis,
 )
-from data_classifier.engines.heuristic_engine import compute_char_class_diversity, compute_shannon_entropy
+from data_classifier.engines.heuristic_engine import (
+    compute_char_class_diversity,
+    compute_char_class_evenness,
+    compute_shannon_entropy,
+)
 from data_classifier.engines.interface import ClassificationEngine
 from data_classifier.engines.parsers import parse_key_values
 from data_classifier.engines.structural_parsers import detect_structural_secrets
@@ -112,8 +116,14 @@ _CODE_DOT_NOTATION = re.compile(r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)+[;,]?$")
 _CODE_BRACKET_ACCESS = re.compile(r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)*\[[^\]]+\][;,]?$")
 _CODE_SEMICOLON = re.compile(r"^[a-zA-Z_]\w*;$")
 
-# Shell/env variable reference — value starts with $ (e.g. $password, ${DB_PASS})
-_SHELL_VARIABLE = re.compile(r"^\$[\w{]")
+# Code call pattern — value contains assignment or statement body e.g. "request.session.auth_token;"
+# Catches mixed-context expressions that dot-notation alone misses.
+_CODE_CALL = re.compile(r"[({].*[=;]")
+
+# Shell/env variable reference — value starts with $ (e.g. $password, ${DB_PASS}).
+# Excludes password hash prefixes: $2b$, $2y$, $2a$, $5$, $6$, $argon2, $scrypt
+# which use the crypt(3) $algorithm$params$hash convention.
+_SHELL_VARIABLE = re.compile(r"^\$(?!2[aby]\$|[56]\$|argon2|scrypt)[\w{]")
 
 # ALL_CAPS constant names — e.g. API_KEY_BINANCE, ARGILLA_API_KEY, VERACODE-HMAC-SHA-256.
 # Separators can be underscores or hyphens. Must have at least one separator
@@ -125,7 +135,7 @@ _CONSTANT_NAME = re.compile(r"^[A-Z][A-Z0-9]*([_-][A-Z0-9]+)+$")
 _CODE_PUNCTUATION = re.compile(r"^[\[\](){};<>,./\\|!@#%^&*\-+=~`\s]+$")
 
 # File/directory path — e.g. /home/user/.config/token, C:\Users\secret
-_FILE_PATH = re.compile(r"^[/~][\w./\-]+$|^[A-Z]:\\[\w\\.\-]+$")
+_FILE_PATH = re.compile(r"^[/~][\w./\-:+]+$|^[A-Z]:\\[\w\\.\-:+]+$")
 
 # ── Known secret prefixes (KV fast-path gate only) ───────────────────────────
 # These prefixes activate KV parsing even when no `=`/`:` is present.
@@ -395,7 +405,17 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
 
     # Code expressions — dot-notation property access, bracket notation.
     # e.g. form.password.data, textBox2.Text, request.POST["x"], tokenApp;
-    if _CODE_DOT_NOTATION.match(value) or _CODE_BRACKET_ACCESS.match(value) or _CODE_SEMICOLON.match(value):
+    # Guard: skip if any dot-separated segment is suspiciously long (>32 chars)
+    # — that pattern is a JWT or similar token, not a code identifier chain.
+    if _CODE_DOT_NOTATION.match(value):
+        if all(len(seg) <= 32 for seg in value.rstrip(";,").split(".")):
+            return True
+    if _CODE_BRACKET_ACCESS.match(value) or _CODE_SEMICOLON.match(value):
+        return True
+
+    # Code call pattern — assignment or statement body inside parens/braces.
+    # e.g. "request.session.auth_token;", "(foo=bar;)"
+    if _CODE_CALL.search(value):
         return True
 
     # Shell/env variable references — e.g. $password, ${DB_PASS}
@@ -411,12 +431,148 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
         return True
 
     # File paths — e.g. /home/user/.yt/token, ~/config/secret
+    # Also catches Windows paths (C:\Users\...), quoted paths ("/c:/..."),
+    # and long path-like strings with many slashes.
     if _FILE_PATH.match(value):
+        return True
+    stripped_q = value.strip().strip("\"'")
+    if _FILE_PATH.match(stripped_q):
+        return True
+    if re.match(r"^[A-Za-z]:[/\\]", stripped_q):
+        return True
+
+    # Java/Python fully-qualified class names — e.g.
+    # org.gradle.api.internal.project.DefaultProjectStateRegistry
+    # Detected by: 4+ dot-separated segments (3 catches VK tokens like vk1.a.xxx),
+    # each starting with a letter, and no segment >50 chars (JWTs have long segments).
+    # Allows $ for Java inner classes (e.g. DefaultProjectStateRegistry$ProjectStateImpl).
+    segments = value.rstrip(";,()").split(".")
+    if len(segments) >= 4 and all(s and s[0].isalpha() and len(s) <= 50 for s in segments):
+        return True
+
+    # URLs without protocol — e.g. //seller.dhgate.com/...,
+    # fonts.googleapis.com/..., colab.research.google.com/drive/...
+    if re.match(r"^//\w", value):
+        return True
+    if re.match(r"^[a-z][a-z0-9\-]*(?:\.[a-z][a-z0-9\-]*){2,}/", value):
+        return True
+
+    # HTML attributes containing values — href="...", src="...", integrity="...", id="..."
+    if re.match(r'^(?:href|src|integrity|action|id|class|data-\w+)\s*=\s*"', value, re.I):
+        return True
+
+    # SRI integrity hashes — public subresource integrity, not secrets
+    if re.match(r"^sha(?:256|384|512)-[A-Za-z0-9+/=]+$", value):
+        return True
+
+    # SSH/TLS fingerprints — e.g. SHA256:NkM/srqYj7zGKHzICaoq5963pLDX/578Yz56J53XYX0
+    # Public key fingerprints, not secrets.
+    if re.match(r"^SHA(?:256|384|512):", value):
+        return True
+
+    # Purely-alpha CamelCase identifiers (≥3 long CamelCase words, >90% letters) —
+    # e.g. FFlagSimCSGV3CacheVerboseBSPMemory, TransactionTypesPurchaseBillPayment.
+    # Real secrets always contain digits or symbols; pure-alpha CamelCase is
+    # code identifiers, feature flags, or enum names.
+    # Require words with ≥4 lowercase chars to avoid false-matching API keys
+    # like AIzayDNSXIbFmlXbIE6mCzDLQAqITYefhixbX4A (accidental short "words").
+    alpha_ratio = sum(1 for c in value if c.isalpha()) / max(len(value), 1)
+    if alpha_ratio > 0.90 and len(re.findall(r"[A-Z][a-z]{3,}", value)) >= 3:
+        return True
+
+    # Android/JVM bytecode class references — e.g.
+    # Ldalvik/system/CloseGuard;->warnIfOpen()V
+    # Lcom/nathnetwork/xciptv/UsersHistoryActivity  (after strip of trailing ;)
+    # Pattern: starts with L + lowercase package path with slashes.
+    if re.match(r"^L[a-z][a-z0-9]*/", value):
+        return True
+
+    # Dict/config bracket key access — e.g. app.config['SQLALCHEMY_DATABASE_URI']
+    # After _STRIP_RE, trailing ] and quotes are stripped, so we just look for
+    # identifier.identifier[ pattern.
+    if re.match(r"^[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*\[", value):
+        return True
+
+    # Code with function calls — e.g.
+    # Objects.requireNonNull(getSupportActionBar()).setDisplayHomeAsUpEnabled(true
+    # validationLayers.push_back("VK_LAYER_KHRONOS_validation"
+    # ON_EVENT(ON_CHANGE,m_editPipsToDownChange,OnPipsToDownChangeEdit
+    # if(!CAppDialog::Create(chart,name,subwin,x1,y1,x2,y2
+    # Detected by: starts with identifier/keyword followed by parens, no spaces.
+    # Guard: values where ( is not a function call (random chars in secrets) are
+    # excluded by requiring identifier( pattern.
+    if " " not in value and re.match(r"^[a-zA-Z_!][\w:.]*\(", value):
+        return True
+
+    # XML namespace declarations — xmlns:xs="http://..."
+    # Build system directives — cargo:rerun-if-env-changed=..., cargo:warning=...
+    if re.match(r"^(?:xmlns|cargo):", value):
+        return True
+
+    # key="path/url" assignments where the value is a path or URL — e.g.
+    # archivo="https://github.com/...", WEAVIATE_EMBEDDED_PATH="/home/me/..."
+    # --directory="/Users/jiahanli/...", --map-file-parser="/Applications/..."
+    # Guard: only when the value after =" starts with a path/URL indicator,
+    # NOT when it's a cookie/token (x-main="M2hkpCq..." is a real secret).
+    if re.match(r'^[\w-]+="(?:https?://|/|~/|\$|\.\.?/)', value):
+        return True
+
+    # file:// URI scheme — e.g. Container:file:///C:/Users/...
+    if "file://" in value:
+        return True
+
+    # Ethereum/blockchain addresses — 0x + 40 hex chars. Public addresses, not secrets.
+    if re.match(r"^0x[0-9a-fA-F]{40}$", value):
+        return True
+
+    # Relative paths — ../foo/bar, ./src/file.ts
+    if re.match(r"^\.\.?/", value):
+        return True
+
+    # CLI flags with URL values — e.g. --tunnel_url=https://colab...
+    if re.match(r"^--[\w-]+=https?://", value):
+        return True
+
+    # Slash-separated readable words (4+ segments, each starts with letter, ≤30 chars) — e.g.
+    # ISE/ACS/Sourcefire/Firesight/FireAMP/Splunk/Snort
+    # Assets/_GallopResources/SourceResources/3d/Motion
+    # Guard: requires 4+ segments and letter-starts to avoid catching tokens like
+    # wJalrXUtnFEMI/K7MDENG/bPxRfiCY9aBc4dZz8qRtY2 (AWS secret keys with slashes).
+    slash_segs = [s for s in value.split("/") if s]
+    if len(slash_segs) >= 4 and all(s[0].isalpha() and len(s) <= 30 for s in slash_segs):
+        return True
+
+    # Template literals with interpolation — e.g. `...${data.txnId.toString()}`
+    # Code expressions, not secrets.
+    if "${" in value:
+        return True
+
+    # Vulkan/OpenGL validation IDs — e.g. VUID-VkFramebufferCreateInfo-height-00887
+    if re.match(r"^VUID-", value):
+        return True
+
+    # Values starting with open bracket/paren (code syntax, not credentials) —
+    # e.g. [TransactionTypes.PURCHASE_BILL_PAYMENT, (async function() {
+    if value.startswith(("[", "(")):
+        return True
+
+    # Backslash-separated paths (Windows / stealer logs) — e.g.
+    # 227\Logs\[GB]86.138.93.39\Chrome\Default\Cookies.txt
+    # [2024-04-11T9_50_34]\Cookies\Google_[Chrome]_Default
+    # Contains 2+ backslash-separated segments.
+    if value.count("\\") >= 2:
+        return True
+
+    # Python f-string URLs — e.g. f'https://api.bscscan.com/...{api_key}'
+    # Contains { and } wrapping a variable reference inside a URL.
+    if re.match(r"^f['\"]https?://", value):
         return True
 
     # Single plain word — only letters and hyphens, no digits or special chars
     # (e.g. "Steganography", "authorization-text"). Real secrets have mixed classes.
-    if re.fullmatch(r"[a-zA-Z]+(-[a-zA-Z]+)*", value.strip()):
+    # Guard: skip if value is long (>30 chars) — long alpha-hyphen strings like
+    # "pk-LMZITIrROWZRwazmrhTnzuXMDjHRhbtKNAKSkyQciVKwteQc" are real API keys.
+    if len(value.strip()) <= 30 and re.fullmatch(r"[a-zA-Z]+(-[a-zA-Z]+)*", value.strip()):
         return True
 
     # String concatenation — value is a variable reference or expression.
@@ -431,6 +587,19 @@ def _value_is_obviously_not_secret(value: str, *, prose_threshold: float = 0.6) 
         alpha_chars = sum(1 for c in value if c.isalpha())
         if alpha_chars / max(len(value), 1) > prose_threshold:
             return True
+
+    # Non-Latin scripts (CJK, Cyrillic, Arabic, Indic, Thai, etc.): any character
+    # in these ranges means human language, not a credential.  Secrets are ASCII.
+    if re.search(
+        r"[\u0900-\u0DFF"  # Devanagari, Bengali, Gurmukhi, Gujarati, Oriya, Tamil, Telugu, Kannada, Malayalam
+        r"\u0E00-\u0E7F"  # Thai
+        r"\u3000-\u9FFF"  # CJK
+        r"\uAC00-\uD7AF"  # Korean Hangul
+        r"\u0400-\u04FF"  # Cyrillic
+        r"\u0600-\u06FF]",  # Arabic
+        value,
+    ):
+        return True
 
     return False
 
@@ -456,6 +625,17 @@ def _match_key_pattern(key_lower: str, pattern: str, match_type: str) -> bool:
 
 _DEFAULT_SUBTYPE = "OPAQUE_SECRET"
 
+_CAMEL_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
+
+
+def _camel_to_snake(name: str) -> str:
+    """Convert camelCase to snake_case for key-name matching.
+
+    ``privateKey`` → ``private_key``, ``apiSecret`` → ``api_secret``.
+    Already snake_case or UPPER_CASE names pass through unchanged.
+    """
+    return _CAMEL_BOUNDARY.sub(r"\1_\2", name).lower()
+
 
 def _score_key_name(key: str, key_entries: list[dict]) -> tuple[float, str, str]:
     """Score a key name against the secret key-name dictionary.
@@ -464,6 +644,9 @@ def _score_key_name(key: str, key_entries: list[dict]) -> tuple[float, str, str]
     word_boundary, or suffix.  Returns the highest matching score, its tier,
     and its credential subtype (one of ``API_KEY``, ``PRIVATE_KEY``,
     ``PASSWORD_HASH``, or ``OPAQUE_SECRET``).
+
+    CamelCase keys are normalized to snake_case before matching so that
+    ``privateKey`` matches the ``private_key`` pattern.
 
     Args:
         key: The key name to score (e.g. ``"DB_PASSWORD"``).
@@ -474,7 +657,7 @@ def _score_key_name(key: str, key_entries: list[dict]) -> tuple[float, str, str]
         Tuple of (score, tier, subtype).  ``(0.0, "", "OPAQUE_SECRET")`` if no
         pattern matches.
     """
-    key_lower = key.lower()
+    key_lower = _camel_to_snake(key)
     best_score = 0.0
     best_tier = ""
     best_subtype = _DEFAULT_SUBTYPE
@@ -880,14 +1063,20 @@ class SecretScannerEngine(ClassificationEngine):
             rel_entropy = _compute_relative_entropy(value)
             diversity = compute_char_class_diversity(value)
             if rel_entropy >= strong_rel or diversity >= diversity_min:
-                return key_score * max(strong_min, _score_relative_entropy(rel_entropy))
+                base_score = key_score * max(strong_min, _score_relative_entropy(rel_entropy))
+                evenness_bonus = compute_char_class_evenness(value) * 0.15
+                diversity_bonus = max(0, diversity - diversity_min) * 0.05
+                return min(base_score + evenness_bonus + diversity_bonus, 1.0)
             return 0.0
 
         # contextual tier — need strong value signal
         rel_entropy = _compute_relative_entropy(value)
         diversity = compute_char_class_diversity(value)
         if rel_entropy >= contextual_rel and diversity >= diversity_min:
-            return key_score * _score_relative_entropy(rel_entropy)
+            base_score = key_score * _score_relative_entropy(rel_entropy)
+            evenness_bonus = compute_char_class_evenness(value) * 0.15
+            diversity_bonus = max(0, diversity - diversity_min) * 0.05
+            return min(base_score + evenness_bonus + diversity_bonus, 1.0)
         return 0.0
 
     @staticmethod

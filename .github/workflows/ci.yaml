@@ -26,6 +26,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,meta]"
 
+      - name: Install DVC
+        run: pip install 'dvc[gs]'
+
+      - name: Pull test fixtures from DVC
+        # GCS auth requires Workload Identity Federation or a service account key.
+        # Add google-github-actions/auth step with secrets.GCS_SA_KEY or
+        # secrets.WIF_PROVIDER before enabling this in CI.
+        # For now, fixtures are skipped on CI runners without GCS credentials;
+        # tests that require corpus fixtures are marked accordingly.
+        run: dvc pull tests/fixtures/corpora.dvc || echo "DVC pull skipped (no GCS credentials on this runner)"
+
       - name: Ruff check
         run: ruff check .
 
@@ -185,6 +196,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+
+      - name: Install DVC
+        run: pip install 'dvc[gs]'
+
+      - name: Pull test fixtures from DVC
+        run: dvc pull tests/fixtures/corpora.dvc || echo "DVC pull skipped (no GCS credentials on this runner)"
 
       - name: Run browser parity check
         run: ./scripts/ci_browser_parity.sh

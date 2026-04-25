@@ -48,7 +48,14 @@ LOGIC_FILES = [
 
 # Keep in sync with src/validators.js (PORTED dict keys). Names not listed here
 # emit a warning and load as always-true stubs in JS.
-PORTED_VALIDATORS = {"aws_secret_not_hex", "random_password", "not_placeholder_credential", "huggingface_token", ""}
+PORTED_VALIDATORS = {
+    "aws_secret_not_hex",
+    "random_password",
+    "not_placeholder_credential",
+    "huggingface_token",
+    "swift_bic_country_code",
+    "",
+}
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger("generate_browser_patterns")
@@ -76,10 +83,6 @@ def emit_constants(version: str) -> None:
         _NON_SECRET_SUFFIXES,
         _NUMERIC_ONLY,
         _PLACEHOLDER_PATTERNS,
-        _STATISTICAL_BASE_CONFIDENCE,
-        _STATISTICAL_DIVERSITY_THRESHOLD,
-        _STATISTICAL_ENTROPY_THRESHOLD,
-        _STATISTICAL_MAX_CONFIDENCE,
         _URL_LIKE,
         _UUID_RE,
     )
@@ -88,6 +91,7 @@ def emit_constants(version: str) -> None:
     scoring = cfg.get("scoring", {})
     rel = scoring.get("relative_entropy_thresholds", {})
     tiers = scoring.get("tier_boundaries", {})
+    opaque = cfg.get("opaque_token", {})
     config_values_sorted = sorted(_CONFIG_VALUES)
 
     # Serialize _PLACEHOLDER_PATTERNS as array of {pattern, flags} objects
@@ -135,10 +139,11 @@ export const SECRET_SCANNER = {{
   ipLikePattern: {json.dumps(ip_like)},
   numericOnlyPattern: {json.dumps(numeric_only)},
   uuidPattern: {json.dumps(uuid_re)},
-  opaqueTokenEntropyThreshold: {_STATISTICAL_ENTROPY_THRESHOLD},
-  opaqueTokenDiversityThreshold: {_STATISTICAL_DIVERSITY_THRESHOLD},
-  opaqueTokenBaseConfidence: {_STATISTICAL_BASE_CONFIDENCE},
-  opaqueTokenMaxConfidence: {_STATISTICAL_MAX_CONFIDENCE},
+  opaqueTokenMinLength: {opaque.get("min_length", 16)},
+  opaqueTokenEntropyThreshold: {opaque.get("entropy_threshold", 0.7)},
+  opaqueTokenDiversityThreshold: {opaque.get("diversity_threshold", 3)},
+  opaqueTokenBaseConfidence: {opaque.get("base_confidence", 0.65)},
+  opaqueTokenMaxConfidence: {opaque.get("max_confidence", 0.85)},
 }};
 """
     (GENERATED_DIR / "constants.js").write_text(js)

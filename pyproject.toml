@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "data_classifier"
-version = "0.12.0"
+version = "0.15.0"
 description = "General-purpose data classification engine for detecting sensitive data in structured database columns."
 readme = "README.md"
 license = {text = "MIT"}
@@ -92,6 +92,7 @@ ignore = ["N815"]
 [tool.ruff.lint.per-file-ignores]
 "scripts/*" = ["E501", "N803", "N806"]
 "tests/benchmarks/meta_classifier/evaluate.py" = ["N803", "N806", "E741"]
+"docs/experiments/prompt_analysis/tools/*" = ["E501", "E741", "F541"]
 "tests/benchmarks/meta_classifier/sprint12_safety_audit.py" = ["N803", "N806", "E501"]
 "tests/test_meta_classifier_training.py" = ["N806"]
 # sklearn convention: feature matrix is named `X` (uppercase).

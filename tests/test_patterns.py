@@ -141,8 +141,13 @@ class TestSsnConfidenceGating:
         from data_classifier.engines.regex_engine import _compute_sample_confidence
 
         ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_no_dashes")
-        # Test with many matches (>20), which gives the 1.05 multiplier
-        conf = _compute_sample_confidence(ssn_pattern.confidence, matches=50, validated=50)
+        # No count multiplier — confidence is just base (0.40), independent of count
+        conf = _compute_sample_confidence(
+            ssn_pattern.confidence,
+            matched_count=50,
+            validated_count=50,
+            has_validator=bool(ssn_pattern.validator),
+        )
         assert conf < 0.50, f"SSN no-dashes with 50 matches: {conf} >= 0.50"
 
     def test_ssn_formatted_surfaces_with_dashes(self):
@@ -150,8 +155,13 @@ class TestSsnConfidenceGating:
         from data_classifier.engines.regex_engine import _compute_sample_confidence
 
         ssn_pattern = next(p for p in _PATTERNS if p.name == "us_ssn_formatted")
-        # Even with few matches
-        conf = _compute_sample_confidence(ssn_pattern.confidence, matches=3, validated=3)
+        # Validated high-base pattern floors at 0.95
+        conf = _compute_sample_confidence(
+            ssn_pattern.confidence,
+            matched_count=3,
+            validated_count=3,
+            has_validator=bool(ssn_pattern.validator),
+        )
         assert conf >= 0.50, f"SSN formatted with 3 matches: {conf} < 0.50"
 
 

@@ -826,21 +826,31 @@ _ISO_3166_ALPHA2: frozenset[str] = frozenset(
 
 
 def swift_bic_country_code_check(value: str) -> bool:
-    """Validate SWIFT/BIC country code at positions 5-6.
+    """Validate SWIFT/BIC country code and structural plausibility.
 
     SWIFT/BIC format: BBBBCCLL[NNN] where CC is the ISO 3166 country code.
-    Without this check, 8-letter English words like CONSTRAINTS (positions
-    5-6 = "IN" = India) and PERFORMANCE (positions 5-6 = "MA" = Morocco)
-    match — but DATABASE (positions 5-6 = "BA" = Bosnia) also matches, so
-    this validator catches ~50% of English-word FPs (the ones with non-code
-    letters at positions 5-6). Full bank-registry validation is a separate
-    item.
+    Two-layer validation:
+      1. Country code at positions 5-6 must be a valid ISO 3166-1 alpha-2.
+      2. All-alpha 8-char values are rejected — real BIC codes nearly always
+         contain digits in the location code (positions 7-8) or branch code.
+         8-char all-alpha matches are overwhelmingly English words/surnames
+         (MARTINEZ, ANDERSON, HOUTHTALING) that happen to embed a valid
+         country code.  11-char all-alpha is rare enough to pass.
     """
     clean = value.strip().upper()
     if len(clean) not in (8, 11):
         return False
     country = clean[4:6]
-    return country in _ISO_3166_ALPHA2
+    if country not in _ISO_3166_ALPHA2:
+        return False
+    # All-alpha matches are overwhelmingly false positives — surnames
+    # (HOUTHTALING, CHRISTOPHER), place names (ORANIENBURG), and common
+    # words (SHAREHOLDER).  Real BIC codes almost always have digits in
+    # the location/branch code (CHASUS33, BXCAZM45, GLQDUS9XM2A).
+    # The few all-alpha BICs (DEUTDEFF, BNPAFRPP) need column context.
+    if clean.isalpha():
+        return False
+    return True
 
 
 def _openai_legacy_key_check(value: str) -> bool:
@@ -876,9 +886,86 @@ def huggingface_token_check(value: str) -> bool:
     suffix = value[3:] if value.startswith("hf_") else value
     has_camel = bool(_CAMEL_CASE_RE.search(suffix))
     has_digit = any(c.isdigit() for c in suffix)
-    if has_camel and not has_digit:
+    # camelCase + no digits + short = code identifier (Objective-C method names)
+    # but real HF tokens are exactly 34 chars of base62; a token that is 34 chars
+    # and purely alphanumeric is almost certainly real even without digits.
+    if has_camel and not has_digit and (len(suffix) > 40 or not suffix.isalnum()):
         return False
     return True
+
+
+def bulgarian_egn_check(value: str) -> bool:
+    """Validate a 10-digit Bulgarian EGN (civil number).
+
+    Weighted sum: digits × [2,4,8,5,10,9,7,3,6], sum mod 11.
+    If remainder < 10 → check digit; if remainder == 10 → check digit is 0.
+    """
+    digits = re.sub(r"\D", "", value)
+    if len(digits) != 10:
+        return False
+    weights = [2, 4, 8, 5, 10, 9, 7, 3, 6]
+    total = sum(int(digits[i]) * weights[i] for i in range(9))
+    remainder = total % 11
+    expected = 0 if remainder >= 10 else remainder
+    return int(digits[9]) == expected
+
+
+def czech_rodne_cislo_check(value: str) -> bool:
+    """Validate a Czech rodné číslo (birth number).
+
+    Format: YYMMDD/NNNN or YYMMDNNNNN (10 digits total).
+    The full 10-digit number must be divisible by 11.
+    Month may be +50 for females, +20 for exceptional cases.
+    """
+    cleaned = re.sub(r"[/\s-]", "", value)
+    if len(cleaned) != 10 or not cleaned.isdigit():
+        return False
+    # Month validation (01-12, 51-62 for females, 21-32 exceptional)
+    month = int(cleaned[2:4])
+    if not (1 <= month <= 12 or 21 <= month <= 32 or 51 <= month <= 62):
+        return False
+    # Day validation
+    day = int(cleaned[4:6])
+    if not (1 <= day <= 31):
+        return False
+    return int(cleaned) % 11 == 0
+
+
+def swiss_ahv_check(value: str) -> bool:
+    """Validate a Swiss AHV/AVS number (new format).
+
+    13-digit EAN-13 format starting with 756.
+    Check digit: EAN-13 algorithm (alternating weights 1,3).
+    """
+    digits = re.sub(r"\D", "", value)
+    if len(digits) != 13:
+        return False
+    if not digits.startswith("756"):
+        return False
+    total = sum(int(d) * (1 if i % 2 == 0 else 3) for i, d in enumerate(digits[:12]))
+    expected = (10 - (total % 10)) % 10
+    return int(digits[12]) == expected
+
+
+def danish_cpr_check(value: str) -> bool:
+    """Validate a Danish CPR number (civil registration number).
+
+    Format: DDMMYY-NNNN (10 digits).
+    Modulo 11 weighted check: digits × [4,3,2,7,6,5,4,3,2,1], sum mod 11 == 0.
+    Note: since 2007, some CPR numbers don't pass mod 11. We still validate
+    the date portion and format.
+    """
+    cleaned = re.sub(r"[/\s-]", "", value)
+    if len(cleaned) != 10 or not cleaned.isdigit():
+        return False
+    day = int(cleaned[0:2])
+    month = int(cleaned[2:4])
+    if not (1 <= day <= 31 and 1 <= month <= 12):
+        return False
+    # Modulo 11 check (pre-2007 guarantee, best-effort for newer)
+    weights = [4, 3, 2, 7, 6, 5, 4, 3, 2, 1]
+    total = sum(int(cleaned[i]) * weights[i] for i in range(10))
+    return total % 11 == 0
 
 
 # Registry mapping validator names to functions
@@ -906,4 +993,9 @@ VALIDATORS: dict[str, typing.Callable] = {
     "swift_bic_country_code": swift_bic_country_code_check,
     "openai_legacy_key": _openai_legacy_key_check,
     "huggingface_token": huggingface_token_check,
+    # Sprint 15 — EU government IDs
+    "bulgarian_egn": bulgarian_egn_check,
+    "czech_rodne_cislo": czech_rodne_cislo_check,
+    "swiss_ahv": swiss_ahv_check,
+    "danish_cpr": danish_cpr_check,
 }

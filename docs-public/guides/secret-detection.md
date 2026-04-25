@@ -6,13 +6,32 @@ This document explains how `data_classifier` detects credentials and secrets emb
 
 ## 1. Overview
 
-Secret detection uses two active detection layers, with a third planned:
+Secret detection uses three active detection layers for **structured columns**
+(`classify_columns`) and a dedicated **free-text scanner** (`scan_text`) for
+unstructured text (prompts, logs, configs):
 
 | Layer | Mechanism | Catches |
 |---|---|---|
 | **Layer 1** | Known-prefix regex | Tokens with a well-known structural prefix (AWS keys, GitHub PATs, etc.) |
 | **Layer 2** | Structured secret scanner | Credentials embedded in JSON/YAML/env/code content, identified by key name and entropy |
-| **Layer 3** | Structural/grammar parsers | URI connection strings, certificate blocks (planned — Sprint 4 backlog) |
+| **Layer 3** | PEM block detection + opaque token pass | PEM private keys (`-----BEGIN/END-----`), standalone high-entropy tokens (JWTs, hex hashes, random API keys) |
+
+### Free-text scanning (`scan_text`)
+
+For unstructured text (LLM prompts, log files, configuration dumps), use `scan_text()`:
+
+```python
+from data_classifier import scan_text
+
+result = scan_text("Use this key: ghp_xK9mP2nQ7rT4wY6aB8cD0eF3gH5iJ1kLmN0p")
+for finding in result.findings:
+    print(f"{finding.entity_type}: {finding.value_masked}")
+```
+
+`scan_text` runs three passes:
+1. **Regex pass** — credential patterns with validators and FP filters
+2. **KV pass** — parses key-value structures, scores key names against the dictionary
+3. **Opaque token pass** — scans whitespace-delimited tokens for high-entropy secrets
 
 All detection is **stateless**: the library never stores, logs, or transmits detected values. When `mask_samples=True` is passed to `classify_columns()`, evidence strings show `kJ***q!` rather than the raw value.
 
@@ -24,7 +43,7 @@ Detection is **configurable** via `data_classifier/config/engine_defaults.yaml` 
 
 ### Layer 1: Known-Prefix Regex
 
-The regex engine (`data_classifier/engines/regex_engine.py`) contains **36 credential patterns** in `data_classifier/patterns/default_patterns.json` (out of 71 total patterns). These match tokens with a known structural prefix or format that uniquely identifies the issuer.
+The regex engine (`data_classifier/engines/regex_engine.py`) contains **77 credential patterns** in `data_classifier/patterns/default_patterns.json` (out of 162 total patterns). These match tokens with a known structural prefix or format that uniquely identifies the issuer.
 
 Services covered:
 
@@ -70,9 +89,21 @@ secret_key: str = "kJ9x#Mp$2wLq"
 
 None of these have a recognizable service-specific prefix — they are detected purely by key name and value character distribution.
 
-### Layer 3: Structural/Grammar Parsers (Planned)
+### Layer 3: PEM Detection + Opaque Token Pass
 
-URI connection strings (e.g., `mongodb+srv://admin:P@ssw0rd!23@cluster.mongodb.net/mydb`) embed credentials in a URI authority field that requires a dedicated parser rather than regex or key-name scoring. This is tracked in the Sprint 4 backlog. Until then, URI-embedded secrets are a known gap (the only false negative in the current benchmark).
+**PEM block detection** (Sprint 15) scans for `-----BEGIN/END PRIVATE KEY-----`
+blocks and emits a single `PRIVATE_KEY` finding per block. Public keys and
+certificates are recognised but not flagged as secrets.
+
+**Opaque token pass** (Sprint 15) scans whitespace-delimited tokens for
+standalone high-entropy secrets — JWTs, hex hashes, random API keys that have
+no recognisable prefix. Tokens must pass entropy (≥0.7 relative), char-class
+diversity (≥3), and 25+ structural FP filters (file paths, code expressions,
+CamelCase identifiers, UUIDs, etc.) to be flagged.
+
+**URI connection strings** (e.g., `mongodb+srv://admin:P@ssw0rd!23@cluster.mongodb.net/mydb`)
+embed credentials in a URI authority field that is not yet parsed. This remains
+a known gap.
 
 ---
 
@@ -80,7 +111,7 @@ URI connection strings (e.g., `mongodb+srv://admin:P@ssw0rd!23@cluster.mongodb.n
 
 ### Key-Name Dictionary
 
-The secret scanner uses `data_classifier/patterns/secret_key_names.json`, which contains **88 entries** across three tiers and three match types:
+The secret scanner uses `data_classifier/patterns/secret_key_names.json`, which contains **283 entries** across three tiers and three match types:
 
 | Tier | Count | Meaning |
 |---|---|---|

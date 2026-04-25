@@ -1,20 +1,35 @@
 title: Port opaqueTokenPass from browser scanner to Python scan_text
-status: backlog
-priority: P2
+status: doing
+priority: P1
 category: feature
-sprint_target: null
+sprint_target: 15
 created: 2026-04-21
 updated: 2026-04-21
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: "Port the browser opaqueTokenPass to Python scan_text for parity \u2014 bare\
+  \ high-entropy token detection (JWTs, hex hashes, base64 blobs)"
+complexity: S
+technical_specs:
+- "File: data_classifier/scan_text.py \u2014 add _opaque_token_pass() method to TextScanner,\
+  \ wire into scan() between KV pass and dedup"
+- 'Reuse existing Python helpers: SecretScannerEngine already has relative_entropy,
+  char_class_diversity, placeholder detection, anti-indicators'
+- Remove the TODO comment on line 17 of scan_text.py
 description: ''
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- scan_text has a third pass (_opaque_token_pass) after regex and secret scanner KV
+- 'Logic matches browser scanner-core.js opaqueTokenPass: tokenize, entropy gate,
+  diversity gate, placeholder suppression, anti-indicator check'
+- Browser parity CI passes (bash scripts/ci_browser_parity.sh)
+- Tests pass (.venv/bin/python -m pytest tests/ -v)
+- Lint clean (ruff check . && ruff format --check .)
+test_plan:
+- 'tests/test_scan_text.py: bare JWT, hex hash, base64 blob detected as OPAQUE_SECRET'
+- 'tests/test_scan_text.py: placeholder tokens (xxxx, EXAMPLE) suppressed'
+- 'tests/test_scan_text.py: short tokens and low-entropy strings not flagged'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

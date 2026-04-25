@@ -237,7 +237,9 @@ def download_nemotron(max_per_type: int = 1000) -> list[dict]:
 
     records: list[dict] = []
     for entity_type, values in sorted(records_by_type.items()):
-        unique = list(dict.fromkeys(values))[:max_per_type]
+        unique = list(dict.fromkeys(values))
+        if max_per_type is not None:
+            unique = unique[:max_per_type]
         logger.info("  %s: %d unique values (from %d total)", entity_type, len(unique), len(values))
         for v in unique:
             records.append({"entity_type": entity_type, "value": v})
@@ -454,7 +456,9 @@ def download_gretel_en(max_per_type: int = 1000) -> list[dict]:
     # Deduplicate and cap per type.
     records: list[dict] = []
     for entity_type, values in sorted(records_by_type.items()):
-        unique = list(dict.fromkeys(values))[:max_per_type]
+        unique = list(dict.fromkeys(values))
+        if max_per_type is not None:
+            unique = unique[:max_per_type]
         logger.info("  %s: %d unique values (from %d total)", entity_type, len(unique), len(values))
         for v in unique:
             records.append({"entity_type": entity_type, "value": v})
@@ -480,7 +484,7 @@ def _fetch_gretel_en_via_rest_api(consumer, *, max_per_type: int) -> None:
     # Target enough unique rows to cover max_per_type post-dedup without
     # slamming the API.  Each row contributes ~5-8 spans on average; we
     # cap total rows at 10x max_per_type as a safety upper bound.
-    hard_cap_rows = max(500, max_per_type * 10)
+    hard_cap_rows = max(500, max_per_type * 10) if max_per_type is not None else 100_000
 
     while offset < hard_cap_rows:
         url = f"{base}&offset={offset}&length={page_size}"
@@ -547,6 +551,11 @@ def download_gretel_finance(
         logger.info("  languages filter: %s", sorted(languages))
 
     records_by_type: dict[str, list[str]] = {}
+    # CREDENTIAL records carry extra metadata (source_context, raw_label,
+    # source_document_type) that the test suite verifies to confirm
+    # credentials-in-prose provenance.  Store as list of dicts keyed by
+    # value so we can deduplicate while preserving the metadata.
+    credential_records: dict[str, dict] = {}  # value -> full record dict
     allowed_languages: set[str] | None = set(languages) if languages else None
 
     def _consume_row(row: dict) -> None:
@@ -556,6 +565,7 @@ def download_gretel_finance(
         generated_text = row.get("generated_text", "") or ""
         if not generated_text or not isinstance(generated_text, str):
             return
+        document_type = row.get("document_type", "") or ""
         raw_spans = row.get("pii_spans", "[]")
         if not raw_spans or not isinstance(raw_spans, str):
             return
@@ -582,7 +592,22 @@ def download_gretel_finance(
                 continue
             if not value:
                 continue
-            records_by_type.setdefault(our_type, []).append(str(value))
+            value_str = str(value)
+            if our_type == "CREDENTIAL":
+                if value_str not in credential_records:
+                    # Capture up to 200 chars of surrounding context centred on the span.
+                    ctx_start = max(0, int(start) - 80)
+                    ctx_end = min(len(generated_text), int(end) + 80)
+                    source_context = generated_text[ctx_start:ctx_end]
+                    credential_records[value_str] = {
+                        "entity_type": "CREDENTIAL",
+                        "value": value_str,
+                        "raw_label": label,
+                        "source_context": source_context,
+                        "source_document_type": document_type,
+                    }
+            else:
+                records_by_type.setdefault(our_type, []).append(value_str)
 
     # Attempt 1: native datasets library.
     try:
@@ -601,8 +626,18 @@ def download_gretel_finance(
 
     # Deduplicate and cap per type.
     records: list[dict] = []
+
+    # CREDENTIAL — already deduplicated by value in the dict; apply cap if set.
+    cred_list = list(credential_records.values())
+    if max_per_type is not None:
+        cred_list = cred_list[:max_per_type]
+    logger.info("  CREDENTIAL: %d unique values (from %d total)", len(cred_list), len(credential_records))
+    records.extend(cred_list)
+
     for entity_type, values in sorted(records_by_type.items()):
-        unique = list(dict.fromkeys(values))[:max_per_type]
+        unique = list(dict.fromkeys(values))
+        if max_per_type is not None:
+            unique = unique[:max_per_type]
         logger.info("  %s: %d unique values (from %d total)", entity_type, len(unique), len(values))
         for v in unique:
             records.append({"entity_type": entity_type, "value": v})
@@ -626,7 +661,7 @@ def _fetch_gretel_finance_via_rest_api(consumer, *, max_per_type: int) -> None:
     offset = 0
     # Finance rows are longer than Gretel-EN rows (full prose documents)
     # and carry more spans per row on average, so we overshoot less.
-    hard_cap_rows = max(500, max_per_type * 10)
+    hard_cap_rows = max(500, max_per_type * 10) if max_per_type is not None else 100_000
 
     while offset < hard_cap_rows:
         url = f"{base}&offset={offset}&length={page_size}"
@@ -649,6 +684,157 @@ def _fetch_gretel_finance_via_rest_api(consumer, *, max_per_type: int) -> None:
         if len(rows) < page_size:
             return
         offset += page_size
+
+
+# ── OpenPII-1M (ai4privacy/pii-masking-openpii-1m, CC-BY-4.0) ───────────────
+
+# Mirror of tests.benchmarks.corpus_loader.OPENPII_1M_TYPE_MAP — kept in sync
+# manually.  The download script cannot reliably import from ``tests.*`` when
+# invoked as a standalone script (sys.path does not include the project root in
+# all invocation styles), so we duplicate the map here following the same
+# pattern used for NEMOTRON_TYPE_MAP / GRETEL_EN_TYPE_MAP / GRETEL_FINANCE_TYPE_MAP.
+#
+# Schema verified 2026-04-22 against 200k rows of the actual dataset.
+# The corpus_loader spec listed 19 raw labels; empirical survey found 19 labels
+# but with different names than spec in 3 cases:
+#   - PHONENUMBER does not exist; actual label is TELEPHONENUM
+#   - ACCOUNTNUM does not exist (not present in any shard of 200k rows)
+#   - USERNAME does not exist (not present in any shard of 200k rows)
+#   - STATE and COUNTY do not exist (not present in 200k rows)
+# The map below reflects actual dataset labels only.
+OPENPII_1M_TYPE_MAP: dict[str, str] = {
+    # Identity / PII
+    "GIVENNAME": "PERSON_NAME",
+    "SURNAME": "PERSON_NAME",
+    # Address components — STATE/COUNTY/BUILDINGNUM not confirmed in train shard
+    "BUILDINGNUM": "ADDRESS",
+    "STREET": "ADDRESS",
+    "CITY": "ADDRESS",
+    "ZIPCODE": "ADDRESS",
+    # Government-issued IDs
+    "IDCARDNUM": "NATIONAL_ID",
+    "DRIVERLICENSENUM": "NATIONAL_ID",
+    "PASSPORTNUM": "NATIONAL_ID",
+    # Tax / social security — mapped to NATIONAL_ID (not SSN).
+    # openpii-1m is multilingual: these are country-specific tax/social IDs
+    # (BG EGN, CZ rodné číslo, CH AHV, DK CPR, etc.), not US SSNs.
+    "TAXNUM": "NATIONAL_ID",
+    "SOCIALNUM": "NATIONAL_ID",
+    # Financial
+    "CREDITCARDNUMBER": "CREDIT_CARD",
+    # Contact
+    "EMAIL": "EMAIL",
+    "TELEPHONENUM": "PHONE",  # actual label name; spec said PHONENUMBER (wrong)
+    # Date
+    "DATE": "DATE",
+}
+
+
+def download_openpii_1m(max_per_type: int | None = None) -> list[dict]:
+    """Download ai4privacy/pii-masking-openpii-1m and extract PII values.
+
+    CC-BY-4.0, 1.4M rows, 23 languages, 19 entity labels.  The dataset
+    is too large to stream in full; we use streaming=True and stop early
+    once every mapped type has at least ``max_per_type`` unique values
+    collected.  When ``max_per_type`` is None (unlimited) we still hard-cap
+    at 50 000 unique values per type to keep the fixture to a manageable size.
+
+    Dataset schema discovered 2026-04-21 (Sprint 15):
+      - ``source_text``: raw text (str)
+      - ``masked_text``: text with PII replaced by ``[LABEL_N]`` tokens (str)
+      - ``privacy_mask``: list of span dicts, each with keys:
+          ``label`` (str), ``start`` (int), ``end`` (int),
+          ``value`` (str — the raw PII text), ``label_index`` (int).
+      - ``language``, ``region``, ``script``, ``uid``, ``split``.
+
+    Extraction uses ``privacy_mask[*].value`` directly — no offset slicing
+    required.  Labels are mapped through
+    :data:`tests.benchmarks.corpus_loader.OPENPII_1M_TYPE_MAP`.
+
+    Returns ``[{"entity_type": <mapped type>, "value": <raw value>}, ...]``,
+    deduplicated and capped at ``max_per_type`` (or 50 000) per mapped type.
+    """
+    try:
+        from datasets import load_dataset  # type: ignore[import-not-found]
+    except ImportError:
+        logger.error("Install datasets: pip install datasets")
+        return []
+
+    effective_cap = max_per_type if max_per_type is not None else 50_000
+    # Hard row cap prevents unbounded streaming when rare types (BANK_ACCOUNT,
+    # PHONE) take much longer to saturate than common types (ADDRESS, DATE).
+    # With 1.4M rows we accept partial coverage for rare types rather than
+    # stream the entire dataset.  At ~15 spans/row average, 200k rows yields
+    # ~3M span observations — enough to fill all 9 types at 50k per type.
+    row_hard_cap = max(200_000, effective_cap * 40)
+    logger.info(
+        "Downloading ai4privacy/pii-masking-openpii-1m (streaming, cap=%d per type, row_hard_cap=%d)...",
+        effective_cap,
+        row_hard_cap,
+    )
+
+    records_by_type: dict[str, list[str]] = {}
+    seen_by_type: dict[str, set[str]] = {}
+    rows_processed = 0
+
+    try:
+        ds = load_dataset("ai4privacy/pii-masking-openpii-1m", split="train", streaming=True)
+    except Exception as exc:
+        logger.error("Could not load openpii-1m dataset: %s", exc)
+        return []
+
+    try:
+        for row in ds:
+            privacy_mask = row.get("privacy_mask") or []
+            if not isinstance(privacy_mask, list):
+                continue
+
+            for span in privacy_mask:
+                if not isinstance(span, dict):
+                    continue
+                label = span.get("label", "")
+                value = str(span.get("value", "")).strip()
+                if not label or not value or len(value) < 2:
+                    continue
+                our_type = OPENPII_1M_TYPE_MAP.get(label)
+                if our_type is None:
+                    continue
+                seen = seen_by_type.setdefault(our_type, set())
+                if value not in seen and len(seen) < effective_cap:
+                    seen.add(value)
+                    records_by_type.setdefault(our_type, []).append(value)
+
+            rows_processed += 1
+            if rows_processed % 10_000 == 0:
+                counts = {t: len(v) for t, v in records_by_type.items()}
+                logger.info("  processed %d rows — per-type counts: %s", rows_processed, counts)
+
+            # Stop once every mapped type has reached the cap.
+            if all(len(seen_by_type.get(t, set())) >= effective_cap for t in set(OPENPII_1M_TYPE_MAP.values())):
+                logger.info("  All types at cap (%d) — stopping early at row %d", effective_cap, rows_processed)
+                break
+
+            # Hard row cap — stop regardless of per-type saturation.
+            if rows_processed >= row_hard_cap:
+                logger.info("  Row hard cap (%d) reached — stopping", row_hard_cap)
+                break
+    except RuntimeError as exc:
+        # Breaking out of a HuggingFace streaming iterator can raise
+        # "Cannot send a request, as the client has been closed." — this is
+        # a known issue with the datasets library when the iterator is
+        # abandoned mid-stream.  All collected records are intact; ignore
+        # the error and continue to build the output.
+        logger.debug("Streaming iterator closed after early stop (expected): %s", exc)
+
+    logger.info("Processed %d rows total", rows_processed)
+
+    records: list[dict] = []
+    for entity_type, values in sorted(records_by_type.items()):
+        logger.info("  %s: %d unique values", entity_type, len(values))
+        for v in values:
+            records.append({"entity_type": entity_type, "value": v})
+
+    return records
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -677,20 +863,21 @@ def main() -> None:
             "gitleaks",
             "gretel_en",
             "gretel_finance",
+            "openpii_1m",
             "all",
         ],
         default="all",
         help="Which corpus to download",
     )
     parser.add_argument(
-        "--max-per-type", type=int, default=1000, help="Maximum samples per entity type (default: 1000)"
+        "--max-per-type", type=int, default=None, help="Maximum samples per entity type (default: no limit)"
     )
     args = parser.parse_args()
 
     corpora = (
         [args.corpus]
         if args.corpus != "all"
-        else ["nemotron", "secretbench", "gitleaks", "gretel_en", "gretel_finance"]
+        else ["nemotron", "secretbench", "gitleaks", "gretel_en", "gretel_finance", "openpii_1m"]
     )
     total_records = 0
 
@@ -733,6 +920,12 @@ def main() -> None:
             records = download_gretel_finance(max_per_type=args.max_per_type)
             if records:
                 save_corpus(records, "gretel_finance_sample.json")
+                total_records += len(records)
+
+        elif corpus_name == "openpii_1m":
+            records = download_openpii_1m(max_per_type=args.max_per_type)
+            if records:
+                save_corpus(records, "openpii_1m_sample.json")
                 total_records += len(records)
 
     logger.info("=" * 60)
