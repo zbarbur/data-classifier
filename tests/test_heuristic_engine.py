@@ -675,3 +675,47 @@ def test_compute_avg_length_normalized_clamps_to_one():
     # Length 500 — should clamp to 1.0
     result = compute_avg_length_normalized(["x" * 500] * 10)
     assert result == 1.0
+
+
+class TestCharClassEvenness:
+    """Tests for the char-class distribution evenness metric."""
+
+    def test_perfectly_even(self):
+        from data_classifier.engines.heuristic_engine import compute_char_class_evenness
+
+        # 3 upper, 3 lower, 3 digits, 3 symbols
+        val = "Ab1!Cd2@Ef3#"
+        result = compute_char_class_evenness(val)
+        assert result > 0.95
+
+    def test_dominated_by_one_class(self):
+        from data_classifier.engines.heuristic_engine import compute_char_class_evenness
+
+        val = "mylongvariablename1!"
+        result = compute_char_class_evenness(val)
+        assert result < 0.55
+
+    def test_generated_password(self):
+        from data_classifier.engines.heuristic_engine import compute_char_class_evenness
+
+        val = "P}fX2+dX8B5q#a"
+        result = compute_char_class_evenness(val)
+        assert result > 0.85
+
+    def test_single_class(self):
+        from data_classifier.engines.heuristic_engine import compute_char_class_evenness
+
+        assert compute_char_class_evenness("abcdefgh") == 0.0
+
+    def test_empty_string(self):
+        from data_classifier.engines.heuristic_engine import compute_char_class_evenness
+
+        assert compute_char_class_evenness("") == 0.0
+
+    def test_two_classes_uneven(self):
+        from data_classifier.engines.heuristic_engine import compute_char_class_evenness
+
+        # camelCase — mostly lower, some upper → moderate
+        val = "helloWorldTest"
+        result = compute_char_class_evenness(val)
+        assert 0.3 < result < 0.85

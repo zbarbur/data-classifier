@@ -70,26 +70,39 @@ def _mask_value(value: str, entity_type: str) -> str:
 # ── Confidence ───────────────────────────────────────────────────────────────
 
 
-def _compute_sample_confidence(base_confidence: float, matches: int, validated: int) -> float:
-    """Compute confidence from sample match results.
+def _compute_sample_confidence(
+    pattern_confidence: float,
+    matched_count: int,
+    validated_count: int,
+    *,
+    has_validator: bool = False,
+) -> float:
+    """Compute match-quality confidence for a pattern finding.
 
-    Confidence reflects "how sure are we this entity type EXISTS" — based
-    on match count (not ratio).  Validation failures reduce proportionally.
+    Confidence reflects how certain we are that a matched value IS the
+    detected type — not how prevalent the type is in the column.
+    Prevalence is available via ``sample_analysis.match_ratio``.
+
+    Rules:
+    - Validator passed on a high-base pattern (≥0.70) → floor at 0.95
+      (mathematical/structural proof, e.g. Luhn for credit cards).
+    - Validator passed on a low-base pattern (<0.70) → use base as-is.
+      Low-base patterns have intentionally weak regex specificity and
+      rely on context boost to surface (e.g. SSN no-dashes at 0.40).
+    - No validator → pattern base confidence (regex specificity IS quality).
+    - No count multiplier — match count is a prevalence signal, not quality.
+    - Validation failures still reduce proportionally (if none pass → 0.0).
     """
-    if matches == 0:
+    if matched_count == 0:
         return 0.0
 
-    if validated < matches:
-        base_confidence *= validated / matches
+    # Validation failures reduce proportionally
+    if validated_count < matched_count:
+        pattern_confidence *= validated_count / matched_count
 
-    if matches == 1:
-        return base_confidence * 0.65
-    elif matches <= 4:
-        return base_confidence * 0.85
-    elif matches <= 20:
-        return base_confidence
-    else:
-        return min(base_confidence * 1.05, 1.0)
+    if has_validator and validated_count > 0 and pattern_confidence >= 0.70:
+        return min(max(pattern_confidence, 0.95), 1.0)
+    return min(pattern_confidence, 1.0)
 
 
 # ── Stopword / Allowlist / Context ──────────────────────────────────────────
@@ -457,11 +470,22 @@ class RegexEngine(ClassificationEngine):
                 if _matches_allowlist(value, p):
                     continue
 
+                # Extract the regex match for validation.
+                # Validators must see the matched substring, not the
+                # full sample value — e.g. not_placeholder_credential
+                # needs "AKIAIOSFODNN7EXAMPLE", not "aws_access_key: AKIA...".
+                # Similarly ssn_zeros and iban_checksum fail on full values
+                # like "SSN: 123-45-6789" but work on "123-45-6789".
+                extracted = value
+                m = pset.individual[idx].search(value)
+                if m:
+                    extracted = m.group()
+
                 # Run validator if present
                 validated = True
                 if validator is not None:
                     try:
-                        validated = validator(value)
+                        validated = validator(extracted)
                     except Exception:
                         validated = False
 
@@ -476,6 +500,7 @@ class RegexEngine(ClassificationEngine):
                 acc.pattern.confidence,
                 acc.matched_count,
                 acc.validated_count,
+                has_validator=bool(acc.pattern.validator),
             )
             if confidence <= 0.0:
                 continue

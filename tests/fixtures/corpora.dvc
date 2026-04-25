@@ -1,0 +1,6 @@
+outs:
+- md5: 7dc8193aa8d516a8e15b8e6872c68028.dir
+  size: 30169045
+  nfiles: 8
+  hash: md5
+  path: corpora

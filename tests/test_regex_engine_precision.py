@@ -16,15 +16,26 @@ class TestSwiftBicCountryCodeValidator:
     @pytest.mark.parametrize(
         "code",
         [
-            "DEUTDEFF",  # Deutsche Bank, Germany (DE)
-            "BARCGB22",  # Barclays, UK (GB)
-            "BNPAFRPPXXX",  # BNP Paribas, France (FR) — 11-char
-            "CHASUS33",  # Chase, US
-            "COBADEFFXXX",  # Commerzbank, Germany (DE)
+            "BARCGB22",  # Barclays, UK (GB) — has digit
+            "CHASUS33",  # Chase, US — has digit
+            "GLQDUS9XM2A",  # 11-char with digits
         ],
     )
-    def test_real_bic_codes_pass(self, code):
+    def test_real_bic_codes_with_digits_pass(self, code):
         assert swift_bic_country_code_check(code) is True
+
+    @pytest.mark.parametrize(
+        "code",
+        [
+            "DEUTDEFF",  # Deutsche Bank — all-alpha, needs column context
+            "BNPAFRPPXXX",  # BNP Paribas — all-alpha 11-char
+            "COBADEFFXXX",  # Commerzbank — all-alpha 11-char
+        ],
+    )
+    def test_all_alpha_bic_rejected(self, code):
+        """All-alpha BIC codes are rejected — indistinguishable from
+        surnames (HOUTHTALING, CHRISTOPHER) without column context."""
+        assert swift_bic_country_code_check(code) is False
 
     @pytest.mark.parametrize(
         "word",
@@ -37,19 +48,9 @@ class TestSwiftBicCountryCodeValidator:
             "OVERLAPS",  # LA → Laos — valid! This validator won't catch all English words
         ],
     )
-    def test_english_word_fps_that_should_fail(self, word):
-        """Words where positions 5-6 are NOT valid country codes."""
-        # Only test words where the country code IS invalid
-        cc = word[4:6].upper()
-        from data_classifier.engines.validators import _ISO_3166_ALPHA2
-
-        if cc not in _ISO_3166_ALPHA2:
-            assert swift_bic_country_code_check(word) is False
-        else:
-            # This word has a valid country code at positions 5-6
-            # (e.g., RESPONSE with RE=Réunion). The validator alone
-            # doesn't catch it — needs bank-registry validation (Sprint 14).
-            pytest.skip(f"{word} has valid country code {cc} — not catchable by country-code-only validator")
+    def test_english_word_fps_rejected(self, word):
+        """All-alpha English words are always rejected regardless of country code."""
+        assert swift_bic_country_code_check(word) is False
 
     def test_wrong_length_rejected(self):
         assert swift_bic_country_code_check("DEUT") is False

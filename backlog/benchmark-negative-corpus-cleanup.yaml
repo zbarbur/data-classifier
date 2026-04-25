@@ -5,7 +5,7 @@ priority: P1
 category: chore
 sprint_target: 15
 created: 2026-04-19
-updated: 2026-04-21
+updated: 2026-04-24
 depends_on: []
 tags:
 - benchmark
@@ -43,7 +43,7 @@ acceptance_criteria:
 test_plan:
 - 'tests/benchmarks/family_accuracy_benchmark: re-run and verify NEGATIVE F1 > 0'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

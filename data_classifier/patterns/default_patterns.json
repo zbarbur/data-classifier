@@ -589,6 +589,127 @@
       "display_name": "UK National Insurance Number"
     },
     {
+      "name": "bg_egn",
+      "regex": "\\b\\d{10}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.35,
+      "description": "Bulgarian EGN (Единен граждански номер) — 10-digit civil number with weighted checksum",
+      "validator": "bulgarian_egn",
+      "display_name": "Bulgarian EGN",
+      "examples_match": [
+        "7501010010"
+      ],
+      "examples_no_match": [
+        "12345678",
+        "12345678901",
+        "abcdefghij"
+      ],
+      "context_words_boost": [
+        "egn",
+        "egn:",
+        "булстат",
+        "лична карта",
+        "citizen",
+        "national_id",
+        "personal_number"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "fax",
+        "mobile"
+      ]
+    },
+    {
+      "name": "cz_rodne_cislo",
+      "regex": "\\b\\d{6}/?\\d{4}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.5,
+      "description": "Czech rodné číslo (birth number) — YYMMDD/NNNN, divisible by 11",
+      "validator": "czech_rodne_cislo",
+      "display_name": "Czech Birth Number",
+      "examples_match": [
+        "800101/0006",
+        "8001010006"
+      ],
+      "examples_no_match": [
+        "12345",
+        "80010100067",
+        "abcdef/1234"
+      ],
+      "context_words_boost": [
+        "rodne",
+        "cislo",
+        "birth_number",
+        "national_id",
+        "personal_number"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "date"
+      ]
+    },
+    {
+      "name": "ch_ahv",
+      "regex": "\\b756[\\.\\s-]?\\d{4}[\\.\\s-]?\\d{4}[\\.\\s-]?\\d{2}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.9,
+      "description": "Swiss AHV/AVS social security number — 756.XXXX.XXXX.XX with EAN-13 checksum",
+      "validator": "swiss_ahv",
+      "display_name": "Swiss AHV Number",
+      "examples_match": [
+        "756.1234.5678.04"
+      ],
+      "examples_no_match": [
+        "123.4567.8901.23",
+        "756.1234"
+      ],
+      "context_words_boost": [
+        "ahv",
+        "avs",
+        "social",
+        "versicherung"
+      ],
+      "context_words_suppress": []
+    },
+    {
+      "name": "dk_cpr",
+      "regex": "\\b\\d{6}-\\d{4}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.5,
+      "description": "Danish CPR number (civil registration) — DDMMYY-NNNN with mod-11 check",
+      "validator": "danish_cpr",
+      "display_name": "Danish CPR Number",
+      "examples_match": [
+        "010180-0008"
+      ],
+      "examples_no_match": [
+        "32018012",
+        "0113801234",
+        "01018a-1234"
+      ],
+      "context_words_boost": [
+        "cpr",
+        "personnummer",
+        "civil",
+        "national_id"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "date"
+      ]
+    },
+    {
       "name": "url",
       "regex": "\\bhttps?://[a-zA-Z0-9][a-zA-Z0-9\\-]*\\.[a-zA-Z]{2,}[^\\s]*",
       "entity_type": "URL",
@@ -947,7 +1068,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "1Password secret key (A3-XXXXXX-... format). Fixed prefix with structured alphanumeric segments.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:G2l3GxsbGxsbdxsbGxsbGxsbGxsbdxsbGxsbdxsbGxsbdxsbGxsb"
       ],
@@ -971,7 +1092,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Adobe OAuth client secret (p8e- prefix, 32 alphanumeric chars). Case-insensitive suffix.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KmI/dxUyOAwoKjUzDD0IDG8TPBYYOTg8NDUdFzgQNw4KCRMb"
       ],
@@ -995,7 +1116,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.98,
       "description": "Age encryption tool secret key (AGE-SECRET-KEY-1 prefix, bech32 charset).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Gx0fdwkfGQgfDncRHwN3aw0PaQtoF25pHB5uAmMZAhERCQAbYhljEBIMAwANEGMNAhlpGxJoEhEeaQNoamgbGWkNbwgNAG8faQM="
       ],
@@ -1019,7 +1140,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Airtable Personal Access Token — 'pat' prefix + 14-char token ID + dot separator + 32-64 char secret body",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KjsuGxgZHh8cHRITEBEWFxR0Ozg5Pj88PTIzMDE2NzQ1KisoKS4vLC0iIyBraGlub2w="
       ],
@@ -1048,7 +1169,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.96,
       "description": "Alibaba Cloud access key ID (LTAI prefix, 20 alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Fg4bEzRsYhFuDi80ChwgbmwKHjArMyoM"
       ],
@@ -1109,7 +1230,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.96,
       "description": "JFrog Artifactory API key (AKCp prefix, 69 alphanumeric chars). Distinct from reference tokens.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:GxEZKjs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -1133,7 +1254,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.9,
       "description": "JFrog Artifactory API token (AKC prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:GxEZKmI3GDw4HzAfYjsoNTFvGxgZHh8cHRITEBE=",
         "AKCabcdefghij"
@@ -1163,7 +1284,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Atlassian (Jira/Confluence) API token with atatt3 prefix (189 chars total).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Oy47Li5pOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7"
       ],
@@ -1187,7 +1308,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.93,
       "description": "Authress service client access key (sc_/ext_/scauth_/authress_ prefix with multi-segment dotted format).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KTkFEBMrDBYYbxYgInQ1Mx0cPHQ7OTkFDT5pMjAVMQMIGBc/IyMXHhIrEGl0YjsIDzIIbhMNKAIKLDIpGDEeO2MPbg8rHQ02HWw9cWkVLmsVHRc3MCJn"
       ],
@@ -1236,7 +1357,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.96,
       "description": "AWS temporary (ASIA), AWS Billing (ABIA), or ACCA access key IDs complementing AKIA coverage.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:GwkTGxsbGBgZGR4eaGlubx8cbG0=",
         "xor:GxgTGxsbGBgZGR4eaGlubx8cbG0="
@@ -1302,7 +1423,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.9,
       "description": "Azure AD client secret (Q~ pattern with alphanumeric prefix). Azure app registration secrets.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Ozg5awskOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -1409,7 +1530,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Clojars package registry API token (CLOJARS_ prefix, 60 alphanumeric chars). Case-insensitive.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:GRYVEBsICQU7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -1598,7 +1719,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Docker Hub personal access token (dckr_pat_ prefix, 27 chars, fixed length)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PjkxKAUqOy4FOzg5Pj88PTIzMDE2NzQ1KisoKS4vLC0iIyBq"
       ],
@@ -1626,7 +1747,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Doppler secrets manager API token (dp.pt. prefix, 43 alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Pip0Ki50Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -1650,7 +1771,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Duffel travel API token (duffel_test_ or duffel_live_ prefix).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Pi88PD82BTYzLD8FOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -1674,7 +1795,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.98,
       "description": "Dynatrace API token (dt0c01. prefix with two dotted segments of 24 and 64 chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Pi5qOWprdDs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7O3Q4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4"
       ],
@@ -1698,7 +1819,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "EasyPost live API key (EZAK prefix, 54 alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:HwAbETs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -1722,7 +1843,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "EasyPost test API key (EZTK prefix, 54 alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:HwAOETs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -1746,7 +1867,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.93,
       "description": "Facebook/Meta page access token (EAAMxxxx or EAACxxxx prefix, 100+ alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:HxsbFzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -1770,7 +1891,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.9,
       "description": "Facebook Graph API access token (EAA prefix, 20-400 alphanumeric chars). EAA covers all Facebook Graph API token variants. S0 WildChat corpus found 11 true-positive hits.",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:HxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGw=="
       ],
@@ -1800,7 +1921,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Figma personal access token (figd_ prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "figd_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop"
       ],
@@ -1827,7 +1948,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Flutterwave test public key (FLWPUBK_TEST- prefix, hex-subset chars, -X suffix).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:HBYNCg8YEQUOHwkOd29qOzxqaThjbWttaGg8aG5uPG9iPmxsYzk4Pz9pbW1odwI="
       ],
@@ -1851,7 +1972,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Flutterwave test secret key (FLWSECK_TEST- prefix, hex-subset chars, -X suffix).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:HBYNCR8ZEQUOHwkOdztqbW1qaGttaGs7aG1iPGxuPG08PmxpaT44Pj4/a2lrdwI="
       ],
@@ -1903,7 +2024,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Frame.io (Adobe) API token (fio-u- prefix, 64 alphanumeric/symbol chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PDM1dy93Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -2004,7 +2125,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.96,
       "description": "GitLab extended token types: CICD job (glcbt-), deploy (gldt-), feature-flag (glffct-), feed (glft-), incoming-mail (glimt-), k8s-agent (glagent-), oauth (gloas-), pipeline-trigger (glptt-), runner (glrt-), SCIM (glsoat-).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PTY5OC53a2hpbm8FIiIiIiIiIiIiIiIiIiIiIiIiIiI=",
         "xor:PTY+LnciIiIiIiIiIiIiIiIiIiIiIiIiIg==",
@@ -2084,7 +2205,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.85,
       "description": "Grafana legacy API key (base64-encoded JSON starting with eyJrIjoi = '{\"k\":\"'). Lower confidence — starts with eyJ like any JWT, but eyJrIjoi is specific to Grafana's key structure.",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PyMQKBMwNTMACDQcIyNvKGgiEG0cMG43PTg2HyxqcWMYADIsDTsCEmwRaHEuIxYYMjIVMj1jLzIxIjMzHwAqHDwxaxUSGxUfEgMrF2wVMDhsNzAYEisJMw=="
       ],
@@ -2112,7 +2233,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Grafana service account token (glsa_ prefix, 32 alnum + 8 hex checksum)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PTYpOwVuKiIpMRlrEw4uFAAKEjsLahAubQs9Ym4zKzJuPQwQMAViY2w7bGI8Yg=="
       ],
@@ -2139,7 +2260,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Groq API key (gsk_ prefix, 52 alphanumeric, fixed length)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:PSkxBW9saD48FRhrKDk7LAIzFSsxDBkQDhgQOzI/Ym4JbzATOWsiFhAwGDM5LiJvbQNpOW8tNAg="
       ],
@@ -2167,7 +2288,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.92,
       "description": "Harness.io personal (pat.) or service account (sat.) API token with three dotted segments.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KjsudDs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozt0ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4dDk5OTk5OTk5OTk5OTk5OTk5OTk5"
       ],
@@ -2191,7 +2312,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.96,
       "description": "HashiCorp Terraform Cloud API token (14-char prefix + .atlasv1. + 60-70 char suffix).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:OztrODhoOTlpPj5uPz90Oy42Oyksa3Q7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -2246,7 +2367,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "HashiCorp Vault batch token (hvb. prefix, 138-300 alphanumeric chars). Complements hvs. service tokens.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Miw4dDs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7"
       ],
@@ -2270,7 +2391,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Heroku OAuth access token (HRKU- prefix, 65 chars total including prefix). New format since April 2025; pre-2025 tokens are UUID format without prefix.",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:EggRD3cbGxYQGQMIbQkIIAoxMGMFGB0rMjNrMBsTaxBvCm4NPB5sEw4fFCw+DCM+GwoZNBQ5GzYoFxc7MhIoDjU="
       ],
@@ -2299,7 +2420,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Heroku API key v2 format (HRKU-AA prefix, 58 chars). Distinct from legacy heroku_api_key UUID format.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:EggRD3cbGzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -2351,7 +2472,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.96,
       "description": "Infracost cloud cost estimation API token (ico- prefix, 32 alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Mzk1dzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7"
       ],
@@ -2375,7 +2496,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.75,
       "description": "Instagram legacy access token (7-char hex user_id . 32-char hex token). Lower confidence — hex.hex format is somewhat generic; context boost or validator recommended.",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:aztoOGk5bnQ7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -2432,7 +2553,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Langfuse public key — pk-lf- prefix followed by 32+ alphanumeric/hyphen characters. Format from Langfuse SDK documentation (langfuse.com/docs/sdk).",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KjF3Njx3O2s4aDlpPm4/bzxsPW0yYjNjMGoxazZoN2k0bjVvKmwrbQ=="
       ],
@@ -2463,7 +2584,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Langfuse secret key — sk-lf- prefix followed by 32+ alphanumeric/hyphen characters. Format from Langfuse SDK documentation (langfuse.com/docs/sdk).",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KTF3Njx3O2s4aDlpPm4/bzxsPW0yYjNjMGoxazZoN2k0bjVvKmwrbQ=="
       ],
@@ -2494,7 +2615,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "LangSmith (LangChain) API key — PAT (lsv2_pt_) or service key (lsv2_sk_) with hex body segments",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:NiksaAUqLgU7ODk+PzxraGlub2xtYmNqOzg5Pj88BWtoaW5vbG1iY2o7ODk+PzxraGlub2xtYg=="
       ],
@@ -2550,7 +2671,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Linear API token (lin_api_ prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "lin_api_WKLAsLwFrFDHdFdFm03gdRafFNDJdVaH"
       ],
@@ -2578,7 +2699,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.9,
       "description": "Mailchimp API key (32 hex chars + datacenter suffix -usN)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Ozg5Pj88a2hpbm9sbWJjajs4OT4/PGtoaW5vbG1iY2p3Lylr",
         "xor:ampqampqampqampqampqampqampqampqampqampqamp3LylraA=="
@@ -2633,7 +2754,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Mapbox public access token (pk. prefix, 60-char scope + 22-char ID dotted format).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KjF0Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7dDg4ODg4ODg4ODg4ODg4ODg4ODg4ODg="
       ],
@@ -2657,7 +2778,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Microsoft Teams incoming webhook URL (webhook.office.com/webhookb2/ with UUID path structure).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Mi4uKilgdXU3IzUoPXQtPzgyNTUxdDU8PDM5P3Q5NTd1LT84MjU1MThodWlqYm1tbmlodz5ramh3bG1qbHc+bT9id2pvPjtibmw7aWg5aRo4OGJrP2k5aHdjOGxod2ttY2h3bWk5Ync/OG84OGxiaG9tbz91EzQ5NTczND0NPzgyNTUxdTlibTtrbWs7OWJobDtsPDk/bmJubWI+OThtbjxoa2ludW8+aDk5P2Jqd2liO2l3Yz5vP3dqYm9pd2Nsbjhvajs8amk4Yw=="
       ],
@@ -2709,7 +2830,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "New Relic user API key (NRAK- prefix, 27 alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:FAgbEXc7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -2733,7 +2854,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "New Relic browser API token (NRJS- prefix, 19 hex chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:FAgQCXc4Yzk+bTxtYj48ajk7OW8/bmo5"
       ],
@@ -2757,7 +2878,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "New Relic insert (Insights) key (NRII- prefix, 32 chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:FAgTE3c7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -2781,7 +2902,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "New Relic Browser/JS Agent token (NRJS- prefix, 19 lowercase hex chars, fixed length)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:FAgQCXdqO2s4aDlpPm4/bzxsO204Yjlj"
       ],
@@ -2811,7 +2932,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "New Relic User API Key (NRAK- prefix, 27 uppercase alphanumeric chars, fixed length)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:FAgbEXcYHGsTaRYeCwMPFGkPDAMIagscbhhiHg0VHxk="
       ],
@@ -2840,7 +2961,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Notion API integration token (ntn_ prefix, 11-digit numeric + 35 alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:NC40BWpqampqampqampqOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -2864,7 +2985,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Notion integration token (ntn_ prefix, 11 digits + 35 alnum, fixed length)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:NC40BWppaWpjaGlobWtjYjQeCSsCIjEXF2MMDjICajFjLj0WOG0uEQhsYyMgYg43PxY="
       ],
@@ -2921,7 +3042,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "NVIDIA NIM/NGC API key (nvapi- prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:NCw7KjN3Oxg5Hj8cPRIzEDEWNxQ1CisIKQ4vDC0CIwBqa2hpbm9sbWJj"
       ],
@@ -2950,7 +3071,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.9,
       "description": "Okta SSWS API token — starts with '00', 42 chars total, alphanumeric + hyphens. Used in Authorization: SSWS <token> header.",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:amoJaxUqPQkCLmgIFwAyAxEDOS0TGAsiPx0KLDtoG2ocPRhjIhVvax4O"
       ],
@@ -2984,7 +3105,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.9,
       "description": "1Password service account token (ops_ prefix, base64 JSON body starting with ey)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "ops_eyJvIjoiOTk0NjQyIiwibiI6InRlc3Qtc3RhY2stMTIzIiwiayI6InRlc3QxMjM0NTY3ODkwMTIzNDU2Nzg5MCIsIm0iOnsiciI6InByb2QtdXMtZWFzdC0wIiwidCI6InRlc3QifX0=abcdefghijklmnopqrstuvwxyz"
       ],
@@ -3057,7 +3178,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.92,
       "description": "OpenShift user API token (sha256~ prefix, 43 URL-safe base64 chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KTI7aG9sJDs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -3081,7 +3202,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Packagist API token (packagist_ prefix, 3-char env tag, 68 hex chars, fixed length)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Kjs5MTs9MykuBT80PAViPD8+YjttaGI/bT85O2o8O288bDhiO2JiamxobT48bTw8P2poY205bWM4PDg+Ozg/YmNibWlsO2lvbGw8YmNpbGNtOA=="
       ],
@@ -3109,7 +3230,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Perplexity AI API key (pplx- prefix, 48 alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Kio2Inc7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -3133,7 +3254,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "PlanetScale API token (pscale_tkn_ prefix).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Kik5OzY/BS4xNAU7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -3157,7 +3278,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "PlanetScale database password (pscale_pw_ prefix).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:Kik5OzY/BSotBTs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7"
       ],
@@ -3181,7 +3302,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.9,
       "description": "PostHog API key — phc_ (project API key) or phx_ (personal API key) prefix followed by 40+ alphanumeric characters. Format from PostHog developer documentation (posthog.com/docs/api).",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KjI5BTtrGGg5aR5uP28cbD1tEmIzYxBqMWsWaDdpFG41bwpsK20IYiljDmovawxoLWkCbiNvAGwbbQ==",
         "xor:KjIiBTtrGGg5aR5uP28cbD1tEmIzYxBqMWsWaDdpFG41bwpsK20IYiljDmovawxoLWkCbiNvAGwbbRhiOWMeaj9r"
@@ -3215,7 +3336,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Postman API key (PMAK- prefix, 24-hex ID segment + hyphen + 34-hex secret segment, total ~63 chars after prefix)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:ChcbEXdsaW88O2tuO2tqPGJuOGtoYztuaGptb293Y2lub2Njajlvbm4+bm1pYzltbWtpb25vPDtibWlsbmhqbQ=="
       ],
@@ -3244,7 +3365,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Prefect Cloud API token (pnu_ prefix, 36 alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KjQvBTs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -3322,7 +3443,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "PyPI upload token (pypi- prefix with static base64-encoded pypi.org or test.pypi.org identifier)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KiMqM3cbPR8TORI2LTsJbyw5Nzk2LjsOEzMoOT4QKQliMxVpDRw9aTsRKR8fGSw2Yz4rYmkfMmo/IBw/ERUIPjAwABFiLjwqMhANGxcXAxQ1AhIjGWwZLmkWGC4RFD4UYww9Yg00FTQrCzwxKjYQPzE7GxkJFx8pOTUpDikJaR4/CDVtKwMDFRYLAG03GDITNQowbChqMD8+MQMuFwxqEWwpGTIeCS4JIGIoHRMcGTwXOW4YDC8XKzg8NWMIa2kRFmI4DQhqKBE5DQ02HxIKGWwoNhYYFWocPB8tGw=="
       ],
@@ -3392,7 +3513,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "ReadMe.io API token (rdme_ prefix, 70 lowercase alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KD43PwU7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7"
       ],
@@ -3416,7 +3537,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.9,
       "description": "Render.com API key (rnd_ prefix). Format documented on render.com API authentication page.",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KDQ+BRsYGR4fHB0SExARFhcUFQoLCAkODwwNAgMAOzg5Pj88"
       ],
@@ -3445,7 +3566,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Replicate API key — r8_ prefix followed by exactly 40 alphanumeric characters. Format documented at replicate.com/docs/reference/http#authentication.",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KGIFO2s4aDlpPm4/bzxsPW0yYjNjMGoxazZoN2k0bjVvKmwrbShiKWMuag=="
       ],
@@ -3476,7 +3597,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "RubyGems.org API token (rubygems_ prefix, 48 hex chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KC84Iz0/NykFOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7"
       ],
@@ -3500,7 +3621,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Scalingo PaaS API token (tk-us- prefix, 48 alphanumeric chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:LjF3Lyl3Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7"
       ],
@@ -3566,7 +3687,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.98,
       "description": "Sendinblue (Brevo) API token (xkeysib- prefix, 64 hex + dash + 16 alphanumeric).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:IjE/IykzOHc7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7dzg4ODg4ODg4ODg4ODg4ODg="
       ],
@@ -3618,7 +3739,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.98,
       "description": "Sentry user API token (sntryu_ prefix, 64 hex chars). Distinct from org tokens.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KTQuKCMvBTs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs="
       ],
@@ -3642,7 +3763,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.96,
       "description": "SettleMint application (sm_aat_), personal (sm_pat_), or service (sm_sat_) access tokens.",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KTcFOzsuBTs7Ozs7Ozs7Ozs7Ozs7Ozs=",
         "xor:KTcFKjsuBTs7Ozs7Ozs7Ozs7Ozs7Ozs=",
@@ -3687,7 +3808,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Shippo shipping API token (shippo_live_ or shippo_test_ prefix, 40 hex chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KTIzKio1BTYzLD8FOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ow=="
       ],
@@ -3736,7 +3857,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.96,
       "description": "Slack app-level token (xapp- prefix with numeric version and component IDs).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:IjsqKndrdxtrGGgZaR5uH28cbHdrdzs4OT4/PGtoaW5vbG1iY2o="
       ],
@@ -3789,7 +3910,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Slack configuration refresh token (xoxe- prefix, version digit + 146 uppercase alphanumeric).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:IjUiP3drdxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsbGxsb"
       ],
@@ -3863,7 +3984,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Sourcegraph access token (sgp_ prefix with 16-char instance ID + 40-char secret).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KT0qBTs7aW87PjxjOWs/aDtiO2kFOWo/PmtsODw/a2xibmM/PGlqbW9jaj5obWk/aW48Y2I+PDxtP245bA=="
       ],
@@ -3887,7 +4008,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "Square OAuth application secret (sq0csp- prefix, 43-char body)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:KStqOSkqd2wXHQxuM2k/KAIDaBssbQMdKGo7KQ8uaxYWCxxpMBkTHy0sEA0TIx5tL2k="
       ],
@@ -3995,7 +4116,7 @@
       "sensitivity": "HIGH",
       "confidence": 0.85,
       "description": "Telegram bot token (numeric bot ID + colon + 35-char alphanumeric token)",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:a2hpbm9sbWJjamAbGBkeHxwdEhMQERYXFBUKCwgJDg8MDQIDADs4OT4/PD0yMw=="
       ],
@@ -4078,7 +4199,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.97,
       "description": "Typeform API personal access token (tfp_ prefix, 59 chars).",
-      "validator": null,
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:LjwqBTs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7"
       ],
@@ -4130,7 +4251,7 @@
       "sensitivity": "CRITICAL",
       "confidence": 0.95,
       "description": "xAI (Grok) API key — xai- prefix followed by 52+ base62 characters. Format documented at docs.x.ai/api.",
-      "validator": "",
+      "validator": "not_placeholder_credential",
       "examples_match": [
         "xor:IjszdysrGGg5aR5uP28cbD1tEmIzYxBqMWsWaDdpFG41bwpsK20IYiljDmovawxoLWkCbiNvAGwbbRhiOWM="
       ],

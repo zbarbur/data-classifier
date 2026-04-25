@@ -611,10 +611,15 @@ class ClassificationFinding:
     # Sensitivity level: "CRITICAL", "HIGH", "MEDIUM", "LOW"
 
     confidence: float
-    # 0.0-1.0. Represents "how sure are we this entity type EXISTS
-    # in this column?" — NOT scaled by prevalence.
-    # 3 valid SSNs in 100 samples → high confidence (those are real SSNs).
-    # See Section 5 for confidence model details.
+    # 0.0-1.0. Match quality: how certain is this specific match?
+    # A validated credit card number has confidence 0.95+ regardless
+    # of how many rows contain credit cards.
+    # NOT prevalence — use sample_analysis.match_ratio for that.
+    #
+    # Rules:
+    # - Validated match (Luhn, checksum, etc.) on high-base pattern → floor 0.95
+    # - Unvalidated match → pattern base confidence (regex specificity)
+    # - No count multiplier — match count is a prevalence signal
 
     regulatory: list[str]
     # Applicable regulatory frameworks: ["PII", "HIPAA", "GDPR", "PCI_DSS", ...]

@@ -4,6 +4,7 @@ import {
   detectCharset,
   relativeEntropy,
   charClassDiversity,
+  charClassEvenness,
   scoreRelativeEntropy,
 } from '../../src/entropy.js';
 
@@ -84,6 +85,24 @@ describe('charClassDiversity', () => {
     // catches whitespace. "hello world" → lower + symbol = 2 classes.
     expect(charClassDiversity('hello world')).toBe(2);
     expect(charClassDiversity('pass word1')).toBe(3);
+  });
+});
+
+describe('charClassEvenness', () => {
+  it('perfectly even → ~1.0', () => {
+    expect(charClassEvenness('Ab1!Cd2@Ef3#')).toBeGreaterThan(0.95);
+  });
+  it('dominated by one class → low', () => {
+    expect(charClassEvenness('mylongvariablename1!')).toBeLessThan(0.55);
+  });
+  it('generated password → high', () => {
+    expect(charClassEvenness('P}fX2+dX8B5q#a')).toBeGreaterThan(0.85);
+  });
+  it('single class → 0', () => {
+    expect(charClassEvenness('abcdefgh')).toBe(0);
+  });
+  it('empty → 0', () => {
+    expect(charClassEvenness('')).toBe(0);
   });
 });
 

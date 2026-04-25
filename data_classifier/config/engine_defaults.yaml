@@ -19,6 +19,12 @@ secret_scanner:
     - test
     - placeholder
     - changeme
+  opaque_token:
+    min_length: 16              # standalone token minimum (not KV values)
+    entropy_threshold: 0.7      # relative entropy floor
+    diversity_threshold: 3      # char-class count floor
+    base_confidence: 0.65       # starting confidence
+    max_confidence: 0.85        # confidence cap
   scoring:
     tier_boundaries:
       definitive: 0.90       # key score >= this → key name alone sufficient

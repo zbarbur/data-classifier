@@ -1,0 +1,50 @@
+title: v0.12.0 wheel integrity audit
+status: done
+priority: P2
+category: chore
+sprint_target: null
+created: 2026-04-24
+updated: 2026-04-24
+depends_on: []
+tags: []
+goal: Confirm whether the AR-published v0.12.0 wheel matches the v0.12.0 git-tagged
+  source, or if it suffers from the same wheel-vs-tag divergence that broke v0.8.0.
+complexity: S
+technical_specs:
+- "Audit recipe (Path A \u2014 with project venv): see docs/migrations/v0.8.0-to-v0.15.0.md\
+  \ section 'Rollback plan' for context. Simpler: .venv/bin/python -m pip download\
+  \ --no-deps --dest /tmp/v12-audit --index-url https://us-central1-python.pkg.dev/dag-bigquery-dev/data-classifier/simple/\
+  \ 'data_classifier==0.12.0', then compare shasum of data_classifier/download_models.py\
+  \ extracted from the wheel vs. git show v0.12.0 of the same file."
+- Requires roles/artifactregistry.reader on dag-bigquery-dev. If running on a non-GCP
+  machine without ADC, use gcloud auth application-default login first.
+description: "Verify whether the v0.12.0 wheel published to AR matches the v0.12.0\
+  \ git-tagged source. The Sprint 8 wheel-vs-tag divergence that broke v0.8.0's download_models.py\
+  \ URL (docker.pkg.dev placeholder) was caused by the preflight idempotency check\
+  \ in cloudbuild-release.yaml exiting 0 on any HTTP 200. That same check was active\
+  \ when v0.12.0 shipped, so v0.12.0 is at risk of the same divergence. Diagnostic\
+  \ only \u2014 if divergent, a P1 follow-up to yank + republish v0.12.0 is filed\
+  \ from the result."
+acceptance_criteria:
+- Fresh pip download of data_classifier==0.12.0 from the dag-bigquery-dev/data-classifier
+  AR repo has been extracted and SHA-256-hashed
+- SHA-256 of the downloaded wheel's data_classifier/download_models.py is compared
+  against SHA-256 of git show v0.12.0:data_classifier/download_models.py; result (match
+  or mismatch) is recorded in the item notes
+- If mismatched, a P1 follow-up item to yank + republish v0.12.0 has been filed and
+  linked via --depends-on
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments:
+- text: "Won't do \u2014 per owner decision 2026-04-24: since we're not fixing old\
+    \ wheels regardless of audit outcome (Sprint 15 is the forward path), the audit\
+    \ itself is busywork. v0.12.0 may or may not be stale on AR; it doesn't matter\
+    \ if no one installs it."
+  flagged: false
+  resolved: false
+  created: '2026-04-24'
+  author: agent
+images: []

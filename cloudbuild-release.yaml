@@ -161,11 +161,53 @@ steps:
         unset _DC_XTRACE_WAS_ON
 
         if [ "$${STATUS}" = "200" ]; then
-          echo "Wheel $${WHEEL_FILENAME} is already present in AR — skipping upload."
-          echo "(This keeps re-tags and trigger re-runs idempotent. If you"
-          echo " really need to overwrite the version, delete it first via"
-          echo " 'gcloud artifacts versions delete'.)"
-          exit 0
+          echo "Wheel $${WHEEL_FILENAME} is already present in AR — verifying content matches."
+          echo "::endgroup::"
+
+          echo "::group::Content-divergence check (Sprint 8 incident: see SPRINT15 handover)"
+          # Existence-based idempotency silently shipped a broken 0.8.0 wheel
+          # in Sprint 8: the first Cloud Build run published the pre-fix
+          # source, the fix landed, the next run found a 200 on the preflight
+          # and exited without uploading — so AR permanently served the stale
+          # bytes. Replace with content-verified idempotency: same filename
+          # *and* same source tree = true no-op; otherwise hard-fail.
+          #
+          # Scope of comparison: the `data_classifier/` package tree inside
+          # the wheel. Excludes `*.dist-info/` (build-timestamp drift would
+          # false-positive on every retag of identical source).
+          mkdir -p /tmp/ar-wheel /tmp/ar-extracted /tmp/built-extracted
+
+          # Download the AR-published wheel via pip + the AR keyring plugin
+          # (same auth path as the twine upload below — no token juggling).
+          pip download --no-deps --quiet --dest /tmp/ar-wheel \
+            --index-url "https://us-central1-python.pkg.dev/${PROJECT_ID}/data-classifier/simple/" \
+            "data_classifier==$${WHEEL_VERSION}"
+
+          unzip -q "/tmp/ar-wheel/$${WHEEL_FILENAME}" 'data_classifier/*' -d /tmp/ar-extracted
+          unzip -q "dist/$${WHEEL_FILENAME}" 'data_classifier/*' -d /tmp/built-extracted
+
+          if diff -r /tmp/built-extracted/data_classifier /tmp/ar-extracted/data_classifier >/tmp/wheel-diff.out 2>&1; then
+            echo "Content matches AR — safe no-op (true retag of identical source)."
+            echo "::endgroup::"
+            exit 0
+          fi
+
+          echo "::error::CONTENT DIVERGENCE: $${WHEEL_FILENAME} on AR does not match the freshly-built wheel."
+          echo "::error::This is the Sprint 8 incident signature — AR is serving stale bytes for this version."
+          echo ""
+          echo "First 80 lines of diff (full output in /tmp/wheel-diff.out on the build worker):"
+          head -80 /tmp/wheel-diff.out
+          echo ""
+          echo "To republish this version with the current source, yank the stale wheel first,"
+          echo "then rerun this Cloud Build trigger:"
+          echo ""
+          echo "  gcloud artifacts versions delete $${WHEEL_VERSION} \\"
+          echo "      --project=${PROJECT_ID} --location=us-central1 \\"
+          echo "      --repository=data-classifier --package=data-classifier"
+          echo ""
+          echo "If the divergence is intentional (e.g. you forgot to bump pyproject.toml),"
+          echo "bump the version and retag instead."
+          exit 1
         fi
         echo "AR returned HTTP $${STATUS} for $${WHEEL_FILENAME} — proceeding with upload."
         echo "::endgroup::"

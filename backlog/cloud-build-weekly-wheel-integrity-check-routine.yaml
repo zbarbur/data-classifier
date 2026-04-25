@@ -1,0 +1,41 @@
+title: Cloud Build weekly wheel-integrity-check routine
+status: backlog
+priority: P3
+category: chore
+sprint_target: null
+created: 2026-04-24
+updated: 2026-04-24
+depends_on: []
+tags: []
+goal: "Add a recurring (weekly) Cloud Build job that runs the same content-divergence\
+  \ check the release pipeline performs, against every currently-published minor version\
+  \ \u2014 catching drift that happens outside release cycles."
+complexity: S
+technical_specs:
+- 'Reuse the diff block from cloudbuild-release.yaml:163-208. Iteration strategy:
+  list published versions via gcloud artifacts versions list, loop, pip download each,
+  diff against git show <tag>:data_classifier/.'
+- 'Scheduler config: gcloud scheduler jobs create http wheel-integrity-check --schedule=''0
+  3 * * 0'' --uri=''<cloud-build-trigger-webhook>''. Needs a dedicated SA with Cloud
+  Build + AR reader.'
+- 'Scope: latest N minor versions (N=5 initially) to keep runtime bounded. v0.8.0
+  is known-stale until its own backlog item resolves, so exclude it via an explicit
+  skiplist in the yaml.'
+description: The content-verified idempotency check added to cloudbuild-release.yaml
+  in commit e34f0da only fires during release cycles. If an AR wheel somehow drifts
+  outside a release (e.g. someone manually yanks and republishes), divergence goes
+  undetected until the next release. Add a Cloud Build Scheduler cron that runs the
+  same diff check weekly against all published minor versions (or latest N) and emails
+  on failure.
+acceptance_criteria:
+- A new cloudbuild-check-integrity.yaml exists that iterates over published wheels
+  and fails if any data_classifier/ tree differs from the corresponding git tag
+- A Cloud Scheduler trigger fires the integrity check weekly (e.g. Sundays at 03:00
+  UTC) and surfaces failures via the project's existing alerting (email or Slack)
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

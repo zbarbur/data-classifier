@@ -23,3 +23,19 @@
 ## rollup_from_rollups
 
 ::: data_classifier.rollup_from_rollups
+
+## scan_text
+
+::: data_classifier.scan_text
+
+## health_check
+
+::: data_classifier.health_check
+
+## family_for
+
+::: data_classifier.family_for
+
+## get_active_engines
+
+::: data_classifier.get_active_engines
