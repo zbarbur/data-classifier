@@ -2,9 +2,9 @@ pub mod luhn;
 pub mod checksum;
 pub mod crypto;
 pub mod identity;
+pub mod credential;
 // Future modules will be added here:
 // pub mod network;
-// pub mod credential;
 // pub mod placeholder;
 
 use std::collections::HashMap;
@@ -30,6 +30,11 @@ pub fn build_validator_registry() -> HashMap<&'static str, ValidatorFn> {
     m.insert("czech_rodne_cislo", identity::czech_rodne_cislo_check);
     m.insert("swiss_ahv", identity::swiss_ahv_check);
     m.insert("danish_cpr", identity::danish_cpr_check);
+    m.insert("aws_secret_not_hex", credential::aws_secret_not_hex);
+    m.insert("openai_legacy_key", credential::openai_legacy_key_check);
+    m.insert("huggingface_token", credential::huggingface_token_check);
+    m.insert("swift_bic_country_code", credential::swift_bic_country_code_check);
+    m.insert("random_password", credential::random_password_check);
     m
 }
 
@@ -52,6 +57,6 @@ mod tests {
         assert!(reg.contains_key("luhn_strip"));
         assert!(reg.contains_key("npi_luhn"));
         assert!(reg.contains_key("sin_luhn"));
-        assert_eq!(reg.len(), 16);
+        assert_eq!(reg.len(), 21);
     }
 }
