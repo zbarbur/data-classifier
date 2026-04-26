@@ -18,6 +18,9 @@ use kv_pass::KVPass;
 use opaque_pass::OpaquePass;
 use regex_pass::RegexPass;
 use types::Finding;
+use zone_scorer::ZoneScorer;
+
+use crate::text_model::TextModel;
 
 /// Top-level orchestrator for secret/credential detection.
 ///
@@ -28,6 +31,7 @@ pub struct SecretOrchestrator {
     regex_pass: RegexPass,
     kv_pass: KVPass,
     opaque_pass: OpaquePass,
+    zone_scorer: ZoneScorer,
 }
 
 impl SecretOrchestrator {
@@ -38,6 +42,7 @@ impl SecretOrchestrator {
             regex_pass: RegexPass::from_patterns(patterns),
             kv_pass: KVPass::from_patterns(patterns),
             opaque_pass: OpaquePass::from_patterns(patterns),
+            zone_scorer: ZoneScorer::from_patterns(patterns),
         }
     }
 
@@ -66,6 +71,24 @@ impl SecretOrchestrator {
 
         // 3. Dedup: keep highest confidence per overlapping span
         dedup(all)
+    }
+
+    /// Run secret detection with zone-aware confidence adjustment.
+    /// Zones should already be annotated on the TextModel before calling this.
+    pub fn detect_secrets_with_zones(&self, model: &TextModel) -> Vec<Finding> {
+        let raw = self.detect_secrets_full(&model.text, false, false);
+        self.zone_scorer.adjust(model, raw)
+    }
+
+    /// Full version with verbose/include_raw options + zone scoring.
+    pub fn detect_secrets_with_zones_full(
+        &self,
+        model: &TextModel,
+        verbose: bool,
+        include_raw: bool,
+    ) -> Vec<Finding> {
+        let raw = self.detect_secrets_full(&model.text, verbose, include_raw);
+        self.zone_scorer.adjust(model, raw)
     }
 
     /// Access the loaded configuration (useful for tests).
