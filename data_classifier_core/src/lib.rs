@@ -10,6 +10,7 @@
 
 pub mod zone_detector;
 pub mod secret_detector;
+pub mod text_model;
 
 // =========================================================================
 // WASM API (feature = "wasm")
