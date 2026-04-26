@@ -207,8 +207,12 @@ mod wasm_api {
 
 #[cfg(feature = "python")]
 mod python_api {
+    use super::secret_detector::redaction;
+    use super::secret_detector::SecretOrchestrator;
+    use super::text_model::TextModel;
     use super::zone_detector::{ZoneConfig, ZoneOrchestrator};
     use pyo3::prelude::*;
+    use pyo3::types::PyDict;
 
     /// A detected zone block within a prompt.
     #[pyclass(frozen)]
@@ -302,12 +306,118 @@ mod python_api {
         }
     }
 
+    /// Unified detector — zones + secrets in a single call.
+    #[pyclass]
+    pub struct UnifiedDetector {
+        zone_detector: ZoneOrchestrator,
+        secret_detector: SecretOrchestrator,
+    }
+
+    #[pymethods]
+    impl UnifiedDetector {
+        /// Create a new unified detector from patterns JSON.
+        #[new]
+        fn new(patterns_json: &str) -> PyResult<Self> {
+            let patterns: serde_json::Value = serde_json::from_str(patterns_json)
+                .map_err(|e| pyo3::exceptions::PyValueError::new_err(format!("invalid patterns JSON: {}", e)))?;
+            let zone_config = ZoneConfig::default();
+            Ok(Self {
+                zone_detector: ZoneOrchestrator::from_patterns(&patterns, &zone_config),
+                secret_detector: SecretOrchestrator::from_patterns(&patterns),
+            })
+        }
+
+        /// Unified detection — returns JSON string with zones, findings, redacted_text.
+        /// opts is an optional dict with keys: secrets (bool), zones (bool),
+        /// redact_strategy (str), verbose (bool), include_raw (bool).
+        #[pyo3(signature = (text, opts=None))]
+        fn detect(&self, text: &str, opts: Option<&Bound<'_, PyDict>>) -> PyResult<String> {
+            let run_secrets = get_bool_opt(opts, "secrets", true);
+            let run_zones = get_bool_opt(opts, "zones", true);
+            let redact_strategy = get_str_opt(opts, "redact_strategy", "type-label");
+            let verbose = get_bool_opt(opts, "verbose", false);
+            let include_raw = get_bool_opt(opts, "include_raw", false);
+
+            // Zone detection
+            let zones_result = if run_zones {
+                Some(self.zone_detector.detect_zones(text, ""))
+            } else {
+                None
+            };
+
+            // Secret detection with zone-aware scoring
+            let findings = if run_secrets {
+                if let Some(ref zones) = zones_result {
+                    let mut model = TextModel::from_text(text);
+                    model.annotate_zones(zones);
+                    self.secret_detector.detect_secrets_with_zones_full(&model, verbose, include_raw)
+                } else {
+                    self.secret_detector.detect_secrets_full(text, verbose, include_raw)
+                }
+            } else {
+                Vec::new()
+            };
+
+            // Redaction
+            let redacted_text = if run_secrets && !findings.is_empty() {
+                redaction::redact(text, &findings, &redact_strategy)
+            } else {
+                text.to_string()
+            };
+
+            // Build result JSON
+            let zones_json = zones_result.map(|z| serde_json::to_value(&z).unwrap_or(serde_json::json!(null)));
+            let result = serde_json::json!({
+                "zones": zones_json,
+                "findings": findings,
+                "redacted_text": redacted_text,
+                "scanned_ms": 0.0
+            });
+
+            serde_json::to_string(&result)
+                .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("JSON serialization failed: {}", e)))
+        }
+
+        /// Legacy: zone-only detection (same as ZoneDetector.detect_zones).
+        fn detect_zones(&self, text: &str, prompt_id: &str) -> PromptZones {
+            let result = self.zone_detector.detect_zones(text, prompt_id);
+            PromptZones {
+                prompt_id: result.prompt_id,
+                total_lines: result.total_lines,
+                blocks: result.blocks.into_iter().map(|b| ZoneBlock {
+                    start_line: b.start_line,
+                    end_line: b.end_line,
+                    zone_type: b.zone_type.as_str().to_string(),
+                    confidence: b.confidence,
+                    method: b.method,
+                    language_hint: b.language_hint,
+                    language_confidence: b.language_confidence,
+                    text: b.text,
+                }).collect(),
+            }
+        }
+    }
+
+    // Helper functions for extracting options from PyDict
+    fn get_bool_opt(opts: Option<&Bound<'_, PyDict>>, key: &str, default: bool) -> bool {
+        opts.and_then(|d| d.get_item(key).ok().flatten())
+            .and_then(|v| v.extract::<bool>().ok())
+            .unwrap_or(default)
+    }
+
+    fn get_str_opt(opts: Option<&Bound<'_, PyDict>>, key: &str, default: &str) -> String {
+        opts.and_then(|d| d.get_item(key).ok().flatten())
+            .and_then(|v| v.extract::<String>().ok())
+            .unwrap_or_else(|| default.to_string())
+    }
+
     /// Python module definition.
     #[pymodule]
     fn data_classifier_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_class::<ZoneDetector>()?;
         m.add_class::<ZoneBlock>()?;
         m.add_class::<PromptZones>()?;
+        m.add_class::<UnifiedDetector>()?;
         Ok(())
     }
 }
