@@ -1,8 +1,8 @@
 pub mod luhn;
 pub mod checksum;
 pub mod crypto;
+pub mod identity;
 // Future modules will be added here:
-// pub mod identity;
 // pub mod network;
 // pub mod credential;
 // pub mod placeholder;
@@ -25,6 +25,11 @@ pub fn build_validator_registry() -> HashMap<&'static str, ValidatorFn> {
     m.insert("ein_prefix", checksum::ein_prefix_check);
     m.insert("bitcoin_address", crypto::bitcoin_address_check);
     m.insert("ethereum_address", crypto::ethereum_address_check);
+    m.insert("ssn_zeros", identity::ssn_zeros_check);
+    m.insert("bulgarian_egn", identity::bulgarian_egn_check);
+    m.insert("czech_rodne_cislo", identity::czech_rodne_cislo_check);
+    m.insert("swiss_ahv", identity::swiss_ahv_check);
+    m.insert("danish_cpr", identity::danish_cpr_check);
     m
 }
 
@@ -47,6 +52,6 @@ mod tests {
         assert!(reg.contains_key("luhn_strip"));
         assert!(reg.contains_key("npi_luhn"));
         assert!(reg.contains_key("sin_luhn"));
-        assert_eq!(reg.len(), 11);
+        assert_eq!(reg.len(), 16);
     }
 }
