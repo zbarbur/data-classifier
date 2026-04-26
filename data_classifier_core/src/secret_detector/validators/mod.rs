@@ -3,9 +3,8 @@ pub mod checksum;
 pub mod crypto;
 pub mod identity;
 pub mod credential;
-// Future modules will be added here:
-// pub mod network;
-// pub mod placeholder;
+pub mod network;
+pub mod placeholder;
 
 use std::collections::HashMap;
 
@@ -35,13 +34,19 @@ pub fn build_validator_registry() -> HashMap<&'static str, ValidatorFn> {
     m.insert("huggingface_token", credential::huggingface_token_check);
     m.insert("swift_bic_country_code", credential::swift_bic_country_code_check);
     m.insert("random_password", credential::random_password_check);
+    m.insert("ipv4_not_reserved", network::ipv4_not_reserved_check);
+    m.insert("phone_number", network::phone_number_check);
     m
 }
 
-/// Resolve a validator by name. Returns None if name is empty.
+/// Resolve a validator by name.
+///
+/// Returns `None` if the name is empty or is `"not_placeholder_credential"`
+/// (which takes a `HashSet` argument and must be called directly rather than
+/// through the `fn(&str) -> bool` registry).
 pub fn resolve_validator(name: &str, registry: &HashMap<&str, ValidatorFn>) -> Option<ValidatorFn> {
-    if name.is_empty() {
-        return None;
+    if name.is_empty() || name == "not_placeholder_credential" {
+        return None; // handled separately
     }
     registry.get(name).copied()
 }
@@ -57,6 +62,6 @@ mod tests {
         assert!(reg.contains_key("luhn_strip"));
         assert!(reg.contains_key("npi_luhn"));
         assert!(reg.contains_key("sin_luhn"));
-        assert_eq!(reg.len(), 21);
+        assert_eq!(reg.len(), 23);
     }
 }
