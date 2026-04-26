@@ -10,6 +10,7 @@ pub mod kv_pass;
 pub mod opaque_pass;
 pub mod pem_pass;
 pub mod regex_pass;
+pub mod zone_scorer;
 // pub mod pattern_matcher;
 
 use config::SecretConfig;
