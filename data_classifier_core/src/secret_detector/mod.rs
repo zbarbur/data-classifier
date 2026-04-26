@@ -1,6 +1,7 @@
 pub mod config;
 pub mod entropy;
 pub mod parsers;
+pub mod redaction;
 pub mod types;
 pub mod validators;
 pub mod fp_filters;
