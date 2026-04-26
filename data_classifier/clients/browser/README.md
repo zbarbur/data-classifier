@@ -4,9 +4,9 @@ Client-side scanner for detecting secrets and classifying code zones in text.
 Scans user-submitted text (e.g. a prompt about to be sent to a chat AI)
 and returns secret findings, zone blocks (code/markup/config), and a redacted version.
 
-Two detection engines run side by side in a Web Worker pool:
+Both detection engines run in Rust/WASM in a Web Worker pool:
 
-- **Secret scanner** — JS implementation (122 regex + 283 key-name patterns + entropy gating)
+- **Secret scanner** — Rust/WASM (`data_classifier_core`), 122 regex + 283 key-name patterns, 24 validators (zero stubs)
 - **Zone detector** — Rust/WASM (`data_classifier_core`), lazy-loaded on first use
 
 ## Quick start
@@ -61,7 +61,7 @@ const scanner = createScanner({
 const { findings, zones, redactedText } = await scanner.scan(promptText);
 ```
 
-**Static assets to copy:** `dist/worker.esm.js`, `dist/data_classifier_core_bg.wasm`, `dist/zone_patterns.json`
+**Static assets to copy:** `dist/worker.esm.js`, `dist/data_classifier_core_bg.wasm`, `dist/unified_patterns.json`
 
 **Webpack:** Use `copy-webpack-plugin` to copy all three files to your output directory.
 
@@ -132,8 +132,8 @@ TypeScript declarations are at `scanner.d.ts`.
 | Component | Raw | Gzipped | Notes |
 |-----------|-----|---------|-------|
 | scanner.esm.js | 1.5 KB | 0.7 KB | Public API entry point |
-| worker.esm.js | 142 KB | 20 KB | Secret scanner (JS) + zone detector loader |
-| data_classifier_core_bg.wasm | 1.4 MB | 500 KB | Zone detector (Rust/WASM), lazy-loaded |
-| zone_patterns.json | 14 KB | 4 KB | Detection patterns, lazy-loaded |
-| **Secrets only** | **144 KB** | **21 KB** | WASM never loaded if `zones: false` |
-| **Full (secrets + zones)** | **1.6 MB** | **525 KB** | WASM loaded on first zone scan |
+| worker.esm.js | ~2.2 KB | ~1 KB | WASM glue only (98% reduction from JS era) |
+| data_classifier_core_bg.wasm | ~1.6 MB | ~500 KB | Zones + secrets (Rust/WASM); lazy-loaded on first use |
+| unified_patterns.json | ~190 KB | ~30 KB | All detection patterns (secrets + zones), lazy-loaded |
+| **Secrets only** | **~1.8 MB** | **~530 KB** | WASM includes both engines; patterns filtered at runtime |
+| **Full (secrets + zones)** | **~1.8 MB** | **~530 KB** | Same binary — essentially unchanged from JS era gzipped |

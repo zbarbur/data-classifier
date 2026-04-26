@@ -3,6 +3,10 @@
  *
  * Scans user-submitted text for credentials and returns findings
  * with a redacted version of the input.
+ *
+ * Detection is performed entirely in Rust/WASM (data_classifier_core)
+ * inside a Web Worker pool. Both secret detection and zone detection
+ * share the same WASM binary (unified_patterns.json).
  */
 
 // ── Options ──────────────────────────────────────────────────────
@@ -26,7 +30,11 @@ export interface ScanOptions {
   /** How to redact detected secrets in the output. @default 'type-label' */
   redactStrategy?: RedactStrategy;
 
-  /** Attach a `details` block to each finding with pattern/entropy info. @default false */
+  /**
+   * Include additional diagnostic fields in the scan result (e.g., `allFindings` before dedup).
+   * The Rust/WASM engine does not produce a per-finding `details` block.
+   * @default false
+   */
   verbose?: boolean;
 
   /**
@@ -42,20 +50,20 @@ export interface ScanOptions {
 
   /**
    * Which pattern categories to scan for.
-   * Currently supports `Credential` only; other categories have unported validators.
+   * Passed through to the WASM detector; currently `Credential` is the primary category.
    *
    * @default ['Credential']
    */
   categoryFilter?: string[];
 
   /**
-   * Run the secret detection engine (regex + secret_scanner + opaque_token).
+   * Run the secret detection engine (Rust/WASM, 24 validators).
    * @default true
    */
   secrets?: boolean;
 
   /**
-   * Run the zone detection engine (code/markup/config identification via WASM).
+   * Run the zone detection engine (Rust/WASM, code/markup/config identification).
    * When true, the WASM module is lazy-loaded on first use (~15-25ms init).
    * @default true
    */
@@ -106,36 +114,6 @@ export interface KVContext {
 
   /** Scoring tier: `"definitive"`, `"strong"`, or `"contextual"`. */
   tier: string;
-}
-
-/** Entropy breakdown (present when `verbose: true` and engine is `secret_scanner`). */
-export interface EntropyDetails {
-  /** Shannon entropy in bits per character. */
-  shannon: number;
-
-  /** Shannon / max possible for detected charset. Range 0–1. */
-  relative: number;
-
-  /** Detected charset: `"hex"`, `"base64"`, `"alphanumeric"`, or `"full"`. */
-  charset: string;
-
-  /** Clamped score: `max(0.5, min(1.0, relative))`. */
-  score: number;
-}
-
-/** Verbose details block (present when `verbose: true`). */
-export interface FindingDetails {
-  /** Pattern name (e.g., `"github_token"`) or `"secret_scanner"`. */
-  pattern: string;
-
-  /** Validator status: `"passed"`, `"stubbed"`, or `"none"`. */
-  validator: string;
-
-  /** Entropy breakdown (secret_scanner findings only). */
-  entropy?: EntropyDetails;
-
-  /** Scoring tier (secret_scanner findings only). */
-  tier?: string;
 }
 
 /** A detected zone block (code, markup, config, etc.). */
@@ -199,9 +177,6 @@ export interface Finding {
 
   /** KV context (secret_scanner findings only). */
   kv?: KVContext;
-
-  /** Verbose details (only when `verbose: true`). */
-  details?: FindingDetails;
 }
 
 /** Result returned by `scanner.scan()`. */

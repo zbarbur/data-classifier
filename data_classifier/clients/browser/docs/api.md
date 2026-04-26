@@ -45,12 +45,12 @@ const { findings, zones, redactedText, scannedMs } = await scanner.scan(text);
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `secrets` | `boolean` | `true` | Run secret detection (regex + secret_scanner + opaque_token passes) |
-| `zones` | `boolean` | `true` | Run zone detection (code/markup/config classification via WASM). First call lazy-loads the WASM module (~15-25ms init) |
+| `secrets` | `boolean` | `true` | Run secret detection (Rust/WASM: regex + secret_scanner + opaque_token passes, 24 validators) |
+| `zones` | `boolean` | `true` | Run zone detection (Rust/WASM: code/markup/config classification). First call lazy-loads the WASM module (~15-25ms init) |
 | `timeoutMs` | `number` | `5000` (zones) / `100` (secrets-only) | Worker kill budget (ms). Higher default when zones enabled to allow WASM init |
 | `failMode` | `'open' \| 'closed'` | `'open'` | `open`: resolve with empty findings on timeout. `closed`: reject with `{ code: 'TIMEOUT' }` |
 | `redactStrategy` | `'type-label' \| 'asterisk' \| 'placeholder' \| 'none'` | `'type-label'` | How to redact secrets in the output text |
-| `verbose` | `boolean` | `false` | Attach a `details` block to each finding with pattern name, validator status, entropy breakdown |
+| `verbose` | `boolean` | `false` | Include `allFindings` (pre-dedup) in the result. The WASM engine does not produce per-finding `details` blocks |
 | `dangerouslyIncludeRawValues` | `boolean` | `false` | Populate `match.valueRaw` with unmasked value. **Never enable in production.** |
 | `categoryFilter` | `string[]` | `['Credential']` | Pattern categories to scan. Currently supports `Credential` only |
 
@@ -63,7 +63,7 @@ const result = await scanner.scan(text);
 // Secrets only — WASM never loads
 const result = await scanner.scan(text, { secrets: true, zones: false });
 
-// Zones only — JS secret scanner skipped
+// Zones only — secret detection pass skipped
 const result = await scanner.scan(text, { secrets: false, zones: true });
 ```
 
@@ -111,7 +111,6 @@ A single detected secret.
   evidence: string;       // human-readable scoring breakdown
   match: Match;           // offset span in original text
   kv?: KVContext;         // key-value context (secret_scanner only)
-  details?: FindingDetails; // verbose info (only when verbose: true)
 }
 ```
 
@@ -160,21 +159,9 @@ Present on secret_scanner findings only.
 
 ### `FindingDetails`
 
-Present when `verbose: true`.
-
-```typescript
-{
-  pattern: string;        // pattern name or "secret_scanner"
-  validator: string;      // "passed", "stubbed", or "none"
-  entropy?: {             // secret_scanner only
-    shannon: number;      // bits per character
-    relative: number;     // 0–1 (shannon / max for charset)
-    charset: string;      // "hex", "base64", "alphanumeric", "full"
-    score: number;        // clamped: max(0.5, min(1.0, relative))
-  };
-  tier?: string;          // secret_scanner only
-}
-```
+> **Removed.** The Rust/WASM engine does not produce per-finding `details` blocks.
+> The `Finding` type no longer has a `details` field. Use `verbose: true` to obtain
+> `allFindings` (pre-dedup list) in the `ScanResult` for diagnostic purposes.
 
 ### `ZonesResult`
 
