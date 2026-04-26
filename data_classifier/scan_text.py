@@ -17,9 +17,11 @@ Detection flow:
 
 from __future__ import annotations
 
+import json as _json
 import logging
 import re
 from dataclasses import dataclass
+from pathlib import Path as _Path
 
 import re2
 
@@ -38,6 +40,38 @@ from data_classifier.engines.validators import VALIDATORS
 from data_classifier.patterns import ContentPattern, load_default_patterns
 
 logger = logging.getLogger(__name__)
+
+# ── Rust accelerated path (via PyO3) ─────────────────────────────────────────
+# If the native Rust module is available (built via maturin), use it for
+# detection. This gives identical results with better performance and
+# eliminates the Python/JS parity gap entirely.
+_RUST_AVAILABLE = False
+_RUST_DETECTOR = None
+_UNIFIED_PATTERNS_PATH = (
+    _Path(__file__).resolve().parent.parent / "data_classifier_core" / "patterns" / "unified_patterns.json"
+)
+
+try:
+    from data_classifier_core import UnifiedDetector as _UnifiedDetector  # type: ignore[import]
+
+    _RUST_AVAILABLE = True
+    logger.info("Rust UnifiedDetector available — using accelerated detection path")
+except ImportError:
+    logger.debug("Rust UnifiedDetector not available — using Python detection path")
+
+
+def _get_rust_detector():  # type: ignore[return]
+    """Get or create the Rust detector singleton."""
+    global _RUST_DETECTOR
+    if _RUST_DETECTOR is None and _RUST_AVAILABLE:
+        try:
+            patterns = _UNIFIED_PATTERNS_PATH.read_text()
+            _RUST_DETECTOR = _UnifiedDetector(patterns)
+        except Exception as e:
+            logger.warning("Failed to initialize Rust detector: %s — falling back to Python", e)
+            return None
+    return _RUST_DETECTOR
+
 
 # ── Opaque token pass constants (mirrors JS scanner-core.js opaqueTokenPass) ─
 _OPAQUE_MIN_LENGTH = 16
@@ -390,8 +424,8 @@ class TextScanner:
 _scanner: TextScanner | None = None
 
 
-def scan_text(text: str, *, min_confidence: float = 0.3) -> TextScanResult:
-    """Scan free text for credentials — convenience wrapper.
+def _scan_text_python(text: str, *, min_confidence: float = 0.3) -> TextScanResult:
+    """Python implementation of scan_text — used when Rust path is unavailable.
 
     Uses a module-level :class:`TextScanner` singleton (initialized on first call).
     For batch usage, create a :class:`TextScanner` directly to control lifecycle.
@@ -401,3 +435,50 @@ def scan_text(text: str, *, min_confidence: float = 0.3) -> TextScanResult:
         _scanner = TextScanner()
         _scanner.startup()
     return _scanner.scan(text, min_confidence=min_confidence)
+
+
+def _scan_text_rust(text: str, *, min_confidence: float = 0.3) -> TextScanResult:
+    """Scan text using the Rust UnifiedDetector (PyO3).
+
+    Falls back to :func:`_scan_text_python` if the detector cannot be initialised.
+    """
+    detector = _get_rust_detector()
+    if detector is None:
+        return _scan_text_python(text, min_confidence=min_confidence)
+
+    result_json = detector.detect(text, {"secrets": True, "zones": False})
+    result = _json.loads(result_json)
+
+    findings: list[TextFinding] = []
+    for f in result.get("findings", []):
+        if f.get("confidence", 0) < min_confidence:
+            continue
+        match_data = f.get("match", {})
+        findings.append(
+            TextFinding(
+                entity_type=f.get("entity_type", ""),
+                detection_type=f.get("detection_type", ""),
+                display_name=f.get("display_name", ""),
+                category=f.get("category", "Credential"),
+                confidence=f.get("confidence", 0),
+                engine=f.get("engine", ""),
+                start=match_data.get("start", 0),
+                end=match_data.get("end", 0),
+                value_masked=match_data.get("value_masked", ""),
+                evidence=f.get("evidence", ""),
+            )
+        )
+
+    return TextScanResult(findings=findings, scanned_length=len(text))
+
+
+def scan_text(text: str, *, min_confidence: float = 0.3) -> TextScanResult:
+    """Scan free text for credentials — convenience wrapper.
+
+    Uses the Rust :class:`UnifiedDetector` if available (built via maturin/PyO3),
+    otherwise falls back to the Python implementation backed by a module-level
+    :class:`TextScanner` singleton.
+    """
+    if _RUST_AVAILABLE:
+        return _scan_text_rust(text, min_confidence=min_confidence)
+    return _scan_text_python(text, min_confidence=min_confidence)
