@@ -3,6 +3,7 @@ pub mod entropy;
 pub mod types;
 pub mod validators;
 pub mod fp_filters;
+pub mod key_scoring;
 // pub mod pattern_matcher;
 // pub mod opaque_token;
 
