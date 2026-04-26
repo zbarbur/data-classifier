@@ -2,7 +2,6 @@ node_modules/
 dist/
 dist-package/
 tester/dist/
-src/generated/
 tester/corpus/**/last_run.json
 .playwright/
 playwright-report/

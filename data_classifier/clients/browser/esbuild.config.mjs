@@ -36,13 +36,13 @@ function copyAssets() {
     resolve(__dirname, 'dist/data_classifier_core_bg.wasm'),
   );
   copyFileSync(
-    resolve(__dirname, 'assets/zone_patterns.json'),
-    resolve(__dirname, 'dist/zone_patterns.json'),
+    resolve(__dirname, 'assets/unified_patterns.json'),
+    resolve(__dirname, 'dist/unified_patterns.json'),
   );
   // Copy dist into tester/dist/ so the tester page works during development
   // (same as scripts/package.js does for standalone distribution)
   mkdirSync(resolve(__dirname, 'tester/dist'), { recursive: true });
-  for (const f of ['scanner.esm.js', 'worker.esm.js', 'data_classifier_core_bg.wasm', 'zone_patterns.json']) {
+  for (const f of ['scanner.esm.js', 'worker.esm.js', 'data_classifier_core_bg.wasm', 'unified_patterns.json']) {
     copyFileSync(resolve(__dirname, 'dist', f), resolve(__dirname, 'tester/dist', f));
   }
 }
