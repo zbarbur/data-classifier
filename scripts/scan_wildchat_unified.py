@@ -4,14 +4,16 @@
 Reads the local parquet, runs every user prompt through the Rust
 UnifiedDetector (zones + secrets in one call), and writes:
 
-  data/wildchat_unified/candidates.jsonl  — ALL prompts with any finding
+  data/wildchat_unified/candidates.jsonl  — prompts with any finding
   data/wildchat_unified/tn_sample.jsonl   — random sample of no-finding prompts
   data/wildchat_unified/scan_stats.json   — aggregate statistics
+  data/wildchat_unified/scan_index.jsonl  — lightweight record for EVERY prompt
 
 The candidates file is the input for the prompt_reviewer.py review tool.
 
-Resume-safe: on restart, reads existing candidates.jsonl and skips already-
-processed prompt_ids.  Per-prompt timeout prevents hangs on pathological inputs.
+Resume-safe: on restart, reads existing candidates.jsonl AND scan_index.jsonl
+and skips already-processed prompt_ids.  Per-prompt timeout prevents hangs on
+pathological inputs.
 
 Usage:
     .venv/bin/python scripts/scan_wildchat_unified.py
@@ -155,9 +157,12 @@ def main() -> None:
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     candidates_path = OUT_DIR / "candidates.jsonl"
+    index_path = OUT_DIR / "scan_index.jsonl"
 
-    # Resume: load existing prompt_ids to skip
+    # Resume: load existing prompt_ids to skip (index is most complete set)
     existing_ids = load_existing_prompt_ids(candidates_path)
+    index_ids = load_existing_prompt_ids(index_path)
+    existing_ids = existing_ids.union(index_ids)
     if existing_ids:
         log.info("Resuming: %d prompts already processed, will skip them", len(existing_ids))
 
@@ -173,6 +178,7 @@ def main() -> None:
     zone_type_counts: Counter = Counter()
     engine_counts: Counter = Counter()
     confidence_buckets: Counter = Counter()
+    dominant_zone_counts: Counter = Counter()  # per-prompt dominant zone type
 
     # TN reservoir sampling
     import random
@@ -184,7 +190,7 @@ def main() -> None:
     slow_prompts: list[dict] = []  # prompts that took > 2s
 
     # Open in append mode for resume safety; flush after every write
-    with open(candidates_path, "a") as f_out:
+    with open(candidates_path, "a") as f_out, open(index_path, "a") as f_index:
         for conv_hash, turn_idx, text in iter_user_prompts(
             PARQUET_PATH, limit=args.limit, batch_size=args.batch_size
         ):
@@ -240,6 +246,22 @@ def main() -> None:
             # Filter findings by min confidence
             findings = [f for f in findings if f.get("confidence", 0) >= args.min_confidence]
 
+            # Build zone summary from blocks
+            zone_summary: dict[str, dict] = {}
+            for z in zones:
+                zt = z.get("zone_type", "unknown")
+                lines_in_zone = z.get("end_line", 0) - z.get("start_line", 0)
+                conf = z.get("confidence", 0.0)
+                if zt not in zone_summary:
+                    zone_summary[zt] = {"lines": 0, "max_conf": 0.0}
+                zone_summary[zt]["lines"] += lines_in_zone
+                zone_summary[zt]["max_conf"] = max(zone_summary[zt]["max_conf"], conf)
+
+            # Track dominant zone type (zone with most lines) for aggregate stats
+            if zone_summary:
+                dominant_zt = max(zone_summary, key=lambda k: zone_summary[k]["lines"])
+                dominant_zone_counts[dominant_zt] += 1
+
             has_secrets = len(findings) > 0
             has_zones = len(zones) > 0
 
@@ -292,6 +314,7 @@ def main() -> None:
                     "total_lines": text.count("\n") + 1,
                     "detector_version": detector_version,
                     "zones": zones,
+                    "zone_summary": zone_summary,
                     "secrets": safe_findings,
                     "num_zones": len(zones),
                     "num_secrets": len(safe_findings),
@@ -316,6 +339,7 @@ def main() -> None:
                         "total_lines": text.count("\n") + 1,
                         "detector_version": detector_version,
                         "zones": [],
+                        "zone_summary": {},
                         "secrets": [],
                         "num_zones": 0,
                         "num_secrets": 0,
@@ -334,12 +358,24 @@ def main() -> None:
                             "total_lines": text.count("\n") + 1,
                             "detector_version": detector_version,
                             "zones": [],
+                            "zone_summary": {},
                             "secrets": [],
                             "num_zones": 0,
                             "num_secrets": 0,
                             "max_secret_confidence": 0.0,
                             "review": None,
                         }
+
+            # Write lightweight index record for EVERY prompt
+            index_record = {
+                "prompt_id": prompt_id,
+                "prompt_length": len(text),
+                "zone_summary": zone_summary,
+                "num_secrets": len(findings),
+                "max_secret_confidence": max((f.get("confidence", 0) for f in findings), default=0.0),
+            }
+            f_index.write(json.dumps(index_record, ensure_ascii=False) + "\n")
+            f_index.flush()
 
             # Progress reporting
             now = time.time()
@@ -400,6 +436,7 @@ def main() -> None:
         "slow_prompt_count": len(slow_prompts),
         "entity_type_counts": dict(entity_type_counts.most_common()),
         "zone_type_counts": dict(zone_type_counts.most_common()),
+        "dominant_zone_counts": dict(dominant_zone_counts.most_common()),
         "engine_counts": dict(engine_counts.most_common()),
         "confidence_buckets": dict(confidence_buckets),
     }
@@ -420,6 +457,7 @@ def main() -> None:
     log.info("  TN sample: %d", len(tn_reservoir))
     log.info("  Elapsed: %.1fs (%.0f prompts/s)", elapsed, scanned / max(elapsed, 1))
     log.info("  Output: %s", candidates_path)
+    log.info("  Index: %s", index_path)
     log.info("  Stats: %s", stats_path)
     log.info("=" * 60)
 
