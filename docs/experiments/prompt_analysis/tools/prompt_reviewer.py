@@ -3,19 +3,27 @@
 Multi-layer detection reviewer for prompts:
   - Zone detection (code/structured/CLI blocks)
   - Secret/credential detection (regex + key-name heuristic)
-  - Future layers plug in via the same interface
+  - Unified Rust detector (zones + secrets in one call)
 
 Features:
-  - Browse and filter corpus prompts
+  - Browse and filter corpus prompts (paginated for large corpora)
   - Run all detectors on any prompt (from corpus or custom text)
   - Approve/reject annotations with clear visual feedback
   - Mark actual line ranges when correcting wrong annotations
   - Saves reviews back to corpus JSONL
 
+Supports two corpus formats:
+  - Legacy (s4): text field present, heuristic_blocks for zones
+  - Unified (wildchat scan): prompt_xor encoded text, zones/secrets pre-computed
+
 Usage:
-    python -m docs.experiments.prompt_analysis.tools.prompt_reviewer \
-        --corpus docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_labeled_corpus.jsonl \
-        --port 8234
+    # Unified scan output (recommended):
+    .venv/bin/python docs/experiments/prompt_analysis/tools/prompt_reviewer.py \
+        --corpus data/wildchat_unified/candidates.jsonl --port 8234
+
+    # Legacy s4 corpus:
+    .venv/bin/python docs/experiments/prompt_analysis/tools/prompt_reviewer.py \
+        --corpus docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_labeled_corpus.jsonl
 
 Security note: Local-only development tool. All user-supplied text is escaped
 via textContent (DOM safe) before display. No raw HTML insertion of untrusted content.
@@ -29,36 +37,142 @@ import logging
 import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent.parent))
 
-from docs.experiments.prompt_analysis.s4_zone_detection.v2 import detect_zones
-
 log = logging.getLogger(__name__)
 
-# Use the Sprint 14 scan_text API — single detection path
+# Rust unified detector (preferred)
+_UNIFIED_DETECTOR = None
 try:
-    from data_classifier.scan_text import TextScanner
-    _HAS_SECRET_DETECTION = True
+    from data_classifier_core import UnifiedDetector as _UnifiedDetectorClass
+    _HAS_UNIFIED = True
 except ImportError:
-    _HAS_SECRET_DETECTION = False
-    log.warning("Secret detection not available (data_classifier.scan_text not found)")
+    _HAS_UNIFIED = False
+    log.warning("Rust UnifiedDetector not available")
 
-# Module-level scanner singleton (initialized on first use)
-_SCANNER: TextScanner | None = None
+# XOR decoder for unified format
+try:
+    from data_classifier.patterns._decoder import decode_encoded_strings
+except ImportError:
+    decode_encoded_strings = None
 
 # Global state
 CORPUS: list[dict] = []
 CORPUS_PATH: Path | None = None
+PAGE_SIZE = 200  # sidebar pagination
+
+
+def _get_unified_detector():
+    """Get or create the Rust unified detector singleton."""
+    global _UNIFIED_DETECTOR
+    if _UNIFIED_DETECTOR is None and _HAS_UNIFIED:
+        patterns_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "data_classifier_core" / "patterns" / "unified_patterns.json"
+        if patterns_path.exists():
+            _UNIFIED_DETECTOR = _UnifiedDetectorClass(patterns_path.read_text())
+            log.info("Loaded Rust UnifiedDetector from %s", patterns_path)
+        else:
+            log.warning("unified_patterns.json not found at %s", patterns_path)
+    return _UNIFIED_DETECTOR
+
+
+def _decode_xor(prompt_xor: str) -> str:
+    """Decode XOR-encoded text from unified format."""
+    if decode_encoded_strings:
+        return decode_encoded_strings(["xor:" + prompt_xor])[0]
+    # Fallback: manual decode
+    import base64
+    raw = base64.b64decode(prompt_xor)
+    return bytes(b ^ 0x5A for b in raw).decode("utf-8")
 
 
 def _load_corpus(path: Path):
+    """Load corpus from JSONL. Handles both legacy and unified formats."""
     global CORPUS, CORPUS_PATH
     CORPUS_PATH = path
+    raw_records = []
     with open(path) as f:
-        CORPUS = [json.loads(l) for l in f if l.strip()]
+        for line in f:
+            line = line.strip()
+            if line:
+                raw_records.append(json.loads(line))
+
+    # Detect format: unified has prompt_xor, legacy has text
+    is_unified = len(raw_records) > 0 and "prompt_xor" in raw_records[0]
+
+    if is_unified:
+        log.info("Detected unified format (%d records), decoding XOR text...", len(raw_records))
+        for r in raw_records:
+            # Decode text from XOR
+            r["text"] = _decode_xor(r["prompt_xor"])
+            # Map unified zones to heuristic_blocks for UI compatibility
+            if "zones" in r and "heuristic_blocks" not in r:
+                r["heuristic_blocks"] = r["zones"]
+                r["heuristic_has_blocks"] = len(r["zones"]) > 0
+            # Map unified secrets for UI
+            if "secrets" in r and not r.get("_secrets_v2"):
+                # Convert scan output format to reviewer UI format
+                r["secrets"] = _convert_scan_secrets(r["text"], r.get("secrets", []))
+                r["_secrets_v2"] = True
+    else:
+        log.info("Detected legacy format (%d records)", len(raw_records))
+
+    CORPUS = raw_records
     log.info("Loaded %d records from %s", len(CORPUS), path)
+
+
+def _convert_scan_secrets(text: str, scan_secrets: list[dict]) -> list[dict]:
+    """Convert scan_wildchat_unified secret format to reviewer UI format.
+
+    The Rust detector returns byte offsets (UTF-8), but the JS UI works with
+    character positions. This function converts byte offsets → line + char col.
+    """
+    text_bytes = text.encode("utf-8")
+    lines = text.split("\n")
+
+    # Build byte-offset → (line_no, char_col) mapping via cumulative byte lengths
+    line_byte_starts = []
+    byte_offset = 0
+    for line in lines:
+        line_byte_starts.append(byte_offset)
+        byte_offset += len(line.encode("utf-8")) + 1  # +1 for \n
+
+    def _byte_to_line_col(byte_off: int) -> tuple[int, int]:
+        line_no = 0
+        for li, bs in enumerate(line_byte_starts):
+            if bs > byte_off:
+                break
+            line_no = li
+        # Convert byte offset within line to character offset
+        line_byte_start = line_byte_starts[line_no]
+        bytes_into_line = byte_off - line_byte_start
+        # Decode only the bytes up to our offset to get char count
+        line_bytes = lines[line_no].encode("utf-8")
+        char_col = len(line_bytes[:bytes_into_line].decode("utf-8", errors="replace"))
+        return line_no, char_col
+
+    findings = []
+    for s in scan_secrets:
+        start = s.get("start", 0)
+        end = s.get("end", 0)
+        line_no, col_start = _byte_to_line_col(start)
+        end_line, col_end = _byte_to_line_col(end)
+
+        findings.append({
+            "layer": s.get("engine", "unknown"),
+            "entity_type": s.get("entity_type", "UNKNOWN"),
+            "pattern_name": s.get("detection_type", ""),
+            "display_name": s.get("display_name", ""),
+            "confidence": s.get("confidence", 0),
+            "matched_text": s.get("value_masked", ""),
+            "evidence": s.get("evidence", ""),
+            "line": line_no,
+            "col_start": col_start,
+            "col_end": col_end if end_line == line_no else len(lines[line_no]) if line_no < len(lines) else 0,
+            "end_line": end_line,
+        })
+    return findings
 
 
 def _save_corpus():
@@ -68,67 +182,68 @@ def _save_corpus():
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 
-def _get_scanner() -> TextScanner:
-    """Get or create the module-level TextScanner singleton."""
-    global _SCANNER
-    if _SCANNER is None:
-        _SCANNER = TextScanner()
-        _SCANNER.startup()
-    return _SCANNER
+def _run_unified_detection(text: str) -> dict:
+    """Run the Rust unified detector. Returns {zones, secrets}."""
+    detector = _get_unified_detector()
+    if not detector:
+        return {"zones": [], "secrets": []}
+
+    result = json.loads(detector.detect(text))
+
+    zones_data = result.get("zones", {})
+    blocks = zones_data.get("blocks", []) if isinstance(zones_data, dict) else []
+    findings = result.get("findings", [])
+
+    secrets = _convert_rust_findings(text, findings)
+    return {"zones": blocks, "secrets": secrets}
 
 
-def _run_secret_detection(text: str) -> list[dict]:
-    """Run scan_text on text, return findings with exact match spans.
+def _convert_rust_findings(text: str, findings: list[dict]) -> list[dict]:
+    """Convert Rust unified detector findings to reviewer UI format.
 
-    Uses the Sprint 14 scan_text API — single detection path for both
-    regex patterns and secret_scanner key+entropy heuristic.
+    Rust returns byte offsets; convert to line + char col for the UI.
     """
-    if not _HAS_SECRET_DETECTION:
-        return []
-
-    try:
-        scanner = _get_scanner()
-        result = scanner.scan(text, min_confidence=0.3)
-    except Exception as e:
-        log.error("scan_text error: %s", e)
-        return []
-
-    # Convert char offsets to line/col for the UI
     lines = text.split("\n")
-    line_starts = []
-    offset = 0
+    line_byte_starts = []
+    byte_offset = 0
     for line in lines:
-        line_starts.append(offset)
-        offset += len(line) + 1
+        line_byte_starts.append(byte_offset)
+        byte_offset += len(line.encode("utf-8")) + 1
 
-    def _char_to_line_col(char_offset: int) -> tuple[int, int]:
+    def _byte_to_line_col(byte_off: int) -> tuple[int, int]:
         line_no = 0
-        for li, ls in enumerate(line_starts):
-            if ls > char_offset:
+        for li, bs in enumerate(line_byte_starts):
+            if bs > byte_off:
                 break
             line_no = li
-        return line_no, char_offset - line_starts[line_no]
+        line_byte_start = line_byte_starts[line_no]
+        bytes_into_line = byte_off - line_byte_start
+        line_bytes = lines[line_no].encode("utf-8")
+        char_col = len(line_bytes[:bytes_into_line].decode("utf-8", errors="replace"))
+        return line_no, char_col
 
-    findings = []
-    for f in result.findings:
-        line_no, col_start = _char_to_line_col(f.start)
-        end_line, col_end = _char_to_line_col(f.end)
+    out = []
+    for f in findings:
+        match_data = f.get("match", {})
+        start = match_data.get("start", 0)
+        end = match_data.get("end", 0)
+        line_no, col_start = _byte_to_line_col(start)
+        end_line, col_end = _byte_to_line_col(end)
 
-        findings.append({
-            "layer": f.engine,
-            "entity_type": f.entity_type,
-            "pattern_name": f.detection_type,
-            "display_name": f.display_name,
-            "confidence": f.confidence,
-            "matched_text": f.value_masked,
-            "evidence": f.evidence,
+        out.append({
+            "layer": f.get("engine", "unknown"),
+            "entity_type": f.get("entity_type", "UNKNOWN"),
+            "pattern_name": f.get("detection_type", ""),
+            "display_name": f.get("display_name", ""),
+            "confidence": f.get("confidence", 0),
+            "matched_text": match_data.get("value_masked", ""),
+            "evidence": f.get("evidence", ""),
             "line": line_no,
             "col_start": col_start,
-            "col_end": col_end if end_line == line_no else len(lines[line_no]),
+            "col_end": col_end if end_line == line_no else len(lines[line_no]) if line_no < len(lines) else 0,
             "end_line": end_line,
         })
-
-    return findings
+    return out
 
 
 HTML_PAGE = r"""<!DOCTYPE html>
@@ -346,14 +461,16 @@ body { font-family: 'SF Mono', 'Menlo', 'Monaco', monospace; font-size: 13px; ba
 </div>
 
 <script>
-var corpus = [];
+var corpusMeta = [];    // metadata only (from paginated API)
+var corpusCache = {};   // idx -> full record (fetched on demand)
 var filteredIndices = [];
 var currentIdx = -1;
 var currentFilter = 'all';
-var activeFilters = new Set();  // for combinable filter mode
-var currentSecrets = [];  // secret findings for current prompt
-var selectedLines = new Set();  // lines selected by user for correction
-var userBlocks = [];  // user-marked correction blocks
+var activeFilters = new Set();
+var currentSecrets = [];
+var selectedLines = new Set();
+var userBlocks = [];
+var totalRecords = 0;
 
 function escapeHtml(s) {
   var div = document.createElement('div');
@@ -362,19 +479,28 @@ function escapeHtml(s) {
 }
 
 async function loadCorpus() {
-  var resp = await fetch('/api/corpus');
-  corpus = await resp.json();
+  // Load all metadata pages
+  corpusMeta = [];
+  var page = 0;
+  var pageSize = 500;
+  while (true) {
+    var resp = await fetch('/api/corpus_meta?page=' + page + '&size=' + pageSize);
+    var data = await resp.json();
+    totalRecords = data.total;
+    corpusMeta = corpusMeta.concat(data.items);
+    if (corpusMeta.length >= data.total) break;
+    page++;
+  }
   updateStats();
   filterList();
 }
 
-function updateStats() {
-  var reviewed = corpus.filter(function(r) { return r.review && r.review.correct !== null; }).length;
-  var rejected = corpus.filter(function(r) { return r.review && r.review.correct === false; }).length;
-  var total = corpus.length;
-  var withBlocks = corpus.filter(function(r) { return r.heuristic_has_blocks; }).length;
-  document.getElementById('stats').textContent =
-    total + ' prompts | ' + withBlocks + ' detected | ' + reviewed + ' reviewed | ' + rejected + ' rejected';
+async function updateStats() {
+  var resp = await fetch('/api/stats');
+  var s = await resp.json();
+  var el = document.getElementById('stats');
+  el.textContent = s.total + ' prompts | ' + s.with_zones + ' zones | ' + s.with_secrets + ' secrets | ' +
+    s.reviewed + ' reviewed | ' + s.secret_tp + ' TP / ' + s.secret_fp + ' FP';
 }
 
 function setFilter(f) {
@@ -403,42 +529,36 @@ function setFilter(f) {
 function filterList() {
   var search = document.getElementById('search').value.toLowerCase();
   filteredIndices = [];
-  corpus.forEach(function(r, i) {
-    // Combined filter: prompt must match ALL active filters
+  corpusMeta.forEach(function(m) {
     if (activeFilters.size > 0) {
       var pass = true;
-      if (activeFilters.has('code') && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'code'; })) pass = false;
-      if (activeFilters.has('markup') && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'markup'; })) pass = false;
-      if (activeFilters.has('config') && !(r.heuristic_blocks || []).some(function(b) { return b.zone_type === 'config'; })) pass = false;
-      if (activeFilters.has('secret') && !(r.secrets && r.secrets.length > 0)) pass = false;
-      if (activeFilters.has('none') && r.heuristic_has_blocks) pass = false;
-      if (activeFilters.has('unreviewed') && r.review && r.review.correct !== null) pass = false;
-      if (activeFilters.has('rejected') && (!r.review || r.review.correct !== false)) pass = false;
-      if (activeFilters.has('low_conf')) {
-        var mc = Math.max.apply(null, (r.heuristic_blocks || []).map(function(b) { return b.confidence; }).concat([0]));
-        if (mc === 0 || mc > 0.75) pass = false;
-      }
+      if (activeFilters.has('code') && m.zone_types.indexOf('code') < 0) pass = false;
+      if (activeFilters.has('markup') && m.zone_types.indexOf('markup') < 0) pass = false;
+      if (activeFilters.has('config') && m.zone_types.indexOf('config') < 0 && m.zone_types.indexOf('structured_data') < 0) pass = false;
+      if (activeFilters.has('secret') && m.num_secrets === 0) pass = false;
+      if (activeFilters.has('none') && (m.num_zones > 0 || m.num_secrets > 0)) pass = false;
+      if (activeFilters.has('unreviewed') && m.has_review) pass = false;
+      if (activeFilters.has('rejected') && m.review_correct !== false) pass = false;
+      if (activeFilters.has('low_conf') && (m.max_confidence === 0 || m.max_confidence > 0.75)) pass = false;
       if (!pass) return;
     }
-    if (search && !(r.text || '').toLowerCase().includes(search) && !(r.prompt_id || '').includes(search)) return;
-    filteredIndices.push(i);
+    if (search && m.prompt_id.indexOf(search) < 0) return;
+    filteredIndices.push(m.idx);
   });
-  // Sort
+  // Sort using metadata
   var sortMode = document.getElementById('sort-select').value;
-  if (currentFilter === 'low_conf' && sortMode === 'default') sortMode = 'conf_asc';
+  if (activeFilters.has('low_conf') && sortMode === 'default') sortMode = 'conf_asc';
 
-  function getMaxConf(idx) {
-    return Math.max.apply(null, (corpus[idx].heuristic_blocks || []).map(function(bl) { return bl.confidence; }).concat([0]));
-  }
+  function getMeta(idx) { return corpusMeta.find(function(m) { return m.idx === idx; }) || {}; }
 
   if (sortMode === 'conf_asc') {
-    filteredIndices.sort(function(a, b) { return getMaxConf(a) - getMaxConf(b); });
+    filteredIndices.sort(function(a, b) { return getMeta(a).max_confidence - getMeta(b).max_confidence; });
   } else if (sortMode === 'conf_desc') {
-    filteredIndices.sort(function(a, b) { return getMaxConf(b) - getMaxConf(a); });
+    filteredIndices.sort(function(a, b) { return getMeta(b).max_confidence - getMeta(a).max_confidence; });
   } else if (sortMode === 'lines_desc') {
-    filteredIndices.sort(function(a, b) { return (corpus[b].total_lines || 0) - (corpus[a].total_lines || 0); });
+    filteredIndices.sort(function(a, b) { return (getMeta(b).total_lines || 0) - (getMeta(a).total_lines || 0); });
   } else if (sortMode === 'blocks_desc') {
-    filteredIndices.sort(function(a, b) { return (corpus[b].heuristic_blocks || []).length - (corpus[a].heuristic_blocks || []).length; });
+    filteredIndices.sort(function(a, b) { return (getMeta(b).num_zones || 0) - (getMeta(a).num_zones || 0); });
   }
   renderList();
 }
@@ -446,97 +566,90 @@ function filterList() {
 function renderList() {
   var listEl = document.getElementById('list');
   listEl.textContent = '';
-  filteredIndices.forEach(function(idx) {
-    var r = corpus[idx];
-    var types = new Set((r.heuristic_blocks || []).map(function(b) { return b.zone_type; }));
+
+  // Virtual scroll: only render visible items (cap at 2000 for DOM perf)
+  var renderLimit = Math.min(filteredIndices.length, 2000);
+  if (filteredIndices.length > renderLimit) {
+    var notice = document.createElement('div');
+    notice.style.cssText = 'padding:6px 10px;font-size:10px;color:#888;border-bottom:1px solid #222;';
+    notice.textContent = 'Showing ' + renderLimit + ' of ' + filteredIndices.length + ' — use filters to narrow';
+    listEl.appendChild(notice);
+  }
+
+  for (var fi = 0; fi < renderLimit; fi++) {
+    var idx = filteredIndices[fi];
+    var m = corpusMeta.find(function(mm) { return mm.idx === idx; });
+    if (!m) continue;
 
     var item = document.createElement('div');
     item.className = 'item' + (idx === currentIdx ? ' active' : '');
-    item.onclick = function() { selectPrompt(idx); };
+    item.onclick = (function(i) { return function() { selectPrompt(i); }; })(idx);
 
-    var maxConf = Math.max.apply(null, (r.heuristic_blocks || []).map(function(b) { return b.confidence; }).concat([0]));
-
-    // Row 1: ID + badges
     var row1 = document.createElement('div');
     row1.className = 'item-row1';
 
     var idSpan = document.createElement('span');
     idSpan.className = 'id';
-    idSpan.textContent = (r.prompt_id || '').slice(0, 8) + '.. (' + r.total_lines + 'L)';
+    idSpan.textContent = m.prompt_id + ' (' + m.total_lines + 'L)';
 
     var badgesSpan = document.createElement('span');
     badgesSpan.className = 'badges';
 
-    function addBadge(cls, text) {
+    function addBadge(parent, cls, text) {
       var b = document.createElement('span');
       b.className = 'badge ' + cls;
       b.textContent = text;
-      badgesSpan.appendChild(b);
+      parent.appendChild(b);
     }
 
-    if (types.has('code')) addBadge('badge-code', 'code');
-    if (types.has('markup')) addBadge('badge-markup', 'markup');
-    if (types.has('config')) addBadge('badge-config', 'config');
-    if (types.has('structured_data')) addBadge('badge-structured', 'struct');
-    if (maxConf > 0) {
-      var confCls = maxConf >= 0.8 ? 'conf-high' : maxConf >= 0.65 ? 'conf-mid' : 'conf-low';
+    if (m.zone_types.indexOf('code') >= 0) addBadge(badgesSpan, 'badge-code', 'code');
+    if (m.zone_types.indexOf('markup') >= 0) addBadge(badgesSpan, 'badge-markup', 'markup');
+    if (m.zone_types.indexOf('config') >= 0 || m.zone_types.indexOf('structured_data') >= 0) addBadge(badgesSpan, 'badge-config', 'config');
+    if (m.zone_types.indexOf('cli_shell') >= 0) addBadge(badgesSpan, 'badge-cli', 'cli');
+    if (m.zone_types.indexOf('error_output') >= 0) addBadge(badgesSpan, 'badge-data', 'error');
+    if (m.max_confidence > 0) {
       var confBadge = document.createElement('span');
       confBadge.className = 'badge';
-      confBadge.style.cssText = 'background:transparent;color:' + (maxConf >= 0.8 ? '#52b788' : maxConf >= 0.65 ? '#ffd9a0' : '#f28b82') + ';font-size:10px;';
-      confBadge.textContent = Math.round(maxConf * 100) + '%';
+      confBadge.style.cssText = 'background:transparent;color:' + (m.max_confidence >= 0.8 ? '#52b788' : m.max_confidence >= 0.65 ? '#ffd9a0' : '#f28b82') + ';font-size:10px;';
+      confBadge.textContent = Math.round(m.max_confidence * 100) + '%';
       badgesSpan.appendChild(confBadge);
     }
-    if (r.secrets && r.secrets.length > 0) addBadge('badge-secret', r.secrets.length + ' secret' + (r.secrets.length > 1 ? 's' : ''));
-    if (r.review && r.review.actual_blocks && r.review.actual_blocks.length > 0) addBadge('badge-correction', 'marked');
-    if (r.review && r.review.correct === true) addBadge('badge-approved', 'ok');
-    if (r.review && r.review.correct === false) addBadge('badge-rejected', 'X');
-    if (!r.heuristic_has_blocks && !r.review) addBadge('badge-none', '-');
+    if (m.num_secrets > 0) addBadge(badgesSpan, 'badge-secret', m.num_secrets + 's');
+    if (m.review_correct === true) addBadge(badgesSpan, 'badge-approved', 'ok');
+    if (m.review_correct === false) addBadge(badgesSpan, 'badge-rejected', 'X');
 
     row1.appendChild(idSpan);
     row1.appendChild(badgesSpan);
     item.appendChild(row1);
 
-    // Row 2: confidence bar
-    if (maxConf > 0) {
+    if (m.max_confidence > 0) {
       var row2 = document.createElement('div');
       row2.className = 'item-row2';
       var bar = document.createElement('div');
-      bar.className = 'item-conf-bar ' + (maxConf >= 0.8 ? 'conf-high' : maxConf >= 0.65 ? 'conf-mid' : 'conf-low');
-      bar.style.width = Math.round(maxConf * 100) + '%';
-      bar.title = Math.round(maxConf * 100) + '% confidence';
+      bar.className = 'item-conf-bar ' + (m.max_confidence >= 0.8 ? 'conf-high' : m.max_confidence >= 0.65 ? 'conf-mid' : 'conf-low');
+      bar.style.width = Math.round(m.max_confidence * 100) + '%';
       row2.appendChild(bar);
       item.appendChild(row2);
     }
 
     listEl.appendChild(item);
-  });
+  }
 }
 
 async function selectPrompt(idx) {
   currentIdx = idx;
   selectedLines = new Set();
-  var r = corpus[idx];
+
+  // Fetch full record on demand
+  var r = corpusCache[idx];
+  if (!r) {
+    var resp = await fetch('/api/prompt/' + idx);
+    r = await resp.json();
+    corpusCache[idx] = r;
+  }
 
   // Load any existing user-marked blocks from saved review
   userBlocks = (r.review && r.review.actual_blocks) ? r.review.actual_blocks.slice() : [];
-
-  // Run secret detection if not cached (v2 = scan_text path)
-  if (!r._secrets_v2) {
-    var resp = await fetch('/api/detect_secrets', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ text: r.text })
-    });
-    var result = await resp.json();
-    r.secrets = result.findings;
-    r._secrets_v2 = true;
-    // Persist secrets to corpus for offline analysis
-    fetch('/api/save_secrets', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ index: idx, secrets: result.findings })
-    });
-  }
   currentSecrets = r.secrets || [];
 
   renderPrompt(r);
@@ -544,7 +657,7 @@ async function selectPrompt(idx) {
 }
 
 function rerenderCurrent() {
-  if (currentIdx >= 0) renderPrompt(corpus[currentIdx]);
+  if (currentIdx >= 0 && corpusCache[currentIdx]) renderPrompt(corpusCache[currentIdx]);
 }
 
 function renderPrompt(r) {
@@ -826,7 +939,7 @@ function renderSecretsList() {
   if (!currentSecrets || currentSecrets.length === 0) return;
 
   // Load saved secret reviews
-  var r = corpus[currentIdx];
+  var r = corpusCache[currentIdx];
   if (r && r.review && r.review.secret_reviews) {
     secretReviews = r.review.secret_reviews;
   } else {
@@ -905,7 +1018,8 @@ async function flagSecret(secretIdx, verdict) {
   secretReviews[secretIdx] = verdict;
   // Save to corpus
   if (currentIdx >= 0) {
-    var r = corpus[currentIdx];
+    var r = corpusCache[currentIdx];
+    if (!r) return;
     if (!r.review) r.review = { correct: null, actual_blocks: null, notes: '' };
     r.review.secret_reviews = Object.assign({}, secretReviews);
 
@@ -964,8 +1078,8 @@ function navigate(dir) {
 function navigateUnreviewed() {
   var fiIdx = filteredIndices.indexOf(currentIdx);
   for (var i = fiIdx + 1; i < filteredIndices.length; i++) {
-    var r = corpus[filteredIndices[i]];
-    if (!r.review || r.review.correct === null) {
+    var m = corpusMeta.find(function(mm) { return mm.idx === filteredIndices[i]; });
+    if (m && !m.has_review) {
       selectPrompt(filteredIndices[i]);
       return;
     }
@@ -983,6 +1097,19 @@ async function reviewZones(action) {
     markBlock();
   }
 
+  // "Wrong" auto-marks all un-reviewed secrets as FP
+  // "Correct" auto-marks all un-reviewed secrets as TP
+  if (currentSecrets.length > 0) {
+    var autoVerdict = (action === 'reject') ? 'fp' : (action === 'approve') ? 'tp' : null;
+    if (autoVerdict) {
+      for (var si = 0; si < currentSecrets.length; si++) {
+        if (!secretReviews[si]) {
+          secretReviews[si] = autoVerdict;
+        }
+      }
+    }
+  }
+
   var sr = Object.keys(secretReviews).length > 0 ? Object.assign({}, secretReviews) : null;
   var resp = await fetch('/api/review', {
     method: 'POST',
@@ -996,7 +1123,12 @@ async function reviewZones(action) {
     })
   });
   if (resp.ok) {
-    corpus[currentIdx].review = { correct: correct, notes: notes, actual_blocks: userBlocks.length > 0 ? userBlocks : null, secret_reviews: sr };
+    if (corpusCache[currentIdx]) {
+      corpusCache[currentIdx].review = { correct: correct, notes: notes, actual_blocks: userBlocks.length > 0 ? userBlocks : null, secret_reviews: sr };
+    }
+    // Update metadata
+    var meta = corpusMeta.find(function(m) { return m.idx === currentIdx; });
+    if (meta) { meta.has_review = true; meta.review_correct = correct; }
     updateStats();
     navigate(1);
   }
@@ -1076,11 +1208,92 @@ class ReviewHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.end_headers()
             self.wfile.write(HTML_PAGE.encode())
+
+        elif parsed.path == "/api/corpus_meta":
+            # Paginated metadata — send only fields needed for sidebar
+            qs = parse_qs(parsed.query)
+            page = int(qs.get("page", [0])[0])
+            size = int(qs.get("size", [PAGE_SIZE])[0])
+            start = page * size
+            end = min(start + size, len(CORPUS))
+
+            meta = []
+            for i in range(start, end):
+                r = CORPUS[i]
+                blocks = r.get("heuristic_blocks", r.get("zones", []))
+                secrets = r.get("secrets", [])
+                zone_types = list({b.get("zone_type", "") for b in blocks})
+                max_conf = max(
+                    [b.get("confidence", 0) for b in blocks] +
+                    [s.get("confidence", 0) for s in secrets] +
+                    [0]
+                )
+                meta.append({
+                    "idx": i,
+                    "prompt_id": (r.get("prompt_id") or "")[:12],
+                    "total_lines": r.get("total_lines", 0),
+                    "num_zones": len(blocks),
+                    "num_secrets": len(secrets),
+                    "zone_types": zone_types,
+                    "max_confidence": round(max_conf, 2),
+                    "has_review": r.get("review") is not None and (r["review"] or {}).get("correct") is not None,
+                    "review_correct": (r.get("review") or {}).get("correct"),
+                    "secret_entity_types": list({s.get("entity_type", "") for s in secrets}),
+                })
+            self._json_response({
+                "items": meta,
+                "total": len(CORPUS),
+                "page": page,
+                "page_size": size,
+            })
+
         elif parsed.path == "/api/corpus":
+            # Full corpus — kept for backward compatibility with small corpora
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
             self.wfile.write(json.dumps(CORPUS, ensure_ascii=False).encode())
+
+        elif parsed.path.startswith("/api/prompt/"):
+            # Fetch single prompt by index
+            try:
+                idx = int(parsed.path.split("/")[-1])
+                if 0 <= idx < len(CORPUS):
+                    self._json_response(CORPUS[idx])
+                else:
+                    self.send_error(404, "Index out of range")
+            except ValueError:
+                self.send_error(400, "Invalid index")
+
+        elif parsed.path == "/api/stats":
+            # Summary stats for the header
+            total = len(CORPUS)
+            reviewed = sum(1 for r in CORPUS if r.get("review") and (r["review"] or {}).get("correct") is not None)
+            with_secrets = sum(1 for r in CORPUS if r.get("secrets") and len(r["secrets"]) > 0)
+            with_zones = sum(1 for r in CORPUS if (r.get("heuristic_blocks") or r.get("zones") or []))
+            rejected = sum(1 for r in CORPUS if r.get("review") and (r["review"] or {}).get("correct") is False)
+
+            # Secret verdict stats
+            tp_count = 0
+            fp_count = 0
+            for r in CORPUS:
+                rev = (r.get("review") or {}).get("secret_reviews") or {}
+                for v in rev.values():
+                    if v == "tp":
+                        tp_count += 1
+                    elif v == "fp":
+                        fp_count += 1
+
+            self._json_response({
+                "total": total,
+                "reviewed": reviewed,
+                "rejected": rejected,
+                "with_secrets": with_secrets,
+                "with_zones": with_zones,
+                "secret_tp": tp_count,
+                "secret_fp": fp_count,
+            })
+
         else:
             self.send_error(404)
 
@@ -1104,8 +1317,8 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
         elif self.path == "/api/detect_secrets":
             text = body.get("text", "")
-            findings = _run_secret_detection(text)
-            self._json_response({"findings": findings})
+            result = _run_unified_detection(text)
+            self._json_response({"findings": result["secrets"]})
 
         elif self.path == "/api/save_secrets":
             idx = body.get("index", -1)
@@ -1118,21 +1331,10 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
         elif self.path == "/api/detect_all":
             text = body.get("text", "")
-            zones = detect_zones(text, prompt_id="custom")
-            secrets = _run_secret_detection(text)
+            result = _run_unified_detection(text)
             self._json_response({
-                "zones": [
-                    {
-                        "start_line": b.start_line,
-                        "end_line": b.end_line,
-                        "zone_type": b.zone_type,
-                        "confidence": b.confidence,
-                        "method": b.method,
-                        "language_hint": b.language_hint,
-                    }
-                    for b in zones.blocks
-                ],
-                "secrets": secrets,
+                "zones": result["zones"],
+                "secrets": result["secrets"],
             })
         else:
             self.send_error(404)
@@ -1150,7 +1352,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser(description="Prompt Analysis Review Server")
     parser.add_argument("--corpus", type=str,
-                        default="docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_labeled_corpus.jsonl")
+                        default="data/wildchat_unified/candidates.jsonl")
     parser.add_argument("--port", type=int, default=8234)
     args = parser.parse_args()
 
@@ -1158,10 +1360,14 @@ def main():
 
     _load_corpus(Path(args.corpus))
 
+    # Pre-warm the Rust detector
+    detector = _get_unified_detector()
+    detector_status = "Rust UnifiedDetector" if detector else "NOT available"
+
     server = HTTPServer(("127.0.0.1", args.port), ReviewHandler)
     print(f"\n  Prompt Analysis Reviewer running at http://localhost:{args.port}")
     print(f"  Corpus: {args.corpus} ({len(CORPUS)} records)")
-    print(f"  Secret detection: {'available' if _HAS_SECRET_DETECTION else 'NOT available'}")
+    print(f"  Detector: {detector_status}")
     print(f"\n  Keys: a=approve r=reject s=skip n/right=next p/left=prev u=unreviewed")
     print(f"        click/shift+click lines to select, m=mark as block, Esc=clear selection\n")
 

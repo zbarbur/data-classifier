@@ -96,6 +96,12 @@ lazy_re!(re_python_fstring_url, r"^f['\x22]https?://");
 lazy_re!(re_single_word, r"^[a-zA-Z]+(-[a-zA-Z]+)*$");
 lazy_re!(re_ethereum, r"^0x[0-9a-fA-F]{40}$");
 
+// Category 16 — Markdown / rich text
+lazy_re!(re_markdown_image_link, r"^!?\[.*\]\(");
+
+// Category 17 — URL-encoded values (2+ percent-encoded chars = URL query/cookie)
+lazy_re!(re_url_encoded, r"%[0-9A-Fa-f]{2}.*%[0-9A-Fa-f]{2}");
+
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
@@ -312,6 +318,54 @@ pub fn value_is_obviously_not_secret(value: &str, prose_threshold: f64) -> bool 
     {
         let stripped = value.trim().trim_matches(|c| c == '"' || c == '\'').trim();
         if stripped.starts_with('+') || stripped.ends_with('+') {
+            return true;
+        }
+    }
+
+    // ---- Category 16: Alphabet/charset constants ----
+    // Sorted or sequential character sets like "abcdefghijklmnop..."
+    {
+        let stripped = value.trim().trim_matches(|c| c == '"' || c == '\'');
+        if stripped.len() >= 20 {
+            // Check for sequential lowercase run of 10+
+            let has_seq_lower = stripped.contains("abcdefghij");
+            let has_seq_upper = stripped.contains("ABCDEFGHIJ");
+            let has_seq_digit = stripped.contains("0123456789");
+            if (has_seq_lower && has_seq_upper) || (has_seq_lower && has_seq_digit) || (has_seq_upper && has_seq_digit) {
+                return true;
+            }
+        }
+    }
+
+    // ---- Category 16b: Markdown / rich text ----
+    // Markdown image ![alt](url) or link [text](url)
+    if is_match(re_markdown_image_link(), value) {
+        return true;
+    }
+
+    // ---- Category 17: URL-encoded / cookie / query-string values ----
+    // Values with 2+ percent-encoded sequences are URL query params or cookies
+    if is_find(re_url_encoded(), value) {
+        return true;
+    }
+
+    // ---- Category 18: Brace-delimited expressions ----
+    // Python f-string / template expressions with matching braces: {expr}
+    // Catches {list(...)}, {data.key}, etc. — but NOT ${...} (already caught above)
+    if value.contains('{') && value.contains('}') && !value.contains("${") {
+        return true;
+    }
+
+    // ---- Category 19: Comma-separated lists ----
+    // HTTP headers, config lists: "DNT,X-Mx-ReqToken,Keep-Alive,..."
+    {
+        let comma_parts: Vec<&str> = value.split(',').collect();
+        if comma_parts.len() >= 4
+            && comma_parts.iter().all(|p| {
+                let t = p.trim();
+                !t.is_empty() && t.len() <= 40 && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            })
+        {
             return true;
         }
     }
@@ -756,6 +810,51 @@ mod tests {
     #[test]
     fn test_devanagari() {
         assert!(value_is_obviously_not_secret("\u{092A}\u{093E}\u{0938}\u{0935}\u{0930}\u{094D}\u{0921}", 0.6));
+    }
+
+    // Category 16: Markdown
+    #[test]
+    fn test_markdown_image() {
+        assert!(value_is_obviously_not_secret("![girl](https://source.unsplash.com/random/400x300", 0.6));
+    }
+    #[test]
+    fn test_markdown_link() {
+        assert!(value_is_obviously_not_secret("[click here](https://example.com/page)", 0.6));
+    }
+
+    // Category 17: URL-encoded
+    #[test]
+    fn test_url_encoded_cookie() {
+        assert!(value_is_obviously_not_secret(
+            "_fmdata=s8R408o4s3s%2FHDz7f6bGAsfUs1d58PKLnPGkiC5FMzdu8H3jPpxG%2Bifm7PPDeLBu",
+            0.6
+        ));
+    }
+
+    // Category 18: Brace expressions
+    #[test]
+    fn test_python_fstring_braces() {
+        assert!(value_is_obviously_not_secret("{list(CHECKPOINT_PARAMS.keys())}.", 0.6));
+    }
+    #[test]
+    fn test_brace_template() {
+        assert!(value_is_obviously_not_secret("{data.user.name}", 0.6));
+    }
+
+    // Category 19: Comma-separated lists (HTTP headers)
+    #[test]
+    fn test_http_header_list() {
+        assert!(value_is_obviously_not_secret(
+            "DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With",
+            0.6
+        ));
+    }
+    #[test]
+    fn test_cors_headers() {
+        assert!(value_is_obviously_not_secret(
+            "Content-Type,Authorization,X-Amz-Date,X-Api-Key",
+            0.6
+        ));
     }
 
     // ---------------------------------------------------------------

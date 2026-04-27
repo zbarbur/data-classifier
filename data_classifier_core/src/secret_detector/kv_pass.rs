@@ -8,6 +8,9 @@
 //! them using key-name dictionaries and tiered entropy/diversity gates.
 
 use std::collections::HashSet;
+use std::sync::OnceLock;
+
+use fancy_regex::Regex as FancyRegex;
 
 use super::config::SecretConfig;
 use super::key_scoring::{self, KeyScorer};
@@ -44,6 +47,12 @@ impl KVPass {
 
         for pair in &pairs {
             let value = pair.value.trim();
+
+            // Traceback suppression — key names in error output are function
+            // parameters or stack frame variables, not key=value assignments.
+            if is_traceback_line(text, pair.value_start) {
+                continue;
+            }
 
             // Length checks
             if value.len() < config.min_value_length {
@@ -120,6 +129,45 @@ impl KVPass {
 
         findings
     }
+}
+
+/// Returns true if the line containing a KV pair looks like a traceback /
+/// error output line where key names appear as function parameters or
+/// variable names in stack frames — not as actual key=value assignments.
+fn is_traceback_line(text: &str, offset: usize) -> bool {
+    // Find the line containing this offset
+    let line_start = text[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line_end = text[offset..].find('\n').map(|i| offset + i).unwrap_or(text.len());
+    let line = text[line_start..line_end].trim();
+
+    static TRACEBACK_PATTERNS: OnceLock<Vec<FancyRegex>> = OnceLock::new();
+    let patterns = TRACEBACK_PATTERNS.get_or_init(|| {
+        vec![
+            // Python traceback lines
+            FancyRegex::new(r"^\s*Traceback \(most recent").unwrap(),
+            FancyRegex::new(r#"^\s*File ".+", line \d+"#).unwrap(),
+            FancyRegex::new(r"^\s*(?:raise|Raise)\s+\w+").unwrap(),
+            // Python function signatures in tracebacks: "in func_name(param1, param2)"
+            FancyRegex::new(r"^\s*(?:in |at )\w+[\w.]*\(").unwrap(),
+            // Jupyter/IPython cell references
+            FancyRegex::new(r"^\s*Cell In\[").unwrap(),
+            // Generic error lines
+            FancyRegex::new(r"^\s*\w*Error:").unwrap(),
+            FancyRegex::new(r"^\s*\w*Exception:").unwrap(),
+            // Java/JS stack traces
+            FancyRegex::new(r"^\s*at\s+[\w.$]+\(").unwrap(),
+            // Go panic
+            FancyRegex::new(r"^\s*goroutine \d+").unwrap(),
+            FancyRegex::new(r"^\s*panic:").unwrap(),
+        ]
+    });
+
+    for pat in patterns {
+        if pat.is_match(line).unwrap_or(false) {
+            return true;
+        }
+    }
+    false
 }
 
 fn load_placeholder_values(patterns: &serde_json::Value) -> HashSet<String> {
@@ -313,6 +361,44 @@ mod tests {
         let config = SecretConfig::default();
         let findings = pass.detect("", &config, false, false);
         assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn test_kv_traceback_python() {
+        let pass = KVPass::from_patterns(&make_test_patterns());
+        let config = SecretConfig::default();
+        let text = r#"Traceback (most recent call last):
+  File "app.py", line 8, in get_posts(account_id, app_id, password, limit)
+      5 access_token = get_access_token()"#;
+        let findings = pass.detect(text, &config, false, false);
+        assert!(findings.is_empty(), "should suppress KV in traceback");
+    }
+
+    #[test]
+    fn test_kv_traceback_cell_in() {
+        let pass = KVPass::from_patterns(&make_test_patterns());
+        let config = SecretConfig::default();
+        let text = "Cell In[2], line 8, in get_posts(account_id, app_id, password, limit)";
+        let findings = pass.detect(text, &config, false, false);
+        assert!(findings.is_empty(), "should suppress KV in Jupyter cell traceback");
+    }
+
+    #[test]
+    fn test_kv_traceback_at_java() {
+        let pass = KVPass::from_patterns(&make_test_patterns());
+        let config = SecretConfig::default();
+        let text = "    at com.example.AuthService.getToken(api_key=\"sk-abc123456789\")";
+        let findings = pass.detect(text, &config, false, false);
+        assert!(findings.is_empty(), "should suppress KV in Java stack trace");
+    }
+
+    #[test]
+    fn test_kv_real_assignment_not_suppressed() {
+        let pass = KVPass::from_patterns(&make_test_patterns());
+        let config = SecretConfig::default();
+        let text = "password = \"realSecret!@#123\"";
+        let findings = pass.detect(text, &config, false, false);
+        assert_eq!(findings.len(), 1, "real assignment should NOT be suppressed");
     }
 
     #[test]

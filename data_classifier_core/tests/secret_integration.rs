@@ -229,6 +229,32 @@ fn test_redaction_integration() {
     );
 }
 
+// === Span accuracy ===
+
+#[test]
+fn test_kv_span_points_to_actual_value() {
+    let orch = SecretOrchestrator::from_patterns(&make_patterns());
+    // Key=value assignment on line 2, same value referenced later.
+    // The span MUST point to the value at the assignment, not a later usage.
+    let text = "import os\nsome_code()\nACCESS_TOKEN = \"EAABwSecret123Token\"\nprint(ACCESS_TOKEN)\nurl = f\"...{ACCESS_TOKEN}\"";
+    let findings = orch.detect_secrets(text);
+    let kv_findings: Vec<_> = findings
+        .iter()
+        .filter(|f| f.evidence.contains("ACCESS_TOKEN"))
+        .collect();
+    assert!(!kv_findings.is_empty(), "expected KV finding for ACCESS_TOKEN");
+    for f in &kv_findings {
+        let span_text = &text[f.match_span.start..f.match_span.end];
+        assert!(
+            span_text.contains("EAABwSecret123Token"),
+            "span must contain the value 'EAABwSecret123Token', got: {:?} at {}..{}",
+            span_text,
+            f.match_span.start,
+            f.match_span.end
+        );
+    }
+}
+
 // === Multi-finding ordering ===
 
 #[test]

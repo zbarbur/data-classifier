@@ -30,62 +30,42 @@ pub fn parse_env_with_spans(text: &str) -> Vec<KVPair> {
     let re = env_regex();
     let mut results = Vec::new();
 
-    for m in re.find_iter(text).flatten() {
-        let full_match = &text[m.start()..m.end()];
+    // Use captures_iter directly — group positions are absolute (relative to
+    // the full input text), avoiding the double-match offset bug from
+    // find_iter + captures on a substring.
+    for caps in re.captures_iter(text).flatten() {
+        let key = match caps.get(1) {
+            Some(g) => g.as_str(),
+            None => continue,
+        };
 
-        // Re-run captures on the matched slice to get group positions relative
-        // to the full text.
-        if let Ok(Some(caps)) = re.captures(&text[m.start()..]) {
-            let key = match caps.get(1) {
-                Some(g) => &text[m.start() + g.start()..m.start() + g.end()],
-                None => continue,
-            };
+        let (value, value_start, value_end) = if let Some(g) = caps.get(2) {
+            (g.as_str(), g.start(), g.end())
+        } else if let Some(g) = caps.get(3) {
+            (g.as_str(), g.start(), g.end())
+        } else if let Some(g) = caps.get(4) {
+            (g.as_str(), g.start(), g.end())
+        } else {
+            continue;
+        };
 
-            // Determine which capture group holds the value and compute offsets.
-            let (value, value_start, value_end) = if let Some(g) = caps.get(2) {
-                // Double-quoted: the opening '"' is at g.start()-1 relative to the match start.
-                let abs_quote_open = m.start() + g.start() - 1;
-                let abs_value_start = abs_quote_open + 1; // inside the opening quote
-                let abs_value_end = abs_value_start + (g.end() - g.start()); // before the closing quote
-                let val = &text[abs_value_start..abs_value_end];
-                (val, abs_value_start, abs_value_end)
-            } else if let Some(g) = caps.get(3) {
-                // Single-quoted
-                let abs_quote_open = m.start() + g.start() - 1;
-                let abs_value_start = abs_quote_open + 1;
-                let abs_value_end = abs_value_start + (g.end() - g.start());
-                let val = &text[abs_value_start..abs_value_end];
-                (val, abs_value_start, abs_value_end)
-            } else if let Some(g) = caps.get(4) {
-                // Unquoted
-                let abs_value_start = m.start() + g.start();
-                let abs_value_end = m.start() + g.end();
-                let val = &text[abs_value_start..abs_value_end];
-                (val, abs_value_start, abs_value_end)
-            } else {
-                continue;
-            };
-
-            if value.is_empty() {
-                continue;
-            }
-
-            // Sanity-check: confirm the extracted value actually appears at the
-            // claimed offsets in the original text.
-            debug_assert_eq!(
-                &text[value_start..value_end],
-                value,
-                "ENV offset mismatch on match: {:?}",
-                full_match
-            );
-
-            results.push(KVPair {
-                key: key.to_string(),
-                value: value.to_string(),
-                value_start,
-                value_end,
-            });
+        if value.is_empty() {
+            continue;
         }
+
+        debug_assert_eq!(
+            &text[value_start..value_end],
+            value,
+            "ENV offset mismatch for key: {:?}",
+            key
+        );
+
+        results.push(KVPair {
+            key: key.to_string(),
+            value: value.to_string(),
+            value_start,
+            value_end,
+        });
     }
 
     results

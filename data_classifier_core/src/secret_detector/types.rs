@@ -146,13 +146,12 @@ pub struct DetectionResult {
 /// Values of 4 characters or fewer are fully masked with asterisks.
 /// Longer values keep the first and last character with asterisks in between.
 pub fn mask_value(value: &str, _entity_type: &str) -> String {
-    let len = value.len();
+    let chars: Vec<char> = value.chars().collect();
+    let len = chars.len();
     if len <= 4 {
         "*".repeat(len)
     } else {
-        let first = &value[..1];
-        let last = &value[len - 1..];
-        format!("{}{}{}", first, "*".repeat(len - 2), last)
+        format!("{}{}{}", chars[0], "*".repeat(len - 2), chars[len - 1])
     }
 }
 

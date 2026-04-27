@@ -759,12 +759,12 @@
     "opaque_token": {
       "min_length": 16,
       "max_length": 512,
-      "entropy_threshold": 0.7,
-      "diversity_threshold": 3,
-      "base_confidence": 0.65,
-      "max_confidence": 0.85,
+      "entropy_threshold": 0.80,
+      "diversity_threshold": 4,
+      "base_confidence": 0.30,
+      "max_confidence": 0.55,
       "high_entropy_bonus": 0.1,
-      "high_entropy_gate": 0.85,
+      "high_entropy_gate": 0.90,
       "length_bonus": 0.05,
       "length_gate": 24,
       "diversity_bonus_weight": 0.05

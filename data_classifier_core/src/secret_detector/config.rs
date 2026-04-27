@@ -21,12 +21,12 @@ impl Default for OpaqueTokenConfig {
         Self {
             min_length: 16,
             max_length: 512,
-            entropy_threshold: 0.7,
-            diversity_threshold: 3,
-            base_confidence: 0.65,
-            max_confidence: 0.85,
+            entropy_threshold: 0.80,
+            diversity_threshold: 4,
+            base_confidence: 0.30,
+            max_confidence: 0.55,
             high_entropy_bonus: 0.10,
-            high_entropy_gate: 0.85,
+            high_entropy_gate: 0.90,
             length_bonus: 0.05,
             length_gate: 24,
             diversity_bonus_weight: 0.05,
@@ -226,10 +226,10 @@ mod tests {
         let opaque = &config.opaque_token;
         assert_eq!(opaque.min_length, 16);
         assert_eq!(opaque.max_length, 512);
-        assert!((opaque.entropy_threshold - 0.7).abs() < 1e-10);
-        assert_eq!(opaque.diversity_threshold, 3);
-        assert!((opaque.base_confidence - 0.65).abs() < 1e-10);
-        assert!((opaque.max_confidence - 0.85).abs() < 1e-10);
+        assert!((opaque.entropy_threshold - 0.80).abs() < 1e-10);
+        assert_eq!(opaque.diversity_threshold, 4);
+        assert!((opaque.base_confidence - 0.30).abs() < 1e-10);
+        assert!((opaque.max_confidence - 0.55).abs() < 1e-10);
     }
 
     #[test]
