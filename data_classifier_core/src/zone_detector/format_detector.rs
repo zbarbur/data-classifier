@@ -43,6 +43,13 @@ static XML_CLOSE_TAG_NAME: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"</(\w+)>").unwrap()
 });
 
+/// Line where the first non-whitespace is an XML-style tag start
+/// (`<foo`, `</foo`, `<foo/>` or similar). Used to distinguish structured
+/// markup from prose that merely mentions tags inline.
+static XML_LINE_START: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^\s*</?\w+[\s/>]").unwrap()
+});
+
 static YAML_KEY_EXTRACT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(\s*)(.*?)\s*:\s+\S").unwrap()
 });
@@ -124,7 +131,7 @@ impl FormatDetector {
                     language_confidence: 0.0,
                     text: String::new(),
                 })
-            } else if self.looks_like_xml(&block_text) {
+            } else if self.looks_like_xml(&block_text, &block_lines) {
                 Some(ZoneBlock {
                     start_line: start,
                     end_line: end,
@@ -251,7 +258,7 @@ impl FormatDetector {
         }
     }
 
-    fn looks_like_xml(&self, text: &str) -> bool {
+    fn looks_like_xml(&self, text: &str, lines: &[&str]) -> bool {
         let text = text.trim();
 
         let open_count = XML_OPEN.find_iter(text).count();
@@ -270,8 +277,52 @@ impl FormatDetector {
             .captures_iter(text)
             .filter_map(|c| c.get(1).map(|m| m.as_str().to_lowercase()))
             .collect();
+        if open_names.is_disjoint(&close_names) {
+            return false;
+        }
 
-        !open_names.is_disjoint(&close_names)
+        // Tag-density floor: prose blocks that mention <foo> once or twice
+        // shouldn't qualify. Require at least 1 tag per 10 non-blank lines.
+        let non_empty_count = lines.iter().filter(|l| !l.trim().is_empty()).count().max(1);
+        let total_tags = open_count + close_count;
+        if (total_tags as f64) / (non_empty_count as f64) < 0.1 {
+            return false;
+        }
+
+        // Prose veto (mirrors yaml_max_prose_ratio): if most lines are pure
+        // natural language with no tags, this isn't a markup block.
+        let prose_lines = lines
+            .iter()
+            .filter(|l| {
+                let stripped = l.trim();
+                if stripped.is_empty() {
+                    return false;
+                }
+                let total = stripped.chars().count().max(1);
+                let alpha = stripped
+                    .chars()
+                    .filter(|c| c.is_alphabetic() || c.is_whitespace())
+                    .count();
+                alpha as f64 / total as f64 > 0.85
+            })
+            .count();
+        if (prose_lines as f64) / (non_empty_count as f64) > 0.70 {
+            return false;
+        }
+
+        // Line-start-tag ratio: structured XML/HTML almost always has tags at
+        // the start of lines (after whitespace). Prose that merely quotes
+        // `<foo>` puts them mid-line. Require >= 30% of non-empty lines to
+        // start with a tag.
+        let line_start_tag_count = lines
+            .iter()
+            .filter(|l| !l.trim().is_empty() && XML_LINE_START.is_match(l))
+            .count();
+        if (line_start_tag_count as f64) / (non_empty_count as f64) < 0.30 {
+            return false;
+        }
+
+        true
     }
 
     fn looks_like_yaml(&self, lines: &[&str]) -> bool {

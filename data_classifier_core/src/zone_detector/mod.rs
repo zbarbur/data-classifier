@@ -225,6 +225,13 @@ impl ZoneOrchestrator {
         // 10. Merge adjacent compatible blocks
         all_blocks = Self::merge_adjacent(all_blocks, &lines);
 
+        // 10b. Templating-host language merge — when a code block has a
+        // language hint that natively embeds markup (PHP/JSX/Vue/etc.), and
+        // there are nearby markup or other code blocks, collapse them all
+        // into a single host-language code block. Treats e.g. PHP+HTML+JS
+        // as one cohesive program rather than three separate zones.
+        all_blocks = Self::merge_templating_host(all_blocks);
+
         // Build claimed set from all existing blocks
         let mut all_claimed: HashSet<usize> = HashSet::new();
         for b in &all_blocks {
@@ -337,6 +344,99 @@ impl ZoneOrchestrator {
                 scores[i] = 0.0;
             }
         }
+    }
+
+    /// Templating-host language merge.
+    ///
+    /// When the prompt contains a code block whose `language_hint` is a
+    /// host language that natively embeds markup (PHP, JSX/TSX, Vue, ERB,
+    /// Jinja, etc.) and there are also nearby markup or other code blocks,
+    /// collapse them all into a single code block. The host language hint
+    /// is preserved.
+    ///
+    /// Rationale: a `.php` file with PHP + HTML + `<script>` JS is one
+    /// cohesive program — labeling each language as a separate zone is
+    /// syntactically correct but semantically misleading for downstream
+    /// prompt-analysis (intent / risk).
+    fn merge_templating_host(blocks: Vec<ZoneBlock>) -> Vec<ZoneBlock> {
+        const HOSTS: &[&str] = &[
+            "php", "jsx", "tsx", "vue", "svelte", "erb", "twig", "jinja",
+            "jinja2", "handlebars", "asp", "jsp", "razor",
+        ];
+
+        // Find host-language code blocks
+        let host_indices: Vec<usize> = blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| {
+                b.zone_type == ZoneType::Code
+                    && HOSTS.contains(&b.language_hint.to_lowercase().as_str())
+            })
+            .map(|(i, _)| i)
+            .collect();
+
+        if host_indices.is_empty() {
+            return blocks;
+        }
+
+        // For each host block, find the contiguous run of nearby non-NL
+        // blocks (markup + code) and merge them into one
+        let mut keep: Vec<bool> = vec![true; blocks.len()];
+        let mut merged: Vec<ZoneBlock> = Vec::new();
+
+        // Use the first host block to anchor the merge — its language hint wins.
+        // Bounds = min(start) to max(end) of all non-NL blocks in the prompt.
+        let host = &blocks[host_indices[0]];
+        let host_lang = host.language_hint.clone();
+
+        let non_nl_indices: Vec<usize> = blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| {
+                matches!(
+                    b.zone_type,
+                    ZoneType::Code | ZoneType::Markup | ZoneType::Config | ZoneType::Data
+                )
+            })
+            .map(|(i, _)| i)
+            .collect();
+
+        if non_nl_indices.len() <= 1 {
+            return blocks;
+        }
+
+        let start_line = non_nl_indices.iter().map(|&i| blocks[i].start_line).min().unwrap_or(0);
+        let end_line = non_nl_indices.iter().map(|&i| blocks[i].end_line).max().unwrap_or(0);
+        let max_conf = non_nl_indices
+            .iter()
+            .map(|&i| blocks[i].confidence)
+            .fold(0.0_f64, f64::max);
+
+        for i in &non_nl_indices {
+            keep[*i] = false;
+        }
+
+        merged.push(ZoneBlock {
+            start_line,
+            end_line,
+            zone_type: ZoneType::Code,
+            confidence: max_conf,
+            method: "templating_host_merge".to_string(),
+            language_hint: host_lang,
+            language_confidence: host.language_confidence,
+            text: String::new(),
+        });
+
+        // Keep all NL blocks plus our new merged block
+        let mut result: Vec<ZoneBlock> = blocks
+            .into_iter()
+            .zip(keep.iter())
+            .filter(|(_, k)| **k)
+            .map(|(b, _)| b)
+            .collect();
+        result.extend(merged);
+        result.sort_by_key(|b| b.start_line);
+        result
     }
 }
 

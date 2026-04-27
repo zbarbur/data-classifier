@@ -139,6 +139,17 @@ impl BlockAssembler {
                 .count() as f64
                 / block_scores.len().max(1) as f64;
 
+            // Density floor for large blocks: reject if a long "code" run is
+            // mostly low-scoring lines. Prevents stray code-shaped tokens
+            // (gibberish, quoted symbols) inside long prose from anchoring a
+            // 100+ line "code" zone.
+            if zone_type == ZoneType::Code
+                && line_count >= 20
+                && high_ratio < 0.20
+            {
+                continue;
+            }
+
             let mut confidence = if zone_type == ZoneType::ErrorOutput {
                 let typed_ratio = line_types[start..end]
                     .iter()
