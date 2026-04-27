@@ -21,6 +21,61 @@ cherry-picks as `0.{sprint}.{patch}`.
 
 No unreleased changes.
 
+## [0.16.0] — Sprint 16 (2026-04-25 → 2026-04-27)
+
+CONTACT and GOVERNMENT_ID recall sprint. No public API changes.
+Focused on detection quality: GLiNER dedup correctness, EU national-ID
+patterns, and a primary-label fix for within-family ambiguity
+(ADDRESS vs PERSON_NAME).
+
+### Added
+
+- **GOVERNMENT_ID phase 1: 6 EU countries** — DE Steuer-ID, FR NIR,
+  ES DNI/NIE, IT Codice Fiscale, NL BSN, AT SVNR. 7 regex patterns +
+  7 checksum validators with country-specific confidence floors.
+- **`ENTITY_SPECIFICITY` map** in `core/taxonomy.py` (with
+  `specificity_for()` helper). Drives the within-family primary-label
+  tie-break.
+
+### Changed
+
+- **GLiNER dedup uses evidence overlap** (`gliner_engine.py`). Previously
+  the global type-hierarchy suppressed PERSON_NAME whenever ADDRESS
+  co-fired, even when the two findings detected different values.
+  Suppression now requires Jaccard overlap ≥ 0.50 on `sample_matches`;
+  different-value findings both survive.
+- **Primary-label tie-break uses specificity within a family.** When
+  multiple findings share the same family (e.g. CONTACT — both ADDRESS
+  and PERSON_NAME fired), the more specific entity wins regardless of
+  raw confidence. Cross-family ordering is unchanged (pure confidence).
+
+### Tooling
+
+- Dev environment migrated to `uv` (chore PR #20). 3 of 4 CI jobs run
+  `uv pip install --system`; `install-test` deliberately stays on pip
+  to validate the end-user wheel install path.
+
+### Benchmark
+
+Family accuracy benchmark (Sprint 16, `DATA_CLASSIFIER_DISABLE_ML=1`):
+
+| Metric | v0.15.0 (S15) | v0.16.0 (S16) | Delta |
+|---|---|---|---|
+| LIVE `cross_family_rate` | 0.1066 | **0.0799** | -0.0267 |
+| LIVE `family_macro_f1` | 0.9477 | **0.9737** | +0.0260 |
+| SHADOW `cross_family_rate` | 0.3245 | **0.3150** | -0.0095 |
+| SHADOW `family_macro_f1` | 0.7030 | **0.8276** | +0.1246 |
+
+Sprint gate metric (`shadow.cross_family_rate`) improved from baseline.
+Summary committed as
+`docs/research/meta_classifier/sprint16_family_benchmark.json`.
+
+ML-enabled reference run (not gated by CI; documents the contribution
+of GLiNER + within-family specificity on top of the no-ML baseline):
+`cross_family_rate` 0.0291, `family_macro_f1` 0.9903, CONTACT F1 0.966
+(+0.170 vs S15 no-ML), ADDRESS subtype F1 0.942 (+0.300), PERSON_NAME
+F1 0.948 (+0.302).
+
 ## [0.15.0] — Sprints 13 / 14 / 15 (2026-04-16 → 2026-04-25)
 
 Second BQ-facing release. Bundles three sprints of changes since
