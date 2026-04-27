@@ -968,6 +968,207 @@ def danish_cpr_check(value: str) -> bool:
     return total % 11 == 0
 
 
+def german_steuerid_check(value: str) -> bool:
+    """Validate a German Steueridentifikationsnummer (tax ID).
+
+    11 digits, iterative mod-10/11 check digit algorithm.
+    First digit must not be 0.
+    """
+    clean = re.sub(r"[\s.-]", "", value)
+    if len(clean) != 11 or not clean.isdigit() or clean[0] == "0":
+        return False
+    digits = [int(d) for d in clean]
+    product = 10
+    for i in range(10):
+        s = (digits[i] + product) % 10
+        if s == 0:
+            s = 10
+        product = (s * 2) % 11
+    check = (11 - product) % 10
+    return check == digits[10]
+
+
+def french_nir_check(value: str) -> bool:
+    """Validate a French NIR/INSEE (social security number).
+
+    15 digits. First digit is gender (1/2/3/7/8).
+    Control key = 97 - (first_13_digits % 97).
+    """
+    clean = re.sub(r"[\s.-]", "", value)
+    if len(clean) != 15 or not clean.isdigit():
+        return False
+    if clean[0] not in "12378":
+        return False
+    base = int(clean[:13])
+    key = int(clean[13:15])
+    return key == 97 - (base % 97)
+
+
+def spanish_dni_check(value: str) -> bool:
+    """Validate a Spanish DNI (Documento Nacional de Identidad).
+
+    8 digits + check letter. Letter = lookup[number % 23].
+    """
+    clean = re.sub(r"[\s-]", "", value).upper()
+    if len(clean) != 9:
+        return False
+    letters = "TRWAGMYFPDXBNJZSQVHLCKE"
+    num_part = clean[:8]
+    letter = clean[8]
+    if not num_part.isdigit() or letter not in letters:
+        return False
+    return letters[int(num_part) % 23] == letter
+
+
+def spanish_nie_check(value: str) -> bool:
+    """Validate a Spanish NIE (Número de Identidad de Extranjero).
+
+    X/Y/Z prefix + 7 digits + check letter.
+    Prefix is replaced with 0/1/2, then letter = lookup[number % 23].
+    """
+    clean = re.sub(r"[\s-]", "", value).upper()
+    if len(clean) != 9:
+        return False
+    prefix_map = {"X": "0", "Y": "1", "Z": "2"}
+    if clean[0] not in prefix_map:
+        return False
+    letters = "TRWAGMYFPDXBNJZSQVHLCKE"
+    num_str = prefix_map[clean[0]] + clean[1:8]
+    letter = clean[8]
+    if not num_str.isdigit() or letter not in letters:
+        return False
+    return letters[int(num_str) % 23] == letter
+
+
+def italian_codice_fiscale_check(value: str) -> bool:
+    """Validate an Italian Codice Fiscale (fiscal code).
+
+    16-character alphanumeric code with pattern AAAAAA00A00A000A.
+    Check character at position 16 is computed from odd/even position values.
+    """
+    clean = value.upper().strip()
+    if len(clean) != 16:
+        return False
+    odd_map = {
+        "0": 1,
+        "1": 0,
+        "2": 5,
+        "3": 7,
+        "4": 9,
+        "5": 13,
+        "6": 15,
+        "7": 17,
+        "8": 19,
+        "9": 21,
+        "A": 1,
+        "B": 0,
+        "C": 5,
+        "D": 7,
+        "E": 9,
+        "F": 13,
+        "G": 15,
+        "H": 17,
+        "I": 19,
+        "J": 21,
+        "K": 2,
+        "L": 4,
+        "M": 18,
+        "N": 20,
+        "O": 11,
+        "P": 3,
+        "Q": 6,
+        "R": 8,
+        "S": 12,
+        "T": 14,
+        "U": 16,
+        "V": 10,
+        "W": 22,
+        "X": 25,
+        "Y": 24,
+        "Z": 23,
+    }
+    even_map = {
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9,
+        "A": 0,
+        "B": 1,
+        "C": 2,
+        "D": 3,
+        "E": 4,
+        "F": 5,
+        "G": 6,
+        "H": 7,
+        "I": 8,
+        "J": 9,
+        "K": 10,
+        "L": 11,
+        "M": 12,
+        "N": 13,
+        "O": 14,
+        "P": 15,
+        "Q": 16,
+        "R": 17,
+        "S": 18,
+        "T": 19,
+        "U": 20,
+        "V": 21,
+        "W": 22,
+        "X": 23,
+        "Y": 24,
+        "Z": 25,
+    }
+    total = 0
+    for i, ch in enumerate(clean[:15]):
+        if ch not in odd_map:
+            return False
+        if (i + 1) % 2 == 1:  # odd position (1-indexed)
+            total += odd_map[ch]
+        else:
+            total += even_map[ch]
+    expected = chr(ord("A") + total % 26)
+    return clean[15] == expected
+
+
+def dutch_bsn_check(value: str) -> bool:
+    """Validate a Dutch BSN (Burgerservicenummer).
+
+    9 digits, first digit non-zero.
+    Weighted sum with weights [9,8,7,6,5,4,3,2,-1] must be divisible by 11
+    and non-zero.
+    """
+    clean = re.sub(r"[\s.-]", "", value)
+    if len(clean) != 9 or not clean.isdigit() or clean[0] == "0":
+        return False
+    digits = [int(d) for d in clean]
+    weights = [9, 8, 7, 6, 5, 4, 3, 2, -1]
+    total = sum(d * w for d, w in zip(digits, weights))
+    return total % 11 == 0 and total != 0
+
+
+def austrian_svnr_check(value: str) -> bool:
+    """Validate an Austrian Sozialversicherungsnummer (social insurance number).
+
+    10 digits, first digit non-zero.
+    Check digit at position 4 (0-indexed index 3): weighted sum with
+    weights [3,7,9,0,5,8,4,2,1,6], digit[3] == total % 11.
+    """
+    clean = re.sub(r"[\s.-]", "", value)
+    if len(clean) != 10 or not clean.isdigit() or clean[0] == "0":
+        return False
+    digits = [int(d) for d in clean]
+    weights = [3, 7, 9, 0, 5, 8, 4, 2, 1, 6]
+    total = sum(d * w for d, w in zip(digits, weights))
+    return total % 11 == digits[3]
+
+
 # Registry mapping validator names to functions
 VALIDATORS: dict[str, typing.Callable] = {
     "luhn": luhn_check,
@@ -998,4 +1199,12 @@ VALIDATORS: dict[str, typing.Callable] = {
     "czech_rodne_cislo": czech_rodne_cislo_check,
     "swiss_ahv": swiss_ahv_check,
     "danish_cpr": danish_cpr_check,
+    # Sprint 16 — EU national IDs
+    "german_steuerid": german_steuerid_check,
+    "french_nir": french_nir_check,
+    "spanish_dni": spanish_dni_check,
+    "spanish_nie": spanish_nie_check,
+    "italian_codice_fiscale": italian_codice_fiscale_check,
+    "dutch_bsn": dutch_bsn_check,
+    "austrian_svnr": austrian_svnr_check,
 }

@@ -185,8 +185,8 @@ class TestConfidenceGapSuppression:
         result = _apply_findings_limit([], max_findings=1, confidence_gap_threshold=0.30)
         assert result == []
 
-    def test_sorted_by_confidence(self, profile) -> None:
-        """Results are sorted by confidence descending."""
+    def test_sorted_by_specificity_then_confidence(self, profile) -> None:
+        """Results are sorted by specificity DESC, then confidence DESC."""
         from data_classifier import _apply_findings_limit
 
         findings = [
@@ -210,5 +210,65 @@ class TestConfidenceGapSuppression:
             ),
         ]
         result = _apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=1.0)
+        # SSN (specificity=3) beats PHONE (specificity=3) on confidence
         assert result[0].entity_type == "SSN"
         assert result[1].entity_type == "PHONE"
+
+    def test_specificity_beats_confidence_within_family(self, profile) -> None:
+        """Within the same family, more specific type is primary even with lower confidence."""
+        from data_classifier import _apply_findings_limit
+
+        findings = [
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="PERSON_NAME",
+                category="PII",
+                sensitivity="HIGH",
+                confidence=0.96,
+                regulatory=[],
+                engine="gliner2",
+            ),
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="ADDRESS",
+                category="PII",
+                sensitivity="HIGH",
+                confidence=0.70,
+                regulatory=[],
+                engine="gliner2",
+            ),
+        ]
+        result = _apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=0.30)
+        # ADDRESS (specificity=3) should be primary over PERSON_NAME (specificity=1)
+        # even though PERSON_NAME has higher confidence — same CONTACT family
+        assert result[0].entity_type == "ADDRESS"
+        # Both kept (gap = 0.96 - 0.70 = 0.26 < 0.30)
+        assert len(result) == 2
+
+    def test_specificity_preserves_cross_family_confidence_order(self, profile) -> None:
+        """Across different families, higher specificity + confidence still wins."""
+        from data_classifier import _apply_findings_limit
+
+        findings = [
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="EMAIL",
+                category="PII",
+                sensitivity="HIGH",
+                confidence=0.95,
+                regulatory=[],
+                engine="regex",
+            ),
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="SSN",
+                category="PII",
+                sensitivity="CRITICAL",
+                confidence=0.90,
+                regulatory=[],
+                engine="regex",
+            ),
+        ]
+        result = _apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=1.0)
+        # Both specificity=3, so confidence breaks tie — EMAIL first
+        assert result[0].entity_type == "EMAIL"

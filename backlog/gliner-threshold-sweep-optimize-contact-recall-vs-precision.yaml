@@ -1,0 +1,30 @@
+title: "GLiNER threshold sweep \u2014 optimize CONTACT recall vs precision"
+status: done
+priority: P1
+category: feature
+sprint_target: 16
+created: 2026-04-25
+updated: 2026-04-27
+depends_on: []
+tags: []
+goal: "FINDING: GLiNER threshold (0.30-0.50) has no measurable impact on CONTACT recall\
+  \ \u2014 predictions are bimodal (well above 0.5 or below 0.3). The real lever is\
+  \ ML on/off: the Sprint 15 canonical benchmark ran with DATA_CLASSIFIER_DISABLE_ML=1,\
+  \ so CONTACT recall was regex+column_name only. With ML enabled, PERSON_NAME recall\
+  \ jumps 47.7%\u2192100%. Item re-scoped to document this finding."
+complexity: null
+technical_specs:
+- 'data_classifier/engines/gliner_engine.py: _DEFAULT_GLINER_THRESHOLD'
+- Run family benchmark at each threshold, compare cross_family_rate + family_macro_f1
+description: ''
+acceptance_criteria:
+- Threshold sweep results documented with per-family F1 at each threshold
+- Optimal threshold selected and applied to _DEFAULT_GLINER_THRESHOLD
+- No family regresses more than 0.02 F1 from Sprint 15 baseline
+test_plan: []
+notes: ''
+phase: review
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

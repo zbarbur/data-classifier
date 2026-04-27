@@ -297,7 +297,12 @@ def _apply_findings_limit(
 ) -> list[ClassificationFinding]:
     """Limit and filter findings per column.
 
-    1. Sort by confidence descending.
+    1. Sort by (within-family specificity DESC, confidence DESC).
+       Specificity-first ordering means that within the same family,
+       a more specific entity type (e.g. ADDRESS over PERSON_NAME)
+       is preferred as primary label even when the less specific one
+       has higher confidence — they are policy-equivalent and the
+       more specific label is more informative.
     2. If max_findings is set, truncate to that count.
     3. Otherwise, apply confidence-gap suppression: drop findings whose
        confidence is more than ``confidence_gap_threshold`` below the top finding.
@@ -308,8 +313,39 @@ def _apply_findings_limit(
     if not findings:
         return findings
 
-    # Sort by confidence descending
+    from data_classifier.core.taxonomy import family_for, specificity_for
+
+    # Sort by confidence DESC first, then reorder within each family
+    # by specificity. This ensures cross-family ordering is unchanged
+    # (pure confidence), but within the same family the more specific
+    # entity type becomes primary.
     sorted_findings = sorted(findings, key=lambda f: f.confidence, reverse=True)
+
+    # Group by family, reorder within each group by specificity DESC,
+    # then re-interleave preserving the original cross-family position
+    # of each family's best finding.
+    from collections import defaultdict
+
+    family_groups: dict[str, list[ClassificationFinding]] = defaultdict(list)
+    family_first_pos: dict[str, int] = {}
+    for i, f in enumerate(sorted_findings):
+        fam = family_for(f.entity_type)
+        family_groups[fam].append(f)
+        if fam not in family_first_pos:
+            family_first_pos[fam] = i
+
+    # Within each family, sort by specificity DESC then confidence DESC
+    for fam in family_groups:
+        family_groups[fam].sort(
+            key=lambda f: (specificity_for(f.entity_type), f.confidence),
+            reverse=True,
+        )
+
+    # Rebuild: emit families in order of their first appearance,
+    # with within-family ordering by specificity
+    sorted_findings = []
+    for fam in sorted(family_groups, key=lambda f: family_first_pos[f]):
+        sorted_findings.extend(family_groups[fam])
 
     if max_findings is not None:
         return sorted_findings[:max_findings]

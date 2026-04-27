@@ -1,5 +1,5 @@
 // GENERATED - do not edit. Run: npm run generate
-export const PYTHON_LOGIC_VERSION = "e1d3e44fe4489b1c";
+export const PYTHON_LOGIC_VERSION = "b330593c46d7076e";
 
 export const PYTHON_LOGIC_FILE_HASHES = {
   "engine_defaults.yaml": "a713f4fcdac41035",
@@ -7,7 +7,7 @@ export const PYTHON_LOGIC_FILE_HASHES = {
   "parsers.py": "5a490f79c6f7d162",
   "regex_engine.py": "02c7c19a66072343",
   "secret_scanner.py": "d7cb20fe609bc397",
-  "validators.py": "ddbbf2b6d42a2116"
+  "validators.py": "2355a9187a92d793"
 };
 
 export const SECRET_SCANNER = {
