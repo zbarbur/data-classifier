@@ -34,8 +34,7 @@ from tests.benchmarks.corpus_loader import (
 
 _FIXTURE_DIR = Path(__file__).parent / "fixtures" / "corpora"
 _FIXTURE_SKIP_REASON = (
-    "Corpus fixture not available — DVC-tracked, requires GCS auth on CI; "
-    "tests pass locally with `dvc pull`"
+    "Corpus fixture not available — DVC-tracked, requires GCS auth on CI; tests pass locally with `dvc pull`"
 )
 
 
