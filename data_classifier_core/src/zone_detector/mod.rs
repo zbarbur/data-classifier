@@ -25,9 +25,11 @@ mod scope;
 mod negative;
 mod assembler;
 mod language;
+mod features;
 
 pub use types::*;
 pub use config::ZoneConfig;
+pub use features::BlockFeatures;
 
 use assembler::{BlockAssembler, LineType};
 use format_detector::FormatDetector;
