@@ -27,6 +27,7 @@ mod assembler;
 mod language;
 mod features;
 mod data_detector;
+mod prose_detector;
 
 pub use types::*;
 pub use config::ZoneConfig;
