@@ -2443,12 +2443,41 @@ labels trustworthy enough to seed M4e's multi-label ground truth.
 
 ### M4d Phase 3 — scale labeling (500-1000 columns)
 
-**Status:**
-- **Phase 3a (pilot, 41 cols):** ✅ complete 2026-04-21 — awaiting reviewer sign-off
-- **Phase 3b (full scale, ~280 cols):** ⏸ blocked on Phase 3a reviewer gate (≥ 0.8 macro Jaccard)
+> **⏸ PAUSED — checkpoint 2026-04-27 (Sprint 16)**
+>
+> - **Where:** Phase 3b paused at **255 cols** (target was ~280). Last
+>   commit `eceea46`. Phase 3a gate **PASSED** (macro Jaccard 0.9268,
+>   commit `86bfb5b`).
+> - **Why paused:** active research focus shifted to
+>   `research/prompt-analysis` (Rust/WASM unified detector, zone v2,
+>   browser scanner). Meta-classifier track on hold pending a downstream
+>   experiment that needs the larger labeled corpus. No sprint-16 item
+>   depends on Phase 3b.
+> - **State preserved (DVC-tracked):**
+>   - Corpus: `data/m4d_phase3b_corpus/`
+>   - Labeled: `labeled.jsonl` (255 cols, 80/20 train/test split)
+>   - Worksheets: `review_worksheet.jsonl`, `agreed_spot_check.jsonl`
+>   - Harness: `scripts/m4d_phase3_*.py` (all 4 scripts committed
+>     `2ff51f9` — build_scale_corpus, build_worksheet, score_worksheet,
+>     spot_check_agreed)
+> - **To resume:** see backlog item
+>   `resume-m4d-phase3b-when-downstream-experiment-is-ready` on main.
+>   Bump `PILOT_*` constants in `scripts/m4d_phase3_build_scale_corpus.py`
+>   to extend from 255→280 (or further), re-run the labeler/worksheet
+>   scripts, score with `m4d_phase3_score_worksheet.py`. Phase 3a gate
+>   threshold (≥ 0.8 macro Jaccard) still applies.
+> - **Last main sync:** Sprint 14 (commit `16f65f2`). Sprint 15 sync
+>   deferred to resume time — one merge at resume is less total work
+>   than a sync now plus a sync at resume. The branch is paused; there
+>   are no in-flight commits on research/meta-classifier that risk
+>   conflict-compounding during the deferral.
 
-**Priority:** P2
-**Estimated time:** ~1 week for Phase 3b once gated
+**Status:**
+- **Phase 3a (pilot, 41 cols):** ✅ complete 2026-04-21 — gate passed (macro Jaccard 0.9268)
+- **Phase 3b (full scale, ~280 cols):** ⏸ paused at 255 cols (see checkpoint above)
+
+**Priority:** P2 (paused)
+**Estimated time:** ~3-5 days for Phase 3b 255→280 when resumed
 
 **Phase 3a — pilot summary (2026-04-21):**
 - Corpus at `data/m4d_phase3_corpus/` (DVC-tracked): 41 cols / ~115 GB BQ scan / $0 BQ cost (free tier)
