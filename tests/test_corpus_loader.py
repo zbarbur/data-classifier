@@ -15,6 +15,8 @@ import json
 from collections import Counter
 from pathlib import Path
 
+import pytest
+
 from data_classifier.core.types import ColumnInput
 from tests.benchmarks.corpus_loader import (
     GRETEL_EN_TYPE_MAP,
@@ -29,6 +31,17 @@ from tests.benchmarks.corpus_loader import (
     load_openpii_1m_corpus,
     load_secretbench_corpus,
 )
+
+_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "corpora"
+_FIXTURE_SKIP_REASON = (
+    "Corpus fixture not available — DVC-tracked, requires GCS auth on CI; "
+    "tests pass locally with `dvc pull`"
+)
+
+
+def _fixture_missing(name: str) -> bool:
+    return not (_FIXTURE_DIR / name).exists()
+
 
 # Sprint 8 split the legacy ``CREDENTIAL`` entity type into four deterministic
 # subtypes.  Any loader emitting a label in this set counts as "credential-
@@ -157,6 +170,7 @@ _GRETEL_FINANCE_DISCOVERY_VOCABULARY: frozenset[str] = frozenset(
 )
 
 
+@pytest.mark.skipif(_fixture_missing("secretbench_sample.json"), reason=_FIXTURE_SKIP_REASON)
 class TestSecretBenchLoader:
     def test_secretbench_returns_credential_and_negative_rows(self) -> None:
         corpus = load_secretbench_corpus()
@@ -188,6 +202,7 @@ class TestSecretBenchLoader:
             assert column.column_name.startswith("col_")
 
 
+@pytest.mark.skipif(_fixture_missing("gitleaks_fixtures.json"), reason=_FIXTURE_SKIP_REASON)
 class TestGitleaksLoader:
     def test_gitleaks_returns_both_classes(self) -> None:
         corpus = load_gitleaks_corpus()
@@ -225,6 +240,7 @@ class TestGitleaksLoader:
         assert len(positive_columns) >= 2, "expected >1 positive column from source_type grouping"
 
 
+@pytest.mark.skipif(_fixture_missing("detect_secrets_fixtures.json"), reason=_FIXTURE_SKIP_REASON)
 class TestDetectSecretsLoader:
     def test_detect_secrets_returns_both_classes(self) -> None:
         corpus = load_detect_secrets_corpus()
@@ -247,6 +263,7 @@ class TestDetectSecretsLoader:
         assert total == 13
 
 
+@pytest.mark.skipif(_fixture_missing("gretel_en_sample.json"), reason=_FIXTURE_SKIP_REASON)
 class TestGretelEnLoader:
     def test_load_gretel_en_corpus(self) -> None:
         corpus = load_gretel_en_corpus()
@@ -294,6 +311,7 @@ class TestGretelEnLoader:
             assert rec["entity_type"] in _GRETEL_EN_TARGET_TYPES or rec["entity_type"] == "DATE_OF_BIRTH"
 
 
+@pytest.mark.skipif(_fixture_missing("gretel_finance_sample.json"), reason=_FIXTURE_SKIP_REASON)
 class TestGretelFinanceLoader:
     """Parallel of :class:`TestGretelEnLoader` for Gretel-finance.
 
@@ -622,6 +640,19 @@ class TestOpenPII1mLoader:
 
 
 class TestDispatcher:
+    @pytest.mark.skipif(
+        any(
+            _fixture_missing(f)
+            for f in (
+                "secretbench_sample.json",
+                "gitleaks_fixtures.json",
+                "detect_secrets_fixtures.json",
+                "gretel_en_sample.json",
+                "gretel_finance_sample.json",
+            )
+        ),
+        reason=_FIXTURE_SKIP_REASON,
+    )
     def test_dispatcher_accepts_new_sources(self) -> None:
         # openpii_1m excluded — fixture may not be present in CI.
         sources = ("secretbench", "gitleaks", "detect_secrets", "gretel_en", "gretel_finance")
@@ -629,6 +660,19 @@ class TestDispatcher:
             corpus = load_corpus(source)
             assert corpus, f"{source} loaded via dispatcher should be non-empty"
 
+    @pytest.mark.skipif(
+        any(
+            _fixture_missing(f)
+            for f in (
+                "secretbench_sample.json",
+                "gitleaks_fixtures.json",
+                "detect_secrets_fixtures.json",
+                "gretel_en_sample.json",
+                "gretel_finance_sample.json",
+            )
+        ),
+        reason=_FIXTURE_SKIP_REASON,
+    )
     def test_dispatcher_all_includes_new_corpora(self) -> None:
         corpus = load_corpus("all", max_rows=50, samples_per_type=10)
         labels = Counter(gt for _, gt in corpus)
