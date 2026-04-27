@@ -26,10 +26,12 @@ mod negative;
 mod assembler;
 mod language;
 mod features;
+mod data_detector;
 
 pub use types::*;
 pub use config::ZoneConfig;
 pub use features::BlockFeatures;
+pub use data_detector::DataDetector;
 
 use assembler::{BlockAssembler, LineType};
 use format_detector::FormatDetector;
