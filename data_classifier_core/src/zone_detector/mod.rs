@@ -12,6 +12,8 @@
 //! 8. BlockValidator → construct counting, math indicator check
 //! 9. LanguageDetector → enrich blocks with language info
 //! 10. Merge adjacent compatible blocks
+//! 11. DataDetector → tabular/CSV/log/structured-data on unclaimed lines
+//! 12. ProseDetector → NaturalLanguage on remaining unclaimed lines
 
 mod types;
 mod config;
@@ -39,6 +41,7 @@ use format_detector::FormatDetector;
 use language::LanguageDetector;
 use negative::{NegativeFilter, NegativeResult};
 use pre_screen::pre_screen;
+use prose_detector::ProseDetector;
 use scope::ScopeTracker;
 use structural::StructuralDetector;
 use syntax::SyntaxDetector;
@@ -56,6 +59,8 @@ pub struct ZoneOrchestrator {
     assembler: BlockAssembler,
     language: LanguageDetector,
     scope: ScopeTracker,
+    data: DataDetector,
+    prose: ProseDetector,
 }
 
 /// Compatible type pairs for post-merge.
@@ -78,6 +83,8 @@ impl ZoneOrchestrator {
             assembler: BlockAssembler::new(patterns, config),
             language: LanguageDetector::new(patterns),
             scope: ScopeTracker::new(patterns),
+            data: DataDetector::default(),
+            prose: ProseDetector::default(),
         }
     }
 
@@ -105,10 +112,26 @@ impl ZoneOrchestrator {
 
         // 2. Pre-screen fast path
         if self.config.pre_screen_enabled && !pre_screen(text) {
+            // No code signals — skip steps 3-10, go straight to data/prose
+            let mut blocks = Vec::new();
+            let mut claimed: HashSet<usize> = HashSet::new();
+
+            if self.config.data_detector_enabled {
+                let (data_blocks, new_claimed) = self.data.detect(&lines, &claimed);
+                claimed = new_claimed;
+                blocks.extend(data_blocks);
+            }
+            if self.config.prose_detector_enabled {
+                let prose_blocks = self.prose.detect(&lines, &claimed);
+                blocks.extend(prose_blocks);
+            }
+
+            blocks.sort_by_key(|b| b.start_line);
+
             return PromptZones {
                 prompt_id: prompt_id.to_string(),
                 total_lines,
-                blocks: vec![],
+                blocks,
             };
         }
 
@@ -201,6 +224,30 @@ impl ZoneOrchestrator {
 
         // 10. Merge adjacent compatible blocks
         all_blocks = Self::merge_adjacent(all_blocks, &lines);
+
+        // Build claimed set from all existing blocks
+        let mut all_claimed: HashSet<usize> = HashSet::new();
+        for b in &all_blocks {
+            for i in b.start_line..b.end_line {
+                all_claimed.insert(i);
+            }
+        }
+
+        // 11. Data detection on unclaimed lines
+        if self.config.data_detector_enabled {
+            let (data_blocks, new_claimed) = self.data.detect(&lines, &all_claimed);
+            all_claimed = new_claimed;
+            all_blocks.extend(data_blocks);
+        }
+
+        // 12. Prose detection on remaining unclaimed lines
+        if self.config.prose_detector_enabled {
+            let prose_blocks = self.prose.detect(&lines, &all_claimed);
+            all_blocks.extend(prose_blocks);
+        }
+
+        // Re-sort after adding new blocks
+        all_blocks.sort_by_key(|b| b.start_line);
 
         PromptZones {
             prompt_id: prompt_id.to_string(),
@@ -428,10 +475,11 @@ mod tests {
     }
 
     #[test]
-    fn test_pure_prose_no_blocks() {
+    fn test_pure_prose_gets_natural_language_block() {
         let o = make_orchestrator();
         let result = o.detect_zones("This is a simple sentence about the weather.", "test");
-        assert!(result.blocks.is_empty());
+        assert!(!result.blocks.is_empty(), "prose should get a block");
+        assert_eq!(result.blocks[0].zone_type, ZoneType::NaturalLanguage);
     }
 
     #[test]
@@ -440,8 +488,9 @@ mod tests {
         let text = "Here is some code:\n```python\ndef foo():\n    return 42\n```\nThat's it.";
         let result = o.detect_zones(text, "test");
         assert!(!result.blocks.is_empty(), "should detect fenced block");
-        assert_eq!(result.blocks[0].zone_type, ZoneType::Code);
-        assert_eq!(result.blocks[0].language_hint, "python");
+        let code_block = result.blocks.iter().find(|b| b.zone_type == ZoneType::Code);
+        assert!(code_block.is_some(), "should have a Code block");
+        assert_eq!(code_block.unwrap().language_hint, "python");
     }
 
     #[test]
