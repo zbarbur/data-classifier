@@ -272,3 +272,53 @@ class TestConfidenceGapSuppression:
         result = _apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=1.0)
         # Both specificity=3, so confidence breaks tie — EMAIL first
         assert result[0].entity_type == "EMAIL"
+
+    def test_gap_baseline_uses_max_not_specificity_promoted_top(self, profile) -> None:
+        """Gap suppression baseline must be true max confidence, not position-0
+        after within-family specificity reorder.
+
+        Regression: when within-family specificity promotes a lower-confidence
+        finding to position 0 (ADDRESS 0.70 over PERSON_NAME 0.96), a naive
+        ``top_confidence = sorted_findings[0].confidence`` would underestimate
+        the baseline and let cross-family secondaries that should be suppressed
+        survive.
+        """
+        from data_classifier import _apply_findings_limit
+
+        findings = [
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="PERSON_NAME",
+                category="PII",
+                sensitivity="HIGH",
+                confidence=0.96,
+                regulatory=[],
+                engine="gliner2",
+            ),
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="ADDRESS",
+                category="PII",
+                sensitivity="HIGH",
+                confidence=0.70,
+                regulatory=[],
+                engine="gliner2",
+            ),
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="SSN",
+                category="PII",
+                sensitivity="CRITICAL",
+                confidence=0.65,
+                regulatory=[],
+                engine="regex",
+            ),
+        ]
+        result = _apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=0.30)
+        types = [f.entity_type for f in result]
+        # ADDRESS is primary (specificity within CONTACT)
+        assert result[0].entity_type == "ADDRESS"
+        # PERSON_NAME survives (same family, gap = 0.96 - 0.96 = 0)
+        assert "PERSON_NAME" in types
+        # SSN suppressed: true top is 0.96, gap = 0.96 - 0.65 = 0.31 > 0.30
+        assert "SSN" not in types, f"SSN should be gap-suppressed against true top 0.96, got: {types}"

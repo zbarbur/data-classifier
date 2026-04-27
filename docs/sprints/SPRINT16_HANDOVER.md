@@ -15,10 +15,10 @@ primary-label fix that emerged from the ADDRESS↔PERSON_NAME investigation.
 
 | Metric | S15 | S16 | Delta |
 |---|---|---|---|
-| LIVE `cross_family_rate` | 0.1066 | **0.0799** | -0.0267 (better) |
-| LIVE `family_macro_f1` | 0.9477 | **0.9737** | +0.0260 |
-| SHADOW `cross_family_rate` | 0.3245 | **0.3150** | -0.0095 (better) |
-| SHADOW `family_macro_f1` | 0.7030 | **0.8276** | +0.1246 |
+| LIVE `cross_family_rate` | 0.1066 | **0.0808** | -0.0258 (better) |
+| LIVE `family_macro_f1` | 0.9477 | **0.9732** | +0.0255 |
+| SHADOW `cross_family_rate` | 0.3245 | **0.3139** | -0.0106 (better) |
+| SHADOW `family_macro_f1` | 0.7030 | **0.8305** | +0.1275 |
 
 Sprint gate metric (`shadow.cross_family_rate`) improved from baseline.
 Summary saved to `docs/research/meta_classifier/sprint16_family_benchmark.json`.

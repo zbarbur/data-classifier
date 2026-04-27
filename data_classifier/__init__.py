@@ -350,7 +350,12 @@ def _apply_findings_limit(
     if max_findings is not None:
         return sorted_findings[:max_findings]
 
-    top_confidence = sorted_findings[0].confidence
+    # Use the global max confidence, not sorted_findings[0]: the within-family
+    # specificity reorder above can promote a lower-confidence finding to
+    # position 0 (e.g. ADDRESS 0.70 over PERSON_NAME 0.96 in CONTACT). Using
+    # position-0 confidence here would deflate the gap baseline and let
+    # cross-family secondaries that should be suppressed survive.
+    top_confidence = max(f.confidence for f in sorted_findings)
 
     # Aggressive suppression: when primary dominates, tighten the gap
     effective_gap = confidence_gap_threshold
