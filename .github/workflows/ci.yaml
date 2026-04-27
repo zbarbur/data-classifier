@@ -21,13 +21,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,meta]"
+        run: uv pip install --system -e ".[dev,meta]"
 
       - name: Install DVC
-        run: pip install 'dvc[gs]'
+        run: uv pip install --system 'dvc[gs]'
 
       - name: Pull test fixtures from DVC
         # GCS auth requires Workload Identity Federation or a service account key.
@@ -95,16 +97,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
       - name: Install dependencies including ml extras
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,meta,ml]"
+        run: uv pip install --system -e ".[dev,meta,ml]"
 
       - name: Diagnostics venv and ml package versions
         run: |
           python -c "import sys; print('python:', sys.executable)"
           python -c "import sys; print('version:', sys.version)"
-          pip list | grep -E '^(gliner|onnxruntime|data_classifier|scikit-learn|numpy)' || true
+          uv pip list | grep -E '^(gliner|onnxruntime|data_classifier|scikit-learn|numpy)' || true
 
       - name: Verify ML engine imports and constructs
         # Does NOT load the model — just confirms the GLiNER2Engine class
@@ -192,13 +196,15 @@ jobs:
         with:
           node-version: "20"
 
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
       - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+        run: uv pip install --system -e ".[dev]"
 
       - name: Install DVC
-        run: pip install 'dvc[gs]'
+        run: uv pip install --system 'dvc[gs]'
 
       - name: Pull test fixtures from DVC
         run: dvc pull tests/fixtures/corpora.dvc || echo "DVC pull skipped (no GCS credentials on this runner)"

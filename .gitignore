@@ -31,6 +31,7 @@ ENV/
 .coverage
 htmlcov/
 .mypy_cache/
+test-results/
 
 # Ruff
 .ruff_cache/

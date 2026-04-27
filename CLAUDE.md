@@ -40,7 +40,7 @@ Only docs 01-05 are relevant for iteration 1 (regex engine).
 - **Browser parity**: Any change to Python detection logic (validators, patterns, scoring) must be followed by `bash scripts/ci_browser_parity.sh` to verify JS stays in sync.
 
 ### Development
-- **Install (editable)**: `pip install -e ".[dev]"`
+- **Install (editable, preferred)**: `uv venv .venv --python 3.14 && uv pip install -e ".[dev,meta,ml-full]"` then `uv pip install gliner2==1.2.6` (gliner2 isn't in pyproject extras but is imported by `gliner_engine.py`). Plain `pip install -e ".[dev]"` still works as a fallback.
 - **Import check**: `python -c "from data_classifier import classify_columns, ColumnInput"`
 
 ## Code Style — Python
