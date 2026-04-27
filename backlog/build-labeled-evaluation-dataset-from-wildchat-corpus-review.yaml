@@ -1,10 +1,10 @@
 title: Build labeled evaluation dataset from WildChat corpus review
-status: doing
+status: backlog
 priority: P1
 category: feature
-sprint_target: 15
+sprint_target: 17
 created: 2026-04-18
-updated: 2026-04-21
+updated: 2026-04-27
 depends_on: []
 tags: []
 goal: ''
@@ -28,7 +28,7 @@ description: "During Sprint 14 secret scanner review, we manually classified 3,5
 acceptance_criteria: []
 test_plan: []
 notes: ''
-phase: plan
+phase: null
 design_reviewed: false
 code_reviewed: false
 comments: []

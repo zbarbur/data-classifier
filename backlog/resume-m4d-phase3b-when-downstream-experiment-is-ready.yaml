@@ -1,0 +1,99 @@
+title: >-
+  Resume M4d Phase 3b -- scale labeled corpus 255 to ~280 cols when a
+  downstream experiment justifies the data
+status: backlog
+priority: P3
+category: chore
+sprint_target: null
+created: 2026-04-27
+updated: 2026-04-27
+depends_on: []
+tags:
+  - meta-classifier
+  - m4d
+  - phase-3b
+  - paused
+  - research-resume
+  - dvc
+goal: >-
+  M4d Phase 3 was paused on 2026-04-27 (Sprint 16) at 255/280 cols on
+  research/meta-classifier so active research focus could shift to
+  research/prompt-analysis (Rust/WASM unified detector, zone v2, browser
+  scanner). Phase 3a gate PASSED (macro Jaccard 0.9268, commit 86bfb5b).
+  Phase 3b corpus and harness are checkpointed and pushed -- see queue.md
+  M4d Phase 3 section on research/meta-classifier (last commit 984a1f0).
+  This item exists so the resume conditions are visible from main, not
+  buried only in the research-branch queue. Resume is justified when a
+  concrete downstream experiment surfaces that needs the larger
+  multi-label labeled corpus -- e.g., the Sprint 15+ Binary Relevance
+  sigmoid-per-class research bet from the multi-label architecture memo
+  (currently still on research/meta-classifier as docs/research/multi_label_philosophy.md,
+  promotion to docs/spec tracked separately as
+  promote-multi-label-architecture-memo-from-research-to-docs-spec).
+  Without a concrete downstream consumer, finishing Phase 3b is data work
+  without a customer.
+complexity: S
+technical_specs:
+  - >-
+    Verify pre-conditions on research/meta-classifier- Phase 3a gate is
+    still passing (re-run scripts/m4d_phase3_score_worksheet.py against
+    data/m4d_phase3_corpus/labeled.jsonl and check macro Jaccard greater
+    than or equal to 0.8). DVC-tracked corpora at data/m4d_phase3b_corpus/
+    are still intact.
+  - >-
+    Sync sprint-N/main into research/meta-classifier per
+    docs/process/research_branch_sync_runbook.md. Last sync was Sprint
+    14 (commit 16f65f2). Sync window will be larger than usual since
+    multiple sprints accumulated during the pause.
+  - >-
+    Bump PILOT_* constants in scripts/m4d_phase3_build_scale_corpus.py to
+    extend from 255 cols to 280 (or further if budget allows). Re-run
+    scripts/run_m4d_phase3_scale.py to label the new slice. Re-build
+    review_worksheet via scripts/m4d_phase3_build_worksheet.py.
+  - >-
+    Human review pass on the new disagreement rows in
+    review_worksheet.jsonl. Re-score with
+    scripts/m4d_phase3_score_worksheet.py. Spot-check auto-approved rows
+    via scripts/m4d_phase3_spot_check_agreed.py.
+  - >-
+    Phase 3a gate threshold (macro Jaccard greater than or equal to 0.8)
+    still applies for Phase 3b. Document any regression vs Phase 3a's
+    0.9268 baseline in the result memo at
+    docs/experiments/meta_classifier/runs/[date]-m4d-phase3b/.
+  - >-
+    Update the queue.md M4d Phase 3 section -- replace the pause
+    checkpoint with a "completed" record citing the result memo, final
+    col count, and the downstream experiment that consumed the data.
+description: ""
+acceptance_criteria:
+  - >-
+    Phase 3b labeled corpus reaches the agreed final col count (280
+    minimum, possibly larger depending on budget at resume time).
+  - >-
+    Macro Jaccard greater than or equal to 0.8 on the human-reviewed
+    Phase 3b worksheet (Phase 3a gate threshold preserved).
+  - >-
+    Spot-check of auto-approved rows shows no systematic
+    co-agreement-on-wrong-label failure mode.
+  - >-
+    Result memo at docs/experiments/meta_classifier/runs/[date]-m4d-phase3b/
+    documents final stats, downstream consumer, any regression vs Phase
+    3a baseline.
+  - >-
+    queue.md M4d Phase 3 section flipped from paused to complete with a
+    pointer to the result memo.
+test_plan:
+  - >-
+    Run agile-backlog show on this item before starting -- confirm
+    pre-conditions are still met (Phase 3a gate, DVC corpus integrity,
+    main sync done).
+  - >-
+    After Phase 3b labeling pass, run all four harness scripts in order
+    (build_scale_corpus, run_scale, build_worksheet, score_worksheet,
+    spot_check_agreed) and verify each completes cleanly.
+notes: ""
+phase: backlog
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

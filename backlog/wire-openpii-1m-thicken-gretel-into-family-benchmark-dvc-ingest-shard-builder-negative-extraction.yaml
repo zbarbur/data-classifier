@@ -1,11 +1,11 @@
 title: "Wire openpii-1m + thicken Gretel into family benchmark \u2014 DVC ingest,\
   \ shard builder, NEGATIVE extraction"
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 15
 created: 2026-04-21
-updated: 2026-04-21
+updated: 2026-04-25
 depends_on: []
 tags: []
 goal: Add openpii-1m as 4th real corpus in the family benchmark shard builder + re-download
