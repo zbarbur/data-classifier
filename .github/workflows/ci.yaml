@@ -24,6 +24,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          cache-dependency-glob: pyproject.toml
 
       - name: Install dependencies
         run: uv pip install --system -e ".[dev,meta]"
@@ -100,6 +101,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          cache-dependency-glob: pyproject.toml
 
       - name: Install dependencies including ml extras
         run: uv pip install --system -e ".[dev,meta,ml]"
@@ -199,6 +201,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          cache-dependency-glob: pyproject.toml
 
       - name: Install Python dependencies
         run: uv pip install --system -e ".[dev]"
