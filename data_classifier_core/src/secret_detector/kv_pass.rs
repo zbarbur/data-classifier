@@ -10,7 +10,7 @@
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
-use fancy_regex::Regex as FancyRegex;
+use regex::Regex;
 
 use super::config::SecretConfig;
 use super::key_scoring::{self, KeyScorer};
@@ -140,30 +140,30 @@ fn is_traceback_line(text: &str, offset: usize) -> bool {
     let line_end = text[offset..].find('\n').map(|i| offset + i).unwrap_or(text.len());
     let line = text[line_start..line_end].trim();
 
-    static TRACEBACK_PATTERNS: OnceLock<Vec<FancyRegex>> = OnceLock::new();
+    static TRACEBACK_PATTERNS: OnceLock<Vec<Regex>> = OnceLock::new();
     let patterns = TRACEBACK_PATTERNS.get_or_init(|| {
         vec![
             // Python traceback lines
-            FancyRegex::new(r"^\s*Traceback \(most recent").unwrap(),
-            FancyRegex::new(r#"^\s*File ".+", line \d+"#).unwrap(),
-            FancyRegex::new(r"^\s*(?:raise|Raise)\s+\w+").unwrap(),
+            Regex::new(r"^\s*Traceback \(most recent").unwrap(),
+            Regex::new(r#"^\s*File ".+", line \d+"#).unwrap(),
+            Regex::new(r"^\s*(?:raise|Raise)\s+\w+").unwrap(),
             // Python function signatures in tracebacks: "in func_name(param1, param2)"
-            FancyRegex::new(r"^\s*(?:in |at )\w+[\w.]*\(").unwrap(),
+            Regex::new(r"^\s*(?:in |at )\w+[\w.]*\(").unwrap(),
             // Jupyter/IPython cell references
-            FancyRegex::new(r"^\s*Cell In\[").unwrap(),
+            Regex::new(r"^\s*Cell In\[").unwrap(),
             // Generic error lines
-            FancyRegex::new(r"^\s*\w*Error:").unwrap(),
-            FancyRegex::new(r"^\s*\w*Exception:").unwrap(),
+            Regex::new(r"^\s*\w*Error:").unwrap(),
+            Regex::new(r"^\s*\w*Exception:").unwrap(),
             // Java/JS stack traces
-            FancyRegex::new(r"^\s*at\s+[\w.$]+\(").unwrap(),
+            Regex::new(r"^\s*at\s+[\w.$]+\(").unwrap(),
             // Go panic
-            FancyRegex::new(r"^\s*goroutine \d+").unwrap(),
-            FancyRegex::new(r"^\s*panic:").unwrap(),
+            Regex::new(r"^\s*goroutine \d+").unwrap(),
+            Regex::new(r"^\s*panic:").unwrap(),
         ]
     });
 
     for pat in patterns {
-        if pat.is_match(line).unwrap_or(false) {
+        if pat.is_match(line) {
             return true;
         }
     }

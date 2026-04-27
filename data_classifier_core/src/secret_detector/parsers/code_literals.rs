@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use fancy_regex::Regex;
+use regex::Regex;
 
 use super::KVPair;
 
@@ -33,7 +33,7 @@ pub fn parse_code_literals_with_spans(text: &str) -> Vec<KVPair> {
     // Use captures_iter directly — group positions are absolute (relative to
     // the full input text), avoiding the double-match offset bug from
     // find_iter + captures on a substring.
-    for caps in re.captures_iter(text).flatten() {
+    for caps in re.captures_iter(text) {
         let key = match caps.get(1) {
             Some(g) => g.as_str(),
             None => continue,

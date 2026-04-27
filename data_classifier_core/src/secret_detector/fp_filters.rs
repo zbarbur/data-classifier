@@ -14,6 +14,7 @@ use std::collections::HashSet;
 use std::sync::OnceLock;
 
 use fancy_regex::Regex as FancyRegex;
+use regex::Regex;
 
 // ---------------------------------------------------------------------------
 // Static config-value set (union of Python _CONFIG_VALUES + JS configValues)
@@ -37,9 +38,19 @@ fn config_values() -> &'static HashSet<&'static str> {
 // ---------------------------------------------------------------------------
 macro_rules! lazy_re {
     ($name:ident, $pat:expr) => {
+        fn $name() -> &'static Regex {
+            static RE: OnceLock<Regex> = OnceLock::new();
+            RE.get_or_init(|| Regex::new($pat).expect(concat!("fp_filters: bad regex: ", $pat)))
+        }
+    };
+}
+
+// Patterns that require lookaround must use fancy-regex (backtracking engine).
+macro_rules! lazy_fancy_re {
+    ($name:ident, $pat:expr) => {
         fn $name() -> &'static FancyRegex {
             static RE: OnceLock<FancyRegex> = OnceLock::new();
-            RE.get_or_init(|| FancyRegex::new($pat).expect(concat!("fp_filters: bad regex: ", $pat)))
+            RE.get_or_init(|| FancyRegex::new($pat).expect(concat!("fp_filters: bad fancy regex: ", $pat)))
         }
     };
 }
@@ -63,7 +74,7 @@ lazy_re!(re_code_dot_notation, r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)+[;,]?$");
 lazy_re!(re_code_bracket_access, r"^[a-zA-Z_]\w*(\.[a-zA-Z_]\w*)*\[[^\]]+\][;,]?$");
 lazy_re!(re_code_semicolon, r"^[a-zA-Z_]\w*;$");
 lazy_re!(re_code_call, r"[({].*[=;]");
-lazy_re!(re_shell_variable, r"^\$(?!2[aby]\$|[56]\$|argon2|scrypt)[\w{]");
+lazy_fancy_re!(re_shell_variable, r"^\$(?!2[aby]\$|[56]\$|argon2|scrypt)[\w{]");
 lazy_re!(re_constant_name, r"^[A-Z][A-Z0-9]*([_\-][A-Z0-9]+)+$");
 lazy_re!(re_code_punctuation, r"^[\[\](){}<>,./\\|!@#%^&*\-+=~`;:\s]+$");
 
@@ -156,7 +167,7 @@ pub fn value_is_obviously_not_secret(value: &str, prose_threshold: f64) -> bool 
         return true;
     }
     // Shell/env variable (exclude crypt hash prefixes)
-    if is_match(re_shell_variable(), value) {
+    if is_match_fancy(re_shell_variable(), value) {
         return true;
     }
     // ALL_CAPS constant
@@ -221,10 +232,8 @@ pub fn value_is_obviously_not_secret(value: &str, prose_threshold: f64) -> bool 
         let alpha_count = value.chars().filter(|c| c.is_ascii_alphabetic()).count();
         let len = value.len().max(1);
         if (alpha_count as f64 / len as f64) > 0.90 {
-            if let Ok(captures) = re_camelcase_word().find_iter(value).count_ok() {
-                if captures >= 3 {
-                    return true;
-                }
+            if re_camelcase_word().find_iter(value).count() >= 3 {
+                return true;
             }
         }
     }
@@ -401,32 +410,23 @@ pub fn value_is_obviously_not_secret(value: &str, prose_threshold: f64) -> bool 
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// `fancy_regex::Regex::is_match` wrapper — treats errors as non-match.
+/// `regex::Regex::is_match` — direct call, no Result wrapping needed.
 #[inline]
-fn is_match(re: &FancyRegex, text: &str) -> bool {
+fn is_match(re: &Regex, text: &str) -> bool {
+    re.is_match(text)
+}
+
+/// `regex::Regex::find` (search) — direct call.
+#[inline]
+fn is_find(re: &Regex, text: &str) -> bool {
+    re.find(text).is_some()
+}
+
+/// `fancy_regex::Regex::is_match` wrapper for the few patterns that need
+/// lookaround — treats errors as non-match.
+#[inline]
+fn is_match_fancy(re: &FancyRegex, text: &str) -> bool {
     re.is_match(text).unwrap_or(false)
-}
-
-/// `fancy_regex::Regex::find` (search) wrapper — treats errors as non-match.
-#[inline]
-fn is_find(re: &FancyRegex, text: &str) -> bool {
-    re.find(text).unwrap_or(None).is_some()
-}
-
-/// Helper trait to count fancy_regex find_iter results.
-trait CountOk {
-    fn count_ok(self) -> Result<usize, fancy_regex::Error>;
-}
-
-impl<'r, 't> CountOk for fancy_regex::Matches<'r, 't> {
-    fn count_ok(self) -> Result<usize, fancy_regex::Error> {
-        let mut n = 0usize;
-        for m in self {
-            m?;
-            n += 1;
-        }
-        Ok(n)
-    }
 }
 
 // ---------------------------------------------------------------------------

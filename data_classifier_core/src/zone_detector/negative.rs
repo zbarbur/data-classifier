@@ -4,7 +4,7 @@
 //! positives. Operates on a per-line basis (check_line) and on full blocks
 //! (check_list_prefix).
 
-use fancy_regex::Regex;
+use regex::Regex;
 use serde_json::Value;
 
 /// Result of checking a line against negative signals.
@@ -117,20 +117,20 @@ impl NegativeFilter {
     pub fn check_line(&self, line: &str) -> Option<NegativeResult> {
         // 1. Math patterns -> Suppress
         for pat in &self.math_pats {
-            if pat.is_match(line).unwrap_or(false) {
+            if pat.is_match(line) {
                 return Some(NegativeResult::Suppress);
             }
         }
 
         // 2. Error output patterns -> ErrorOutput
         for pat in &self.error_output {
-            if pat.is_match(line).unwrap_or(false) {
+            if pat.is_match(line) {
                 return Some(NegativeResult::ErrorOutput);
             }
         }
 
         // 3. Prose pattern -> Suppress
-        if self.prose_re.is_match(line).unwrap_or(false)
+        if self.prose_re.is_match(line)
             && alpha_ratio(line) > self.prose_min_alpha
         {
             return Some(NegativeResult::Suppress);
@@ -138,7 +138,7 @@ impl NegativeFilter {
 
         // 4. Dialog patterns -> Suppress
         for pat in &self.dialog_pats {
-            if pat.is_match(line).unwrap_or(false)
+            if pat.is_match(line)
                 && alpha_ratio(line) > self.dialog_min_alpha
             {
                 return Some(NegativeResult::Suppress);
@@ -147,7 +147,7 @@ impl NegativeFilter {
 
         // 5. Ratio patterns -> Suppress
         for pat in &self.ratio_pats {
-            if pat.is_match(line).unwrap_or(false) {
+            if pat.is_match(line) {
                 return Some(NegativeResult::Suppress);
             }
         }
@@ -163,7 +163,7 @@ impl NegativeFilter {
         }
         let matched = non_empty
             .iter()
-            .filter(|l| self.list_prefix_re.is_match(l).unwrap_or(false))
+            .filter(|l| self.list_prefix_re.is_match(l))
             .count();
         (matched as f64 / non_empty.len() as f64) > self.list_threshold
     }

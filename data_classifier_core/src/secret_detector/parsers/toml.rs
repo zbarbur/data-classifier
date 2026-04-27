@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use fancy_regex::Regex;
+use regex::Regex;
 
 use super::KVPair;
 
@@ -39,7 +39,7 @@ pub fn parse_toml_with_spans(text: &str) -> Vec<KVPair> {
         let line = &text[line_start..line_end];
 
         // Check if this is a section header
-        if let Ok(Some(caps)) = section_re.captures(line) {
+        if let Some(caps) = section_re.captures(line) {
             if let Some(g) = caps.get(1) {
                 current_section = Some(g.as_str().trim().to_string());
             }
@@ -47,7 +47,7 @@ pub fn parse_toml_with_spans(text: &str) -> Vec<KVPair> {
         }
 
         // Try to match a key-value line
-        let Ok(Some(caps)) = kv_re.captures(line) else {
+        let Some(caps) = kv_re.captures(line) else {
             continue;
         };
 

@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use fancy_regex::Regex;
+use regex::Regex;
 
 use super::{url_decode, KVPair};
 
@@ -68,7 +68,7 @@ pub fn parse_connection_str_with_spans(text: &str) -> Vec<KVPair> {
     let mut results: Vec<KVPair> = Vec::new();
 
     // 1. JDBC
-    if let Ok(Some(caps)) = jdbc_regex().captures(text) {
+    if let Some(caps) = jdbc_regex().captures(text) {
         if let Some(g) = caps.get(1) {
             let raw = g.as_str().trim().to_string();
             let decoded = url_decode(&raw);
@@ -85,7 +85,7 @@ pub fn parse_connection_str_with_spans(text: &str) -> Vec<KVPair> {
     }
 
     // 2. ODBC / DSN
-    if let Ok(Some(caps)) = odbc_regex().captures(text) {
+    if let Some(caps) = odbc_regex().captures(text) {
         if let Some(g) = caps.get(1) {
             let raw = g.as_str().trim().to_string();
             let decoded = url_decode(&raw);
@@ -102,7 +102,7 @@ pub fn parse_connection_str_with_spans(text: &str) -> Vec<KVPair> {
     }
 
     // 3. Redis URI (before generic URI — more specific pattern)
-    if let Ok(Some(caps)) = redis_uri_regex().captures(text) {
+    if let Some(caps) = redis_uri_regex().captures(text) {
         // group 1 = password-only (`:pass@`), group 3 = `user:pass@` style
         let group = caps.get(1).or_else(|| caps.get(3));
         if let Some(g) = group {
@@ -121,7 +121,7 @@ pub fn parse_connection_str_with_spans(text: &str) -> Vec<KVPair> {
     }
 
     // 4. Generic URI userinfo: scheme://user:password@host
-    if let Ok(Some(caps)) = uri_userinfo_regex().captures(text) {
+    if let Some(caps) = uri_userinfo_regex().captures(text) {
         if let Some(g) = caps.get(2) {
             let raw = g.as_str().to_string();
             let decoded = url_decode(&raw);
@@ -138,7 +138,7 @@ pub fn parse_connection_str_with_spans(text: &str) -> Vec<KVPair> {
     }
 
     // 5. Generic semicolon-delimited password=xxx
-    if let Ok(Some(caps)) = connstr_kv_regex().captures(text) {
+    if let Some(caps) = connstr_kv_regex().captures(text) {
         if let Some(g) = caps.get(1) {
             let raw = g.as_str().trim().to_string();
             let decoded = url_decode(&raw);

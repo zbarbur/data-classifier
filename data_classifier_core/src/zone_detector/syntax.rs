@@ -9,7 +9,8 @@
 //! 2. `score_with_fragments()` — adds fragment-family boost
 //! 3. `score_lines()` — 3-pass: raw → context smoothing → multi-line comment bridge
 
-use fancy_regex::Regex;
+use fancy_regex::Regex as FancyRegex;
+use regex::Regex;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
@@ -78,7 +79,9 @@ pub struct SyntaxDetector {
 
     // --- intro phrase and comment marker ---
     intro_phrase_re: Regex,
-    comment_marker_re: Regex,
+    // Requires fancy-regex: lookahead/lookbehind
+    // Pattern uses (?!include|define|ifdef|ifndef|endif|pragma) and (?!/)
+    comment_marker_re: FancyRegex,
 
     // --- tokenizer integration ---
     keyword_set: HashSet<String>,
@@ -122,7 +125,7 @@ impl SyntaxDetector {
         let strict_kw_re = if !strict.is_empty() {
             let alt = strict
                 .iter()
-                .map(|k| fancy_regex::escape(k))
+                .map(|k| regex::escape(k))
                 .collect::<Vec<_>>()
                 .join("|");
             Regex::new(&format!(r"\b(?:{})\b", alt)).ok()
@@ -133,7 +136,7 @@ impl SyntaxDetector {
         let contextual_kw_re = if !contextual.is_empty() {
             let alt = contextual
                 .iter()
-                .map(|k| fancy_regex::escape(k))
+                .map(|k| regex::escape(k))
                 .collect::<Vec<_>>()
                 .join("|");
             Regex::new(&format!(r"\b(?:{})\b", alt)).ok()
@@ -203,6 +206,8 @@ impl SyntaxDetector {
         let intro_phrase_re = Regex::new(&format!("(?i){}", intro_pattern))
             .unwrap_or_else(|_| Regex::new(intro_default).expect("default"));
 
+        // Requires fancy-regex: lookahead/lookbehind
+        // Pattern uses (?!include|define|ifdef|ifndef|endif|pragma) and (?!/)
         let comment_pattern = syntax
             .get("comment_marker_pattern")
             .and_then(|v| v.as_str())
@@ -210,8 +215,8 @@ impl SyntaxDetector {
                 r"^\s*(?:#(?!include|define|ifdef|ifndef|endif|pragma)|//|--|/\*|\*(?!/)| \*\s|%|REM\s)",
             );
         let comment_default = r"^\s*(?:#(?!include|define|ifdef|ifndef|endif|pragma)|//|--|/\*|\*(?!/)| \*\s|%|REM\s)";
-        let comment_marker_re = Regex::new(comment_pattern)
-            .unwrap_or_else(|_| Regex::new(comment_default).expect("default"));
+        let comment_marker_re = FancyRegex::new(comment_pattern)
+            .unwrap_or_else(|_| FancyRegex::new(comment_default).expect("default"));
 
         // --- tokenizer integration ---
         // Tokenizer only knows strict keywords (contextual are validated by
@@ -315,7 +320,7 @@ impl SyntaxDetector {
         }
 
         // 4. assignment pattern
-        if self.assignment_re.is_match(stripped).unwrap_or(false) {
+        if self.assignment_re.is_match(stripped) {
             score += self.assignment_weight;
         }
 
@@ -352,16 +357,12 @@ impl SyntaxDetector {
 
         // Strict: always count
         if let Some(ref re) = self.strict_kw_re {
-            count += re.find_iter(line).filter_map(|m| m.ok()).count();
+            count += re.find_iter(line).count();
         }
 
         // Contextual: validate structural context
         if let Some(ref re) = self.contextual_kw_re {
             for m in re.find_iter(line) {
-                let m = match m {
-                    Ok(m) => m,
-                    Err(_) => continue,
-                };
                 let pos = m.start();
                 let after = &line[m.end()..];
                 let before = &line[..pos];
@@ -439,7 +440,7 @@ impl SyntaxDetector {
     /// and penalizes pure number/string rows.
     fn expression_adjustment(&self, profile: &TokenProfile, line: &str) -> f64 {
         // Function call: ident( — boost when identifier + parens
-        if self.func_call_re.is_match(line).unwrap_or(false) && profile.identifier_count >= 1 {
+        if self.func_call_re.is_match(line) && profile.identifier_count >= 1 {
             return self.expr_call_boost;
         }
 
@@ -465,7 +466,7 @@ impl SyntaxDetector {
 
         for (family, patterns) in &self.fragment_families {
             for pat in patterns {
-                if pat.is_match(line).unwrap_or(false) {
+                if pat.is_match(line) {
                     return ((score + self.fragment_match_boost).min(1.0), Some(family.clone()));
                 }
             }
@@ -526,16 +527,12 @@ impl SyntaxDetector {
                         transition_boost = self.transition_colon_boost;
                     }
                 }
-                if self
-                    .intro_phrase_re
-                    .is_match(lines[i - 1])
-                    .unwrap_or(false)
-                {
+                if self.intro_phrase_re.is_match(lines[i - 1]) {
                     transition_boost = transition_boost.max(self.transition_phrase_boost);
                 }
             }
 
-            // single-line comment bridge
+            // single-line comment bridge (comment_marker_re is FancyRegex)
             let mut comment_bridge = 0.0;
             if raw[i] == 0.0
                 && neighbor_avg > 0.3
@@ -641,7 +638,7 @@ impl SyntaxDetector {
         for line in lines {
             for (family, patterns) in &self.fragment_families {
                 for pat in patterns {
-                    if pat.is_match(line).unwrap_or(false) {
+                    if pat.is_match(line) {
                         *hits.entry(family.clone()).or_insert(0) += 1;
                         break; // one hit per family per line
                     }

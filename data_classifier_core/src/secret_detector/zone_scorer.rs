@@ -28,8 +28,8 @@ pub struct ZoneScorer {
     rules: Vec<ScoringRule>,
     suppression_threshold: f64, // default 0.30 — below this, finding is dropped
     max_confidence: f64,        // default 0.99
-    literal_patterns: Vec<fancy_regex::Regex>,
-    expression_patterns: Vec<fancy_regex::Regex>,
+    literal_patterns: Vec<regex::Regex>,
+    expression_patterns: Vec<regex::Regex>,
 }
 
 impl ZoneScorer {
@@ -123,14 +123,14 @@ impl ZoneScorer {
     fn detect_value_context(&self, line: &str, _finding: &Finding) -> String {
         // Check literal patterns first (assignment of quoted value)
         for re in &self.literal_patterns {
-            if re.is_match(line).unwrap_or(false) {
+            if re.is_match(line) {
                 return "literal".to_string();
             }
         }
 
         // Check expression patterns (code reference)
         for re in &self.expression_patterns {
-            if re.is_match(line).unwrap_or(false) {
+            if re.is_match(line) {
                 return "expression".to_string();
             }
         }
@@ -144,7 +144,7 @@ fn compile_patterns(
     zone_scoring: Option<&serde_json::Value>,
     section: &str,
     key: &str,
-) -> Vec<fancy_regex::Regex> {
+) -> Vec<regex::Regex> {
     zone_scoring
         .and_then(|zs| zs.get(section))
         .and_then(|s| s.get(key))
@@ -152,7 +152,7 @@ fn compile_patterns(
         .map(|arr| {
             arr.iter()
                 .filter_map(|v| v.as_str())
-                .filter_map(|s| fancy_regex::Regex::new(s).ok())
+                .filter_map(|s| regex::Regex::new(s).ok())
                 .collect()
         })
         .unwrap_or_default()

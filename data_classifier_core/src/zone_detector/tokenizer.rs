@@ -4,7 +4,7 @@
 //! characters into identifiers, keywords, operators, strings,
 //! numbers, dot access, and delimiters.
 
-use fancy_regex::Regex;
+use regex::Regex;
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
@@ -74,13 +74,11 @@ pub fn tokenize_line(line: &str, keywords: &HashSet<String>) -> TokenProfile {
     let mut identifier_count = 0;
     let mut keyword_count = 0;
     for m in IDENTIFIER_RE.find_iter(&no_strings) {
-        if let Ok(m) = m {
-            let word = m.as_str();
-            if keywords.contains(word) {
-                keyword_count += 1;
-            } else {
-                identifier_count += 1;
-            }
+        let word = m.as_str();
+        if keywords.contains(word) {
+            keyword_count += 1;
+        } else {
+            identifier_count += 1;
         }
     }
 

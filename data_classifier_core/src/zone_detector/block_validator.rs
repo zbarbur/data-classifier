@@ -6,7 +6,8 @@
 //! - Suppress math notation blocks with weak evidence (≤2 constructs)
 //! - Boost blocks with strong evidence (3+ constructs)
 
-use fancy_regex::Regex;
+use fancy_regex::Regex as FancyRegex;
+use regex::Regex;
 use std::sync::LazyLock;
 
 // --- Construct patterns ---
@@ -15,8 +16,9 @@ static FUNC_DEF_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^\s*(?:def|function|func|fn|sub)\s+[a-zA-Z_]\w*\s*\(").unwrap()
 });
 
-static ASSIGNMENT_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?m)^\s*[a-zA-Z_]\w*(?:\.\w+)*\s*(?::?\s*\w+\s*)?=(?!=)\s*\S").unwrap()
+// Requires fancy-regex: lookahead =(?!=)
+static ASSIGNMENT_RE: LazyLock<FancyRegex> = LazyLock::new(|| {
+    FancyRegex::new(r"(?m)^\s*[a-zA-Z_]\w*(?:\.\w+)*\s*(?::?\s*\w+\s*)?=(?!=)\s*\S").unwrap()
 });
 
 static IMPORT_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -51,8 +53,9 @@ static SEMICOLON_STMT_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)\S.*;\s*$").unwrap()
 });
 
-static FUNC_CALL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?<!\\)\b[a-zA-Z_]\w*\(").unwrap()
+// Requires fancy-regex: lookbehind (?<!\\)
+static FUNC_CALL_RE: LazyLock<FancyRegex> = LazyLock::new(|| {
+    FancyRegex::new(r"(?<!\\)\b[a-zA-Z_]\w*\(").unwrap()
 });
 
 static SQL_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -76,9 +79,9 @@ static UNICODE_MATH_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// Count distinct code construct types found in the block text.
 /// Each pattern is counted at most once. Returns 0–13.
 pub fn count_code_constructs(block_text: &str) -> usize {
-    let patterns: &[&LazyLock<Regex>] = &[
+    // Standard regex patterns (linear-time guaranteed)
+    let std_patterns: &[&LazyLock<Regex>] = &[
         &FUNC_DEF_RE,
-        &ASSIGNMENT_RE,
         &IMPORT_RE,
         &CLASS_DEF_RE,
         &CONTROL_FLOW_RE,
@@ -87,21 +90,32 @@ pub fn count_code_constructs(block_text: &str) -> usize {
         &PREPROCESSOR_RE,
         &RETURN_RE,
         &SEMICOLON_STMT_RE,
-        &FUNC_CALL_RE,
         &SQL_RE,
         &R_ASSIGNMENT_RE,
     ];
 
-    patterns
+    let mut count = std_patterns
+        .iter()
+        .filter(|pat| pat.is_match(block_text))
+        .count();
+
+    // FancyRegex patterns (require lookaround/lookbehind)
+    let fancy_patterns: &[&LazyLock<FancyRegex>] = &[
+        &ASSIGNMENT_RE, // =(?!=) lookahead
+        &FUNC_CALL_RE,  // (?<!\\) lookbehind
+    ];
+
+    count += fancy_patterns
         .iter()
         .filter(|pat| pat.is_match(block_text).unwrap_or(false))
-        .count()
+        .count();
+
+    count
 }
 
 /// Return true if the block contains LaTeX commands or Unicode math symbols.
 pub fn has_math_notation(block_text: &str) -> bool {
-    LATEX_CMD_RE.is_match(block_text).unwrap_or(false)
-        || UNICODE_MATH_RE.is_match(block_text).unwrap_or(false)
+    LATEX_CMD_RE.is_match(block_text) || UNICODE_MATH_RE.is_match(block_text)
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use fancy_regex::Regex;
+use regex::Regex;
 
 use super::KVPair;
 
@@ -33,7 +33,7 @@ pub fn parse_yaml_with_spans(text: &str) -> Vec<KVPair> {
 
     for (line_start, line_end) in line_ranges(text) {
         let line = &text[line_start..line_end];
-        let Ok(Some(caps)) = re.captures(line) else {
+        let Some(caps) = re.captures(line) else {
             continue;
         };
 

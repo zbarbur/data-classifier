@@ -4,7 +4,7 @@
 //! Receives fragment_hits from SyntaxDetector.fragment_hits_for_block().
 //! Enriches ZoneBlocks with language_hint and language_confidence.
 
-use fancy_regex::Regex;
+use regex::Regex;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -90,7 +90,7 @@ impl LanguageDetector {
         for (lang, compiled_pats) in &self.c_family_markers {
             let count = compiled_pats
                 .iter()
-                .filter(|pat| pat.is_match(&joined).unwrap_or(false))
+                .filter(|pat| pat.is_match(&joined))
                 .count();
             if count > 0 {
                 scores.insert(lang, count);

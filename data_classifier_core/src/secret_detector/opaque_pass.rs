@@ -11,7 +11,7 @@
 
 use std::collections::HashSet;
 
-use fancy_regex::Regex;
+use regex::Regex;
 
 use super::config::SecretConfig;
 use super::entropy;
@@ -77,10 +77,6 @@ impl OpaquePass {
         let token_re = Regex::new(r"\S+").expect("opaque_pass: token regex compile error");
 
         for m in token_re.find_iter(text) {
-            let m = match m {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
 
             let token = &text[m.start()..m.end()];
             let start = m.start();
@@ -110,7 +106,7 @@ impl OpaquePass {
             }
 
             // UUID rejection — UUIDs are identifiers, not secrets.
-            if self.uuid_re.is_match(cleaned).unwrap_or(false) {
+            if self.uuid_re.is_match(cleaned) {
                 continue;
             }
 

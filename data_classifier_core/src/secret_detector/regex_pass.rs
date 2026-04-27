@@ -10,7 +10,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use fancy_regex::Regex;
+use regex::Regex;
 
 use super::fp_filters;
 use super::types::{self, Finding, Match};
@@ -169,10 +169,6 @@ impl RegexPass {
             }
 
             for m in pattern.regex.find_iter(text) {
-                let m = match m {
-                    Ok(m) => m,
-                    Err(_) => continue,
-                };
 
                 let value = &text[m.start()..m.end()];
                 let value_trimmed = value.trim();
@@ -256,7 +252,7 @@ impl RegexPass {
 
     /// Check if a value matches any allowlist regex.
     fn matches_allowlist(&self, value: &str, allowlist: &[Regex]) -> bool {
-        allowlist.iter().any(|re| re.is_match(value).unwrap_or(false))
+        allowlist.iter().any(|re| re.is_match(value))
     }
 }
 

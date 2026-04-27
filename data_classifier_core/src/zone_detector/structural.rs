@@ -6,7 +6,7 @@
 //! Note: /* */ and <!-- --> are NOT claimed — they are part of surrounding
 //! code/markup context. The syntax scorer's comment_bridge handles them.
 
-use fancy_regex::Regex;
+use regex::Regex;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
@@ -75,17 +75,14 @@ fn classify_interior(inner_lines: &[&str]) -> ZoneType {
 
     let kw_hits = non_empty
         .iter()
-        .filter(|l| CODE_KEYWORDS.is_match(l).unwrap_or(false))
+        .filter(|l| CODE_KEYWORDS.is_match(l))
         .count();
 
     let syn_hits = non_empty
         .iter()
         .filter(|l| {
             let total = l.chars().count().max(1);
-            let syn_count = SYNTACTIC_CHARS
-                .find_iter(l)
-                .filter_map(|m| m.ok())
-                .count();
+            let syn_count = SYNTACTIC_CHARS.find_iter(l).count();
             syn_count as f64 / total as f64 > 0.05
         })
         .count();
@@ -181,8 +178,8 @@ impl StructuralDetector {
         while i < lines.len() {
             let trimmed = lines[i].trim();
             let m = match FENCE_OPEN.captures(trimmed) {
-                Ok(Some(m)) => m,
-                _ => {
+                Some(m) => m,
+                None => {
                     i += 1;
                     continue;
                 }
@@ -201,7 +198,7 @@ impl StructuralDetector {
             let mut j = i + 1;
             while j < lines.len() {
                 let close_trimmed = lines[j].trim();
-                if let Ok(Some(cm)) = FENCE_CLOSE.captures(close_trimmed) {
+                if let Some(cm) = FENCE_CLOSE.captures(close_trimmed) {
                     let close_str = cm.get(1).unwrap().as_str();
                     if close_str.chars().next().unwrap() == fence_char && close_str.len() >= fence_len {
                         break;
@@ -290,7 +287,7 @@ impl StructuralDetector {
 
     /// Build a byte-offset to line-number mapping.
     ///
-    /// fancy_regex returns byte offsets (not character offsets), so this map
+    /// regex returns byte offsets (not character offsets), so this map
     /// must also be byte-based. One entry per byte of the joined text.
     fn build_offset_map(lines: &[&str]) -> Vec<usize> {
         let mut map = Vec::new();
@@ -318,10 +315,6 @@ impl StructuralDetector {
         blocks: &mut Vec<ZoneBlock>,
     ) {
         for m_open in open_re.find_iter(text) {
-            let m_open = match m_open {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
             let start_line = char_to_line(m_open.start());
             if claimed.contains(&start_line) {
                 continue;
@@ -329,8 +322,8 @@ impl StructuralDetector {
 
             let after = &text[m_open.end()..];
             let m_close = match close_re.find(after) {
-                Ok(Some(m)) => m,
-                _ => continue,
+                Some(m) => m,
+                None => continue,
             };
             let close_off = m_open.end() + m_close.end();
             let end_line = char_to_line(close_off - 1) + 1;

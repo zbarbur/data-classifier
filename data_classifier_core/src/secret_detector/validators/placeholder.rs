@@ -2,20 +2,20 @@ use std::collections::HashSet;
 use std::sync::OnceLock;
 
 use fancy_regex::Regex as FancyRegex;
+use regex::Regex;
 
 /// Returns true if `value` matches any known placeholder pattern.
 ///
 /// Port of Python secret_scanner.py:191-237 (`_PLACEHOLDER_PATTERNS`).
-/// Uses `fancy_regex` for the backreference pattern (#2); all others use
-/// the standard `regex`-equivalent API exposed by `fancy_regex`.
+/// Uses `regex` (RE2-equivalent, linear time) for all patterns except the
+/// backreference pattern (#2) which requires `fancy_regex`.
 pub fn is_placeholder_pattern(value: &str) -> bool {
-    static PATTERNS: OnceLock<Vec<FancyRegex>> = OnceLock::new();
-    let patterns = PATTERNS.get_or_init(|| {
+    // Standard regex patterns (RE2-safe, guaranteed linear time)
+    static RE_PATTERNS: OnceLock<Vec<Regex>> = OnceLock::new();
+    let re_patterns = RE_PATTERNS.get_or_init(|| {
         let raw: &[&str] = &[
             // 1. 5+ consecutive X/x
             r"(?i)[xX]{5,}",
-            // 2. 8+ repeated identical chars (backreference — requires fancy_regex)
-            r"(.)\1{7,}",
             // 3. Angle-bracket placeholder <...>
             r"<[^>]{1,80}>",
             // 4. Square-bracket ALL_CAPS placeholder [FOO_BAR]
@@ -52,14 +52,24 @@ pub fn is_placeholder_pattern(value: &str) -> bool {
             r"(?i)\b(changeme|foobar|todo|fixme)\b",
         ];
         raw.iter()
-            .map(|p| FancyRegex::new(p).expect("placeholder pattern compile error"))
+            .map(|p| Regex::new(p).expect("placeholder pattern compile error"))
             .collect()
     });
 
-    for pat in patterns {
-        if pat.is_match(value).unwrap_or(false) {
+    // Backreference pattern (requires fancy_regex — not RE2-safe)
+    static BACKREF_RE: OnceLock<FancyRegex> = OnceLock::new();
+    let backref_re = BACKREF_RE.get_or_init(|| {
+        // 2. 8+ repeated identical chars
+        FancyRegex::new(r"(.)\1{7,}").expect("placeholder backref pattern compile error")
+    });
+
+    for pat in re_patterns {
+        if pat.is_match(value) {
             return true;
         }
+    }
+    if backref_re.is_match(value).unwrap_or(false) {
+        return true;
     }
     false
 }
@@ -82,13 +92,13 @@ pub fn not_placeholder_credential(value: &str, known_placeholders: &HashSet<Stri
     }
 
     // 2. 5+ consecutive X/x
-    static XXXXX: OnceLock<FancyRegex> = OnceLock::new();
-    let xxxxx = XXXXX.get_or_init(|| FancyRegex::new(r"[xX]{5,}").unwrap());
-    if xxxxx.is_match(trimmed).unwrap_or(false) {
+    static XXXXX: OnceLock<Regex> = OnceLock::new();
+    let xxxxx = XXXXX.get_or_init(|| Regex::new(r"[xX]{5,}").unwrap());
+    if xxxxx.is_match(trimmed) {
         return false;
     }
 
-    // 3. 8+ consecutive identical characters (non-X)
+    // 3. 8+ consecutive identical characters (non-X) — requires backreference
     static REPEAT: OnceLock<FancyRegex> = OnceLock::new();
     let repeat = REPEAT.get_or_init(|| FancyRegex::new(r"(.)\1{7,}").unwrap());
     if repeat.is_match(trimmed).unwrap_or(false) {
@@ -96,14 +106,14 @@ pub fn not_placeholder_credential(value: &str, known_placeholders: &HashSet<Stri
     }
 
     // 4. Template prefixes
-    static TEMPLATE: OnceLock<FancyRegex> = OnceLock::new();
+    static TEMPLATE: OnceLock<Regex> = OnceLock::new();
     let template = TEMPLATE.get_or_init(|| {
-        FancyRegex::new(
+        Regex::new(
             r#"(?i)(?:^|[=:\s"'])(?:your[_\-\s]|my[_\-\s]|insert[_\-\s]|put[_\-\s]|replace[_\-\s]|add[_\-\s]|enter[_\-\s])"#,
         )
         .unwrap()
     });
-    if template.is_match(trimmed).unwrap_or(false) {
+    if template.is_match(trimmed) {
         return false;
     }
 

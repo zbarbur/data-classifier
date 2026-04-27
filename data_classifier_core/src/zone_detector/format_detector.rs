@@ -4,7 +4,7 @@
 //! Finds contiguous non-empty candidate regions in unclaimed lines,
 //! then tries each format parser: JSON → XML → YAML → ENV.
 
-use fancy_regex::Regex;
+use regex::Regex;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -254,14 +254,8 @@ impl FormatDetector {
     fn looks_like_xml(&self, text: &str) -> bool {
         let text = text.trim();
 
-        let open_count = XML_OPEN
-            .find_iter(text)
-            .filter_map(|m| m.ok())
-            .count();
-        let close_count = XML_CLOSE
-            .find_iter(text)
-            .filter_map(|m| m.ok())
-            .count();
+        let open_count = XML_OPEN.find_iter(text).count();
+        let close_count = XML_CLOSE.find_iter(text).count();
 
         if open_count < self.xml_min_open_tags || close_count < self.xml_min_close_tags {
             return false;
@@ -270,12 +264,10 @@ impl FormatDetector {
         // Require at least one matched pair
         let open_names: HashSet<String> = XML_TAG_NAME
             .captures_iter(text)
-            .filter_map(|c| c.ok())
             .filter_map(|c| c.get(1).map(|m| m.as_str().to_lowercase()))
             .collect();
         let close_names: HashSet<String> = XML_CLOSE_TAG_NAME
             .captures_iter(text)
-            .filter_map(|c| c.ok())
             .filter_map(|c| c.get(1).map(|m| m.as_str().to_lowercase()))
             .collect();
 
@@ -285,11 +277,11 @@ impl FormatDetector {
     fn looks_like_yaml(&self, lines: &[&str]) -> bool {
         let kv_lines = lines
             .iter()
-            .filter(|l| KV_PATTERN.is_match(l).unwrap_or(false))
+            .filter(|l| KV_PATTERN.is_match(l))
             .count();
         let list_lines = lines
             .iter()
-            .filter(|l| LIST_PATTERN.is_match(l).unwrap_or(false))
+            .filter(|l| LIST_PATTERN.is_match(l))
             .count();
         let non_empty: Vec<&&str> = lines.iter().filter(|l| !l.trim().is_empty()).collect();
         let non_empty_count = non_empty.len();
@@ -318,7 +310,7 @@ impl FormatDetector {
         // Reject blocks where most "keys" are long multi-word phrases
         let mut long_key_count = 0;
         for l in lines {
-            if let Ok(Some(caps)) = YAML_KEY_EXTRACT.captures(l) {
+            if let Some(caps) = YAML_KEY_EXTRACT.captures(l) {
                 if let Some(key_match) = caps.get(2) {
                     let key = key_match.as_str().trim();
                     if key.split_whitespace().count() > self.yaml_max_key_words {
@@ -339,7 +331,7 @@ impl FormatDetector {
         let non_empty: Vec<&&str> = lines.iter().filter(|l| !l.trim().is_empty()).collect();
         let env_matches = non_empty
             .iter()
-            .filter(|l| ENV_PATTERN.is_match(l.trim()).unwrap_or(false))
+            .filter(|l| ENV_PATTERN.is_match(l.trim()))
             .count();
         env_matches >= 2 && env_matches as f64 / non_empty.len().max(1) as f64 > 0.5
     }

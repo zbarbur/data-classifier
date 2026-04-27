@@ -10,7 +10,7 @@
 
 use std::sync::OnceLock;
 
-use fancy_regex::Regex;
+use regex::Regex;
 
 use crate::secret_detector::{config::SecretConfig, entropy, fp_filters};
 
@@ -45,11 +45,11 @@ impl KeyEntry {
         // Pre-compile regex for word_boundary and suffix match types.
         let compiled_re = match match_type.as_str() {
             "word_boundary" => {
-                let pat = format!(r"(^|[_\-\s.]){}($|[_\-\s.])", fancy_regex::escape(&pattern));
+                let pat = format!(r"(^|[_\-\s.]){}($|[_\-\s.])", regex::escape(&pattern));
                 Regex::new(&pat).ok()
             }
             "suffix" => {
-                let pat = format!(r"[_\-\s.]{}$", fancy_regex::escape(&pattern));
+                let pat = format!(r"[_\-\s.]{}$", regex::escape(&pattern));
                 Regex::new(&pat).ok()
             }
             _ => None,
@@ -142,7 +142,7 @@ fn match_key_pattern(key_lower: &str, entry: &KeyEntry) -> bool {
     match entry.match_type.as_str() {
         "word_boundary" | "suffix" => {
             if let Some(re) = &entry.compiled_re {
-                re.is_match(key_lower).unwrap_or(false)
+                re.is_match(key_lower)
             } else {
                 // Fallback: substring if compile failed
                 key_lower.contains(&entry.pattern)
