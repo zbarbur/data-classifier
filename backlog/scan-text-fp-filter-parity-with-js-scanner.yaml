@@ -1,5 +1,5 @@
 title: "scan_text FP filter parity with JS browser scanner"
-status: open
+status: backlog
 priority: P0
 category: bugfix
 sprint_target: 15
@@ -60,8 +60,5 @@ acceptance_criteria:
   - Precision on S4 review corpus improves from 21% to >70%
   - No true positive regressions (16 TPs must still be detected)
 test_plan:
-  type: differential
-  steps:
-    - Run JS scanner and Python scan_text on the same 100 prompts
-    - Compare findings — must be identical (entity_type, start, end)
-    - Run on S4 labeled corpus — measure precision against human verdicts
+  - "Differential: run JS scanner and Python scan_text on the same 100 prompts; findings must be identical (entity_type, start, end)"
+  - "Benchmark: run on S4 labeled corpus and measure precision against human verdicts"
