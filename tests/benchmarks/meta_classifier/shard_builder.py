@@ -47,6 +47,10 @@ from tests.benchmarks.corpus_loader import (
 from tests.benchmarks.corpus_loader import (
     _OPENPII_1M_POST_ETL_IDENTITY as _OPENPII_1M_POOL_IDENTITY,
 )
+from tests.benchmarks.negative_corpus import (
+    flatten_negative_corpus,
+    load_diverse_negative_corpus,
+)
 
 # ── Sharding parameters (Session A §7 TL;DR) ───────────────────────────────
 
@@ -730,6 +734,27 @@ def build_real_corpus_shards(
                 )
             )
             credential_subtype_counts[gt] = already + n
+
+    # Sprint 17: source-diverse NEGATIVE corpus.  Five structurally-distinct
+    # sources (config, code, business, numeric, prose) at 500 values each.
+    # Replaces the homogeneous SecretBench-only NEGATIVE pool as the
+    # primary FP-resistance signal while leaving the SecretBench/gitleaks/
+    # detect_secrets NEGATIVE rows in place for credential-specific
+    # contrast.  See tests/benchmarks/negative_corpus.py and
+    # docs/research/negative_corpus_sources.md.
+    diverse_neg = load_diverse_negative_corpus()
+    diverse_neg_values = [value for _source, value in flatten_negative_corpus(diverse_neg)]
+    if diverse_neg_values:
+        shards.extend(
+            _emit_shards_for_type(
+                values=diverse_neg_values,
+                ground_truth=NEGATIVE_GROUND_TRUTH,
+                corpus="diverse_negative",
+                source="real",
+                num_shards=shards_per_type,
+                rng=rng,
+            )
+        )
 
     return shards
 
