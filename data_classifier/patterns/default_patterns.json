@@ -2,7 +2,7 @@
   "_metadata": {
     "version": "0.1.0",
     "description": "Curated content-matching patterns for PII, financial, credential, and health data detection. RE2-compatible.",
-    "pattern_count": 77,
+    "pattern_count": 169,
     "last_updated": "2026-04-11",
     "coverage_notes": "Iteration 1: core PII + financial + credential patterns. Benchmarked against Presidio, gitleaks, trufflehog. Service-specific API key patterns from gitleaks audit."
   },
@@ -4275,6 +4275,236 @@
         "token"
       ],
       "display_name": "xAI API Key"
+    },
+    {
+      "name": "de_steuerid",
+      "regex": "\\b\\d{11}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.35,
+      "description": "German Steueridentifikationsnummer (tax ID) — 11 digits with iterative mod-10/11 check digit",
+      "validator": "german_steuerid",
+      "display_name": "German Tax ID",
+      "examples_match": [
+        "12345678903"
+      ],
+      "examples_no_match": [
+        "1234567890",
+        "123456789012",
+        "abcdefghijk"
+      ],
+      "context_words_boost": [
+        "steuerid",
+        "steueridentifikationsnummer",
+        "tax_id",
+        "steuernummer",
+        "finanzamt",
+        "national_id"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "mobile",
+        "account",
+        "order",
+        "invoice"
+      ]
+    },
+    {
+      "name": "fr_nir",
+      "regex": "\\b[12378]\\d{14}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.4,
+      "description": "French NIR/INSEE (social security number) — 15 digits, control key = 97 - (first_13 % 97)",
+      "validator": "french_nir",
+      "display_name": "French NIR",
+      "examples_match": [
+        "254031088723464"
+      ],
+      "examples_no_match": [
+        "12345678901234",
+        "5540310887234990",
+        "abcdefghijklmno"
+      ],
+      "context_words_boost": [
+        "nir",
+        "insee",
+        "securite_sociale",
+        "social_security",
+        "national_id",
+        "numero_secu"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "mobile",
+        "account"
+      ]
+    },
+    {
+      "name": "es_dni",
+      "regex": "\\b\\d{8}[A-Z]\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.5,
+      "description": "Spanish DNI (Documento Nacional de Identidad) — 8 digits + check letter",
+      "validator": "spanish_dni",
+      "display_name": "Spanish DNI",
+      "examples_match": [
+        "12345678Z"
+      ],
+      "examples_no_match": [
+        "1234567Z",
+        "123456789Z",
+        "12345678"
+      ],
+      "context_words_boost": [
+        "dni",
+        "documento",
+        "identidad",
+        "national_id",
+        "nif",
+        "personal_id"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "order",
+        "invoice"
+      ]
+    },
+    {
+      "name": "es_nie",
+      "regex": "\\b[XYZ]\\d{7}[A-Z]\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.7,
+      "description": "Spanish NIE (Número de Identidad de Extranjero) — X/Y/Z prefix + 7 digits + check letter",
+      "validator": "spanish_nie",
+      "display_name": "Spanish NIE",
+      "examples_match": [
+        "X2482300W"
+      ],
+      "examples_no_match": [
+        "A1234567Z",
+        "X123456Z",
+        "X12345678Z"
+      ],
+      "context_words_boost": [
+        "nie",
+        "extranjero",
+        "residencia",
+        "national_id",
+        "foreigner_id"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "order"
+      ]
+    },
+    {
+      "name": "it_codice_fiscale",
+      "regex": "\\b[A-Z]{6}\\d{2}[A-Z]\\d{2}[A-Z]\\d{3}[A-Z]\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.85,
+      "description": "Italian Codice Fiscale (fiscal code) — 16-char alphanumeric with complex check character",
+      "validator": "italian_codice_fiscale",
+      "display_name": "Italian Codice Fiscale",
+      "examples_match": [
+        "RSSMRA85M01H501Q"
+      ],
+      "examples_no_match": [
+        "ABCDEF12G34H567",
+        "1234567890123456",
+        "RSSMRA85M01H501"
+      ],
+      "context_words_boost": [
+        "codice_fiscale",
+        "fiscal_code",
+        "cf",
+        "national_id",
+        "partita_iva"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "serial"
+      ]
+    },
+    {
+      "name": "nl_bsn",
+      "regex": "\\b[1-9]\\d{8}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.35,
+      "description": "Dutch BSN (Burgerservicenummer) — 9 digits, 11-check weighted sum",
+      "validator": "dutch_bsn",
+      "display_name": "Dutch BSN",
+      "examples_match": [
+        "111222333"
+      ],
+      "examples_no_match": [
+        "12345678",
+        "012345678",
+        "abcdefghi"
+      ],
+      "context_words_boost": [
+        "bsn",
+        "burgerservicenummer",
+        "sofi",
+        "national_id",
+        "citizen_number"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "mobile",
+        "account",
+        "order",
+        "zip"
+      ]
+    },
+    {
+      "name": "at_svnr",
+      "regex": "\\b[1-9]\\d{9}\\b",
+      "entity_type": "NATIONAL_ID",
+      "category": "PII",
+      "sensitivity": "HIGH",
+      "confidence": 0.35,
+      "description": "Austrian Sozialversicherungsnummer (social insurance number) — 10 digits with check digit at position 4",
+      "validator": "austrian_svnr",
+      "display_name": "Austrian SVNR",
+      "examples_match": [
+        "1237010180"
+      ],
+      "examples_no_match": [
+        "123456789",
+        "0123456789",
+        "abcdefghij"
+      ],
+      "context_words_boost": [
+        "svnr",
+        "sozialversicherungsnummer",
+        "versicherungsnummer",
+        "national_id",
+        "social_insurance"
+      ],
+      "context_words_suppress": [
+        "phone",
+        "tel",
+        "mobile",
+        "account",
+        "order"
+      ]
     }
   ]
 }

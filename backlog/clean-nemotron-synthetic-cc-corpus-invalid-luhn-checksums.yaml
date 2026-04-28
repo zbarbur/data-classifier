@@ -1,24 +1,59 @@
 title: "Clean Nemotron synthetic CC corpus \u2014 invalid Luhn checksums"
-status: backlog
+status: doing
 priority: P2
 category: bug
-sprint_target: null
+sprint_target: 17
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-04-28
 depends_on: []
-tags: []
-goal: ''
-complexity: null
-technical_specs: []
+tags:
+- corpus,bug,credit-card,luhn,nemotron,ground-truth
+goal: Remove invalid-Luhn synthetic CC values from the Nemotron benchmark corpus by
+  adding a Luhn filter at corpus-load time, so CREDIT_CARD recall reflects detector
+  behavior on legitimate cards rather than ground-truth-wrong shards (52 invalid shards
+  identified during S14 checksum-disambiguation work).
+complexity: S
+technical_specs:
+- "File: tests/benchmarks/corpus_loader.py \u2014 add Luhn check to the Nemotron CC\
+  \ loader path; reuse the existing luhn validator from data_classifier/validators.py\
+  \ rather than re-implementing."
+- "File: tests/benchmarks/corpus_loader.py \u2014 emit a single load-time INFO log:\
+  \ 'Nemotron CC: dropped N/M values failing Luhn (P%)'. Gate at >5% drop rate raises\
+  \ a UserWarning so future corpus drift is visible."
+- "File: tests/test_corpus_loader.py \u2014 add positive test (5317 3687 1025 7642\
+  \ dropped, valid card retained); spec a regression test that fails if the filter\
+  \ is removed or bypassed."
+- 'Sprint handover: record CREDIT_CARD F1 before/after the cleanup as a delta line
+  in the benchmark table; preserves the audit trail for future GT debates.'
 description: "Nemotron generates space-formatted credit card numbers (5317 3687 1025\
   \ 7642) that fail Luhn validation. 52 benchmark shards labeled CREDIT_CARD contain\
   \ invalid card numbers. Our detector correctly rejects them \u2014 the ground truth\
   \ is wrong. Fix: filter Nemotron CC values through Luhn validation, keep only valid\
   \ ones. Discovered during Sprint 14 checksum disambiguation work."
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- tests/benchmarks/corpus_loader.py applies Luhn validation to all Nemotron CREDIT_CARD
+  values at load time; values failing Luhn are dropped (not relabeled).
+- 'Sprint handover documents pre/post counts: how many Nemotron CC shards existed
+  before, how many were dropped, how many remain. Expected drop is approximately 52
+  (S14 finding) - any large deviation is investigated.'
+- CREDIT_CARD F1 recomputed on the cleaned corpus and reported in the handover; absolute
+  number tracked, but the gate is no regression on overall family_macro_f1 vs S16
+  baseline.
+- 'Filter is reusable: future Nemotron corpus refreshes auto-filter, with a load-time
+  log line stating drop count + percentage (data-quality regression signal if drop
+  rate spikes).'
+- 'Tests pass: .venv/bin/python -m pytest tests/ -v'
+- 'Lint clean: ruff check . --exclude .claude/worktrees && ruff format --check . --exclude
+  .claude/worktrees'
+test_plan:
+- 'tests/test_corpus_loader.py: positive case (a known invalid spaced CC value gets
+  dropped) + negative case (a valid Luhn-passing fixture survives loading).'
+- 'tests/benchmarks/family_accuracy_benchmark.py: full benchmark run reports CREDIT_CARD
+  F1 against S16 baseline; handover records the delta.'
+- 'Drop-rate sanity check: if filter drops <40 or >70 values (S14 expected ~52), pause
+  and investigate corpus before merging.'
 notes: ''
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

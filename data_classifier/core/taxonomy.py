@@ -172,4 +172,43 @@ def family_for(entity_type: str | None) -> str:
     return entity_type
 
 
-__all__ = ["ENTITY_TYPE_TO_FAMILY", "FAMILIES", "family_for"]
+# ── Within-family specificity ─────────────────────────────────────────
+#
+# When two findings are in the same family, the more specific entity type
+# should be preferred as primary label even if the less specific one has
+# higher confidence — they're policy-equivalent, and the more specific
+# label is more informative to consumers.
+#
+# Higher value = more specific.  Entity types not listed default to 0.
+# Only families with meaningful specificity gradients need entries.
+ENTITY_SPECIFICITY: dict[str, int] = {
+    # CONTACT: ADDRESS is more specific than PERSON_NAME — an address
+    # column containing person-name-derived street names should label
+    # as ADDRESS, not PERSON_NAME.
+    "ADDRESS": 3,
+    "EMAIL": 3,
+    "PHONE": 3,
+    "PERSON_NAME": 1,
+    # CREDENTIAL: subtypes more specific than generic CREDENTIAL.
+    "API_KEY": 3,
+    "PRIVATE_KEY": 3,
+    "PASSWORD_HASH": 3,
+    "OPAQUE_SECRET": 2,
+    "CREDENTIAL": 1,
+    # GOVERNMENT_ID: specific country IDs over generic NATIONAL_ID.
+    "SSN": 3,
+    "CANADIAN_SIN": 3,
+    "EIN": 3,
+    "NATIONAL_ID": 2,
+}
+
+
+def specificity_for(entity_type: str) -> int:
+    """Return the within-family specificity rank for an entity type.
+
+    Higher = more specific.  Types not in the map return 0.
+    """
+    return ENTITY_SPECIFICITY.get(entity_type, 0)
+
+
+__all__ = ["ENTITY_TYPE_TO_FAMILY", "ENTITY_SPECIFICITY", "FAMILIES", "family_for", "specificity_for"]

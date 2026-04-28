@@ -1,25 +1,26 @@
 # data_classifier — Project Context
 
-> **Last updated:** 2026-04-21 (Sprint 14 complete — directive flip, multi-label scoring, browser PoC, detection quality lift)
+> **Last updated:** 2026-04-28 (Sprint 16 complete — CONTACT + GOVERNMENT_ID recall, EU national-ID phase 1, within-family specificity sort)
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Current sprint | 14 (closed) → 15 (planning) |
-| Release | **v0.8.0** published to Google Artifact Registry. Browser PoC: `data-classifier-browser-0.1.0.zip` via `npm run release`. |
-| Tests | **2272 passing** + 3 skipped + 1 xfailed (~54s local with `[meta]`) |
-| CI | `lint-and-test` green; `lint-and-test-ml` green; `install-test` green; **browser parity CI** added (Sprint 14) |
-| Patterns | **158** content patterns (77 structured + 81 credential) + 283 secret key-name entries |
-| Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, gliner2) + meta-classifier **v6** (live on structured_single, schema v5 with 49 features). Column-shape router (Sprint 13): 3 branches — `structured_single`, `free_text_heterogeneous`, `opaque_tokens`. |
-| Validators | **18** (+1 Sprint 14: `huggingface_token`) |
-| Entity types | **35** in column-name dictionary. **Family taxonomy:** 13 families. Per-pattern findings with `detection_type` and `display_name` (Sprint 14). |
-| Two detection paths | **Structured:** `classify_columns` (column name + sample values). **Unstructured:** `scan_text` (Python) / browser scanner (JS) — must maintain parity. |
-| Corpora | **7** OSI-compatible + DVC-tracked WildChat-1M (Sprint 14). |
-| **Accuracy (family-level, Sprint 14)** | **family_macro_f1 0.9509** (+0.1209 vs Sprint 13), **cross_family_rate 9.15%** (−7.09pp). 5 perfect families (CRYPTO, DATE, NETWORK, PAYMENT_CARD, VEHICLE). 10,470 shards. |
-| **Accuracy (consolidated, Sprint 14)** | Nemotron named F1 0.929, blind F1 0.929. Gretel-EN named F1 0.909, blind F1 0.879. |
-| **Browser scanner** | 77 patterns, P99 0.70ms, 20KB gzipped. 15 WildChat stories in tester. Python–JS parity CI gated. |
-| **Distribution** | Wheel: AR Python repo. Model: AR Generic repo. Browser: `npm run release` → zip. Datasets: DVC + GCS (`gs://data-classifier-datasets`). |
+| Current sprint | 16 (closed) → 17 (planning) |
+| Release | **v0.16.0** published to Google Artifact Registry (Cloud Build `8e2eb02e` succeeded 2026-04-28). |
+| Tests | **2407 passing** + 20 skipped + 1 xfailed (~56s local with `[ml]`) |
+| CI | `lint-and-test` (3.11/3.12/3.13), `lint-and-test-ml` (3.12), `install-test` (3.11/3.12/3.13), `browser-parity` — all green. 3 of 4 jobs migrated to `uv` (Sprint 16). |
+| Patterns | **+7 EU GOVERNMENT_ID** patterns (Sprint 16): DE Steuer-ID, FR NIR, ES DNI, ES NIE, IT Codice Fiscale, NL BSN, AT SVNR. |
+| Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, gliner2) + meta-classifier **v6** (live on structured_single, schema v5 with 49 features). Column-shape router: 3 branches — `structured_single`, `free_text_heterogeneous`, `opaque_tokens`. |
+| Validators | **+7 EU checksum validators** (Sprint 16): `german_steuerid`, `french_nir`, `spanish_dni`, `spanish_nie`, `italian_codice_fiscale`, `dutch_bsn`, `austrian_svnr`. JS port deferred (known parity gap). |
+| Entity types | **Family taxonomy:** 13 families. **`ENTITY_SPECIFICITY` map** (Sprint 16) drives within-family primary-label tie-break (cross-family ordering remains pure-confidence). |
+| Two detection paths | **Structured:** `classify_columns`. **Unstructured:** `scan_text` (Python) / browser scanner (JS) — parity gated. |
+| Corpora | 7 OSI-compatible + DVC-tracked WildChat-1M + openpii-1m (Sprint 15). |
+| **Accuracy (family-level, Sprint 16, no-ML)** | **family_macro_f1 0.9732** (+0.0255 vs S15), **cross_family_rate 8.08%** (-2.58pp). Sprint gate metric `shadow.cross_family_rate` 0.3245 → **0.3139**. |
+| **Accuracy (ML-enabled reference)** | family_macro_f1 0.9903, cross_family_rate 2.91%. CONTACT F1 0.966 (+0.170), ADDRESS subtype F1 0.942 (+0.300), PERSON_NAME F1 0.948 (+0.302). |
+| **Browser scanner** | Python–JS parity CI gated. 87% WildChat parity (25 Python-only OPAQUE_SECRET = known gap, port-opaquetokenpass in S17 backlog). |
+| **Distribution** | Wheel: AR Python repo. Model: AR Generic repo (urchade-gliner-multi-pii-v1, unchanged since S8). Browser: `npm run release` → zip. Datasets: DVC + GCS (`gs://data-classifier-datasets`). |
+| **Dev tooling** | `uv` for venv + install (Sprint 16, 40-87% .venv size reduction); `gliner2==1.2.6` requires manual install (not in pyproject extras). |
 
 ## Architecture
 
@@ -116,6 +117,8 @@
 | 11 | Measurement honesty + Sprint 10 cleanup + meta-classifier v3 / family taxonomy | Complete | 1520 | Meta-classifier v3, family taxonomy (13 families), Nemotron named 1.000, blind 0.833, canonical family benchmark adopted |
 | 13 | Column-shape router + per-value GLiNER + S0 precision | Complete | 1711 | 3-branch column-shape router, per-value GLiNER aggregation, opaque-token handler, S0 precision fixes, shadow cross_family 0.0004 |
 | 14 | Directive flip + multi-label scoring + browser PoC + detection quality | Complete | 2272 | Meta-classifier v6 live (F1 0.8300→0.9509), checksum-wins collision resolution, per-pattern findings, scan_text API, browser PoC (77 patterns, P99 0.70ms, 20KB gz), Python–JS parity CI gate, DVC + GCS dataset infrastructure, corpus data quality fixes |
+| 15 | Dataset foundation + scoring honesty + text-path precision | Complete | 2343 | v0.15.0 release. Three-pass `scan_text` pipeline (regex + KV scanner + opaque token), 25+ structural FP filters, PEM block detection, char-class diversity boost, confidence model rethink (single-match validated patterns floor at 0.95, count multiplier removed), SWIFT_BIC validator tightened (NEGATIVE F1 0.000→1.000), openpii-1m DVC ingest (+1800 shards), WildChat GT (3,515 prompts, P=93.1% R=99.4% F1=96.1%), CamelCase key-name normalisation. cross_family_rate 0.1182→**0.1066**, family_macro_f1 0.8566→**0.9477**. |
+| 16 | CONTACT + GOVERNMENT_ID recall (no public API changes) | Complete | 2407 | v0.16.0 release. **GLiNER dedup** uses Jaccard evidence overlap (≥0.50) instead of global type hierarchy. **GOVERNMENT_ID phase 1** — 6 EU countries (DE Steuer-ID, FR NIR, ES DNI/NIE, IT Codice Fiscale, NL BSN, AT SVNR), 7 patterns + 7 checksum validators. **Within-family specificity sort** (`ENTITY_SPECIFICITY` map) — ADDRESS wins over PERSON_NAME within CONTACT regardless of confidence; cross-family ordering preserves pure-confidence. **Gap-baseline bug** caught in code review (used position-0 confidence after specificity reorder; fixed to use true max). Tooling: dev environment + 3 of 4 CI jobs migrated to `uv`. cross_family_rate 0.1066→**0.0808** (no-ML), shadow gate 0.3245→**0.3139**, family_macro_f1 0.9477→**0.9732** (no-ML) / **0.9903** (ML reference). WildChat GT completion deferred to S17. |
 
 ## Consumers
 

@@ -1,10 +1,10 @@
 title: Confidence model rethink for per-pattern findings
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 15
 created: 2026-04-18
-updated: 2026-04-24
+updated: 2026-04-25
 depends_on: []
 tags:
 - multi-label

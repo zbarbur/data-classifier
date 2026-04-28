@@ -1,11 +1,11 @@
 title: "Benchmark NEGATIVE corpus cleanup \u2014 relabel credential-shaped values\
   \ as TP"
-status: doing
+status: done
 priority: P1
 category: chore
 sprint_target: 15
 created: 2026-04-19
-updated: 2026-04-24
+updated: 2026-04-25
 depends_on: []
 tags:
 - benchmark

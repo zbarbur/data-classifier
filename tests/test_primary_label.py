@@ -185,8 +185,8 @@ class TestConfidenceGapSuppression:
         result = _apply_findings_limit([], max_findings=1, confidence_gap_threshold=0.30)
         assert result == []
 
-    def test_sorted_by_confidence(self, profile) -> None:
-        """Results are sorted by confidence descending."""
+    def test_sorted_by_specificity_then_confidence(self, profile) -> None:
+        """Results are sorted by specificity DESC, then confidence DESC."""
         from data_classifier import _apply_findings_limit
 
         findings = [
@@ -210,5 +210,115 @@ class TestConfidenceGapSuppression:
             ),
         ]
         result = _apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=1.0)
+        # SSN (specificity=3) beats PHONE (specificity=3) on confidence
         assert result[0].entity_type == "SSN"
         assert result[1].entity_type == "PHONE"
+
+    def test_specificity_beats_confidence_within_family(self, profile) -> None:
+        """Within the same family, more specific type is primary even with lower confidence."""
+        from data_classifier import _apply_findings_limit
+
+        findings = [
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="PERSON_NAME",
+                category="PII",
+                sensitivity="HIGH",
+                confidence=0.96,
+                regulatory=[],
+                engine="gliner2",
+            ),
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="ADDRESS",
+                category="PII",
+                sensitivity="HIGH",
+                confidence=0.70,
+                regulatory=[],
+                engine="gliner2",
+            ),
+        ]
+        result = _apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=0.30)
+        # ADDRESS (specificity=3) should be primary over PERSON_NAME (specificity=1)
+        # even though PERSON_NAME has higher confidence — same CONTACT family
+        assert result[0].entity_type == "ADDRESS"
+        # Both kept (gap = 0.96 - 0.70 = 0.26 < 0.30)
+        assert len(result) == 2
+
+    def test_specificity_preserves_cross_family_confidence_order(self, profile) -> None:
+        """Across different families, higher specificity + confidence still wins."""
+        from data_classifier import _apply_findings_limit
+
+        findings = [
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="EMAIL",
+                category="PII",
+                sensitivity="HIGH",
+                confidence=0.95,
+                regulatory=[],
+                engine="regex",
+            ),
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="SSN",
+                category="PII",
+                sensitivity="CRITICAL",
+                confidence=0.90,
+                regulatory=[],
+                engine="regex",
+            ),
+        ]
+        result = _apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=1.0)
+        # Both specificity=3, so confidence breaks tie — EMAIL first
+        assert result[0].entity_type == "EMAIL"
+
+    def test_gap_baseline_uses_max_not_specificity_promoted_top(self, profile) -> None:
+        """Gap suppression baseline must be true max confidence, not position-0
+        after within-family specificity reorder.
+
+        Regression: when within-family specificity promotes a lower-confidence
+        finding to position 0 (ADDRESS 0.70 over PERSON_NAME 0.96), a naive
+        ``top_confidence = sorted_findings[0].confidence`` would underestimate
+        the baseline and let cross-family secondaries that should be suppressed
+        survive.
+        """
+        from data_classifier import _apply_findings_limit
+
+        findings = [
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="PERSON_NAME",
+                category="PII",
+                sensitivity="HIGH",
+                confidence=0.96,
+                regulatory=[],
+                engine="gliner2",
+            ),
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="ADDRESS",
+                category="PII",
+                sensitivity="HIGH",
+                confidence=0.70,
+                regulatory=[],
+                engine="gliner2",
+            ),
+            ClassificationFinding(
+                column_id="col1",
+                entity_type="SSN",
+                category="PII",
+                sensitivity="CRITICAL",
+                confidence=0.65,
+                regulatory=[],
+                engine="regex",
+            ),
+        ]
+        result = _apply_findings_limit(findings, max_findings=None, confidence_gap_threshold=0.30)
+        types = [f.entity_type for f in result]
+        # ADDRESS is primary (specificity within CONTACT)
+        assert result[0].entity_type == "ADDRESS"
+        # PERSON_NAME survives (same family, gap = 0.96 - 0.96 = 0)
+        assert "PERSON_NAME" in types
+        # SSN suppressed: true top is 0.96, gap = 0.96 - 0.65 = 0.31 > 0.30
+        assert "SSN" not in types, f"SSN should be gap-suppressed against true top 0.96, got: {types}"
