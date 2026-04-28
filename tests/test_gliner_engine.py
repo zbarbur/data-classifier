@@ -555,20 +555,44 @@ class TestMultipleEntityTypes:
 class TestDeduplication:
     """Test entity specificity deduplication."""
 
-    def test_address_suppresses_person_name(self, engine_with_mock, mock_gliner_model):
-        """When both ADDRESS and PERSON_NAME found, ADDRESS should win."""
+    def test_address_suppresses_person_name_on_overlapping_evidence(self, engine_with_mock, mock_gliner_model):
+        """When ADDRESS and PERSON_NAME fire on the same tokens, ADDRESS wins."""
+        # Both labels detect the same text spans — evidence overlap is 1.0
         mock_gliner_model.predict_entities.return_value = _gliner_predictions(
             {
-                "street address": [("Preston Road", 0.85)],
-                "person": [("Preston", 0.70)],
+                "street address": [("Preston Road", 0.85), ("Baker Street", 0.80)],
+                "person": [("Preston Road", 0.70), ("Baker Street", 0.65)],
             }
         )
-        column = ColumnInput(column_name="col_0", column_id="c1", sample_values=["Preston Road"])
+        column = ColumnInput(
+            column_name="col_0",
+            column_id="c1",
+            sample_values=["Preston Road", "Baker Street"],
+        )
 
         findings = engine_with_mock.classify_column(column, min_confidence=0.0)
         entity_types = {f.entity_type for f in findings}
         assert "ADDRESS" in entity_types
         assert "PERSON_NAME" not in entity_types
+
+    def test_person_name_survives_when_evidence_differs(self, engine_with_mock, mock_gliner_model):
+        """When ADDRESS and PERSON_NAME detect different values, both survive."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {
+                "street address": [("123 Main St", 0.85), ("456 Oak Ave", 0.80)],
+                "person": [("John Smith", 0.80), ("Maria Garcia", 0.75)],
+            }
+        )
+        column = ColumnInput(
+            column_name="contacts",
+            column_id="c1",
+            sample_values=["John Smith", "123 Main St", "Maria Garcia", "456 Oak Ave"],
+        )
+
+        findings = engine_with_mock.classify_column(column, min_confidence=0.0)
+        entity_types = {f.entity_type for f in findings}
+        assert "ADDRESS" in entity_types
+        assert "PERSON_NAME" in entity_types, "PERSON_NAME should survive when detecting different values than ADDRESS"
 
     def test_same_specificity_both_kept(self, engine_with_mock, mock_gliner_model):
         """Findings at the same specificity level are both kept."""

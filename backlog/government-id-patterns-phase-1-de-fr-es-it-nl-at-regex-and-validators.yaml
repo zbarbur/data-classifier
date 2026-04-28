@@ -1,0 +1,33 @@
+title: "GOVERNMENT_ID patterns phase 1 \u2014 DE FR ES IT NL AT regex and validators"
+status: done
+priority: P1
+category: feature
+sprint_target: 16
+created: 2026-04-25
+updated: 2026-04-27
+depends_on: []
+tags: []
+goal: Add regex patterns and checksum validators for 6 high-population EU countries
+  to close the 50% NATIONAL_ID recall gap exposed by openpii-1m corpus.
+complexity: null
+technical_specs:
+- 'data_classifier/patterns/default_patterns.json: new NATIONAL_ID patterns'
+- 'data_classifier/engines/validators.py: new checksum validators'
+- 'data_classifier/clients/browser/src/validators.js: JS validator ports'
+description: ''
+acceptance_criteria:
+- DE Steueridentifikationsnummer pattern + checksum validator
+- FR NIR/INSEE pattern + key validator
+- ES DNI/NIE pattern + checksum validator
+- IT Codice Fiscale pattern + checksum validator
+- NL BSN pattern + 11-check validator
+- AT Sozialversicherungsnummer pattern
+- GOVERNMENT_ID NATIONAL_ID F1 improves from 0.667 baseline
+- "Browser parity \u2014 patterns exported to JS"
+test_plan: []
+notes: ''
+phase: review
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

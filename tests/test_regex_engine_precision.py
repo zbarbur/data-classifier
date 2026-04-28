@@ -5,7 +5,14 @@ from __future__ import annotations
 import pytest
 
 from data_classifier.engines.validators import (
+    austrian_svnr_check,
+    dutch_bsn_check,
+    french_nir_check,
+    german_steuerid_check,
     ipv4_not_reserved_check,
+    italian_codice_fiscale_check,
+    spanish_dni_check,
+    spanish_nie_check,
     swift_bic_country_code_check,
 )
 
@@ -124,3 +131,185 @@ class TestIpv4RegexBoundary:
         findings = classify_columns([column], load_profile("standard"))
         ip_findings = [f for f in findings if f.entity_type == "IP_ADDRESS"]
         assert len(ip_findings) >= 1
+
+
+# ── Sprint 16 — EU national ID validators ────────────────────────────────
+
+
+class TestGermanSteueridCheck:
+    """German Steueridentifikationsnummer — 11 digits, iterative mod-10/11."""
+
+    @pytest.mark.parametrize("value", ["12345678903", "65929810345"])
+    def test_valid_ids_pass(self, value):
+        assert german_steuerid_check(value) is True
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "12345678900",  # bad check digit
+            "12345678901",  # bad check digit
+            "01234567890",  # leading zero
+            "1234567890",  # too short
+            "123456789012",  # too long
+            "abcdefghijk",  # non-digits
+        ],
+    )
+    def test_invalid_ids_rejected(self, value):
+        assert german_steuerid_check(value) is False
+
+
+class TestFrenchNirCheck:
+    """French NIR/INSEE — 15 digits, control key = 97 - (first_13 % 97)."""
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "254031088723464",
+            "154021234500048",
+            "293067890100059",
+        ],
+    )
+    def test_valid_nir_pass(self, value):
+        assert french_nir_check(value) is True
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "254031088723499",  # bad control key
+            "554031088723464",  # invalid gender digit (5)
+            "12345678901234",  # too short (14 digits)
+            "1234567890123456",  # too long (16 digits)
+            "abcdefghijklmno",  # non-digits
+        ],
+    )
+    def test_invalid_nir_rejected(self, value):
+        assert french_nir_check(value) is False
+
+
+class TestSpanishDniCheck:
+    """Spanish DNI — 8 digits + check letter."""
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "12345678Z",
+            "00000001R",
+            "98765432M",
+        ],
+    )
+    def test_valid_dni_pass(self, value):
+        assert spanish_dni_check(value) is True
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "12345678A",  # wrong letter
+            "1234567Z",  # too short
+            "123456789Z",  # too long
+            "ABCDEFGHZ",  # non-digits in number part
+        ],
+    )
+    def test_invalid_dni_rejected(self, value):
+        assert spanish_dni_check(value) is False
+
+
+class TestSpanishNieCheck:
+    """Spanish NIE — X/Y/Z + 7 digits + check letter."""
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "X2482300W",
+            "X0000000T",
+            "Y1234567X",
+        ],
+    )
+    def test_valid_nie_pass(self, value):
+        assert spanish_nie_check(value) is True
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "X2482300A",  # wrong letter
+            "A1234567Z",  # invalid prefix
+            "X123456Z",  # too short
+            "X12345678Z",  # too long
+        ],
+    )
+    def test_invalid_nie_rejected(self, value):
+        assert spanish_nie_check(value) is False
+
+
+class TestItalianCodiceFiscaleCheck:
+    """Italian Codice Fiscale — 16 chars with complex check character."""
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "RSSMRA85M01H501Q",
+            "BNCLRA92E63H501Y",
+        ],
+    )
+    def test_valid_cf_pass(self, value):
+        assert italian_codice_fiscale_check(value) is True
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "RSSMRA85M01H501Z",  # wrong check character
+            "RSSMRA85M01H501A",  # wrong check character
+            "ABCDEF12G34H567",  # too short (15 chars)
+            "1234567890123456",  # all digits
+        ],
+    )
+    def test_invalid_cf_rejected(self, value):
+        assert italian_codice_fiscale_check(value) is False
+
+
+class TestDutchBsnCheck:
+    """Dutch BSN — 9 digits, 11-check with weights [9,8,7,6,5,4,3,2,-1]."""
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "111222333",
+            "123456782",
+            "999999990",
+        ],
+    )
+    def test_valid_bsn_pass(self, value):
+        assert dutch_bsn_check(value) is True
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "123456789",  # bad checksum
+            "012345678",  # leading zero
+            "12345678",  # too short
+            "1234567890",  # too long
+            "abcdefghi",  # non-digits
+        ],
+    )
+    def test_invalid_bsn_rejected(self, value):
+        assert dutch_bsn_check(value) is False
+
+
+class TestAustrianSvnrCheck:
+    """Austrian SVNR — 10 digits, check digit at position 4."""
+
+    @pytest.mark.parametrize("value", ["1237010180"])
+    def test_valid_svnr_pass(self, value):
+        assert austrian_svnr_check(value) is True
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "1234010180",  # wrong check digit
+            "0123456789",  # leading zero
+            "123456789",  # too short
+            "12345678901",  # too long
+            "abcdefghij",  # non-digits
+        ],
+    )
+    def test_invalid_svnr_rejected(self, value):
+        assert austrian_svnr_check(value) is False

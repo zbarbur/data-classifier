@@ -1,0 +1,32 @@
+title: S3b confidence-gated GLiNER label narrowing via column_name_engine
+status: done
+priority: P1
+category: feature
+sprint_target: 16
+created: 2026-04-25
+updated: 2026-04-27
+depends_on: []
+tags: []
+goal: "FINDING: Label narrowing shows no material improvement \u2014 narrowed ADDRESS\
+  \ matches 6/10 vs full 7/10 on ambiguous samples. PERSON_NAME recall already 100%\
+  \ with ML enabled + dedup fix. Item re-scoped to: (1) document ML-on benchmark baseline,\
+  \ (2) save benchmark comparison (ML-on vs ML-off), (3) update sprint gate docs to\
+  \ recommend ML-enabled benchmark runs for CONTACT/PERSON_NAME families."
+complexity: null
+technical_specs:
+- "data_classifier/engines/gliner_engine.py: classify_column \u2014 accept column_name_engine\
+  \ findings, narrow labels"
+- 'data_classifier/orchestrator/orchestrator.py: pass column_name findings to GLiNER'
+description: ''
+acceptance_criteria:
+- GLiNER receives narrowed label set when column_name_engine confidence >= threshold
+- CONTACT recall improves on columns with informative names
+- Columns without column_name signal are unaffected (fallback to full label set)
+- No regression on non-CONTACT families
+test_plan: []
+notes: ''
+phase: review
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

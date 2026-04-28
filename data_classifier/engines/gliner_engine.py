@@ -815,27 +815,54 @@ _SPECIFICITY_ORDER: dict[str, int] = {
 }
 
 
-def _deduplicate_gliner_findings(findings: list[ClassificationFinding]) -> list[ClassificationFinding]:
-    """When GLiNER2 finds overlapping entity types, keep the more specific one.
+def _evidence_overlap(a: ClassificationFinding, b: ClassificationFinding) -> float:
+    """Jaccard similarity between two findings' sample_matches.
 
-    Example: ADDRESS and PERSON_NAME both found → keep ADDRESS (street names
-    contain words that look like names).
+    Returns 1.0 when evidence is identical, 0.0 when disjoint.
+    When either finding has no sample_matches, returns 1.0 (assume overlap
+    since we can't disprove it).
+    """
+    a_matches = set(a.sample_analysis.sample_matches) if a.sample_analysis else set()
+    b_matches = set(b.sample_analysis.sample_matches) if b.sample_analysis else set()
+    if not a_matches or not b_matches:
+        return 1.0
+    union = a_matches | b_matches
+    if not union:
+        return 1.0
+    return len(a_matches & b_matches) / len(union)
+
+
+# Minimum evidence overlap to trigger specificity suppression.
+# Below this, findings are treated as detecting independent signals.
+_EVIDENCE_OVERLAP_THRESHOLD = 0.5
+
+
+def _deduplicate_gliner_findings(findings: list[ClassificationFinding]) -> list[ClassificationFinding]:
+    """When GLiNER2 finds overlapping entity types on the same evidence, keep the more specific one.
+
+    Suppression only fires when the two findings share substantial evidence
+    overlap (Jaccard >= 0.5 on sample_matches).  When they detect different
+    values — e.g. ADDRESS on street strings and PERSON_NAME on name strings
+    in the same column — both survive.
     """
     if len(findings) <= 1:
         return findings
 
     # Sort by specificity (highest first), then confidence
     findings.sort(key=lambda f: (_SPECIFICITY_ORDER.get(f.entity_type, 0), f.confidence), reverse=True)
-    top = findings[0]
-    top_spec = _SPECIFICITY_ORDER.get(top.entity_type, 0)
 
-    # Suppress less-specific types when confidence gap is small
-    kept = [top]
-    for f in findings[1:]:
+    kept: list[ClassificationFinding] = []
+    for f in findings:
         f_spec = _SPECIFICITY_ORDER.get(f.entity_type, 0)
-        if f_spec < top_spec and top.confidence - f.confidence < 0.3:
-            continue  # Suppress less-specific type
-        kept.append(f)
+        suppressed = False
+        for k in kept:
+            k_spec = _SPECIFICITY_ORDER.get(k.entity_type, 0)
+            if k_spec > f_spec and k.confidence - f.confidence < 0.3:
+                if _evidence_overlap(k, f) >= _EVIDENCE_OVERLAP_THRESHOLD:
+                    suppressed = True
+                    break
+        if not suppressed:
+            kept.append(f)
     return kept
 
 

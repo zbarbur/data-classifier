@@ -1,0 +1,28 @@
+title: "GLiNER dedup fix \u2014 stop specificity suppression from eating PERSON_NAME"
+status: done
+priority: P1
+category: bug
+sprint_target: 16
+created: 2026-04-25
+updated: 2026-04-27
+depends_on: []
+tags: []
+goal: Fix _deduplicate_gliner_findings so PERSON_NAME is not incorrectly suppressed
+  when ADDRESS co-fires. Current specificity ordering (ADDRESS=3, PERSON_NAME=1) drops
+  PERSON_NAME whenever both are detected, even when they represent different values
+  in the column.
+complexity: null
+technical_specs:
+- 'data_classifier/engines/gliner_engine.py: _deduplicate_gliner_findings + _SPECIFICITY_ORDER'
+description: ''
+acceptance_criteria:
+- PERSON_NAME findings survive when ADDRESS also fires on different values
+- Benchmark CONTACT PERSON_NAME recall improves over Sprint 15 baseline (0.477)
+- No regression on ADDRESS precision
+test_plan: []
+notes: ''
+phase: review
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

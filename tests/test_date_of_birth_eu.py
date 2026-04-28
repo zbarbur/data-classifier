@@ -128,14 +128,8 @@ class TestDateOfBirthInvalid:
     @pytest.mark.parametrize(
         "bad",
         [
-            pytest.param(
-                "32/13/2000",
-                marks=pytest.mark.xfail(
-                    reason="GLiNER fires DATE_OF_BIRTH on invalid date strings; "
-                    "regex validator rejects but GLiNER has no date validation",
-                ),
-            ),
-            "00/00/0000",  # all zeros
+            "32/13/2000",
+            "00/00/0000",
             "not a date",
         ],
     )

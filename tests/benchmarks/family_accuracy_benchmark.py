@@ -87,7 +87,12 @@ except ImportError:  # pragma: no cover — older checkouts
 def _top_finding(findings):
     if not findings:
         return None
-    return max(findings, key=lambda f: f.confidence)
+    from data_classifier.core.taxonomy import specificity_for
+
+    # Within-family specificity: prefer more specific entity types as primary.
+    # Sort by (specificity DESC, confidence DESC) — same logic as
+    # _apply_findings_limit in data_classifier/__init__.py.
+    return max(findings, key=lambda f: (specificity_for(f.entity_type), f.confidence))
 
 
 def _run_one_shard(shard, profile) -> dict:
