@@ -21,6 +21,66 @@ cherry-picks as `0.{sprint}.{patch}`.
 
 No unreleased changes.
 
+## [0.17.0] — Sprint 17 (2026-04-28)
+
+Promotion of `research/prompt-analysis` (130+ commits) into main —
+unified Rust/WASM detector for the browser scanner v2.
+
+### Added
+
+- **Zone Detector v2** (Rust crate `data_classifier_core`) — full
+  partitioning pipeline with format / structural / syntax / data /
+  prose detectors. PyO3 + WASM bindings.
+- **Unified WASM scanner** in `data_classifier/clients/browser/` —
+  byte-identical WASM ↔ PyO3 native parity (validated by
+  `scripts/cross_runtime_parity.sh`: 14 Rust + 8 WASM fixtures pass).
+- **Scan pipeline + WildChat archive** — `scripts/scan_wildchat_unified.py`
+  processed 1.94M prompts (2924 prompts/sec, 0 errors). Output split:
+  - `data/wildchat_unified/candidates.jsonl` (81k records, 4.17%) —
+    sparse view of prompts with non-NL zones or secrets.
+  - `data/wildchat_unified/all_prompts.jsonl` (3.5 GB) — full archive,
+    DVC-tracked at `gs://data-classifier-datasets/dvc-cache`.
+- **s4 zone-detection validation infrastructure** — fresh-reviewed gold,
+  IoU-based block-level scorer, stratified re-labeling pipeline.
+
+### Changed
+
+- `data_classifier/scan_text.py` prefers the Rust `UnifiedDetector`
+  (PyO3) when available, falls back to pure-Python `TextScanner`.
+- Browser bundle now ships WASM + unified patterns instead of the
+  Sprint 14 JS-regex scanner.
+
+### Known follow-ups (deferred from this PR)
+
+- **Port 7 EU validators to Rust** —
+  `backlog/port-7-eu-validators-to-rust-sprint16-parity.yaml`. Sprint 16
+  added german_steuerid, french_nir, spanish_dni, spanish_nie,
+  italian_codice_fiscale, dutch_bsn, austrian_svnr on the Python side.
+  WASM detector emits these entity types via pattern-only matching
+  (no checksum) until ported.
+- **Regenerate wildchat_eval via Rust path + deprecate pure-Python
+  TextScanner** —
+  `backlog/regenerate-wildchat-eval-via-rust-path-deprecate-textscanner.yaml`.
+  Closes the WASM-vs-pure-Python parity gap (currently 197/200 = 98.5%
+  agreement).
+
+### Gates verified
+
+- `ruff check . --exclude .claude/worktrees`: clean
+- `ruff format --check . --exclude .claude/worktrees`: clean
+- `DATA_CLASSIFIER_DISABLE_ML=1 .venv/bin/python -m pytest tests/ -q`:
+  2580 passed, 3 skipped, 1 xfailed
+- `bash scripts/cross_runtime_parity.sh`: 14 + 8 fixtures pass
+- `bash scripts/ci_browser_parity.sh`: 197/200 (98.5%) ≥ 87% S16 gate
+- Family benchmark LIVE path: family_macro_f1 0.955
+
+### Disclosures
+
+- Pytest + family benchmark were run with `DATA_CLASSIFIER_DISABLE_ML=1`
+  (this branch does not modify ML model code; ML-gated tests skip
+  cleanly). Shadow-path family benchmark gate is unverified — needs an
+  ML-enabled rerun on a non-throttled machine.
+
 ## [0.16.0] — Sprint 16 (2026-04-25 → 2026-04-27)
 
 CONTACT and GOVERNMENT_ID recall sprint. No public API changes.
