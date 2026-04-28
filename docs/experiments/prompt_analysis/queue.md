@@ -31,11 +31,10 @@ returned confidently-wrong single-class predictions on 3/6 fixtures,
 triggered a RED safety-audit verdict, and caused the directive-
 promotion item to be retired.
 
-See the library-wide philosophy memo (research-side location pending
-promotion to spec):
-`../../../data_classifier-research-ops/docs/research/multi_label_philosophy.md`
-on `research/meta-classifier`. Post-Sprint-12 close, promoted to
-`docs/spec/10-multi-label-architecture.md`.
+See the library-wide philosophy spec at
+[`docs/spec/11-multi-label-architecture.md`](../../spec/11-multi-label-architecture.md)
+(canonical location since Sprint 17 promotion; previously lived as a
+research memo on `research/meta-classifier`).
 
 **Practical implications for the Intent readiness track:**
 
