@@ -124,11 +124,13 @@ def main() -> None:
     print(f"  IoU threshold: {IOU_MIN}")
     print()
     print(f"  Pure-prose prompts: {prose_total}")
-    print(f"    correct (no non-NL pred): {prose_correct}/{prose_total} = {prose_correct/max(prose_total,1):.3f}")
+    print(f"    correct (no non-NL pred): {prose_correct}/{prose_total} = {prose_correct / max(prose_total, 1):.3f}")
     print(f"    wrong   (had non-NL pred): {prose_wrong}/{prose_total}")
     print()
     print("=== Per-zone-type metrics (IoU>=0.5) ===")
-    print(f"  {'type':<18} {'TP':>5} {'softTP':>6} {'FP':>5} {'FN':>5}  {'P':>6}  {'softP':>6}  {'R':>6}  {'F1':>6}  {'meanIoU':>7}")
+    print(
+        f"  {'type':<18} {'TP':>5} {'softTP':>6} {'FP':>5} {'FN':>5}  {'P':>6}  {'softP':>6}  {'R':>6}  {'F1':>6}  {'meanIoU':>7}"
+    )
     total_tp = total_soft = total_fp = total_fn = 0
     for zt in sorted(set(tp) | set(soft_tp) | set(fp) | set(fn)):
         t, st, p, n_ = tp[zt], soft_tp[zt], fp[zt], fn[zt]
@@ -141,12 +143,16 @@ def main() -> None:
         rec = t / (t + n_) if (t + n_) else 0.0
         f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
         mean_iou = sum(iou_sum[zt]) / len(iou_sum[zt]) if iou_sum[zt] else 0.0
-        print(f"  {zt:<18} {t:>5} {st:>6} {p:>5} {n_:>5}  {prec:>6.3f}  {soft_prec:>6.3f}  {rec:>6.3f}  {f1:>6.3f}  {mean_iou:>7.3f}")
+        print(
+            f"  {zt:<18} {t:>5} {st:>6} {p:>5} {n_:>5}  {prec:>6.3f}  {soft_prec:>6.3f}  {rec:>6.3f}  {f1:>6.3f}  {mean_iou:>7.3f}"
+        )
     overall_p = total_tp / (total_tp + total_fp) if (total_tp + total_fp) else 0
     overall_softp = total_soft / (total_soft + total_fp) if (total_soft + total_fp) else 0
     overall_r = total_tp / (total_tp + total_fn) if (total_tp + total_fn) else 0
     overall_f = 2 * overall_p * overall_r / (overall_p + overall_r) if (overall_p + overall_r) else 0
-    print(f"  {'OVERALL':<18} {total_tp:>5} {total_soft:>6} {total_fp:>5} {total_fn:>5}  {overall_p:>6.3f}  {overall_softp:>6.3f}  {overall_r:>6.3f}  {overall_f:>6.3f}")
+    print(
+        f"  {'OVERALL':<18} {total_tp:>5} {total_soft:>6} {total_fp:>5} {total_fn:>5}  {overall_p:>6.3f}  {overall_softp:>6.3f}  {overall_r:>6.3f}  {overall_f:>6.3f}"
+    )
     print()
     print(f"  Boundary adjustments (same type, IoU 0.1-0.5): {len(boundary_adjustments)}")
 

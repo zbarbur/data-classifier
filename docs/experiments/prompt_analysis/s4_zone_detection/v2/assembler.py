@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from collections import Counter
 
-from docs.experiments.prompt_analysis.s4_zone_detection.v2.block_validator import count_code_constructs, has_math_notation
+from docs.experiments.prompt_analysis.s4_zone_detection.v2.block_validator import (
+    count_code_constructs,
+    has_math_notation,
+)
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.types import ZoneBlock, ZoneConfig
 
 

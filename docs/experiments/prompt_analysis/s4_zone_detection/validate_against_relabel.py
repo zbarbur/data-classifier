@@ -43,15 +43,15 @@ def gold_blocks(record: dict) -> list[dict]:
 def main() -> None:
     detector = UnifiedDetector(PATTERNS_PATH.read_text())
 
-    tp = Counter()         # IoU >= 0.5 (strict match)
-    soft_tp = Counter()    # IoU >= 0.1 (boundary-adjustment only — same type, same area)
+    tp = Counter()  # IoU >= 0.5 (strict match)
+    soft_tp = Counter()  # IoU >= 0.1 (boundary-adjustment only — same type, same area)
     fp = Counter()
     fn = Counter()
     iou_sum = defaultdict(list)
     boundary_adjustments = []  # (prompt_id, gold, pred, iou) where 0.1 <= IoU < 0.5
 
     prose_correct = 0  # gold empty, pred only NL
-    prose_wrong = 0    # gold empty, pred has non-NL
+    prose_wrong = 0  # gold empty, pred has non-NL
     prose_total = 0
 
     per_prompt = []  # for detailed reporting
@@ -130,13 +130,15 @@ def main() -> None:
     print(f"  IoU threshold: {IOU_MIN}")
     print()
     print(f"  Pure-prose prompts: {prose_total}")
-    print(f"    correct (no non-NL pred): {prose_correct}/{prose_total} = {prose_correct/max(prose_total,1):.3f}")
+    print(f"    correct (no non-NL pred): {prose_correct}/{prose_total} = {prose_correct / max(prose_total, 1):.3f}")
     print(f"    wrong   (had non-NL pred): {prose_wrong}/{prose_total}")
     print()
     print(f"  Mixed/non-prose prompts: {n - prose_total}")
     print()
     print("=== Per-zone-type metrics (strict: IoU>=0.5) ===")
-    print(f"  {'type':<18} {'TP':>5} {'softTP':>6} {'FP':>5} {'FN':>5}  {'P':>6}  {'softP':>6}  {'R':>6}  {'softR':>6}  {'F1':>6}  {'meanIoU':>7}")
+    print(
+        f"  {'type':<18} {'TP':>5} {'softTP':>6} {'FP':>5} {'FN':>5}  {'P':>6}  {'softP':>6}  {'R':>6}  {'softR':>6}  {'F1':>6}  {'meanIoU':>7}"
+    )
     total_tp = total_soft = total_fp = total_fn = 0
     for zt in sorted(set(tp) | set(soft_tp) | set(fp) | set(fn)):
         t, st, p, n_ = tp[zt], soft_tp[zt], fp[zt], fn[zt]
@@ -150,13 +152,17 @@ def main() -> None:
         soft_rec = st / (st + n_) if (st + n_) else 0.0
         f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
         mean_iou = sum(iou_sum[zt]) / len(iou_sum[zt]) if iou_sum[zt] else 0.0
-        print(f"  {zt:<18} {t:>5} {st:>6} {p:>5} {n_:>5}  {prec:>6.3f}  {soft_prec:>6.3f}  {rec:>6.3f}  {soft_rec:>6.3f}  {f1:>6.3f}  {mean_iou:>7.3f}")
+        print(
+            f"  {zt:<18} {t:>5} {st:>6} {p:>5} {n_:>5}  {prec:>6.3f}  {soft_prec:>6.3f}  {rec:>6.3f}  {soft_rec:>6.3f}  {f1:>6.3f}  {mean_iou:>7.3f}"
+        )
     overall_p = total_tp / (total_tp + total_fp) if (total_tp + total_fp) else 0
     overall_softp = total_soft / (total_soft + total_fp) if (total_soft + total_fp) else 0
     overall_r = total_tp / (total_tp + total_fn) if (total_tp + total_fn) else 0
     overall_softr = total_soft / (total_soft + total_fn) if (total_soft + total_fn) else 0
     overall_f = 2 * overall_p * overall_r / (overall_p + overall_r) if (overall_p + overall_r) else 0
-    print(f"  {'OVERALL':<18} {total_tp:>5} {total_soft:>6} {total_fp:>5} {total_fn:>5}  {overall_p:>6.3f}  {overall_softp:>6.3f}  {overall_r:>6.3f}  {overall_softr:>6.3f}  {overall_f:>6.3f}")
+    print(
+        f"  {'OVERALL':<18} {total_tp:>5} {total_soft:>6} {total_fp:>5} {total_fn:>5}  {overall_p:>6.3f}  {overall_softp:>6.3f}  {overall_r:>6.3f}  {overall_softr:>6.3f}  {overall_f:>6.3f}"
+    )
     print()
     print(f"  Boundary adjustments (same type, IoU<0.5 but >=0.1): {len(boundary_adjustments)}")
 
@@ -165,7 +171,9 @@ def main() -> None:
         print()
         print(f"=== Boundary adjustments (right type, wrong-ish boundaries) — {len(boundary_adjustments)} ===")
         for pid, g, p, iou in boundary_adjustments[:10]:
-            print(f"  {pid}: {g['zone_type']} gold={g['start_line']}-{g['end_line']} pred={p['start_line']}-{p['end_line']} IoU={iou:.2f}")
+            print(
+                f"  {pid}: {g['zone_type']} gold={g['start_line']}-{g['end_line']} pred={p['start_line']}-{p['end_line']} IoU={iou:.2f}"
+            )
 
     # Surface real failures
     print()
@@ -178,7 +186,9 @@ def main() -> None:
                     print(f"  MISSED gold: {g['zone_type']} lines {g['start_line']}-{g['end_line']}")
             if e["fp"]:
                 for p in e["fp"]:
-                    print(f"  EXTRA pred: {p['zone_type']} lines {p['start_line']}-{p['end_line']} method={p.get('method','?')} conf={p['confidence']:.2f}")
+                    print(
+                        f"  EXTRA pred: {p['zone_type']} lines {p['start_line']}-{p['end_line']} method={p.get('method', '?')} conf={p['confidence']:.2f}"
+                    )
 
 
 if __name__ == "__main__":

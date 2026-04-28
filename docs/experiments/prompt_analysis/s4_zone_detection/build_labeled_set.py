@@ -43,10 +43,15 @@ def _extract_prompt_text(row: dict) -> str | None:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--annotations", type=str, default="/tmp/s4_results_v3/s4_zone_annotations.jsonl")
-    parser.add_argument("--negative-sample", type=int, default=300,
-                        help="Number of no-detection prompts to include for false-negative review")
-    parser.add_argument("--out-dir", type=str,
-                        default="docs/experiments/prompt_analysis/s4_zone_detection/labeled_data")
+    parser.add_argument(
+        "--negative-sample",
+        type=int,
+        default=300,
+        help="Number of no-detection prompts to include for false-negative review",
+    )
+    parser.add_argument(
+        "--out-dir", type=str, default="docs/experiments/prompt_analysis/s4_zone_detection/labeled_data"
+    )
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -67,8 +72,9 @@ def main():
     neg_sample = set(rng.sample(negative_ids, min(args.negative_sample, len(negative_ids))))
 
     target_ids = positive_ids | neg_sample
-    log.info("Target: %d positives + %d negative samples = %d total",
-             len(positive_ids), len(neg_sample), len(target_ids))
+    log.info(
+        "Target: %d positives + %d negative samples = %d total", len(positive_ids), len(neg_sample), len(target_ids)
+    )
 
     # Load WildChat locally and find matching prompts
     from data_classifier.datasets import load_local_or_remote

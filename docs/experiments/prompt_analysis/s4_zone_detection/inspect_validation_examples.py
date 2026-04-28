@@ -38,10 +38,10 @@ def show_block(text: str, b: dict, max_lines: int = 6) -> str:
 def main() -> None:
     detector = UnifiedDetector(PATTERNS_PATH.read_text())
 
-    fp_code = []          # GT empty, predicted code
-    fn_code = []          # GT has code, no matching pred
+    fp_code = []  # GT empty, predicted code
+    fn_code = []  # GT has code, no matching pred
     config_examples = []  # all GT config rows
-    data_examples = []    # all GT data rows
+    data_examples = []  # all GT data rows
 
     with LABELED_PATH.open() as f:
         for line in f:
@@ -61,10 +61,7 @@ def main() -> None:
             # Bucket 2: real code missed
             for g in gt:
                 if g["zone_type"] == "code":
-                    matched = any(
-                        p["zone_type"] == "code" and block_iou(g, p) >= 0.5
-                        for p in non_nl_pred
-                    )
+                    matched = any(p["zone_type"] == "code" and block_iou(g, p) >= 0.5 for p in non_nl_pred)
                     if not matched and len(fn_code) < 5:
                         fn_code.append((r, blocks, g))
 
@@ -80,7 +77,7 @@ def main() -> None:
             return "    (no predictions)"
         return "\n".join(
             f"    pred: {b['zone_type']:<16} lines {b['start_line']}-{b['end_line']} "
-            f"method={b.get('method','?')} conf={b['confidence']:.2f} hint={b.get('language_hint','')}"
+            f"method={b.get('method', '?')} conf={b['confidence']:.2f} hint={b.get('language_hint', '')}"
             for b in blocks
         )
 
@@ -89,7 +86,7 @@ def main() -> None:
     print("=" * 70)
     for r, blocks in fp_code:
         print(f"\nprompt_id={r['prompt_id']} (lines={r['total_lines']})")
-        print(f"  text: {repr(r['text'][:200])}{'…' if len(r['text'])>200 else ''}")
+        print(f"  text: {repr(r['text'][:200])}{'…' if len(r['text']) > 200 else ''}")
         print(print_pred(blocks))
 
     print()

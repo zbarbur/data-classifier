@@ -47,7 +47,7 @@ def main() -> None:
 
     # Per-prompt-classification
     prose_correct = 0  # GT empty, pred only NL
-    prose_wrong = 0    # GT empty, pred has non-NL
+    prose_wrong = 0  # GT empty, pred has non-NL
     blocks_seen_gt = 0
     blocks_seen_pred_nonNL = 0
 
@@ -121,8 +121,8 @@ def main() -> None:
     print()
     print("=== Pure-prose classification ===")
     pure_total = prose_correct + prose_wrong
-    print(f"  Correct (GT empty AND pred has only NL): {prose_correct}/{pure_total} = {prose_correct/pure_total:.3f}")
-    print(f"  Wrong (GT empty BUT pred has non-NL):   {prose_wrong}/{pure_total} = {prose_wrong/pure_total:.3f}")
+    print(f"  Correct (GT empty AND pred has only NL): {prose_correct}/{pure_total} = {prose_correct / pure_total:.3f}")
+    print(f"  Wrong (GT empty BUT pred has non-NL):   {prose_wrong}/{pure_total} = {prose_wrong / pure_total:.3f}")
 
 
 if __name__ == "__main__":

@@ -149,8 +149,7 @@ def main():
             "prompts_with_any_block": prompts_with_blocks,
             "pct_with_any_block": round(100 * prompts_with_blocks / max(total, 1), 2),
             "prompts_by_type": {
-                t: {"count": c, "pct": round(100 * c / max(total, 1), 2)}
-                for t, c in prompts_by_type.most_common()
+                t: {"count": c, "pct": round(100 * c / max(total, 1), 2)} for t, c in prompts_by_type.most_common()
             },
         },
         "blocks": {
@@ -187,16 +186,19 @@ def main():
     print("S4 Zone Detection — Prevalence Summary")
     print("=" * 60)
     print(f"Prompts scanned: {total:,}")
-    print(f"Prompts with code/structured blocks: {prompts_with_blocks:,} "
-          f"({summary['prevalence']['pct_with_any_block']}%)")
+    print(
+        f"Prompts with code/structured blocks: {prompts_with_blocks:,} ({summary['prevalence']['pct_with_any_block']}%)"
+    )
     print()
     print("By type (prompt-level):")
     for t, info in summary["prevalence"]["prompts_by_type"].items():
         print(f"  {t:20s}: {info['count']:5d} ({info['pct']}%)")
     print()
     print(f"Total blocks: {summary['blocks']['total_blocks']:,}")
-    print(f"Fenced: {fenced_count:,} ({summary['blocks']['fenced_vs_unfenced']['pct_fenced']}%)"
-          f"  Unfenced: {unfenced_count:,}")
+    print(
+        f"Fenced: {fenced_count:,} ({summary['blocks']['fenced_vs_unfenced']['pct_fenced']}%)"
+        f"  Unfenced: {unfenced_count:,}"
+    )
     print()
     print("By detection method:")
     for m, c in blocks_by_method.most_common():
@@ -206,9 +208,11 @@ def main():
     for lang, c in blocks_by_lang.most_common(15):
         print(f"  {lang:20s}: {c:5d}")
     print()
-    print(f"Block lines per prompt: mean={summary['block_lines_per_prompt']['mean']}, "
-          f"median={summary['block_lines_per_prompt']['median']}, "
-          f"p90={summary['block_lines_per_prompt']['p90']}")
+    print(
+        f"Block lines per prompt: mean={summary['block_lines_per_prompt']['mean']}, "
+        f"median={summary['block_lines_per_prompt']['median']}, "
+        f"p90={summary['block_lines_per_prompt']['p90']}"
+    )
     print(f"\nThroughput: {summary['throughput_per_sec']:.0f} prompts/sec")
     print(f"Output: {annotations_path}")
     print(f"Summary: {summary_path}")

@@ -144,20 +144,22 @@ class TestV1Compatibility:
 class TestScopeTrackerIntegration:
     def test_multiline_function_call_not_fragmented(self):
         """A function call split across lines should produce one block, not fragments."""
-        text = "\n".join([
-            "Here is the code:",
-            "",
-            "result = transform(",
-            "    data,",
-            "    columns=['a', 'b', 'c'],",
-            "    timeout=30,",
-            "    retries=3,",
-            "    verbose=True,",
-            "    batch_size=100,",
-            ")",
-            "",
-            "What do you think?",
-        ])
+        text = "\n".join(
+            [
+                "Here is the code:",
+                "",
+                "result = transform(",
+                "    data,",
+                "    columns=['a', 'b', 'c'],",
+                "    timeout=30,",
+                "    retries=3,",
+                "    verbose=True,",
+                "    batch_size=100,",
+                ")",
+                "",
+                "What do you think?",
+            ]
+        )
         orch = _make_orchestrator(min_block_lines=3)
         result = orch.detect_zones(text, prompt_id="scope_1")
         code_blocks = [b for b in result.blocks if b.zone_type == "code"]
@@ -165,21 +167,23 @@ class TestScopeTrackerIntegration:
 
     def test_python_function_body_one_block(self):
         """A Python function with comments should be one block, not fragmented."""
-        text = "\n".join([
-            "Here is my function:",
-            "",
-            "def process(data):",
-            "    # validate input",
-            "    if not data:",
-            "        return []",
-            "    # process each item",
-            "    result = []",
-            "    for item in data:",
-            "        result.append(item.upper())",
-            "    return result",
-            "",
-            "How can I improve it?",
-        ])
+        text = "\n".join(
+            [
+                "Here is my function:",
+                "",
+                "def process(data):",
+                "    # validate input",
+                "    if not data:",
+                "        return []",
+                "    # process each item",
+                "    result = []",
+                "    for item in data:",
+                "        result.append(item.upper())",
+                "    return result",
+                "",
+                "How can I improve it?",
+            ]
+        )
         orch = _make_orchestrator(min_block_lines=3)
         result = orch.detect_zones(text, prompt_id="scope_2")
         code_blocks = [b for b in result.blocks if b.zone_type == "code"]

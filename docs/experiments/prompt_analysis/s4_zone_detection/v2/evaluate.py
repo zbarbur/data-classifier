@@ -6,6 +6,7 @@ accuracy (do the detected line ranges match the human-marked ranges?).
 Usage:
     DATA_CLASSIFIER_DISABLE_ML=1 .venv/bin/python -m docs.experiments.prompt_analysis.s4_zone_detection.v2.evaluate
 """
+
 from __future__ import annotations
 
 import json
@@ -118,9 +119,7 @@ def main() -> None:
         # Boundary accuracy (only for records with human-marked ranges)
         if gt_blocks and has_v2_blocks:
             gt_lines = _line_set(gt_blocks)
-            v2_lines = _line_set(
-                [{"start_line": b.start_line, "end_line": b.end_line} for b in result.blocks]
-            )
+            v2_lines = _line_set([{"start_line": b.start_line, "end_line": b.end_line} for b in result.blocks])
             if gt_lines:
                 jacc = _jaccard(gt_lines, v2_lines)
                 boundary_jaccards.append(jacc)

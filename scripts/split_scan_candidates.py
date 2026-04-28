@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import shutil
 
 OUT_DIR = Path("data/wildchat_unified")
 SOURCE = OUT_DIR / "candidates.jsonl"
@@ -50,10 +49,10 @@ def main() -> None:
 
     print()
     print(f"Total prompts: {total:,}")
-    print(f"Kept (any non-NL zone or secret): {kept:,} ({kept/total*100:.2f}%)")
+    print(f"Kept (any non-NL zone or secret): {kept:,} ({kept / total * 100:.2f}%)")
     print(f"Discarded (pure NL): {total - kept:,}")
     print()
-    print(f"Output files:")
+    print("Output files:")
     print(f"  {NEW_CANDIDATES} ({NEW_CANDIDATES.stat().st_size:,} bytes)")
     print(f"  {ARCHIVE} ({ARCHIVE.stat().st_size:,} bytes)")
 

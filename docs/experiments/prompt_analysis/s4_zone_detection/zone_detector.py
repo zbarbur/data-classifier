@@ -66,35 +66,86 @@ _FENCE_CLOSE = re.compile(r"^(`{3,}|~{3,})\s*$")
 # Map common language tags to our coarse types
 _LANG_TAG_MAP = {
     # code
-    "python": "code", "py": "code", "javascript": "code", "js": "code",
-    "typescript": "code", "ts": "code", "java": "code", "c": "code",
-    "cpp": "code", "c++": "code", "csharp": "code", "cs": "code",
-    "go": "code", "golang": "code", "rust": "code", "ruby": "code",
-    "rb": "code", "php": "code", "swift": "code", "kotlin": "code",
-    "scala": "code", "r": "code", "lua": "code", "perl": "code",
-    "dart": "code", "haskell": "code", "hs": "code", "elixir": "code",
-    "clojure": "code", "jsx": "code", "tsx": "code", "vue": "code",
-    "svelte": "code", "matlab": "code", "julia": "code",
-    "objective-c": "code", "objc": "code", "groovy": "code",
-    "powershell": "code", "ps1": "code", "vb": "code", "vba": "code",
-    "sql": "code", "graphql": "code", "gql": "code",
-    "html": "code", "css": "code", "scss": "code", "sass": "code",
+    "python": "code",
+    "py": "code",
+    "javascript": "code",
+    "js": "code",
+    "typescript": "code",
+    "ts": "code",
+    "java": "code",
+    "c": "code",
+    "cpp": "code",
+    "c++": "code",
+    "csharp": "code",
+    "cs": "code",
+    "go": "code",
+    "golang": "code",
+    "rust": "code",
+    "ruby": "code",
+    "rb": "code",
+    "php": "code",
+    "swift": "code",
+    "kotlin": "code",
+    "scala": "code",
+    "r": "code",
+    "lua": "code",
+    "perl": "code",
+    "dart": "code",
+    "haskell": "code",
+    "hs": "code",
+    "elixir": "code",
+    "clojure": "code",
+    "jsx": "code",
+    "tsx": "code",
+    "vue": "code",
+    "svelte": "code",
+    "matlab": "code",
+    "julia": "code",
+    "objective-c": "code",
+    "objc": "code",
+    "groovy": "code",
+    "powershell": "code",
+    "ps1": "code",
+    "vb": "code",
+    "vba": "code",
+    "sql": "code",
+    "graphql": "code",
+    "gql": "code",
+    "html": "code",
+    "css": "code",
+    "scss": "code",
+    "sass": "code",
     "less": "code",
     # structured_data
-    "json": "structured_data", "yaml": "structured_data",
-    "yml": "structured_data", "xml": "structured_data",
-    "toml": "structured_data", "ini": "structured_data",
-    "csv": "structured_data", "tsv": "structured_data",
-    "env": "structured_data", "dotenv": "structured_data",
-    "properties": "structured_data", "plist": "structured_data",
-    "hcl": "structured_data", "tf": "structured_data",
+    "json": "structured_data",
+    "yaml": "structured_data",
+    "yml": "structured_data",
+    "xml": "structured_data",
+    "toml": "structured_data",
+    "ini": "structured_data",
+    "csv": "structured_data",
+    "tsv": "structured_data",
+    "env": "structured_data",
+    "dotenv": "structured_data",
+    "properties": "structured_data",
+    "plist": "structured_data",
+    "hcl": "structured_data",
+    "tf": "structured_data",
     # cli_shell
-    "bash": "cli_shell", "sh": "cli_shell", "shell": "cli_shell",
-    "zsh": "cli_shell", "fish": "cli_shell", "bat": "cli_shell",
-    "cmd": "cli_shell", "console": "cli_shell", "terminal": "cli_shell",
+    "bash": "cli_shell",
+    "sh": "cli_shell",
+    "shell": "cli_shell",
+    "zsh": "cli_shell",
+    "fish": "cli_shell",
+    "bat": "cli_shell",
+    "cmd": "cli_shell",
+    "console": "cli_shell",
+    "terminal": "cli_shell",
     # ambiguous — default to code
-    "text": "natural_language", "txt": "natural_language",
-    "plaintext": "natural_language", "markdown": "natural_language",
+    "text": "natural_language",
+    "txt": "natural_language",
+    "plaintext": "natural_language",
+    "markdown": "natural_language",
     "md": "natural_language",
 }
 
@@ -125,31 +176,30 @@ def _detect_fenced_blocks(lines: list[str]) -> list[ZoneBlock]:
                 zone_type = _LANG_TAG_MAP.get(lang_tag, "code")
             else:
                 # No language tag — check if content is actually code or just quoted prose
-                inner_lines = [l for l in lines[start + 1:end - 1] if l.strip()]
+                inner_lines = [l for l in lines[start + 1 : end - 1] if l.strip()]
                 if inner_lines:
-                    alpha_ratios = [
-                        sum(c.isalpha() or c.isspace() for c in l) / max(len(l), 1)
-                        for l in inner_lines
-                    ]
+                    alpha_ratios = [sum(c.isalpha() or c.isspace() for c in l) / max(len(l), 1) for l in inner_lines]
                     avg_alpha = sum(alpha_ratios) / len(alpha_ratios)
                     # High alpha ratio + no code keywords = prose in backticks
                     kw_hits = sum(1 for l in inner_lines if _CODE_KEYWORDS.search(l))
-                    syn_hits = sum(
-                        1 for l in inner_lines
-                        if len(_SYNTACTIC_CHARS.findall(l)) / max(len(l), 1) > 0.05
-                    )
+                    syn_hits = sum(1 for l in inner_lines if len(_SYNTACTIC_CHARS.findall(l)) / max(len(l), 1) > 0.05)
                     if avg_alpha > 0.80 and kw_hits == 0 and syn_hits < len(inner_lines) * 0.2:
                         zone_type = "natural_language"
                     else:
                         zone_type = "code"
                 else:
                     zone_type = "code"
-            blocks.append(ZoneBlock(
-                start_line=start, end_line=end,
-                zone_type=zone_type, confidence=0.95,
-                method="fenced", language_hint=lang_tag or "",
-                text=block_text,
-            ))
+            blocks.append(
+                ZoneBlock(
+                    start_line=start,
+                    end_line=end,
+                    zone_type=zone_type,
+                    confidence=0.95,
+                    method="fenced",
+                    language_hint=lang_tag or "",
+                    text=block_text,
+                )
+            )
             i = end
         else:
             i += 1
@@ -160,13 +210,13 @@ def _detect_fenced_blocks(lines: list[str]) -> list[ZoneBlock]:
 # Heuristic: parse-based detection (JSON, YAML, XML)
 # ---------------------------------------------------------------------------
 
+
 def _try_json_block(text: str) -> bool:
     """Check if text is valid JSON (object or array)."""
     text = text.strip()
     if not text:
         return False
-    if (text.startswith("{") and text.endswith("}")) or \
-       (text.startswith("[") and text.endswith("]")):
+    if (text.startswith("{") and text.endswith("}")) or (text.startswith("[") and text.endswith("]")):
         try:
             json.loads(text)
             return True
@@ -196,8 +246,9 @@ def _looks_like_yaml(lines: list[str]) -> bool:
 
     # Reject if most lines are prose sentences (high alpha ratio)
     prose_lines = sum(
-        1 for l in lines if l.strip() and
-        sum(c.isalpha() or c.isspace() for c in l.strip()) / max(len(l.strip()), 1) > 0.85
+        1
+        for l in lines
+        if l.strip() and sum(c.isalpha() or c.isspace() for c in l.strip()) / max(len(l.strip()), 1) > 0.85
     )
     if prose_lines / max(non_empty, 1) > 0.5:
         return False
@@ -288,7 +339,7 @@ _SHELL_INDICATORS = re.compile(
     r"ssh|scp|tar|unzip|make|cmake|"
     r"export|source|echo|alias|"
     r"systemctl|service|journalctl)\b)",
-    re.MULTILINE
+    re.MULTILINE,
 )
 # Removed from shell: python, node, java, gcc — these are code keywords not shell-specific
 # Removed: set, unset, which, whereis, head, tail, sort, wc, xargs — too generic
@@ -317,7 +368,7 @@ _ERROR_LOG_PATTERN = re.compile(
     r"^>>>|"  # REPL output
     r"^\s*\^+\s*$|"  # Python error caret lines
     r"^\s*~~~+\s*$)",  # error underline
-    re.MULTILINE
+    re.MULTILINE,
 )
 
 # Numbered/bulleted list items — structured text, not code
@@ -397,15 +448,19 @@ def _score_shell(lines: list[str]) -> float:
         return 0.0
     shell_hits = len(_SHELL_INDICATORS.findall("\n".join(lines)))
     prompt_lines = sum(1 for l in lines if re.match(r"^\s*\$\s", l))
-    pipe_lines = sum(1 for l in lines if "|" in l and any(
-        cmd in l for cmd in ("grep", "awk", "sed", "sort", "head", "tail", "wc", "xargs", "cut", "tr")
-    ))
+    pipe_lines = sum(
+        1
+        for l in lines
+        if "|" in l
+        and any(cmd in l for cmd in ("grep", "awk", "sed", "sort", "head", "tail", "wc", "xargs", "cut", "tr"))
+    )
     return min((shell_hits + prompt_lines * 2 + pipe_lines) / max(total, 1), 1.0)
 
 
 # ---------------------------------------------------------------------------
 # Block segmentation — find contiguous non-NL blocks in unfenced regions
 # ---------------------------------------------------------------------------
+
 
 def _segment_unfenced(lines: list[str], fenced_ranges: set[int]) -> list[ZoneBlock]:
     """Find code/structured blocks in unfenced regions using line-level scoring.
@@ -528,16 +583,23 @@ def _emit_code_block(blocks, lines, line_scores, start, end):
 
     if avg_score >= 0.25 and high_ratio >= 0.5:
         block_text = "\n".join(lines[start:end])
-        blocks.append(ZoneBlock(
-            start_line=start, end_line=end, zone_type="code",
-            confidence=min(0.4 + avg_score, 0.85),
-            method="syntax_score", language_hint="", text=block_text,
-        ))
+        blocks.append(
+            ZoneBlock(
+                start_line=start,
+                end_line=end,
+                zone_type="code",
+                confidence=min(0.4 + avg_score, 0.85),
+                method="syntax_score",
+                language_hint="",
+                text=block_text,
+            )
+        )
 
 
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
 
 def detect_zones(text: str, prompt_id: str = "") -> PromptZones:
     """Detect code/structured blocks within a prompt.

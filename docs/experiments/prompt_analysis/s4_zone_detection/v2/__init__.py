@@ -6,7 +6,6 @@ This module provides the Python-facing API with the same types.
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 

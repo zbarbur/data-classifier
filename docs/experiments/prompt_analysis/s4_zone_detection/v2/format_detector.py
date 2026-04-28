@@ -54,9 +54,7 @@ class FormatDetector:
     # Public API
     # ------------------------------------------------------------------
 
-    def detect(
-        self, lines: list[str], claimed_ranges: set[int]
-    ) -> tuple[list[ZoneBlock], set[int]]:
+    def detect(self, lines: list[str], claimed_ranges: set[int]) -> tuple[list[ZoneBlock], set[int]]:
         """Detect format zones in unclaimed lines.
 
         Args:
@@ -126,9 +124,7 @@ class FormatDetector:
     # Region finding
     # ------------------------------------------------------------------
 
-    def _find_candidate_regions(
-        self, lines: list[str], claimed_ranges: set[int]
-    ) -> list[tuple[int, int]]:
+    def _find_candidate_regions(self, lines: list[str], claimed_ranges: set[int]) -> list[tuple[int, int]]:
         """Find contiguous non-empty regions in unclaimed lines.
 
         Allows up to max_blank_gap consecutive blank lines within a region.
@@ -197,9 +193,7 @@ class FormatDetector:
         text = text.strip()
         if not text:
             return False
-        if (text.startswith("{") and text.endswith("}")) or (
-            text.startswith("[") and text.endswith("]")
-        ):
+        if (text.startswith("{") and text.endswith("}")) or (text.startswith("[") and text.endswith("]")):
             try:
                 json.loads(text)
                 return True
@@ -249,9 +243,7 @@ class FormatDetector:
 
         # Reject blocks that are mostly prose sentences
         prose_lines = sum(
-            1
-            for l in non_empty
-            if sum(c.isalpha() or c.isspace() for c in l.strip()) / max(len(l.strip()), 1) > 0.85
+            1 for l in non_empty if sum(c.isalpha() or c.isspace() for c in l.strip()) / max(len(l.strip()), 1) > 0.85
         )
         if prose_lines / max(non_empty_count, 1) > self._yaml_max_prose_ratio:
             return False

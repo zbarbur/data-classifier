@@ -1,6 +1,7 @@
 """Tests for StructuralDetector — fenced blocks and delimiter pairs."""
-from docs.experiments.prompt_analysis.s4_zone_detection.v2.structural import StructuralDetector
+
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.config import load_zone_patterns
+from docs.experiments.prompt_analysis.s4_zone_detection.v2.structural import StructuralDetector
 
 
 def _make_detector():

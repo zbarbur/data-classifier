@@ -57,12 +57,12 @@ OUT_DIR = Path("data/wildchat_unified")
 PROMPT_TIMEOUT_SECONDS = 10
 
 
-class PromptTimeout(Exception):
+class PromptTimeoutError(Exception):
     pass
 
 
 def _timeout_handler(signum, frame):
-    raise PromptTimeout()
+    raise PromptTimeoutError()
 
 
 def xor_encode(s: str) -> str:
@@ -73,12 +73,8 @@ def xor_encode(s: str) -> str:
 def get_detector_version() -> str:
     """Git SHA + dirty flag for provenance tracking."""
     try:
-        sha = subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], text=True
-        ).strip()
-        dirty = subprocess.check_output(
-            ["git", "status", "--porcelain"], text=True
-        ).strip()
+        sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
+        dirty = subprocess.check_output(["git", "status", "--porcelain"], text=True).strip()
         return f"unified-rust-{sha}" + ("-dirty" if dirty else "")
     except Exception:
         return "unified-rust-unknown"
@@ -108,16 +104,12 @@ def load_existing_prompt_ids(path: Path) -> set[str]:
     return ids
 
 
-def iter_user_prompts(
-    parquet_path: Path, limit: int | None = None, batch_size: int = 500
-):
+def iter_user_prompts(parquet_path: Path, limit: int | None = None, batch_size: int = 500):
     """Yield (conversation_hash, turn_index, user_text) from local parquet."""
     pf = pq.ParquetFile(str(parquet_path))
     prompt_count = 0
 
-    for batch in pf.iter_batches(
-        batch_size=batch_size, columns=["conversation_hash", "conversation"]
-    ):
+    for batch in pf.iter_batches(batch_size=batch_size, columns=["conversation_hash", "conversation"]):
         for i in range(batch.num_rows):
             conv_hash = batch.column("conversation_hash")[i].as_py()
             conversation = batch.column("conversation")[i].as_py()
@@ -182,6 +174,7 @@ def main() -> None:
 
     # TN reservoir sampling
     import random
+
     tn_reservoir: list[dict] = []
     tn_seen = 0
 
@@ -191,9 +184,7 @@ def main() -> None:
 
     # Open in append mode for resume safety; flush after every write
     with open(candidates_path, "a") as f_out, open(index_path, "a") as f_index:
-        for conv_hash, turn_idx, text in iter_user_prompts(
-            PARQUET_PATH, limit=args.limit, batch_size=args.batch_size
-        ):
+        for conv_hash, turn_idx, text in iter_user_prompts(PARQUET_PATH, limit=args.limit, batch_size=args.batch_size):
             total_prompts += 1
             prompt_id = make_prompt_id(conv_hash, turn_idx)
 
@@ -209,12 +200,14 @@ def main() -> None:
                 signal.alarm(args.timeout)
                 result_json = detector.detect(text)
                 signal.alarm(0)  # cancel alarm
-            except PromptTimeout:
+            except PromptTimeoutError:
                 signal.alarm(0)
                 skipped_timeout += 1
                 log.warning(
                     "TIMEOUT (%ds) on prompt %s (len=%d chars), skipping",
-                    args.timeout, prompt_id, len(text),
+                    args.timeout,
+                    prompt_id,
+                    len(text),
                 )
                 continue
             except Exception as e:
@@ -227,15 +220,19 @@ def main() -> None:
 
             # Track slow prompts for diagnostics
             if prompt_elapsed > 2.0:
-                slow_prompts.append({
-                    "prompt_id": prompt_id,
-                    "length": len(text),
-                    "elapsed_s": round(prompt_elapsed, 2),
-                })
+                slow_prompts.append(
+                    {
+                        "prompt_id": prompt_id,
+                        "length": len(text),
+                        "elapsed_s": round(prompt_elapsed, 2),
+                    }
+                )
                 if len(slow_prompts) <= 10:
                     log.warning(
                         "Slow prompt %s: %.2fs (len=%d)",
-                        prompt_id, prompt_elapsed, len(text),
+                        prompt_id,
+                        prompt_elapsed,
+                        len(text),
                     )
 
             result = json.loads(result_json)
@@ -293,17 +290,19 @@ def main() -> None:
                 safe_findings = []
                 for f in findings:
                     match_data = f.get("match", {})
-                    safe_findings.append({
-                        "entity_type": f.get("entity_type"),
-                        "confidence": f.get("confidence"),
-                        "engine": f.get("engine"),
-                        "evidence": f.get("evidence", ""),
-                        "detection_type": f.get("detection_type"),
-                        "display_name": f.get("display_name"),
-                        "value_masked": match_data.get("value_masked", ""),
-                        "start": match_data.get("start", 0),
-                        "end": match_data.get("end", 0),
-                    })
+                    safe_findings.append(
+                        {
+                            "entity_type": f.get("entity_type"),
+                            "confidence": f.get("confidence"),
+                            "engine": f.get("engine"),
+                            "evidence": f.get("evidence", ""),
+                            "detection_type": f.get("detection_type"),
+                            "display_name": f.get("display_name"),
+                            "value_masked": match_data.get("value_masked", ""),
+                            "start": match_data.get("start", 0),
+                            "end": match_data.get("end", 0),
+                        }
+                    )
 
                 record = {
                     "prompt_id": prompt_id,
@@ -318,9 +317,7 @@ def main() -> None:
                     "secrets": safe_findings,
                     "num_zones": len(zones),
                     "num_secrets": len(safe_findings),
-                    "max_secret_confidence": max(
-                        (f["confidence"] for f in safe_findings), default=0.0
-                    ),
+                    "max_secret_confidence": max((f["confidence"] for f in safe_findings), default=0.0),
                     "review": None,
                 }
                 f_out.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -330,22 +327,24 @@ def main() -> None:
                 # TN — reservoir sample
                 tn_seen += 1
                 if len(tn_reservoir) < args.tn_sample:
-                    tn_reservoir.append({
-                        "prompt_id": prompt_id,
-                        "conv_hash": conv_hash,
-                        "turn_idx": turn_idx,
-                        "prompt_xor": xor_encode(text),
-                        "prompt_length": len(text),
-                        "total_lines": text.count("\n") + 1,
-                        "detector_version": detector_version,
-                        "zones": [],
-                        "zone_summary": {},
-                        "secrets": [],
-                        "num_zones": 0,
-                        "num_secrets": 0,
-                        "max_secret_confidence": 0.0,
-                        "review": None,
-                    })
+                    tn_reservoir.append(
+                        {
+                            "prompt_id": prompt_id,
+                            "conv_hash": conv_hash,
+                            "turn_idx": turn_idx,
+                            "prompt_xor": xor_encode(text),
+                            "prompt_length": len(text),
+                            "total_lines": text.count("\n") + 1,
+                            "detector_version": detector_version,
+                            "zones": [],
+                            "zone_summary": {},
+                            "secrets": [],
+                            "num_zones": 0,
+                            "num_secrets": 0,
+                            "max_secret_confidence": 0.0,
+                            "review": None,
+                        }
+                    )
                 else:
                     j = random.randint(0, tn_seen - 1)
                     if j < args.tn_sample:

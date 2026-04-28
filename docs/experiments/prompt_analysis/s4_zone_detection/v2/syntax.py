@@ -22,7 +22,7 @@ class SyntaxDetector:
 
         # --- syntactic character set ---
         self._syntactic_chars: set[str] = set(syntax.get("syntactic_chars", "{}()[];=<>|&!@#$^*/\\~"))
-        self._syntactic_endings: set[str] = set(syntax.get("syntactic_endings", "{;)],:" ))
+        self._syntactic_endings: set[str] = set(syntax.get("syntactic_endings", "{;)],:"))
 
         # --- two-tier keyword matching ---
         # Strict keywords: programming jargon that never appears in English
@@ -194,7 +194,7 @@ class SyntaxDetector:
         if self._contextual_kw_re:
             for m in self._contextual_kw_re.finditer(line):
                 pos = m.start()
-                after = line[m.end():]
+                after = line[m.end() :]
                 before = line[:pos]
 
                 # Valid if at start of line (after whitespace)
@@ -344,7 +344,9 @@ class SyntaxDetector:
             if raw[i] == 0.0 and neighbor_avg > 0.3 and self._comment_marker_re.match(lines[i]):
                 comment_bridge = neighbor_avg * self._comment_bridge_factor
 
-            blended = raw[i] * self._self_weight + neighbor_avg * self._neighbor_weight + transition_boost + comment_bridge
+            blended = (
+                raw[i] * self._self_weight + neighbor_avg * self._neighbor_weight + transition_boost + comment_bridge
+            )
             result[i] = blended
 
         # --- pass 3: multi-line comment block bridge ---

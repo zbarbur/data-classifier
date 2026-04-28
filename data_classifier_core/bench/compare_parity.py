@@ -3,9 +3,9 @@
 Usage:
     python compare_parity.py /tmp/python_results.jsonl /tmp/rust_results.jsonl
 """
+
 import json
 import sys
-from pathlib import Path
 
 
 def load_results(path: str) -> dict[str, dict]:
@@ -44,10 +44,10 @@ def compare_blocks(py_blocks: list, rs_blocks: list) -> list[str]:
 
     # Extra blocks in either side
     if len(py_sorted) > len(rs_sorted):
-        for b in py_sorted[len(rs_sorted):]:
+        for b in py_sorted[len(rs_sorted) :]:
             diffs.append(f"extra py block: {b['start_line']}-{b['end_line']} {b['zone_type']}")
     if len(rs_sorted) > len(py_sorted):
-        for b in rs_sorted[len(py_sorted):]:
+        for b in rs_sorted[len(py_sorted) :]:
             diffs.append(f"extra rs block: {b['start_line']}-{b['end_line']} {b['zone_type']}")
 
     return diffs
@@ -109,7 +109,7 @@ def main():
             divergent_prompts.append((pid, "blocks", "; ".join(diffs)))
 
     print(f"=== Parity Report ({total} common prompts) ===")
-    print(f"  Identical:           {identical} ({identical/total:.1%})")
+    print(f"  Identical:           {identical} ({identical / total:.1%})")
     print(f"  Detection diverge:   {detection_diff}")
     print(f"  Boundary diverge:    {boundary_diff}")
     print(f"  Type diverge:        {type_diff}")

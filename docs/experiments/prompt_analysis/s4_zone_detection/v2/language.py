@@ -22,8 +22,7 @@ class LanguageDetector:
 
         # Pre-compile all disambiguation patterns per language
         self._c_family_markers: dict[str, list[re.Pattern[str]]] = {
-            lang: [re.compile(p) for p in pat_list]
-            for lang, pat_list in raw_markers.items()
+            lang: [re.compile(p) for p in pat_list] for lang, pat_list in raw_markers.items()
         }
 
     # ------------------------------------------------------------------

@@ -45,11 +45,11 @@ def main() -> None:
     rng = random.Random(SEED)
     detector = UnifiedDetector(PATTERNS_PATH.read_text())
 
-    bucket_fp = []          # GT empty, pred code
-    bucket_gt_code = []     # GT has code
-    bucket_rare = []        # GT has config/data/markup
-    bucket_clean = []       # GT empty, pred only NL
-    bucket_highconf = []    # multi-line, high-confidence pred
+    bucket_fp = []  # GT empty, pred code
+    bucket_gt_code = []  # GT has code
+    bucket_rare = []  # GT has config/data/markup
+    bucket_clean = []  # GT empty, pred only NL
+    bucket_highconf = []  # multi-line, high-confidence pred
 
     print("Pre-running detector on full 1,954-prompt corpus to bucket...")
     with LABELED_PATH.open() as f:
@@ -68,7 +68,7 @@ def main() -> None:
                 "total_lines": r.get("total_lines", text.count("\n") + 1),
                 "gt_blocks": gt,
                 "pred_blocks": blocks,  # full predictions for the reviewer
-                "review": None,         # cleared for fresh labeling
+                "review": None,  # cleared for fresh labeling
             }
 
             if not gt and any(b["zone_type"] == "code" for b in non_nl):
@@ -79,9 +79,7 @@ def main() -> None:
                 bucket_rare.append(row)
             if not gt and not non_nl:
                 bucket_clean.append(row)
-            if row["total_lines"] >= 5 and any(
-                b["zone_type"] in NON_PROSE and b["confidence"] >= 0.85 for b in blocks
-            ):
+            if row["total_lines"] >= 5 and any(b["zone_type"] in NON_PROSE and b["confidence"] >= 0.85 for b in blocks):
                 bucket_highconf.append(row)
 
     print(f"  bucket_fp (GT∅, pred code): {len(bucket_fp)}")

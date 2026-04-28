@@ -1,6 +1,7 @@
 """Tests for SyntaxDetector — line scoring, fragment matching, context window."""
-from docs.experiments.prompt_analysis.s4_zone_detection.v2.syntax import SyntaxDetector
+
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.config import load_zone_patterns
+from docs.experiments.prompt_analysis.s4_zone_detection.v2.syntax import SyntaxDetector
 
 
 def _make_detector():

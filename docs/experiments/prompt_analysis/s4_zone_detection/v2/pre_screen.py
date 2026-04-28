@@ -1,4 +1,5 @@
 """Pre-screen fast path — rejects 97% of prompts that contain no code."""
+
 from __future__ import annotations
 
 _PRESCREEN_CHARS = frozenset("{}()[];=<>|&@#$^~")

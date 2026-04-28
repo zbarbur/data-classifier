@@ -25,7 +25,7 @@ import argparse
 import json
 import logging
 import sys
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -517,8 +517,11 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description="S4 Zone Detection Review Server")
-    parser.add_argument("--corpus", type=str,
-                        default="docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_labeled_corpus.jsonl")
+    parser.add_argument(
+        "--corpus",
+        type=str,
+        default="docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_labeled_corpus.jsonl",
+    )
     parser.add_argument("--port", type=int, default=8234)
     args = parser.parse_args()
 

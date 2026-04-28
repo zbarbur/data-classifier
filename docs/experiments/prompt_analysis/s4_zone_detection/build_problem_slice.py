@@ -93,7 +93,9 @@ def main() -> None:
     print(f"Wrote {len(problem_records)} problem prompts to {OUT_PATH}")
     for r in problem_records:
         types = sorted({b["zone_type"] for b in r["heuristic_blocks"] if b["zone_type"] in NON_PROSE})
-        print(f"  {r['prompt_id']}: {len(r['heuristic_blocks'])} pred blocks, prev_gold={len(r['previous_gold'])} types_pred={types}")
+        print(
+            f"  {r['prompt_id']}: {len(r['heuristic_blocks'])} pred blocks, prev_gold={len(r['previous_gold'])} types_pred={types}"
+        )
 
 
 if __name__ == "__main__":

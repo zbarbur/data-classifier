@@ -1,4 +1,5 @@
 """Output per-prompt detection results for parity comparison with Rust."""
+
 import json
 import sys
 import time
@@ -7,7 +8,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from docs.experiments.prompt_analysis.s4_zone_detection.v2 import detect_zones
 
-CORPUS_PATH = Path(__file__).resolve().parents[1] / "docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_labeled_corpus.jsonl"
+CORPUS_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_labeled_corpus.jsonl"
+)
 OUTPUT_PATH = Path("/tmp/python_results.jsonl")
 
 
@@ -40,15 +44,20 @@ def main():
                 }
                 for b in result.blocks
             ]
-            out.write(json.dumps({
-                "prompt_id": r.get("prompt_id", ""),
-                "has_blocks": len(result.blocks) > 0,
-                "block_count": len(result.blocks),
-                "blocks": blocks,
-            }) + "\n")
+            out.write(
+                json.dumps(
+                    {
+                        "prompt_id": r.get("prompt_id", ""),
+                        "has_blocks": len(result.blocks) > 0,
+                        "block_count": len(result.blocks),
+                        "blocks": blocks,
+                    }
+                )
+                + "\n"
+            )
 
     elapsed = time.time() - start
-    print(f"Processed {len(records)} records in {elapsed:.1f}s ({len(records)/elapsed:.0f} prompts/sec)")
+    print(f"Processed {len(records)} records in {elapsed:.1f}s ({len(records) / elapsed:.0f} prompts/sec)")
     print(f"Results written to {OUTPUT_PATH}")
 
 

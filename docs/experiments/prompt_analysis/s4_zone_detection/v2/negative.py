@@ -32,26 +32,18 @@ class NegativeFilter:
         neg = patterns.get("negative", {})
 
         # --- error output ---
-        self._error_output: list[re.Pattern[str]] = [
-            re.compile(p) for p in neg.get("error_output", [])
-        ]
+        self._error_output: list[re.Pattern[str]] = [re.compile(p) for p in neg.get("error_output", [])]
 
         # --- dialog ---
         dialog_cfg = neg.get("dialog", {})
-        self._dialog_pats: list[re.Pattern[str]] = [
-            re.compile(p) for p in dialog_cfg.get("patterns", [])
-        ]
+        self._dialog_pats: list[re.Pattern[str]] = [re.compile(p) for p in dialog_cfg.get("patterns", [])]
         self._dialog_min_alpha: float = dialog_cfg.get("min_alpha_ratio", 0.70)
 
         # --- math ---
-        self._math_pats: list[re.Pattern[str]] = [
-            re.compile(p) for p in neg.get("math", [])
-        ]
+        self._math_pats: list[re.Pattern[str]] = [re.compile(p) for p in neg.get("math", [])]
 
         # --- ratio ---
-        self._ratio_pats: list[re.Pattern[str]] = [
-            re.compile(p) for p in neg.get("ratio", [])
-        ]
+        self._ratio_pats: list[re.Pattern[str]] = [re.compile(p) for p in neg.get("ratio", [])]
 
         # --- prose ---
         prose_cfg = neg.get("prose", {})

@@ -1,4 +1,5 @@
 """Tests for zone detection data structures."""
+
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.types import (
     ZONE_TYPES,
     PromptZones,
@@ -25,8 +26,7 @@ def test_zone_block_construction():
 
 def test_prompt_zones_to_dict_strips_text():
     b = ZoneBlock(
-        start_line=0, end_line=5, zone_type="code",
-        confidence=0.9, method="fenced", text="def foo():\n    pass"
+        start_line=0, end_line=5, zone_type="code", confidence=0.9, method="fenced", text="def foo():\n    pass"
     )
     pz = PromptZones(prompt_id="test1", total_lines=10, blocks=[b])
     d = pz.to_dict()

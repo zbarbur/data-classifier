@@ -1,6 +1,7 @@
 """Tests for LanguageDetector — language probability from fragment hits."""
-from docs.experiments.prompt_analysis.s4_zone_detection.v2.language import LanguageDetector
+
 from docs.experiments.prompt_analysis.s4_zone_detection.v2.config import load_zone_patterns
+from docs.experiments.prompt_analysis.s4_zone_detection.v2.language import LanguageDetector
 
 
 def _make_detector():

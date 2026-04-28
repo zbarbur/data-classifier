@@ -35,17 +35,11 @@ def _classify_interior(inner_lines: list[str]) -> str:
     if not non_empty:
         return "code"
 
-    alpha_ratios = [
-        sum(c.isalpha() or c.isspace() for c in l) / max(len(l), 1)
-        for l in non_empty
-    ]
+    alpha_ratios = [sum(c.isalpha() or c.isspace() for c in l) / max(len(l), 1) for l in non_empty]
     avg_alpha = sum(alpha_ratios) / len(alpha_ratios)
 
     kw_hits = sum(1 for l in non_empty if _CODE_KEYWORDS.search(l))
-    syn_hits = sum(
-        1 for l in non_empty
-        if len(_SYNTACTIC_CHARS.findall(l)) / max(len(l), 1) > 0.05
-    )
+    syn_hits = sum(1 for l in non_empty if len(_SYNTACTIC_CHARS.findall(l)) / max(len(l), 1) > 0.05)
 
     if avg_alpha > 0.80 and kw_hits == 0 and syn_hits < len(non_empty) * 0.2:
         return "natural_language"
@@ -106,7 +100,7 @@ class StructuralDetector:
                 i += 1
                 continue
 
-            fence_char = m.group(1)[0]       # '`' or '~'
+            fence_char = m.group(1)[0]  # '`' or '~'
             fence_len = len(m.group(1))
             raw_tag = (m.group(2) or "").lower()
             start = i
@@ -205,7 +199,7 @@ class StructuralDetector:
             start_line = char_to_line(start_off)
             if start_line in fenced_ranges:
                 continue
-            m_close = re.search(r"</script>", text[m_open.end():], re.IGNORECASE)
+            m_close = re.search(r"</script>", text[m_open.end() :], re.IGNORECASE)
             if not m_close:
                 continue
             close_off = m_open.end() + m_close.end()
@@ -234,7 +228,7 @@ class StructuralDetector:
             start_line = char_to_line(start_off)
             if start_line in fenced_ranges:
                 continue
-            m_close = re.search(r"</style>", text[m_open.end():], re.IGNORECASE)
+            m_close = re.search(r"</style>", text[m_open.end() :], re.IGNORECASE)
             if not m_close:
                 continue
             close_off = m_open.end() + m_close.end()

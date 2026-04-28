@@ -35,9 +35,9 @@ import argparse
 import json
 import logging
 import sys
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent.parent))
 
@@ -47,6 +47,7 @@ log = logging.getLogger(__name__)
 _UNIFIED_DETECTOR = None
 try:
     from data_classifier_core import UnifiedDetector as _UnifiedDetectorClass
+
     _HAS_UNIFIED = True
 except ImportError:
     _HAS_UNIFIED = False
@@ -68,7 +69,12 @@ def _get_unified_detector():
     """Get or create the Rust unified detector singleton."""
     global _UNIFIED_DETECTOR
     if _UNIFIED_DETECTOR is None and _HAS_UNIFIED:
-        patterns_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "data_classifier_core" / "patterns" / "unified_patterns.json"
+        patterns_path = (
+            Path(__file__).resolve().parent.parent.parent.parent.parent
+            / "data_classifier_core"
+            / "patterns"
+            / "unified_patterns.json"
+        )
         if patterns_path.exists():
             _UNIFIED_DETECTOR = _UnifiedDetectorClass(patterns_path.read_text())
             log.info("Loaded Rust UnifiedDetector from %s", patterns_path)
@@ -83,6 +89,7 @@ def _decode_xor(prompt_xor: str) -> str:
         return decode_encoded_strings(["xor:" + prompt_xor])[0]
     # Fallback: manual decode
     import base64
+
     raw = base64.b64decode(prompt_xor)
     return bytes(b ^ 0x5A for b in raw).decode("utf-8")
 
@@ -128,7 +135,6 @@ def _convert_scan_secrets(text: str, scan_secrets: list[dict]) -> list[dict]:
     The Rust detector returns byte offsets (UTF-8), but the JS UI works with
     character positions. This function converts byte offsets → line + char col.
     """
-    text_bytes = text.encode("utf-8")
     lines = text.split("\n")
 
     # Build byte-offset → (line_no, char_col) mapping via cumulative byte lengths
@@ -159,19 +165,21 @@ def _convert_scan_secrets(text: str, scan_secrets: list[dict]) -> list[dict]:
         line_no, col_start = _byte_to_line_col(start)
         end_line, col_end = _byte_to_line_col(end)
 
-        findings.append({
-            "layer": s.get("engine", "unknown"),
-            "entity_type": s.get("entity_type", "UNKNOWN"),
-            "pattern_name": s.get("detection_type", ""),
-            "display_name": s.get("display_name", ""),
-            "confidence": s.get("confidence", 0),
-            "matched_text": s.get("value_masked", ""),
-            "evidence": s.get("evidence", ""),
-            "line": line_no,
-            "col_start": col_start,
-            "col_end": col_end if end_line == line_no else len(lines[line_no]) if line_no < len(lines) else 0,
-            "end_line": end_line,
-        })
+        findings.append(
+            {
+                "layer": s.get("engine", "unknown"),
+                "entity_type": s.get("entity_type", "UNKNOWN"),
+                "pattern_name": s.get("detection_type", ""),
+                "display_name": s.get("display_name", ""),
+                "confidence": s.get("confidence", 0),
+                "matched_text": s.get("value_masked", ""),
+                "evidence": s.get("evidence", ""),
+                "line": line_no,
+                "col_start": col_start,
+                "col_end": col_end if end_line == line_no else len(lines[line_no]) if line_no < len(lines) else 0,
+                "end_line": end_line,
+            }
+        )
     return findings
 
 
@@ -230,19 +238,21 @@ def _convert_rust_findings(text: str, findings: list[dict]) -> list[dict]:
         line_no, col_start = _byte_to_line_col(start)
         end_line, col_end = _byte_to_line_col(end)
 
-        out.append({
-            "layer": f.get("engine", "unknown"),
-            "entity_type": f.get("entity_type", "UNKNOWN"),
-            "pattern_name": f.get("detection_type", ""),
-            "display_name": f.get("display_name", ""),
-            "confidence": f.get("confidence", 0),
-            "matched_text": match_data.get("value_masked", ""),
-            "evidence": f.get("evidence", ""),
-            "line": line_no,
-            "col_start": col_start,
-            "col_end": col_end if end_line == line_no else len(lines[line_no]) if line_no < len(lines) else 0,
-            "end_line": end_line,
-        })
+        out.append(
+            {
+                "layer": f.get("engine", "unknown"),
+                "entity_type": f.get("entity_type", "UNKNOWN"),
+                "pattern_name": f.get("detection_type", ""),
+                "display_name": f.get("display_name", ""),
+                "confidence": f.get("confidence", 0),
+                "matched_text": match_data.get("value_masked", ""),
+                "evidence": f.get("evidence", ""),
+                "line": line_no,
+                "col_start": col_start,
+                "col_end": col_end if end_line == line_no else len(lines[line_no]) if line_no < len(lines) else 0,
+                "end_line": end_line,
+            }
+        )
     return out
 
 
@@ -1224,28 +1234,30 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 secrets = r.get("secrets", [])
                 zone_types = list({b.get("zone_type", "") for b in blocks})
                 max_conf = max(
-                    [b.get("confidence", 0) for b in blocks] +
-                    [s.get("confidence", 0) for s in secrets] +
-                    [0]
+                    [b.get("confidence", 0) for b in blocks] + [s.get("confidence", 0) for s in secrets] + [0]
                 )
-                meta.append({
-                    "idx": i,
-                    "prompt_id": (r.get("prompt_id") or "")[:12],
-                    "total_lines": r.get("total_lines", 0),
-                    "num_zones": len(blocks),
-                    "num_secrets": len(secrets),
-                    "zone_types": zone_types,
-                    "max_confidence": round(max_conf, 2),
-                    "has_review": r.get("review") is not None and (r["review"] or {}).get("correct") is not None,
-                    "review_correct": (r.get("review") or {}).get("correct"),
-                    "secret_entity_types": list({s.get("entity_type", "") for s in secrets}),
-                })
-            self._json_response({
-                "items": meta,
-                "total": len(CORPUS),
-                "page": page,
-                "page_size": size,
-            })
+                meta.append(
+                    {
+                        "idx": i,
+                        "prompt_id": (r.get("prompt_id") or "")[:12],
+                        "total_lines": r.get("total_lines", 0),
+                        "num_zones": len(blocks),
+                        "num_secrets": len(secrets),
+                        "zone_types": zone_types,
+                        "max_confidence": round(max_conf, 2),
+                        "has_review": r.get("review") is not None and (r["review"] or {}).get("correct") is not None,
+                        "review_correct": (r.get("review") or {}).get("correct"),
+                        "secret_entity_types": list({s.get("entity_type", "") for s in secrets}),
+                    }
+                )
+            self._json_response(
+                {
+                    "items": meta,
+                    "total": len(CORPUS),
+                    "page": page,
+                    "page_size": size,
+                }
+            )
 
         elif parsed.path == "/api/corpus":
             # Full corpus — kept for backward compatibility with small corpora
@@ -1284,15 +1296,17 @@ class ReviewHandler(BaseHTTPRequestHandler):
                     elif v == "fp":
                         fp_count += 1
 
-            self._json_response({
-                "total": total,
-                "reviewed": reviewed,
-                "rejected": rejected,
-                "with_secrets": with_secrets,
-                "with_zones": with_zones,
-                "secret_tp": tp_count,
-                "secret_fp": fp_count,
-            })
+            self._json_response(
+                {
+                    "total": total,
+                    "reviewed": reviewed,
+                    "rejected": rejected,
+                    "with_secrets": with_secrets,
+                    "with_zones": with_zones,
+                    "secret_tp": tp_count,
+                    "secret_fp": fp_count,
+                }
+            )
 
         else:
             self.send_error(404)
@@ -1332,10 +1346,12 @@ class ReviewHandler(BaseHTTPRequestHandler):
         elif self.path == "/api/detect_all":
             text = body.get("text", "")
             result = _run_unified_detection(text)
-            self._json_response({
-                "zones": result["zones"],
-                "secrets": result["secrets"],
-            })
+            self._json_response(
+                {
+                    "zones": result["zones"],
+                    "secrets": result["secrets"],
+                }
+            )
         else:
             self.send_error(404)
 
@@ -1351,8 +1367,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description="Prompt Analysis Review Server")
-    parser.add_argument("--corpus", type=str,
-                        default="data/wildchat_unified/candidates.jsonl")
+    parser.add_argument("--corpus", type=str, default="data/wildchat_unified/candidates.jsonl")
     parser.add_argument("--port", type=int, default=8234)
     args = parser.parse_args()
 
