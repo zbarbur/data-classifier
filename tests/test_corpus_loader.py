@@ -944,3 +944,137 @@ class TestNemotronCredentialShapePartitioning:
             opaque_values = by_type.get("OPAQUE_SECRET", [])
             leaked_jwts = [v for v in opaque_values if v.startswith("ey") and v.count(".") == 2]
             assert leaked_jwts == [], f"JWTs leaked into OPAQUE_SECRET column: {leaked_jwts}"
+
+
+class TestNemotronLuhnFilter:
+    """Sprint 17 item: drop Nemotron CC records that fail Luhn checksums.
+
+    Sprint 14's checksum-disambiguation work surfaced ~52 space-formatted
+    credit card numbers in the Nemotron synthetic corpus that fail Luhn
+    validation. Our detector correctly rejects them, so the ground-truth
+    label is wrong rather than the detector. Filter at load time so
+    benchmark numbers reflect detection on legitimate cards.
+    """
+
+    def test_invalid_luhn_cc_dropped(self) -> None:
+        from tests.benchmarks.corpus_loader import _filter_nemotron_invalid_luhn
+
+        # Spaced CC value from Sprint 14 finding: fails Luhn.
+        records = [
+            {"entity_type": "credit_debit_card", "value": "5317 3687 1025 7642"},
+        ]
+        out, dropped, total_cc = _filter_nemotron_invalid_luhn(records)
+        assert out == []
+        assert dropped == 1
+        assert total_cc == 1
+
+    def test_valid_luhn_cc_retained(self) -> None:
+        from tests.benchmarks.corpus_loader import _filter_nemotron_invalid_luhn
+
+        records = [
+            {"entity_type": "credit_card_number", "value": "4532015112830366"},
+        ]
+        out, dropped, total_cc = _filter_nemotron_invalid_luhn(records)
+        assert len(out) == 1
+        assert dropped == 0
+        assert total_cc == 1
+
+    def test_dashed_cc_passes_via_strip_check(self) -> None:
+        """Dashes/spaces are stripped before Luhn — 4111-1111-1111-1111 is valid."""
+        from tests.benchmarks.corpus_loader import _filter_nemotron_invalid_luhn
+
+        records = [
+            {"entity_type": "CREDIT_CARD", "value": "4111-1111-1111-1111"},
+        ]
+        out, dropped, total_cc = _filter_nemotron_invalid_luhn(records)
+        assert len(out) == 1
+        assert dropped == 0
+
+    def test_non_cc_records_unaffected(self) -> None:
+        """PHONE and other types pass through even with digit-heavy values."""
+        from tests.benchmarks.corpus_loader import _filter_nemotron_invalid_luhn
+
+        records = [
+            {"entity_type": "phone_number", "value": "5317 3687 1025 7642"},
+            {"entity_type": "ssn", "value": "123-45-6789"},
+            {"entity_type": "first_name", "value": "Alice"},
+        ]
+        out, dropped, total_cc = _filter_nemotron_invalid_luhn(records)
+        assert len(out) == 3
+        assert dropped == 0
+        assert total_cc == 0  # No CC records → no Luhn checks performed.
+
+    def test_mixed_records_filter_only_invalid_cc(self) -> None:
+        """A realistic mix: 2 valid CCs, 1 invalid CC, 2 non-CC records."""
+        from tests.benchmarks.corpus_loader import _filter_nemotron_invalid_luhn
+
+        records = [
+            {"entity_type": "credit_debit_card", "value": "4532015112830366"},
+            {"entity_type": "credit_debit_card", "value": "5317 3687 1025 7642"},
+            {"entity_type": "credit_card_number", "value": "4111-1111-1111-1111"},
+            {"entity_type": "email", "value": "alice@example.com"},
+            {"entity_type": "ssn", "value": "078-05-1120"},
+        ]
+        out, dropped, total_cc = _filter_nemotron_invalid_luhn(records)
+        assert len(out) == 4  # 5 in, 1 dropped.
+        assert dropped == 1
+        assert total_cc == 3
+        # The invalid CC must be the one dropped — verify by absence.
+        dropped_value = "5317 3687 1025 7642"
+        assert all(r.get("value") != dropped_value for r in out)
+
+    def test_drift_warning_at_high_drop_rate(self) -> None:
+        """A >30% drop rate triggers UserWarning so corpus drift is visible."""
+        import warnings
+
+        from tests.benchmarks.corpus_loader import load_nemotron_corpus
+
+        # Synthesize a fixture with 5 CC values, 4 of them invalid (80% drop rate).
+        # All other shapes mixed in to keep the loader's downstream paths working.
+        records = [
+            {"entity_type": "credit_debit_card", "value": "4532015112830366"},  # valid
+            {"entity_type": "credit_debit_card", "value": "5317 3687 1025 7642"},  # invalid
+            {"entity_type": "credit_debit_card", "value": "1234 5678 9012 3456"},  # invalid
+            {"entity_type": "credit_debit_card", "value": "0000 0000 0000 0000"},  # invalid
+            {"entity_type": "credit_debit_card", "value": "1111 2222 3333 4444"},  # invalid
+            {"entity_type": "first_name", "value": "Alice"},
+        ]
+        fixture_path = _FIXTURE_DIR / "_test_nemotron_drift_warning.json"
+        fixture_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            fixture_path.write_text(json.dumps(records))
+            with warnings.catch_warnings(record=True) as captured:
+                warnings.simplefilter("always")
+                load_nemotron_corpus(path=fixture_path, max_rows=10, blind=True)
+            drift_warnings = [w for w in captured if "drift threshold" in str(w.message)]
+            assert len(drift_warnings) == 1, (
+                f"Expected exactly one drift UserWarning at 80% drop rate, got {len(drift_warnings)}: "
+                f"{[str(w.message) for w in captured]}"
+            )
+        finally:
+            fixture_path.unlink(missing_ok=True)
+
+    def test_no_drift_warning_at_zero_drop_rate(self) -> None:
+        """All-valid CCs must NOT trigger the drift warning — noise prevention."""
+        import warnings
+
+        from tests.benchmarks.corpus_loader import load_nemotron_corpus
+
+        records = [
+            {"entity_type": "credit_debit_card", "value": "4532015112830366"},
+            {"entity_type": "credit_card_number", "value": "4111-1111-1111-1111"},
+            {"entity_type": "first_name", "value": "Alice"},
+        ]
+        fixture_path = _FIXTURE_DIR / "_test_nemotron_no_drift.json"
+        fixture_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            fixture_path.write_text(json.dumps(records))
+            with warnings.catch_warnings(record=True) as captured:
+                warnings.simplefilter("always")
+                load_nemotron_corpus(path=fixture_path, max_rows=10, blind=True)
+            drift_warnings = [w for w in captured if "drift threshold" in str(w.message)]
+            assert drift_warnings == [], (
+                f"0% drop rate must not trigger drift warning; got {[str(w.message) for w in drift_warnings]}"
+            )
+        finally:
+            fixture_path.unlink(missing_ok=True)
