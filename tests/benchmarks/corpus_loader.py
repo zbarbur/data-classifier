@@ -41,10 +41,23 @@ import re
 from pathlib import Path
 
 from data_classifier.core.types import ColumnInput
+from data_classifier.engines.validators import luhn_strip_check
 
 logger = logging.getLogger(__name__)
 
 _FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "corpora"
+
+# Raw entity_type labels in upstream Nemotron records that map to
+# CREDIT_CARD in our taxonomy. Used by the Sprint 17 Luhn filter to
+# decide which records to validate.
+_NEMOTRON_CC_RAW_TYPES: frozenset[str] = frozenset({"credit_debit_card", "credit_card_number", "CREDIT_CARD"})
+
+# Above this drop rate, the Luhn filter raises a UserWarning. Calibrated
+# loosely (30%) to act as a corpus-drift detector — Nemotron's known
+# steady-state of ~52 invalid CCs / ~500 total ≈ 10% drop should NOT trip
+# the warning every load, but a 50%+ spike from an upstream regression
+# should.
+_NEMOTRON_LUHN_DROP_RATE_DRIFT_THRESHOLD = 0.30
 
 # ── Entity type mappings from external corpora to our types ──────────────────
 
@@ -408,6 +421,32 @@ def _records_to_corpus(
     return corpus
 
 
+def _filter_nemotron_invalid_luhn(records: list[dict]) -> tuple[list[dict], int, int]:
+    """Drop Nemotron CC records whose value fails Luhn validation.
+
+    Sprint 14 surfaced ~52 space-formatted CC values in the Nemotron
+    synthetic corpus (e.g., ``"5317 3687 1025 7642"``) that fail Luhn.
+    Our detector correctly rejects them — the ground-truth label is
+    wrong. Filter at load time rather than relabeling, so downstream
+    metrics reflect detection on legitimate cards.
+
+    Returns ``(filtered_records, dropped_count, total_cc_count)``.
+    """
+    out: list[dict] = []
+    dropped = 0
+    total_cc = 0
+    for record in records:
+        raw_type = record.get("entity_type") or record.get("type") or ""
+        if raw_type in _NEMOTRON_CC_RAW_TYPES:
+            total_cc += 1
+            value = str(record.get("value", ""))
+            if not luhn_strip_check(value):
+                dropped += 1
+                continue
+        out.append(record)
+    return out, dropped, total_cc
+
+
 def load_nemotron_corpus(
     path: Path | str | None = None,
     max_rows: int = 500,
@@ -432,6 +471,29 @@ def load_nemotron_corpus(
     if not records:
         logger.warning("No records loaded from Nemotron corpus at %s", path)
         return []
+
+    # Sprint 17 item: filter out CC records with invalid Luhn checksums.
+    # Drop, don't relabel — ground truth is wrong, not the value shape.
+    records, luhn_dropped, luhn_total_cc = _filter_nemotron_invalid_luhn(records)
+    if luhn_total_cc > 0:
+        drop_rate = luhn_dropped / luhn_total_cc
+        logger.info(
+            "Nemotron CC: dropped %d/%d values failing Luhn (%.1f%%)",
+            luhn_dropped,
+            luhn_total_cc,
+            drop_rate * 100,
+        )
+        if drop_rate > _NEMOTRON_LUHN_DROP_RATE_DRIFT_THRESHOLD:
+            import warnings
+
+            warnings.warn(
+                f"Nemotron CC Luhn drop rate {drop_rate:.1%} exceeds drift "
+                f"threshold {_NEMOTRON_LUHN_DROP_RATE_DRIFT_THRESHOLD:.0%} — "
+                f"upstream corpus may have regressed. Investigate before "
+                f"trusting CREDIT_CARD benchmark numbers.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     # Sprint 11 follow-up: repartition raw ``password`` / ``CREDENTIAL``
     # records by value shape so JWTs route to API_KEY and PEM blocks to
