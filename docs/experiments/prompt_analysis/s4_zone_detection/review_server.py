@@ -31,6 +31,7 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent.parent))
 
+from docs.experiments.prompt_analysis.s4_zone_detection._codec import encode, get_text
 from docs.experiments.prompt_analysis.s4_zone_detection.zone_detector import detect_zones
 
 log = logging.getLogger(__name__)
@@ -41,18 +42,34 @@ CORPUS_PATH: Path | None = None
 
 
 def _load_corpus(path: Path):
+    """Load JSONL, decoding text_xor → text for in-memory use.
+
+    Disk format keeps prompts XOR-encoded (see _codec.py) so committed files
+    don't trip secret scanners. JS-served pages read `r.text`, so we decode
+    once at load time.
+    """
     global CORPUS, CORPUS_PATH
     CORPUS_PATH = path
+    CORPUS = []
     with open(path) as f:
-        CORPUS = [json.loads(l) for l in f if l.strip()]
+        for line in f:
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            rec["text"] = get_text(rec)  # decode text_xor → text in-memory
+            CORPUS.append(rec)
     log.info("Loaded %d records from %s", len(CORPUS), path)
 
 
 def _save_corpus():
+    """Persist corpus, re-encoding text → text_xor on disk."""
     if CORPUS_PATH:
         with open(CORPUS_PATH, "w") as f:
             for r in CORPUS:
-                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+                # Always serialize with text_xor (drop in-memory text field)
+                out = {k: v for k, v in r.items() if k != "text"}
+                out["text_xor"] = encode(r["text"])
+                f.write(json.dumps(out, ensure_ascii=False) + "\n")
         log.info("Saved %d records to %s", len(CORPUS), CORPUS_PATH)
 
 

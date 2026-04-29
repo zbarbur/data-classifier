@@ -21,6 +21,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from data_classifier_core import UnifiedDetector
+from docs.experiments.prompt_analysis.s4_zone_detection._codec import get_text
 
 SLICE_PATH = Path("docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_relabel_slice.jsonl")
 PROBLEM_PATH = Path("docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_problem_slice.jsonl")
@@ -80,7 +81,7 @@ def main() -> None:
             else:
                 gold = gold_blocks(r)
 
-            text = r["text"]
+            text = get_text(r)
             res = json.loads(detector.detect(text))
             blocks = (res.get("zones") or {}).get("blocks") or []
             non_nl_pred = [b for b in blocks if b["zone_type"] in NON_PROSE]

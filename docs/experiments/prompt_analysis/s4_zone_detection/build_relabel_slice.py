@@ -25,6 +25,7 @@ import random
 from pathlib import Path
 
 from data_classifier_core import UnifiedDetector
+from docs.experiments.prompt_analysis.s4_zone_detection._codec import encode, get_text
 
 LABELED_PATH = Path("docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_labeled_corpus.jsonl")
 PATTERNS_PATH = Path("data_classifier_core/patterns/unified_patterns.json")
@@ -55,7 +56,7 @@ def main() -> None:
     with LABELED_PATH.open() as f:
         for line in f:
             r = json.loads(line)
-            text = r["text"]
+            text = get_text(r)
             gt = (r.get("review") or {}).get("actual_blocks") or []
 
             res = json.loads(detector.detect(text))
@@ -64,7 +65,7 @@ def main() -> None:
 
             row = {
                 "prompt_id": r["prompt_id"],
-                "text": text,
+                "text_xor": encode(text),
                 "total_lines": r.get("total_lines", text.count("\n") + 1),
                 "gt_blocks": gt,
                 "pred_blocks": blocks,  # full predictions for the reviewer

@@ -18,6 +18,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from data_classifier_core import UnifiedDetector
+from docs.experiments.prompt_analysis.s4_zone_detection._codec import get_text
 
 LABELED_PATH = Path("docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_labeled_corpus.jsonl")
 PATTERNS_PATH = Path("data_classifier_core/patterns/unified_patterns.json")
@@ -56,7 +57,7 @@ def main() -> None:
         for line in f:
             n += 1
             r = json.loads(line)
-            text = r["text"]
+            text = get_text(r)
             gt_blocks = (r.get("review") or {}).get("actual_blocks") or []
 
             result_json = detector.detect(text)

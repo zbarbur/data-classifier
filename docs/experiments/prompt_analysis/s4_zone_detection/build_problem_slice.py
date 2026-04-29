@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 
 from data_classifier_core import UnifiedDetector
+from docs.experiments.prompt_analysis.s4_zone_detection._codec import encode, get_text
 
 SLICE_PATH = Path("docs/experiments/prompt_analysis/s4_zone_detection/labeled_data/s4_relabel_slice.jsonl")
 PATTERNS_PATH = Path("data_classifier_core/patterns/unified_patterns.json")
@@ -46,7 +47,7 @@ def main() -> None:
     with SLICE_PATH.open() as f:
         for line in f:
             r = json.loads(line)
-            text = r["text"]
+            text = get_text(r)
             gold = gold_blocks(r)
 
             res = json.loads(detector.detect(text))
@@ -78,7 +79,7 @@ def main() -> None:
                 # and a cleared review for re-labeling
                 fresh = {
                     "prompt_id": r["prompt_id"],
-                    "text": text,
+                    "text_xor": encode(text),
                     "total_lines": r.get("total_lines", text.count("\n") + 1),
                     "previous_gold": gold,  # what the user said before
                     "heuristic_blocks": blocks,  # latest predictions

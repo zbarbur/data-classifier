@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent.parent))
 
+from docs.experiments.prompt_analysis.s4_zone_detection._codec import encode
 from docs.experiments.prompt_analysis.s4_zone_detection.zone_detector import detect_zones
 
 log = logging.getLogger(__name__)
@@ -110,7 +111,7 @@ def main():
 
             record = {
                 "prompt_id": pid,
-                "text": text,
+                "text_xor": encode(text),
                 "total_lines": zones.total_lines,
                 "heuristic_has_blocks": is_positive,
                 "heuristic_blocks": [
