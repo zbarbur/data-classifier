@@ -174,7 +174,12 @@ fn load_placeholder_values(patterns: &serde_json::Value) -> HashSet<String> {
     patterns
         .get("placeholder_values")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_lowercase())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(crate::secret_detector::decoder::decode_encoded_string))
+                .map(|s| s.to_lowercase())
+                .collect()
+        })
         .unwrap_or_default()
 }
 

@@ -38,7 +38,8 @@ impl OpaquePass {
     pub fn from_patterns(patterns: &serde_json::Value) -> Self {
         let placeholder_values = if let Some(arr) = patterns.get("placeholder_values").and_then(|v| v.as_array()) {
             arr.iter()
-                .filter_map(|v| v.as_str().map(|s| s.to_lowercase()))
+                .filter_map(|v| v.as_str().map(crate::secret_detector::decoder::decode_encoded_string))
+                .map(|s| s.to_lowercase())
                 .collect()
         } else {
             HashSet::new()

@@ -1,4 +1,5 @@
 pub mod config;
+pub mod decoder;
 pub mod entropy;
 pub mod parsers;
 pub mod redaction;

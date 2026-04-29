@@ -137,7 +137,8 @@ impl RegexPass {
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_lowercase()))
+                    .filter_map(|v| v.as_str().map(crate::secret_detector::decoder::decode_encoded_string))
+                    .map(|s| s.to_lowercase())
                     .collect()
             })
             .unwrap_or_default();
