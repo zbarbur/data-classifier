@@ -53,7 +53,7 @@ test_plan:
 - 'Drop-rate sanity check: if filter drops <40 or >70 values (S14 expected ~52), pause
   and investigate corpus before merging.'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

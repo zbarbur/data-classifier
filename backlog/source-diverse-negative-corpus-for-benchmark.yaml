@@ -65,7 +65,7 @@ test_plan:
 - 'License audit: docs/research/negative_corpus_sources.md reviewed; CI grep guard
   rejects new sources without provenance entries (or filed as follow-up if scope-creep).'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

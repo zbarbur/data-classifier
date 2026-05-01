@@ -68,7 +68,7 @@ test_plan:
   and the cross-reference on prompt-analysis queue.md points at the spec path (or
   naturally inherits the fix via the next main to research sync).
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
