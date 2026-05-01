@@ -1,0 +1,52 @@
+title: Add joint_miss_rate metric to family benchmark + use as sprint gate
+status: backlog
+priority: P1
+category: feature
+sprint_target: null
+created: 2026-05-01
+updated: 2026-05-01
+depends_on: []
+tags: []
+goal: Add a family-benchmark metric that captures system-level miss rate (shards where
+  neither LIVE nor SHADOW emits a correct family at any path) and replace the misleading
+  shadow.cross_family_rate as the CLAUDE.md sprint completion gate. Surfaced when
+  sprint17 router-suppression decomposition revealed headline metric tracks router-policy
+  not detection quality (7.6% true joint miss vs 37% headline cross-family rate).
+complexity: S
+technical_specs:
+- "File: tests/benchmarks/family_accuracy_benchmark.py \u2014 add joint_miss_rate\
+  \ computation; both per-shard joint_miss boolean and aggregate"
+- "File: tests/benchmarks/README.md \u2014 Tier 1 / Tier 2 documentation update; explain\
+  \ that headline cross_family_rate tracks router-suppression policy, joint_miss_rate\
+  \ is the system-level quality signal"
+- "File: CLAUDE.md \u2014 update Sprint Completion Gate section to reference joint_miss_rate\
+  \ as the gate metric"
+- "File: docs/research/meta_classifier/sprint17_family_benchmark.json \u2014 regenerate\
+  \ baseline with the new metric"
+- "File: docs/research/meta_classifier/sprint17_router_suppression_decomposition.md\
+  \ \u2014 already explains the rationale; backlog item references it"
+description: ''
+acceptance_criteria:
+- tests/benchmarks/family_accuracy_benchmark.py emits joint_miss_rate at top-level
+  and in shadow.overall.family
+- "Definition documented inline + in tests/benchmarks/README.md: a shard is a 'joint\
+  \ miss' iff (a) no path's predicted_family \u2208 ground_truth_families AND (b)\
+  \ ground_truth \u2260 NEGATIVE"
+- Metric also breaks down by family and corpus in the summary JSON
+- CLAUDE.md sprint completion gate updated to reference shadow.overall.family.joint_miss_rate
+  (not cross_family_rate)
+- 'Sprint17 baseline regenerated with the new metric (current value: 0.0762 = 893/11820)'
+- ruff check . clean, full pytest green
+test_plan:
+- Add unit test for joint_miss_rate computation given hand-built (predictions, ground_truth_families)
+  inputs
+- "Verify: joint_miss_rate computed on /tmp/main_full.bench.predictions.jsonl matches\
+  \ the manual count of 893/11820 \u2248 0.0756"
+- Run family benchmark, confirm summary contains joint_miss_rate; confirm CLAUDE.md
+  gate language is updated
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
