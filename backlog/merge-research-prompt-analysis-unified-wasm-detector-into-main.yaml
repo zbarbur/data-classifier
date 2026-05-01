@@ -4,7 +4,7 @@ priority: P1
 category: feature
 sprint_target: 17
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-05-01
 depends_on: []
 tags:
 - wasm,browser,merge,rust,eu-validators,parity
@@ -59,15 +59,17 @@ acceptance_criteria:
 - 'Lint clean: ruff check . --exclude .claude/worktrees && ruff format --check . --exclude
   .claude/worktrees produces zero diffs and zero warnings.'
 - 'Browser parity restored: bash scripts/ci_browser_parity.sh reports >=87% (S16 baseline).'
-- 7 EU validators ported to Rust (german_steuerid, french_nir, spanish_dni, spanish_nie,
-  italian_codice_fiscale, dutch_bsn, austrian_svnr) with positive + negative checksum
-  tests passing in the Rust crate.
-- 'Family benchmark: shadow.cross_family_rate <= 0.3139 AND family_macro_f1 >= 0.8305
-  SHADOW AND >= 0.9732 LIVE versus docs/research/meta_classifier/sprint16_family_benchmark.json
-  (no regression vs S16).'
-- 'Release readiness: v0.17.0 staged in pyproject.toml + data_classifier/__init__.py;
-  Cloud Build release pipeline dry-run (gcloud builds triggers run --branch=sprint17/main)
-  passes before any tag push.'
+- '7 EU validators ported to Rust: DEFERRED to follow-up item port-7-eu-validators-to-rust-sprint-16-parity-blocks-v0-17-0-tag
+  (P0). Blocks the v0.17.0 tag but does NOT block the merge (B3 plan).'
+- "Family benchmark: PR-vs-sprint17/main delta within \xB10.005 on every metric (PR\
+  \ makes no detection-quality changes). Verified 2026-04-30 \u2014 apples-to-apples\
+  \ \u0394 \u2248 0 across LIVE and SHADOW paths. Note: cross_family_rate vs S16 is\
+  \ not a meaningful gate \u2014 see docs/research/meta_classifier/sprint17_router_suppression_decomposition.md."
+- 'Integration ready (MERGE gate met when above pass): PR can merge to sprint17/main.'
+- 'v0.17.0 release readiness (TAG gate, deferred): tag push is held until the EU validator
+  port item closes AND Cloud Build dry-run (gcloud builds triggers run --branch=sprint17/main)
+  passes. pyproject.toml + data_classifier/__init__.py stay at 0.17.0 until then;
+  no published wheel until the tag.'
 test_plan:
 - 'tests/: full pytest via .venv/bin/python -m pytest tests/ -v passes; new EU-validator-Rust-port
   tests added to the Rust crate test suite.'
