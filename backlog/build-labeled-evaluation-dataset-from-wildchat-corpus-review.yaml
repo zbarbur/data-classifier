@@ -1,15 +1,29 @@
 title: Build labeled evaluation dataset from WildChat corpus review
-status: backlog
+status: doing
 priority: P1
 category: feature
 sprint_target: 18
 created: 2026-04-18
-updated: 2026-04-28
+updated: 2026-05-02
 depends_on: []
 tags: []
-goal: ''
-complexity: null
-technical_specs: []
+goal: Lock in Sprint 14 manual review of 3,515 WildChat credential prompts as a DVC-tracked
+  labeled GT dataset; any future scanner change must keep label outcomes (TP/FP/TN/FN)
+  stable or block merge via a regression test.
+complexity: L
+technical_specs:
+- "File (new): data/wildchat_labeled_eval/labeled_set.jsonl + .dvc \u2014 DVC-tracked\
+  \ labeled corpus, prompts XOR-encoded per repo policy"
+- "File (new): scripts/build_wildchat_labeled.py \u2014 re-scans, joins with S14 manual\
+  \ labels, emits JSONL; reproducible from raw WildChat + label CSV"
+- "File (new): tests/benchmarks/wildchat_labeled_eval.py \u2014 runs Rust + Python\
+  \ + JS scanners over the labeled set, returns per-label diff"
+- "File (new): tests/test_wildchat_labeled_regression.py \u2014 pytest entry; uses\
+  \ thresholds (precision >= S14 baseline, recall >= S14 baseline) to fail on regression"
+- "File: scripts/cross_runtime_parity.sh \u2014 extend to optionally run on labeled\
+  \ set; document in docs/process/dataset_management.md"
+- "Reference: Sprint 14 manual review notes; XOR-encoded prompts only \u2014 never\
+  \ commit cleartext WildChat secrets (per memory feedback_xor_fixture_pattern)"
 description: "During Sprint 14 secret scanner review, we manually classified 3,515\
   \ WildChat credential prompts across 5 sample batches (seeds 42/99/777/2024/555).\
   \ Results: 98.6% precision on SS-only subset (900 unique prompts), 4 remaining FPs,\
@@ -25,12 +39,37 @@ description: "During Sprint 14 secret scanner review, we manually classified 3,5
   \ Label them as TN (correctly suppressed).\n\nBrowser parity: the JS scanner should\
   \ produce identical results on the same prompts. Add a differential test using this\
   \ labeled dataset."
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- All 3,515 reviewed WildChat prompts re-scanned with current Rust unified detector
+  + Python scan_text; results saved as JSONL with fields prompt_xor, scanner_findings,
+  old_findings, label, confidence, reviewed flag
+- 5 known FN cases included with label=FN for recall tracking
+- 4 known FP cases included with label=FP for precision tracking
+- 620 previously-suppressed prompts labeled TN (correctly suppressed) to prove suppression
+  logic still holds
+- DVC-tracked under data/wildchat_labeled_eval/ with .dvc pointing at gs://data-classifier-datasets
+- Differential test compares Rust unified detector to JS browser scanner on the labeled
+  set; mismatches fail
+- "pytest entry point fails when any TP\u2192FP, TP\u2192FN, or new FP/FN regression\
+  \ occurs against the labeled baseline"
+- Tests pass (.venv/bin/python -m pytest tests/ -v) and lint clean (ruff check . --exclude
+  .claude/worktrees)
+test_plan:
+- "tests/test_wildchat_labeled_regression.py: test_label_preservation_rust \u2014\
+  \ every TP in S14 baseline still TP under current scanner"
+- "tests/test_wildchat_labeled_regression.py: test_no_new_fps \u2014 4 known FPs do\
+  \ not multiply"
+- "tests/test_wildchat_labeled_regression.py: test_recall_holds_5_known_fns \u2014\
+  \ the 5 missed-secret cases are now caught (or block merge with annotation if intentionally\
+  \ still missed)"
+- "tests/test_wildchat_labeled_regression.py: test_browser_parity_on_labeled_set \u2014\
+  \ Rust vs JS scanner output is byte-equal on labeled prompts"
+- 'Manual: dvc pull && python scripts/build_wildchat_labeled.py from a clean checkout,
+  confirm regen reproducibility'
 notes: 'Deferred from S17 to S18 (2026-04-28): WildChat GT labels are detection-output-dependent.
   The S17 WASM merge changes detection behavior; doing GT review pre-merge would tie
   labels to deprecated outputs. Reviewing post-merge means labels reflect what ships.'
-phase: null
+phase: plan
 design_reviewed: false
 code_reviewed: false
 comments: []

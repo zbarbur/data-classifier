@@ -1,5 +1,5 @@
 title: "CI silences dvc pull failures \u2014 change || echo to || exit 1 in ci.yaml"
-status: backlog
+status: doing
 priority: P0
 category: bug
 sprint_target: 18

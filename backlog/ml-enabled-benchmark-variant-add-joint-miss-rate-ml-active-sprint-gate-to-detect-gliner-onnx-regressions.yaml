@@ -1,6 +1,6 @@
 title: "ML-enabled benchmark variant \u2014 add joint_miss_rate_ml_active sprint gate\
   \ to detect GLiNER/ONNX regressions"
-status: backlog
+status: doing
 priority: P0
 category: feature
 sprint_target: 18
