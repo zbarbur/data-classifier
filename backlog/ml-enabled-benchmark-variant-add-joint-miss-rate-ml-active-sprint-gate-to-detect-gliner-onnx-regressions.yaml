@@ -1,0 +1,46 @@
+title: "ML-enabled benchmark variant \u2014 add joint_miss_rate_ml_active sprint gate\
+  \ to detect GLiNER/ONNX regressions"
+status: backlog
+priority: P0
+category: feature
+sprint_target: 18
+created: 2026-05-02
+updated: 2026-05-02
+depends_on: []
+tags: []
+goal: Add a production-parity ML-enabled benchmark variant alongside the canonical
+  ML-disabled run. Current sprint gate runs DATA_CLASSIFIER_DISABLE_ML=1 but production
+  uses ML; GLiNER2/ONNX/onnxruntime regressions are silent. The Sprint 17 ORGANIZATION
+  FP is a live example of an ML-only regression that doesn't show in the gate.
+complexity: M
+technical_specs:
+- "File: tests/benchmarks/family_accuracy_benchmark.py \u2014 add --ml-active flag;\
+  \ second pass with DATA_CLASSIFIER_DISABLE_ML=0; merge results into single summary\
+  \ JSON"
+- "File: tests/benchmarks/meta_classifier/build_training_data.py:35 \u2014 currently\
+  \ hard-disables ML at import; refactor to allow caller-controlled toggle"
+- "File: CLAUDE.md \u2014 update sprint gate section to require both metrics"
+- 'Audit doc: docs/research/sprint17_benchmark_audit.md (will be created in handover)
+  for full context'
+description: ''
+acceptance_criteria:
+- tests/benchmarks/family_accuracy_benchmark.py supports a --ml-active flag (or runs
+  a second pass) producing system.overall.joint_miss_rate_ml_active in the summary
+- "CLAUDE.md sprint gate references both metrics \u2014 joint_miss_rate (ML-disabled,\
+  \ fast) and joint_miss_rate_ml_active (ML-enabled, slower)"
+- Sprint 18 baseline committed at docs/research/meta_classifier/sprint18_family_benchmark.json
+  contains both fields
+- 'Wall-clock budget documented: ML-active run completes in <15min on standard dev
+  box (full corpus)'
+- Tests pass and lint clean
+test_plan:
+- "tests/test_family_benchmark_metrics.py \u2014 add test for ml_active path returning\
+  \ a populated joint_miss_rate"
+- 'Manual: run both --ml-active and default mode, diff the joint_miss_by_family table
+  to confirm ML contributes (LIVE-only-miss recovers some shards via GLiNER)'
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

@@ -1,26 +1,26 @@
 # data_classifier — Project Context
 
-> **Last updated:** 2026-04-28 (Sprint 16 complete — CONTACT + GOVERNMENT_ID recall, EU national-ID phase 1, within-family specificity sort)
+> **Last updated:** 2026-05-02 (Sprint 17 complete — Browser Scanner v2 unified Rust/WASM detector + measurement honesty `joint_miss_rate`)
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Current sprint | 16 (closed) → 17 (planning) |
-| Release | **v0.16.0** published to Google Artifact Registry (Cloud Build `8e2eb02e` succeeded 2026-04-28). |
-| Tests | **2407 passing** + 20 skipped + 1 xfailed (~56s local with `[ml]`) |
-| CI | `lint-and-test` (3.11/3.12/3.13), `lint-and-test-ml` (3.12), `install-test` (3.11/3.12/3.13), `browser-parity` — all green. 3 of 4 jobs migrated to `uv` (Sprint 16). |
-| Patterns | **+7 EU GOVERNMENT_ID** patterns (Sprint 16): DE Steuer-ID, FR NIR, ES DNI, ES NIE, IT Codice Fiscale, NL BSN, AT SVNR. |
-| Engines | **5** (column_name, regex, heuristic_stats, secret_scanner, gliner2) + meta-classifier **v6** (live on structured_single, schema v5 with 49 features). Column-shape router: 3 branches — `structured_single`, `free_text_heterogeneous`, `opaque_tokens`. |
-| Validators | **+7 EU checksum validators** (Sprint 16): `german_steuerid`, `french_nir`, `spanish_dni`, `spanish_nie`, `italian_codice_fiscale`, `dutch_bsn`, `austrian_svnr`. JS port deferred (known parity gap). |
-| Entity types | **Family taxonomy:** 13 families. **`ENTITY_SPECIFICITY` map** (Sprint 16) drives within-family primary-label tie-break (cross-family ordering remains pure-confidence). |
-| Two detection paths | **Structured:** `classify_columns`. **Unstructured:** `scan_text` (Python) / browser scanner (JS) — parity gated. |
-| Corpora | 7 OSI-compatible + DVC-tracked WildChat-1M + openpii-1m (Sprint 15). |
-| **Accuracy (family-level, Sprint 16, no-ML)** | **family_macro_f1 0.9732** (+0.0255 vs S15), **cross_family_rate 8.08%** (-2.58pp). Sprint gate metric `shadow.cross_family_rate` 0.3245 → **0.3139**. |
-| **Accuracy (ML-enabled reference)** | family_macro_f1 0.9903, cross_family_rate 2.91%. CONTACT F1 0.966 (+0.170), ADDRESS subtype F1 0.942 (+0.300), PERSON_NAME F1 0.948 (+0.302). |
-| **Browser scanner** | Python–JS parity CI gated. 87% WildChat parity (25 Python-only OPAQUE_SECRET = known gap, port-opaquetokenpass in S17 backlog). |
-| **Distribution** | Wheel: AR Python repo. Model: AR Generic repo (urchade-gliner-multi-pii-v1, unchanged since S8). Browser: `npm run release` → zip. Datasets: DVC + GCS (`gs://data-classifier-datasets`). |
-| **Dev tooling** | `uv` for venv + install (Sprint 16, 40-87% .venv size reduction); `gliner2==1.2.6` requires manual install (not in pyproject extras). |
+| Current sprint | 17 (closed) → 18 (planning) |
+| Release | **v0.17.0** in `pyproject.toml` (CHANGELOG written); **git tag held** pending EU validators ported to Rust + Cloud Build dry-run (B3 plan). v0.16.0 still the published wheel on Google Artifact Registry. |
+| Tests | **2,593 passing** + 1 skipped + 1 xfailed + 2 failed (pre-existing — GLiNER ORGANIZATION FPs, filed S18 P0) |
+| CI | `lint-and-test` (3.11/3.12/3.13), `lint-and-test-ml` (3.12), `install-test` (3.11/3.12/3.13), `browser-parity` — green except for 2 pre-existing failures not blocking merge. **Audit gap (S18 P0):** `dvc pull` failure silenced with `\|\| echo`. |
+| Patterns | +7 EU GOVERNMENT_ID (Sprint 16): DE Steuer-ID, FR NIR, ES DNI, ES NIE, IT Codice Fiscale, NL BSN, AT SVNR. |
+| Engines | **5 Python** (column_name, regex, heuristic_stats, secret_scanner, gliner2) + **1 Rust** (UnifiedDetector, S17). Meta-classifier **v6** on structured_single, schema v5 with 49 features. Column-shape router: 3 branches. |
+| Validators | +7 EU checksum validators (Sprint 16). **Rust port deferred (S18 P0)** — WASM emits these types via pattern-only matching until ported. |
+| Entity types | **Family taxonomy:** 13 families. `ENTITY_SPECIFICITY` map (Sprint 16) drives within-family primary-label tie-break. |
+| Two detection paths | **Structured:** `classify_columns`. **Unstructured:** `scan_text` (Python OR Rust UnifiedDetector if available) / browser scanner (WASM). |
+| Corpora | 7 OSI-compatible + DVC-tracked WildChat-1M + openpii-1m + **5-source diverse NEGATIVE corpus** (S17, 2,500 values across config/code/business/numeric/prose). |
+| **Sprint gate (S17)** | **`system.overall.joint_miss_rate` = 0.0656** (736 / 11,220 non-NEGATIVE shards) — replaces `shadow.cross_family_rate`. Decomposes router suppression from system quality. ML-disabled canonical run. |
+| **LIVE family_macro_f1** | 0.9542 (no-ML, full 11,820-shard corpus). Sprint 16 baseline 0.9732 was on 4,620-shard subset (corpus-fixture artifact); same code on full corpus is identical ±0.0002. |
+| **Browser scanner** | Unified Rust/WASM detector (S17). Cross-runtime parity byte-identical (14 Rust + 8 WASM fixtures). WildChat parity 98.5% with Rust extension; 86.5% with Python fallback (gap = 7 unported EU validators). |
+| **Distribution** | Wheel: AR Python repo (still v0.16.0 published). Model: AR Generic repo. Browser: WASM bundle via `npm run release`. Datasets: DVC + GCS. |
+| **Dev tooling** | `uv` venv (S16, per-worktree pattern). `gliner2==1.2.6` manual install. **maturin** added (S17) for Rust extension builds. |
 
 ## Architecture
 
@@ -119,6 +119,7 @@
 | 14 | Directive flip + multi-label scoring + browser PoC + detection quality | Complete | 2272 | Meta-classifier v6 live (F1 0.8300→0.9509), checksum-wins collision resolution, per-pattern findings, scan_text API, browser PoC (77 patterns, P99 0.70ms, 20KB gz), Python–JS parity CI gate, DVC + GCS dataset infrastructure, corpus data quality fixes |
 | 15 | Dataset foundation + scoring honesty + text-path precision | Complete | 2343 | v0.15.0 release. Three-pass `scan_text` pipeline (regex + KV scanner + opaque token), 25+ structural FP filters, PEM block detection, char-class diversity boost, confidence model rethink (single-match validated patterns floor at 0.95, count multiplier removed), SWIFT_BIC validator tightened (NEGATIVE F1 0.000→1.000), openpii-1m DVC ingest (+1800 shards), WildChat GT (3,515 prompts, P=93.1% R=99.4% F1=96.1%), CamelCase key-name normalisation. cross_family_rate 0.1182→**0.1066**, family_macro_f1 0.8566→**0.9477**. |
 | 16 | CONTACT + GOVERNMENT_ID recall (no public API changes) | Complete | 2407 | v0.16.0 release. **GLiNER dedup** uses Jaccard evidence overlap (≥0.50) instead of global type hierarchy. **GOVERNMENT_ID phase 1** — 6 EU countries (DE Steuer-ID, FR NIR, ES DNI/NIE, IT Codice Fiscale, NL BSN, AT SVNR), 7 patterns + 7 checksum validators. **Within-family specificity sort** (`ENTITY_SPECIFICITY` map) — ADDRESS wins over PERSON_NAME within CONTACT regardless of confidence; cross-family ordering preserves pure-confidence. **Gap-baseline bug** caught in code review (used position-0 confidence after specificity reorder; fixed to use true max). Tooling: dev environment + 3 of 4 CI jobs migrated to `uv`. cross_family_rate 0.1066→**0.0808** (no-ML), shadow gate 0.3245→**0.3139**, family_macro_f1 0.9477→**0.9732** (no-ML) / **0.9903** (ML reference). WildChat GT completion deferred to S17. |
+| 17 | Browser scanner v2 (unified Rust/WASM) + measurement honesty | Complete | 2,593 | v0.17.0 in pyproject (**git tag held** per B3 plan). PR #22 promoted `research/prompt-analysis` (~140 commits) — Rust crate `data_classifier_core` (PyO3 + WASM), `scan_text.py` dispatches to Rust UnifiedDetector when available; cross-runtime parity byte-identical. **`joint_miss_rate` = 6.56%** as new sprint gate (replaces `shadow.cross_family_rate`); decomposes router suppression from system quality. **Diverse NEGATIVE corpus** (5 sources × 500 = 2,500). **Multi-label spec promoted** (`docs/spec/11-multi-label-architecture.md`). **Luhn filter** drops 52 invalid Nemotron CC values. **Audit:** 4 P0/P1 benchmark gaps filed for Sprint 18 (dvc-pull silencing, ML-disabled gate blind spot, ORGANIZATION FP, fail-loud shard count). **Sprint 16 baseline correction**: prior 0.9732 was on 4,620-shard subset (corpus-fixture artifact); honest baseline on full 11,820-shard corpus is identical ±0.0002. |
 
 ## Consumers
 

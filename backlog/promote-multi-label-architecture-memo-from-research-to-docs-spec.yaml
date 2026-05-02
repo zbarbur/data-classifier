@@ -1,11 +1,11 @@
 title: Promote multi-label architecture memo from research/meta-classifier to docs/spec/
   -- close the orphaned-promotion gap from Sprint 12 close
-status: doing
+status: done
 priority: P2
 category: docs
 sprint_target: 17
 created: 2026-04-27
-updated: 2026-04-28
+updated: 2026-05-02
 depends_on: []
 tags:
 - architecture

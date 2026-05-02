@@ -50,6 +50,24 @@ unified Rust/WASM detector for the browser scanner v2.
 - Browser bundle now ships WASM + unified patterns instead of the
   Sprint 14 JS-regex scanner.
 
+### Sprint 17 close-out (joint_miss_rate metric + audit)
+
+- **`joint_miss_rate` is now the canonical sprint gate** —
+  `system.overall.joint_miss_rate` in
+  `tests/benchmarks/family_accuracy_benchmark.py` measures the
+  system-level miss rate when *neither* LIVE nor SHADOW lands the
+  right family. Replaces `shadow.overall.family.cross_family_rate`
+  (which mostly tracks router-suppression policy, not quality).
+  Sprint 17 baseline: **6.56%** (736 / 11,220 non-NEGATIVE shards).
+- **CLAUDE.md sprint gate updated** — references
+  `system.overall.joint_miss_rate` and points the `--compare-to`
+  baseline at `sprint17_family_benchmark.json`.
+- **Benchmark-process audit memo** —
+  `docs/sprints/SPRINT17_HANDOVER.md` §"Audit findings" documents
+  4 P0/P1 gaps (silent dvc-pull, ML-disabled gate blind spot, 2
+  pre-existing test failures, silent corpus-loader fallbacks). All
+  4 filed as Sprint 18 backlog items.
+
 ### Known follow-ups (deferred from this PR)
 
 - **Port 7 EU validators to Rust** —
@@ -57,29 +75,42 @@ unified Rust/WASM detector for the browser scanner v2.
   added german_steuerid, french_nir, spanish_dni, spanish_nie,
   italian_codice_fiscale, dutch_bsn, austrian_svnr on the Python side.
   WASM detector emits these entity types via pattern-only matching
-  (no checksum) until ported.
+  (no checksum) until ported. **v0.17.0 git tag held until ported +
+  Cloud Build dry-run passes** (B3 plan).
 - **Regenerate wildchat_eval via Rust path + deprecate pure-Python
   TextScanner** —
   `backlog/regenerate-wildchat-eval-via-rust-path-deprecate-textscanner.yaml`.
-  Closes the WASM-vs-pure-Python parity gap (currently 197/200 = 98.5%
-  agreement).
+- **Rust regex_pass over-suppresses connection_string via Category 18
+  brace check** — Sprint 18 P1
+  (`backlog/rust-regex-pass-over-suppresses-connection-string-via-category-18-brace-check.yaml`).
+  Cross-runtime parity gap on prompt 2975: Python finds
+  `mysql+pymysql://...{database}` at conf 0.9, Rust drops via
+  `value_is_obviously_not_secret` Category 18.
+- **Benchmark hardening (4 items)** — CI dvc-pull silencing,
+  ORGANIZATION FP from GLiNER on Faker business names, ML-enabled
+  benchmark variant, fail-loud shard count assertion.
 
 ### Gates verified
 
 - `ruff check . --exclude .claude/worktrees`: clean
 - `ruff format --check . --exclude .claude/worktrees`: clean
 - `DATA_CLASSIFIER_DISABLE_ML=1 .venv/bin/python -m pytest tests/ -q`:
-  2580 passed, 3 skipped, 1 xfailed
-- `bash scripts/cross_runtime_parity.sh`: 14 + 8 fixtures pass
+  **2,593 passed, 2 failed (pre-existing, filed S18 P0), 1 skipped,
+  1 xfailed**
 - `bash scripts/ci_browser_parity.sh`: 197/200 (98.5%) ≥ 87% S16 gate
-- Family benchmark LIVE path: family_macro_f1 0.955
+- Family benchmark: LIVE family_macro_f1 0.9542; SHADOW family_macro_f1
+  0.6932; **system joint_miss_rate 0.0656**
 
 ### Disclosures
 
-- Pytest + family benchmark were run with `DATA_CLASSIFIER_DISABLE_ML=1`
-  (this branch does not modify ML model code; ML-gated tests skip
-  cleanly). Shadow-path family benchmark gate is unverified — needs an
-  ML-enabled rerun on a non-throttled machine.
+- Pytest + family benchmark were run with `DATA_CLASSIFIER_DISABLE_ML=1`.
+  ML-active path is exercised by `tests/test_negative_corpus.py`
+  contamination sweeps; 2 of those tests now fail because GLiNER's
+  ORGANIZATION label fires on Faker `catch_phrase()` business names.
+  Filed as Sprint 18 P0
+  (`backlog/organization-fp-from-gliner-fires-on-faker-business-names...`).
+  ML-active sprint gate variant is filed as Sprint 18 P0 to close this
+  measurement blind spot.
 
 ## [0.16.0] — Sprint 16 (2026-04-25 → 2026-04-27)
 

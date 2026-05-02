@@ -1,0 +1,39 @@
+title: "CI silences dvc pull failures \u2014 change || echo to || exit 1 in ci.yaml"
+status: backlog
+priority: P0
+category: bug
+sprint_target: 18
+created: 2026-05-02
+updated: 2026-05-02
+depends_on: []
+tags: []
+goal: Make CI fail loudly when dvc pull cannot fetch corpus fixtures, instead of silently
+  running benchmarks on missing data. Sprint 17 measurement artifact (4620 vs 11820
+  shards) was caused by this exact silencing pattern; the audit identified two more
+  sites where it persists.
+complexity: S
+technical_specs:
+- 'Files: .github/workflows/ci.yaml lines 41 and 213'
+- "Reference: docs/research/meta_classifier/sprint17_router_suppression_decomposition.md\
+  \ \xA71 documents the original artifact"
+- 'Sibling: backlog/fail-loud-benchmark-fixture-loader.yaml fixes the loader-side;
+  this fixes CI-side. Both must land together to close the silent-degradation class.'
+description: ''
+acceptance_criteria:
+- .github/workflows/ci.yaml:41 changed from '|| echo "DVC pull skipped..."' to '||
+  exit 1' (or wrapped with conditional that exits if not on a runner with credentials)
+- .github/workflows/ci.yaml:213 same fix
+- CI on a fork without GCS creds clearly fails with actionable message rather than
+  running silently on missing fixtures
+- Documentation note added (or runbook update) explaining how forks without DVC credentials
+  should run subset CI locally
+test_plan:
+- 'Manual: trigger CI on a branch with corrupted dvc lock; verify job fails with red
+  status and message points at corpora.dvc'
+- '.github/workflows/ci.yaml lint: gh workflow view --yaml passes'
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

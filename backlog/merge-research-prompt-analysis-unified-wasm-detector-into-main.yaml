@@ -1,10 +1,10 @@
 title: Merge research/prompt-analysis unified WASM detector into main
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 17
 created: 2026-04-28
-updated: 2026-05-01
+updated: 2026-05-02
 depends_on: []
 tags:
 - wasm,browser,merge,rust,eu-validators,parity
@@ -90,7 +90,7 @@ notes: "Coordination: 2026-04-28 \u2014 research/prompt-analysis session will pr
   \ includes S16 baselines (shadow.cross_family_rate <= 0.3139, family_macro_f1 >=\
   \ 0.8305 SHADOW / >= 0.9732 LIVE, browser parity >= 87%) and the 7 EU validators\
   \ required for Rust port."
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

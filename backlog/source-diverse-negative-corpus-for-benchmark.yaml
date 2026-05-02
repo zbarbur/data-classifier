@@ -1,10 +1,10 @@
 title: Source diverse NEGATIVE corpus for benchmark
-status: doing
+status: done
 priority: P1
 category: feature
 sprint_target: 17
 created: 2026-04-18
-updated: 2026-04-28
+updated: 2026-05-02
 depends_on: []
 tags:
 - corpus,benchmark,negative,fp-resistance,ground-truth
