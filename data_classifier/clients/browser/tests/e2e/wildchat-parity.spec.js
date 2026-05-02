@@ -34,7 +34,6 @@ function xorDecode(b64) {
   return decoded.toString('utf-8');
 }
 
-// Remove unused import
 
 
 test('wildchat parity — JS findings match Python scan_text on credential prompts', async ({ page }) => {
@@ -69,10 +68,11 @@ test('wildchat parity — JS findings match Python scan_text on credential promp
 
   const results = await page.evaluate(
     async ({ cases: casesData }) => {
-      const { scanText } = await import('../../src/scanner-core.js');
+      const { createScanner } = await import('../dist/scanner.esm.js');
+      const scanner = createScanner();
       const out = [];
       for (const c of casesData) {
-        const { findings } = scanText(c.text, {});
+        const { findings } = await scanner.scan(c.text, { secrets: true, zones: false });
         const jsHasCredential = findings.length > 0;
         const jsEntityTypes = [...new Set(findings.map((f) => f.entity_type))];
         out.push({

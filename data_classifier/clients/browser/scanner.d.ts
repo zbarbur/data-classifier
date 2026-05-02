@@ -3,6 +3,10 @@
  *
  * Scans user-submitted text for credentials and returns findings
  * with a redacted version of the input.
+ *
+ * Detection is performed entirely in Rust/WASM (data_classifier_core)
+ * inside a Web Worker pool. Both secret detection and zone detection
+ * share the same WASM binary (unified_patterns.json).
  */
 
 // ── Options ──────────────────────────────────────────────────────
@@ -26,7 +30,11 @@ export interface ScanOptions {
   /** How to redact detected secrets in the output. @default 'type-label' */
   redactStrategy?: RedactStrategy;
 
-  /** Attach a `details` block to each finding with pattern/entropy info. @default false */
+  /**
+   * Include additional diagnostic fields in the scan result (e.g., `allFindings` before dedup).
+   * The Rust/WASM engine does not produce a per-finding `details` block.
+   * @default false
+   */
   verbose?: boolean;
 
   /**
@@ -42,11 +50,24 @@ export interface ScanOptions {
 
   /**
    * Which pattern categories to scan for.
-   * Currently supports `Credential` only; other categories have unported validators.
+   * Passed through to the WASM detector; currently `Credential` is the primary category.
    *
    * @default ['Credential']
    */
   categoryFilter?: string[];
+
+  /**
+   * Run the secret detection engine (Rust/WASM, 24 validators).
+   * @default true
+   */
+  secrets?: boolean;
+
+  /**
+   * Run the zone detection engine (Rust/WASM, code/markup/config identification).
+   * When true, the WASM module is lazy-loaded on first use (~15-25ms init).
+   * @default true
+   */
+  zones?: boolean;
 }
 
 /** Options passed to `createScanner()`. */
@@ -95,34 +116,34 @@ export interface KVContext {
   tier: string;
 }
 
-/** Entropy breakdown (present when `verbose: true` and engine is `secret_scanner`). */
-export interface EntropyDetails {
-  /** Shannon entropy in bits per character. */
-  shannon: number;
+/** A detected zone block (code, markup, config, etc.). */
+export interface ZoneBlock {
+  /** Start line (0-indexed, inclusive). */
+  start_line: number;
 
-  /** Shannon / max possible for detected charset. Range 0–1. */
-  relative: number;
+  /** End line (0-indexed, exclusive). */
+  end_line: number;
 
-  /** Detected charset: `"hex"`, `"base64"`, `"alphanumeric"`, or `"full"`. */
-  charset: string;
+  /** Zone classification. */
+  zone_type: 'code' | 'markup' | 'config' | 'query' | 'cli_shell' | 'data' | 'error_output' | 'natural_language';
 
-  /** Clamped score: `max(0.5, min(1.0, relative))`. */
-  score: number;
+  /** Detection confidence, 0–1. */
+  confidence: number;
+
+  /** Detected programming language (e.g., "python", "javascript"). Empty string if unknown. */
+  language_hint: string;
+
+  /** Language detection confidence, 0–1. */
+  language_confidence: number;
 }
 
-/** Verbose details block (present when `verbose: true`). */
-export interface FindingDetails {
-  /** Pattern name (e.g., `"github_token"`) or `"secret_scanner"`. */
-  pattern: string;
+/** Zone detection result. */
+export interface ZonesResult {
+  /** Total lines in the input text. */
+  total_lines: number;
 
-  /** Validator status: `"passed"`, `"stubbed"`, or `"none"`. */
-  validator: string;
-
-  /** Entropy breakdown (secret_scanner findings only). */
-  entropy?: EntropyDetails;
-
-  /** Scoring tier (secret_scanner findings only). */
-  tier?: string;
+  /** Detected zone blocks. */
+  blocks: ZoneBlock[];
 }
 
 /** A single detected secret. */
@@ -156,9 +177,6 @@ export interface Finding {
 
   /** KV context (secret_scanner findings only). */
   kv?: KVContext;
-
-  /** Verbose details (only when `verbose: true`). */
-  details?: FindingDetails;
 }
 
 /** Result returned by `scanner.scan()`. */
@@ -178,6 +196,12 @@ export interface ScanResult {
    * engines fired and what was dropped by dedup.
    */
   allFindings?: Finding[];
+
+  /**
+   * Zone detection result. Contains detected code/markup/config blocks.
+   * `null` when `zones: false` was passed to `scan()`.
+   */
+  zones: ZonesResult | null;
 }
 
 // ── Public API ───────────────────────────────────────────────────
@@ -185,9 +209,9 @@ export interface ScanResult {
 /** Scanner instance returned by `createScanner()`. */
 export interface Scanner {
   /**
-   * Scan text for secrets.
+   * Scan text for secrets and code zones.
    *
-   * Dispatches to a Web Worker pool, returns findings + redacted text.
+   * Dispatches to a Web Worker pool, returns findings, zone blocks, and redacted text.
    * If the scan exceeds `timeoutMs`, behavior depends on `failMode`:
    * - `'open'` (default): resolves with empty findings
    * - `'closed'`: rejects with `{ code: 'TIMEOUT' }`
@@ -211,7 +235,7 @@ export interface Scanner {
  * import { createScanner } from '@data-classifier/browser';
  *
  * const scanner = createScanner();
- * const { findings, redactedText } = await scanner.scan('export API_KEY=ghp_...');
+ * const { findings, zones, redactedText } = await scanner.scan('export API_KEY=ghp_...');
  * ```
  *
  * @example Chrome extension integration

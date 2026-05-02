@@ -1,0 +1,81 @@
+{
+  "scan_params": {
+    "limit": 50000,
+    "seed": 42,
+    "actual_sampled": 50000,
+    "total_scanned": 784244
+  },
+  "prevalence": {
+    "prompts_with_any_block": 1429,
+    "pct_with_any_block": 2.86,
+    "prompts_by_type": {
+      "code": {
+        "count": 1003,
+        "pct": 2.01
+      },
+      "structured_data": {
+        "count": 420,
+        "pct": 0.84
+      },
+      "cli_shell": {
+        "count": 36,
+        "pct": 0.07
+      },
+      "natural_language": {
+        "count": 5,
+        "pct": 0.01
+      }
+    }
+  },
+  "blocks": {
+    "total_blocks": 1830,
+    "by_type": {
+      "code": 1246,
+      "structured_data": 531,
+      "cli_shell": 48,
+      "natural_language": 5
+    },
+    "by_method": {
+      "syntax_score": 1200,
+      "xml_heuristic": 411,
+      "yaml_heuristic": 66,
+      "fenced": 56,
+      "csv_heuristic": 50,
+      "shell_heuristic": 46,
+      "json_parse": 1
+    },
+    "by_language_hint": {
+      "xml": 413,
+      "yaml": 66,
+      "csv": 50,
+      "shell": 46,
+      "python": 6,
+      "java": 3,
+      "json": 2,
+      "js": 2,
+      "bash": 2,
+      "select": 1,
+      "mermaid": 1,
+      "javascript": 1,
+      "cpp": 1,
+      "c": 1
+    },
+    "fenced_vs_unfenced": {
+      "fenced": 56,
+      "unfenced": 1774,
+      "pct_fenced": 3.1
+    }
+  },
+  "confidence": {
+    "mean": 0.759
+  },
+  "block_lines_per_prompt": {
+    "mean": 134.6,
+    "median": 61,
+    "p90": 337,
+    "p99": 1139,
+    "max": 4241
+  },
+  "elapsed_sec": 16.1,
+  "throughput_per_sec": 3113.0
+}

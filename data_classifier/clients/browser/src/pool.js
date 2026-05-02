@@ -55,7 +55,7 @@ export function createPool({ size = 2, spawn }) {
       const idx = workers.indexOf(slot);
       if (idx >= 0) workers.splice(idx, 1);
       if (failMode === 'closed') reject({ code: 'TIMEOUT' });
-      else resolve({ findings: [], redactedText: text, scannedMs: timeoutMs });
+      else resolve({ findings: [], redactedText: text, scannedMs: timeoutMs, zones: null });
       pumpQueue();
     }, timeoutMs);
     slot.worker.postMessage({ id, text, opts });

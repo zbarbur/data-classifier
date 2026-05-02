@@ -1,0 +1,368 @@
+{
+  "version": "2.0.0",
+  "zone_types": [
+    "code",
+    "markup",
+    "config",
+    "query",
+    "cli_shell",
+    "data",
+    "error_output",
+    "natural_language"
+  ],
+
+  "pre_screen": {
+    "fence_markers": ["```", "~~~"],
+    "syntactic_chars": "{}()[];=<>|&@#$^~",
+    "density_threshold": 0.03,
+    "indentation_markers": ["\n    ", "\n\t"],
+    "tag_marker": "</"
+  },
+
+  "lang_tag_map": {
+    "python": {"type": "code", "lang": "python"},
+    "py": {"type": "code", "lang": "python"},
+    "javascript": {"type": "code", "lang": "javascript"},
+    "js": {"type": "code", "lang": "javascript"},
+    "typescript": {"type": "code", "lang": "typescript"},
+    "ts": {"type": "code", "lang": "typescript"},
+    "java": {"type": "code", "lang": "java"},
+    "c": {"type": "code", "lang": "c"},
+    "cpp": {"type": "code", "lang": "cpp"},
+    "c++": {"type": "code", "lang": "cpp"},
+    "csharp": {"type": "code", "lang": "csharp"},
+    "cs": {"type": "code", "lang": "csharp"},
+    "go": {"type": "code", "lang": "go"},
+    "golang": {"type": "code", "lang": "go"},
+    "rust": {"type": "code", "lang": "rust"},
+    "ruby": {"type": "code", "lang": "ruby"},
+    "rb": {"type": "code", "lang": "ruby"},
+    "php": {"type": "code", "lang": "php"},
+    "swift": {"type": "code", "lang": "swift"},
+    "kotlin": {"type": "code", "lang": "kotlin"},
+    "scala": {"type": "code", "lang": "scala"},
+    "r": {"type": "code", "lang": "r"},
+    "lua": {"type": "code", "lang": "lua"},
+    "perl": {"type": "code", "lang": "perl"},
+    "dart": {"type": "code", "lang": "dart"},
+    "haskell": {"type": "code", "lang": "haskell"},
+    "hs": {"type": "code", "lang": "haskell"},
+    "elixir": {"type": "code", "lang": "elixir"},
+    "clojure": {"type": "code", "lang": "clojure"},
+    "jsx": {"type": "code", "lang": "jsx"},
+    "tsx": {"type": "code", "lang": "tsx"},
+    "vue": {"type": "code", "lang": "vue"},
+    "svelte": {"type": "code", "lang": "svelte"},
+    "matlab": {"type": "code", "lang": "matlab"},
+    "julia": {"type": "code", "lang": "julia"},
+    "objective-c": {"type": "code", "lang": "objective-c"},
+    "objc": {"type": "code", "lang": "objective-c"},
+    "groovy": {"type": "code", "lang": "groovy"},
+    "powershell": {"type": "code", "lang": "powershell"},
+    "ps1": {"type": "code", "lang": "powershell"},
+    "vb": {"type": "code", "lang": "vb"},
+    "vba": {"type": "code", "lang": "vba"},
+    "asm": {"type": "code", "lang": "assembly"},
+    "assembly": {"type": "code", "lang": "assembly"},
+    "nasm": {"type": "code", "lang": "assembly"},
+
+    "sql": {"type": "query", "lang": "sql"},
+    "graphql": {"type": "query", "lang": "graphql"},
+    "gql": {"type": "query", "lang": "graphql"},
+    "cypher": {"type": "query", "lang": "cypher"},
+
+    "html": {"type": "markup", "lang": "html"},
+    "xml": {"type": "markup", "lang": "xml"},
+    "svg": {"type": "markup", "lang": "svg"},
+    "css": {"type": "code", "lang": "css"},
+    "scss": {"type": "code", "lang": "scss"},
+    "sass": {"type": "code", "lang": "sass"},
+    "less": {"type": "code", "lang": "less"},
+
+    "json": {"type": "config", "lang": "json"},
+    "yaml": {"type": "config", "lang": "yaml"},
+    "yml": {"type": "config", "lang": "yaml"},
+    "toml": {"type": "config", "lang": "toml"},
+    "ini": {"type": "config", "lang": "ini"},
+    "env": {"type": "config", "lang": "env"},
+    "dotenv": {"type": "config", "lang": "env"},
+    "properties": {"type": "config", "lang": "properties"},
+    "hcl": {"type": "config", "lang": "hcl"},
+    "tf": {"type": "config", "lang": "hcl"},
+
+    "csv": {"type": "data", "lang": "csv"},
+    "tsv": {"type": "data", "lang": "tsv"},
+
+    "bash": {"type": "cli_shell", "lang": "bash"},
+    "sh": {"type": "cli_shell", "lang": "sh"},
+    "shell": {"type": "cli_shell", "lang": "sh"},
+    "zsh": {"type": "cli_shell", "lang": "zsh"},
+    "fish": {"type": "cli_shell", "lang": "fish"},
+    "bat": {"type": "cli_shell", "lang": "bat"},
+    "cmd": {"type": "cli_shell", "lang": "cmd"},
+    "console": {"type": "cli_shell", "lang": "sh"},
+    "terminal": {"type": "cli_shell", "lang": "sh"},
+
+    "text": {"type": "natural_language", "lang": ""},
+    "txt": {"type": "natural_language", "lang": ""},
+    "plaintext": {"type": "natural_language", "lang": ""},
+    "markdown": {"type": "natural_language", "lang": ""},
+    "md": {"type": "natural_language", "lang": ""}
+  },
+
+  "structural": {
+    "fence_patterns": {
+      "open": "^(`{3,}|~{3,})\\s*(\\w+)?\\s*$",
+      "close": "^(`{3,}|~{3,})\\s*$"
+    },
+    "delimiter_pairs": [
+      {"open": "/*", "close": "*/", "type": "inherit", "confidence": 0.90},
+      {"open": "<!--", "close": "-->", "type": "markup", "confidence": 0.90},
+      {"open": "\"\"\"", "close": "\"\"\"", "type": "inherit", "confidence": 0.90},
+      {"open": "'''", "close": "'''", "type": "inherit", "confidence": 0.90},
+      {"open": "<script", "close_tag": "</script>", "type": "code", "lang": "javascript", "confidence": 0.90},
+      {"open": "<style", "close_tag": "</style>", "type": "code", "lang": "css", "confidence": 0.90}
+    ],
+    "fenced_confidence": 0.95,
+    "delimiter_confidence": 0.90
+  },
+
+  "format": {
+    "min_non_empty_lines": 5,
+    "max_blank_gap": 2,
+    "json_confidence": 0.90,
+    "xml_confidence": 0.80,
+    "yaml_confidence": 0.80,
+    "env_confidence": 0.85,
+    "yaml_min_kv_lines": 3,
+    "yaml_max_key_words": 3,
+    "yaml_max_prose_ratio": 0.50,
+    "xml_min_open_tags": 2,
+    "xml_min_close_tags": 1
+  },
+
+  "syntax": {
+    "syntactic_chars": "{}()[];=<>|&!@#$^*/\\~",
+    "syntactic_endings": "{;)],:",
+    "strict_keywords": [
+      "def", "elif", "const", "val", "var",
+      "async", "await", "yield", "lambda",
+      "impl", "fn", "pub", "mut", "struct", "enum",
+      "sizeof", "typedef", "extern", "volatile", "register",
+      "defer", "chan", "fallthrough", "namespace", "goto",
+      "println", "printf", "fmt", "console", "System", "std",
+      "boolean", "void"
+    ],
+    "contextual_keywords": [
+      "import", "from", "class", "function", "return",
+      "if", "else", "for", "while", "do",
+      "try", "except", "catch", "throw", "throws", "finally",
+      "new", "let", "local",
+      "public", "private", "protected", "static", "abstract",
+      "int", "string", "bool", "float", "double", "char", "long",
+      "package", "interface", "implements", "extends", "override",
+      "raise", "assert",
+      "include", "require", "module", "export", "default",
+      "trait", "match", "use",
+      "switch", "case", "break", "continue",
+      "type", "using", "unsafe", "virtual", "select", "go",
+      "self", "super", "this"
+    ],
+    "assignment_pattern": "^\\s*[a-zA-Z_]\\w*\\s*[:=]",
+    "scoring_weights": {
+      "syn_density_high": 0.15,
+      "syn_density_high_weight": 0.30,
+      "syn_density_med": 0.08,
+      "syn_density_med_weight": 0.15,
+      "keyword_multi_weight": 0.30,
+      "keyword_single_weight": 0.15,
+      "line_ending_weight": 0.10,
+      "assignment_weight": 0.10,
+      "indentation_weight": 0.05,
+      "fragment_match_boost": 0.25
+    },
+    "fragment_patterns": {
+      "c_family": [
+        "^\\s*(if|else|for|while|switch|case|return|break|continue)\\s*[\\({]",
+        "^\\s*(const|let|var|int|string|bool|boolean|float|double|void|char|long|auto)\\s+\\w+",
+        "^\\s*(func|function|public|private|protected|static|class|interface|struct|enum)\\s",
+        "^\\s*\\w+\\.\\w+\\(.*\\)",
+        "^\\s*\\w+\\s*:?=\\s*.+[;,]?\\s*$",
+        "[{};]\\s*$",
+        "^\\s*(try|catch|finally|throw|throws)\\s*[\\({]",
+        "^\\s*(package|import|using|namespace)\\s+[\\w.]+",
+        "^\\s*(defer|go|chan|select)\\s",
+        "^\\s*#(include|define|ifdef|ifndef|endif|pragma)\\s"
+      ],
+      "python": [
+        "^\\s*(def|class|import|from|return|yield|raise|assert|pass|del|global|nonlocal)\\s",
+        "^\\s*(if|elif|else|for|while|try|except|finally|with|as|match|case)\\s.*:\\s*(#.*)?$",
+        "^\\s*@\\w+",
+        "^\\s*\\w+\\s*=\\s*.+$",
+        "^\\s*(print|len|range|type|isinstance|hasattr|getattr|setattr|super|input|open)\\s*\\(",
+        "^\\s*(self|cls)\\.\\w+"
+      ],
+      "markup": [
+        "<\\w+[\\s>]",
+        "</\\w+>",
+        "^\\s*\\w[\\w-]*\\s*:\\s*.+;",
+        "^\\s*[\\.\\#@]\\w+.*\\{",
+        "^\\s*<\\?xml\\s",
+        "^\\s*<!DOCTYPE\\s"
+      ],
+      "sql": [
+        "^\\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|MERGE)\\s",
+        "^\\s*(FROM|WHERE|JOIN|LEFT|RIGHT|INNER|OUTER|CROSS|ON|AND|OR|NOT|IN|EXISTS)\\s",
+        "^\\s*(GROUP\\s+BY|ORDER\\s+BY|HAVING|LIMIT|OFFSET|UNION|EXCEPT|INTERSECT)\\s",
+        "^\\s*(BEGIN|COMMIT|ROLLBACK|GRANT|REVOKE|EXPLAIN|ANALYZE)\\s",
+        "^\\s*(CREATE|ALTER)\\s+(TABLE|INDEX|VIEW|FUNCTION|PROCEDURE|TRIGGER)\\s",
+        "^\\s*(SET|DECLARE|EXEC|EXECUTE|CALL|RETURN)\\s",
+        "^\\s*\\([^()]*\\)\\s*[,;]\\s*$"
+      ],
+      "shell": [
+        "^\\s*\\$\\s+\\w",
+        "^\\s*(sudo|chmod|chown|mkdir|rmdir|touch|cp|mv|rm|ln)\\s",
+        "^\\s*(curl|wget|docker|kubectl|git|npm|pip|brew|apt|yum|dnf|pacman)\\s",
+        "^\\s*(export|source|alias|unalias|echo|printf|read|eval|exec)\\s",
+        "^\\s*(systemctl|service|journalctl|crontab|at|nohup)\\s",
+        "^\\s*(ssh|scp|rsync|sftp|telnet|nc|netstat|ss|lsof)\\s",
+        "^\\s*(find|grep|sed|awk|sort|uniq|head|tail|wc|cut|tr|xargs)\\s",
+        "\\|\\s*(grep|awk|sed|sort|head|tail|wc|xargs|cut|tr)\\s"
+      ],
+      "assembly": [
+        "(?i)^\\s*(mov|push|pop|call|ret|jmp|jne|je|jz|jnz|jge|jle|cmp|test|add|sub|mul|imul|div|idiv|xor|and|or|not|shl|shr|lea|nop|int|hlt)\\s",
+        "(?i)\\b(eax|ebx|ecx|edx|esi|edi|esp|ebp|rax|rbx|rcx|rdx|rsi|rdi|rsp|rbp|r[89]|r1[0-5]|r0|r1|r2|r3|r4|r5|r6|r7|sp|lr|pc|fp)\\b",
+        "(?i)^\\s*section\\s+\\.",
+        "(?i)^\\s*\\.?(text|data|bss|global|extern|align|byte|word|long|quad|ascii|asciz)\\b"
+      ],
+      "rust": [
+        "^\\s*(fn|let\\s+mut|pub\\s+fn|pub\\s+struct|pub\\s+enum|impl|trait|mod|use|crate|extern)\\s",
+        "\\bunwrap\\(\\)|\\bexpect\\(\"",
+        "::\\w+",
+        "->\\s*\\w+",
+        "^\\s*#\\[\\w+",
+        "\\bOption<|\\bResult<|\\bVec<|\\bBox<|\\bArc<|\\bRc<"
+      ]
+    },
+    "context": {
+      "window_size": 3,
+      "self_weight": 0.70,
+      "neighbor_weight": 0.20,
+      "transition_colon_boost": 0.10,
+      "transition_phrase_boost": 0.15,
+      "comment_bridge_factor": 0.80
+    },
+    "intro_phrase_pattern": "(?:example|code|output|command|result|script|snippet|run this|here is|as follows|shown below|see below).*:?\\s*$",
+    "comment_marker_pattern": "^\\s*(?:#(?!include|define|ifdef|ifndef|endif|pragma)|//|--|/\\*|\\*(?!/)| \\*\\s|%|REM\\s)"
+  },
+
+  "tokenizer": {
+    "semantic_weights": {
+      "code_dot_boost": 1.3,
+      "code_operator_boost": 1.2,
+      "prose_suppress": 0.0,
+      "data_suppress": 0.0,
+      "no_ident_suppress": 0.0,
+      "min_ident_for_prose": 4,
+      "max_keyword_for_prose": 1,
+      "data_string_ratio_threshold": 0.4,
+      "expression_call_boost": 0.10,
+      "expression_data_suppress": -0.10
+    }
+  },
+
+  "scope": {
+    "scope_inherit_factor": 0.5,
+    "continuation_inherit_factor": 0.9,
+    "min_parent_score": 0.3
+  },
+
+  "negative": {
+    "error_output": [
+      "^\\s*Traceback \\(most recent call last\\)",
+      "^\\s*File \".+\", line \\d+",
+      "^\\s*at \\w[\\w.]+\\([^)]*\\.(?:java|kt|scala|cs|js|ts|py):\\d+\\)",
+      "^\\s*at \\w[\\w.]+\\s\\(.+:\\d+:\\d+\\)",
+      "^\\s*at \\w[\\w.]+\\.<",
+      "^\\w+Error:\\s",
+      "^\\w+Exception:\\s",
+      "^\\w+Warning:\\s",
+      "^\\s*error\\[?\\w*\\]?\\s*:",
+      "^\\s*warning\\[?\\w*\\]?\\s*:",
+      "^\\s*-->\\s+\\S+:\\d+:\\d+",
+      "^\\s*\\^+\\s*$",
+      "^\\s*~~~+\\s*$",
+      "^\\s*\\|$",
+      "^\\s*npm ERR!",
+      "^\\s*pip ERR",
+      "^\\s*Requirement already satisfied:",
+      "^\\s*(?:ERROR|WARN|INFO|DEBUG|FATAL|CRITICAL)\\s",
+      "^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+      "^\\[\\d{4}-\\d{2}-\\d{2}",
+      "^\\[?(?:ERROR|WARN|INFO|DEBUG)\\]?\\s",
+      "panic:\\s",
+      "goroutine \\d+ \\[",
+      "^\\s*\\w+\\.rb:\\d+:in\\s",
+      "^\\s*from\\s+\\S+:\\d+:in\\s"
+    ],
+    "dialog": {
+      "patterns": [
+        "^\\s*[A-Z][a-z]{1,20}:\\s*\"",
+        "^\\s*[A-Z][a-z]{1,20}:\\s*[A-Z]",
+        "^\\s*\\([A-Z][a-z]{1,20}\\)\\s",
+        "^\\s*\\[[A-Z][a-z]{1,20}\\]\\s"
+      ],
+      "min_alpha_ratio": 0.70
+    },
+    "list_prefix": {
+      "pattern": "^\\s*(?:\\d+[.):]\\s+|[-\\u2022*]\\s+|[a-z][.)]\\s+)",
+      "threshold": 0.70
+    },
+    "math": [
+      "\\\\frac|\\\\begin|\\\\end|\\\\sum|\\\\int|\\\\alpha|\\\\beta|\\\\theta",
+      "(?:\\u2229|\\u222A|\\u2264|\\u2265|\\u2282|\\u2286|\\u2208|\\u2209|\\u2192|\\u2190|\\u2194|\\u2200|\\u2203|\\u2205)",
+      "(?<!\\.)\\b(?:cos|sin|tan|log|ln|exp|sqrt|lim|inf|sup|det|dim|ker|deg)\\b",
+      "\\b(?:theorem|lemma|proof|corollary|hypothesis|proposition)\\b",
+      "Prob\\[|P\\[|E\\[|Var\\[|Cov\\["
+    ],
+    "ratio": [
+      "^\\s*\\d+:\\d+\\s",
+      "^\\s*\\d+:\\d{2}\\s"
+    ],
+    "prose": {
+      "pattern": "^[A-Z][a-z].+[.!?]$",
+      "min_alpha_ratio": 0.75
+    }
+  },
+
+  "assembly": {
+    "min_block_lines": 8,
+    "min_confidence": 0.50,
+    "short_block_min_score": 0.40,
+    "short_block_min_lines": 3,
+    "max_blank_gap": 4,
+    "max_comment_gap": 4,
+    "repetitive_threshold": 0.50,
+    "max_parse_attempts": 10,
+    "bracket_extension_limit": 5
+  },
+
+  "language": {
+    "c_family_markers": {
+      "javascript": ["\\bconsole\\.\\w+", "\\bdocument\\.\\w+", "\\bwindow\\.\\w+",
+                      "\\brequire\\s*\\(", "\\bmodule\\.exports"],
+      "typescript": [":\\s*\\w+\\s*[=;{]", "\\binterface\\s+\\w+\\s*\\{",
+                     "<\\w+>", "\\bas\\s+\\w+"],
+      "java":       ["\\bSystem\\.out\\.", "\\bpublic\\s+static\\s+void\\s+main",
+                     "\\bpackage\\s+\\w+\\.\\w+", "@Override"],
+      "go":         ["\\bfmt\\.", "\\bfunc\\s+\\w+\\(", ":=",
+                     "\\bpackage\\s+main", "\\bdefer\\s"],
+      "csharp":     ["\\bConsole\\.Write", "\\busing\\s+System",
+                     "\\bvar\\s+\\w+\\s*=", "\\basync\\s+Task"],
+      "cpp":        ["\\bcout\\s*<<", "\\bstd::", "#include\\s*<",
+                     "\\btemplate\\s*<", "\\bvector<"],
+      "c":          ["\\bprintf\\s*\\(", "#include\\s*<stdio",
+                     "\\bmalloc\\s*\\(", "\\bfree\\s*\\(", "\\b->\\w+"]
+    }
+  }
+}

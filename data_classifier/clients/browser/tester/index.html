@@ -47,15 +47,45 @@
       .finding-card .finding-details { font-size: 11px; color: #6b7280; margin-top: 6px; padding-top: 6px; border-top: 1px solid #f3f4f6; }
       .no-findings { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 12px 16px; color: #166534; font-size: 13px; }
 
-      /* Text panels — vertical stack with synced scroll */
-      .panels { display: flex; flex-direction: column; gap: 16px; margin-bottom: 1.5em; }
-      .panel { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
-      .panel-header { background: #f9fafb; padding: 8px 12px; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #555; border-bottom: 1px solid #e5e7eb; }
-      .panel-body { padding: 12px; font: 13px/1.5 ui-monospace, 'SF Mono', Monaco, monospace; white-space: pre-wrap; word-break: break-word; max-height: 350px; overflow: auto; min-height: 80px; }
+      /* Unified output panel */
+      .unified-panel { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; margin-bottom: 1.5em; }
+      .unified-header { background: #f9fafb; padding: 8px 12px; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #555; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+      .unified-body { max-height: 500px; overflow: auto; }
+      .unified-line { display: flex; font: 13px/1.6 ui-monospace, 'SF Mono', Monaco, monospace; min-height: 1.6em; border-left: 3px solid transparent; }
+      .unified-line .line-num { min-width: 36px; padding: 0 8px 0 6px; text-align: right; color: #9ca3af; font-size: 11px; user-select: none; flex-shrink: 0; line-height: 1.6; }
+      .unified-line .line-text { white-space: pre-wrap; word-break: break-word; padding: 0 12px 0 0; flex: 1; line-height: 1.6; }
 
-      /* Highlights */
-      .secret-highlight { background: #fef08a; border-bottom: 2px solid #eab308; padding: 1px 0; }
-      .redacted { color: #dc2626; font-weight: 700; }
+      /* Zone line colors */
+      .unified-line[data-zone="code"] { background: #f0f4ff; border-left-color: #3b82f6; }
+      .unified-line[data-zone="config"] { background: #fef9ee; border-left-color: #f59e0b; }
+      .unified-line[data-zone="markup"] { background: #fef2f2; border-left-color: #ef4444; }
+      .unified-line[data-zone="query"] { background: #f0fdf4; border-left-color: #22c55e; }
+      .unified-line[data-zone="cli_shell"] { background: #f5f3ff; border-left-color: #8b5cf6; }
+      .unified-line[data-zone="error_output"] { background: #fff7ed; border-left-color: #f97316; }
+      .unified-line[data-zone="data"] { background: #f0f9ff; border-left-color: #06b6d4; }
+      .unified-line[data-zone="natural_language"] { background: #f9fafb; border-left-color: #9ca3af; }
+
+      /* Zone label (first line of block) */
+      .zone-label { display: inline-block; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 0 6px; border-radius: 3px; margin-right: 6px; color: #fff; vertical-align: middle; line-height: 1.6; float: right; }
+      .zone-label-code { background: #3b82f6; }
+      .zone-label-config { background: #f59e0b; }
+      .zone-label-markup { background: #ef4444; }
+      .zone-label-query { background: #22c55e; }
+      .zone-label-cli_shell { background: #8b5cf6; }
+      .zone-label-error_output { background: #f97316; }
+      .zone-label-data { background: #06b6d4; }
+      .zone-label-natural_language { background: #9ca3af; }
+
+      /* Secret highlight (inline) */
+      .secret-redacted { background: #dc2626; color: #fff; padding: 1px 4px; border-radius: 3px; cursor: help; font-size: 12px; position: relative; }
+      .secret-redacted:hover { background: #991b1b; }
+      .secret-tooltip { display: none; position: absolute; bottom: 100%; left: 0; background: #1f2937; color: #f9fafb; padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 10; margin-bottom: 4px; max-width: 400px; word-break: break-all; }
+      .secret-redacted:hover .secret-tooltip { display: block; }
+
+      /* Legend */
+      .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: #666; align-items: center; }
+      .legend-item { display: flex; align-items: center; gap: 4px; }
+      .legend-swatch { width: 12px; height: 12px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.1); }
 
       /* Raw JSON toggle */
       .raw-toggle { font-size: 12px; color: #6b7280; cursor: pointer; text-decoration: underline; }
@@ -81,17 +111,25 @@
     </style>
   </head>
   <body>
-    <h1>data_classifier <span>browser secret detector</span></h1>
+    <h1>data_classifier <span>browser scanner</span></h1>
     <p class="subtitle">
-      Paste text below and click Scan, or pick a real-world example from the dropdown.
-      Requires <code>npm run build</code> first.
+      Detects secrets and classifies code zones in text.
+      Pick an example or paste your own, then click Scan.
     </p>
 
     <div class="stories-row" id="stories-row">
-      <label for="stories">Real-world examples</label>
-      <select id="stories">
-        <option value="">(paste your own text)</option>
-      </select>
+      <label>Examples</label>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <select id="story-category" style="width: 160px; padding: 8px 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 6px; background: #fff;">
+          <option value="all">All</option>
+          <option value="secret">Secrets</option>
+          <option value="zone-real">Zones (real)</option>
+          <option value="zone-showcase">Zones (showcase)</option>
+        </select>
+        <select id="stories" style="flex: 1;">
+          <option value="">(paste your own text)</option>
+        </select>
+      </div>
       <div class="annotation" id="annotation"></div>
     </div>
 
@@ -112,6 +150,7 @@
           <option value="none">none</option>
         </select>
       </label>
+      <label><input type="checkbox" id="zones-enabled" checked /> Zones</label>
     </div>
 
     <div class="results" id="results">
@@ -122,15 +161,12 @@
 
       <div class="findings-summary" id="findings-summary"></div>
 
-      <div class="panels">
-        <div class="panel">
-          <div class="panel-header">Original (secrets highlighted)</div>
-          <div class="panel-body" id="original-out"></div>
+      <div class="unified-panel">
+        <div class="unified-header">
+          <span>Scan output</span>
+          <div class="legend" id="legend"></div>
         </div>
-        <div class="panel">
-          <div class="panel-header">Redacted output</div>
-          <div class="panel-body" id="redacted-out"></div>
-        </div>
+        <div class="unified-body" id="unified-out"></div>
       </div>
 
       <span class="raw-toggle" id="raw-toggle">Show raw JSON</span>
@@ -142,8 +178,7 @@
     <div class="perf-section">
       <h2>Performance</h2>
       <p class="perf-subtitle">
-        Scans all loaded stories 10x each and reports latency statistics.
-        First run includes worker cold-start; subsequent runs are warm cache.
+        Scans all loaded stories and reports latency statistics.
       </p>
       <label style="font-size:13px;color:#444;display:inline-flex;align-items:center;gap:6px;margin-right:12px">
         Rounds:
