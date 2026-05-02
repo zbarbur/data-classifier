@@ -454,6 +454,87 @@ def _compute_subtype_metrics(predictions: list[dict], pred_field: str) -> dict:
     }
 
 
+def _compute_joint_miss_metrics(predictions: list[dict]) -> dict:
+    """System-level joint miss metric — the honest sprint quality gate.
+
+    A "joint miss" is a shard where neither path's predicted family lands
+    in the multi-label ground truth. Per the Sprint 17 router-suppression
+    decomposition memo (``docs/research/meta_classifier/
+    sprint17_router_suppression_decomposition.md``), this is the metric
+    that should drive the sprint completion gate, replacing
+    ``shadow.overall.family.cross_family_rate`` which mostly tracks
+    router-suppression policy rather than system quality.
+
+    Logic per shard:
+      * SHADOW is "right" iff the meta-classifier emitted (router did NOT
+        suppress) AND ``family_for(shadow_predicted)`` ∈ ground-truth
+        families. A router-suppressed shadow is treated as "no
+        prediction" — i.e. wrong on its own merits.
+      * LIVE is "right" iff ``family_for(predicted)`` ∈ ground-truth
+        families.
+      * A shard is a joint miss iff neither is right.
+
+    NEGATIVE-ground-truth shards are excluded from the joint miss
+    numerator and denominator. For NEGATIVE, "predict nothing" is the
+    correct outcome but the symmetric metric counts it as wrong; the
+    Sprint 17 memo §5 documents the artifact and recommends excluding.
+    """
+    n_total = 0
+    n_negative_excluded = 0
+    joint_miss = 0
+    live_only_miss = 0
+    shadow_only_miss = 0
+    both_correct = 0
+    joint_miss_by_family: dict[str, int] = defaultdict(int)
+    joint_miss_by_shape: dict[str, int] = defaultdict(int)
+
+    for p in predictions:
+        gt = p.get("ground_truth") or ""
+        if gt == "NEGATIVE":
+            n_negative_excluded += 1
+            continue
+        n_total += 1
+
+        gt_fams = set(p.get("ground_truth_families") or [family_for(gt)])
+        gt_fams.discard("")
+
+        live_pred = p.get("predicted") or ""
+        live_fam = family_for(live_pred) if live_pred else ""
+        live_right = bool(live_fam) and live_fam in gt_fams
+
+        if p.get("shadow_suppressed_by_router", False):
+            shadow_right = False
+        else:
+            shadow_pred = p.get("shadow_predicted") or ""
+            shadow_fam = family_for(shadow_pred) if shadow_pred else ""
+            shadow_right = bool(shadow_fam) and shadow_fam in gt_fams
+
+        if live_right and shadow_right:
+            both_correct += 1
+        elif live_right:
+            shadow_only_miss += 1
+        elif shadow_right:
+            live_only_miss += 1
+        else:
+            joint_miss += 1
+            joint_miss_by_family[family_for(gt)] += 1
+            shape = p.get("shape")
+            if shape:
+                joint_miss_by_shape[shape] += 1
+
+    return {
+        "joint_miss_count": joint_miss,
+        "joint_miss_rate": round(joint_miss / n_total, 4) if n_total else 0.0,
+        "n_shards_excluding_negative": n_total,
+        "n_negative_excluded": n_negative_excluded,
+        "live_only_miss_count": live_only_miss,
+        "shadow_only_miss_count": shadow_only_miss,
+        "both_correct_count": both_correct,
+        "joint_miss_by_family": dict(joint_miss_by_family),
+        "joint_miss_by_shape": dict(joint_miss_by_shape),
+    }
+
+
 def _compare_to(current: dict, previous_path: Path) -> dict:
     """Produce a delta summary against a previously-saved summary JSON."""
     try:
@@ -488,6 +569,20 @@ def _compare_to(current: dict, previous_path: Path) -> dict:
                         4,
                     ),
                 }
+
+    # System-level joint miss delta — the headline gate metric.
+    cur_sys = current.get("system", {}).get("overall", {})
+    prev_sys = previous.get("system", {}).get("overall", {})
+    if cur_sys and prev_sys:
+        deltas["system"] = {
+            "overall": {
+                "joint_miss_rate": round(
+                    cur_sys.get("joint_miss_rate", 0) - prev_sys.get("joint_miss_rate", 0),
+                    4,
+                ),
+                "joint_miss_count": cur_sys.get("joint_miss_count", 0) - prev_sys.get("joint_miss_count", 0),
+            }
+        }
     return deltas
 
 
@@ -547,6 +642,36 @@ def _print_report(summary: dict) -> None:
         by_shape = ", ".join(f"{k}={v}" for k, v in sorted(shadow_overall["suppressed_by_shape"].items()))
         print(f"  suppressed by shape:  {by_shape}", file=sys.stderr)  # noqa: T201
     print("", file=sys.stderr)  # noqa: T201
+
+    # ── SYSTEM-level joint miss (sprint gate metric) ─────────────────────
+    system_overall = summary.get("system", {}).get("overall", {})
+    if system_overall:
+        print("SYSTEM (joint miss across LIVE + SHADOW, NEGATIVE excluded):", file=sys.stderr)  # noqa: T201
+        print(  # noqa: T201
+            f"  joint_miss_rate:    {system_overall['joint_miss_rate']:.4f}  "
+            f"({system_overall['joint_miss_count']}/{system_overall['n_shards_excluding_negative']} shards)",
+            file=sys.stderr,
+        )
+        print(  # noqa: T201
+            f"  live_only_miss:     {system_overall['live_only_miss_count']}  (LIVE wrong, SHADOW caught it)",
+            file=sys.stderr,
+        )
+        print(  # noqa: T201
+            f"  shadow_only_miss:   {system_overall['shadow_only_miss_count']}  "
+            f"(SHADOW wrong/suppressed, LIVE caught it)",
+            file=sys.stderr,
+        )
+        if system_overall.get("joint_miss_by_family"):
+            by_fam = ", ".join(
+                f"{k}={v}" for k, v in sorted(system_overall["joint_miss_by_family"].items(), key=lambda kv: -kv[1])
+            )
+            print(f"  joint miss by family: {by_fam}", file=sys.stderr)  # noqa: T201
+        if system_overall.get("joint_miss_by_shape"):
+            by_shape = ", ".join(
+                f"{k}={v}" for k, v in sorted(system_overall["joint_miss_by_shape"].items(), key=lambda kv: -kv[1])
+            )
+            print(f"  joint miss by shape:  {by_shape}", file=sys.stderr)  # noqa: T201
+        print("", file=sys.stderr)  # noqa: T201
 
     # ── Per-family comparison table: single-label vs multi-label ──────
     print(  # noqa: T201
@@ -646,12 +771,16 @@ def main(argv: list[str] | None = None) -> int:
         "shadow": {
             "overall": _build_tiered(predictions, "shadow_predicted"),
         },
+        "system": {
+            "overall": _compute_joint_miss_metrics(predictions),
+        },
     }
     for mode in ("named", "blind"):
         subset = [p for p in predictions if p["mode"] == mode]
         if subset:
             summary["live"][mode] = _build_tiered(subset, "predicted")
             summary["shadow"][mode] = _build_tiered(subset, "shadow_predicted")
+            summary["system"][mode] = _compute_joint_miss_metrics(subset)
 
     if args.compare_to is not None:
         summary["delta_vs_previous"] = _compare_to(summary, args.compare_to)

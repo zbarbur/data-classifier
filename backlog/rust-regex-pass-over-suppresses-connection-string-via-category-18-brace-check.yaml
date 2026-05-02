@@ -1,0 +1,46 @@
+title: Rust regex_pass over-suppresses connection_string via Category 18 brace check
+status: backlog
+priority: P1
+category: bug
+sprint_target: 18
+created: 2026-05-02
+updated: 2026-05-02
+depends_on: []
+tags: []
+goal: Stop Rust unified detector from dropping high-confidence connection_string regex
+  matches that contain URI placeholder syntax like {database}. Restore parity with
+  Python on case 2975 (mysql+pymysql://{user}:{pass}@{host}/{database}).
+complexity: S
+technical_specs:
+- "File: data_classifier_core/src/secret_detector/regex_pass.rs \u2014 make value_is_obviously_not_secret()\
+  \ conditional on confidence threshold OR add per-pattern skip_fp_filters bypass"
+- "File: data_classifier_core/src/secret_detector/fp_filters.rs:359-365 \u2014 Category\
+  \ 18 currently flags ANY value containing { and } unless it has ${; this fires on\
+  \ legitimate URI syntax in connection strings"
+- "Recommended fix (Option 2 in investigation memo): skip Category 18 when confidence\
+  \ >= 0.85 \u2014 preserves protection for low-conf generic patterns, exempts high-conf\
+  \ scheme-anchored patterns like connection_string (conf 0.9)"
+- 'Architectural context: Python has two-stage pipeline (regex_engine.py runs only
+  stopwords+validator; secret_scanner.py runs is_placeholder_pattern + fp_filters).
+  Rust merged both into regex_pass.rs running all gates on every match. Confidence-aware
+  FP gating restores the spirit of the Python staging without rewiring.'
+description: ''
+acceptance_criteria:
+- scan_text on prompt 2975 returns 2 connection_string findings (matches Python behavior)
+- "scan_text on prompt 2074 (bearer template, Python FP) continues to return 0 \u2014\
+  \ Python over-fire is NOT replicated in Rust"
+- Existing JS-only false-positive count in browser parity does NOT regress
+- Tests pass (.venv/bin/python -m pytest tests/ -v)
+- Lint clean (ruff check . --exclude .claude/worktrees)
+test_plan:
+- "tests/test_scan_text_parity.py: add 3 reproductive cases \u2014 2975 (real bug,\
+  \ must restore), 2074 (Python FP, must NOT replicate), 1751 (control: both 0 findings)"
+- "tests/test_scan_text_rust.py: unit test for value_is_obviously_not_secret confidence\
+  \ gate \u2014 feeds {database} placeholder text at conf 0.9 (must keep) and conf\
+  \ 0.5 (must drop)"
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
