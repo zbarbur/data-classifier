@@ -1,0 +1,50 @@
+title: "ORGANIZATION FP from GLiNER fires on Faker business names \u2014 fixes negative_corpus\
+  \ contamination test"
+status: backlog
+priority: P0
+category: bug
+sprint_target: 18
+created: 2026-05-02
+updated: 2026-05-02
+depends_on: []
+tags: []
+goal: "Stop GLiNER's ORGANIZATION label from over-firing on synthetic business names\
+  \ (Faker catch_phrase, bs). Tests test_source_contamination_below_ceiling[business]\
+  \ and [prose] currently fail at 12.0% / 11.3% contamination respectively (ceiling\
+  \ 5%). The diverse NEGATIVE corpus shipped Sprint 17 surfaces a real GLiNER FP \u2014\
+  \ fix the FP, not the corpus."
+complexity: M
+technical_specs:
+- "File: data_classifier/engines/gliner_engine.py:55-119 \u2014 ORGANIZATION label\
+  \ is registered with category=PII, sensitivity=MEDIUM. Investigate suppression rules:\
+  \ column-shape gate (already shipped), confidence threshold tightening, or ORGANIZATION\
+  \ \u2192 low-precision-label downgrade"
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 likely candidate for\
+  \ shape-aware suppression of ORGANIZATION on free-text-heterogeneous shapes"
+- "File: tests/test_negative_corpus.py \u2014 confirm test still asserts the right\
+  \ ceiling after fix"
+- 'Diagnostic: run the contamination test with -v to see which exact business/prose
+  strings trip GLiNER, then design suppression rule'
+description: ''
+acceptance_criteria:
+- tests/test_negative_corpus.py::TestPIIContaminationSweep::test_source_contamination_below_ceiling[business]
+  passes (<5% contamination)
+- tests/test_negative_corpus.py::TestPIIContaminationSweep::test_source_contamination_below_ceiling[prose]
+  passes (<5% contamination)
+- ORGANIZATION FP rate on the new diverse-negative corpus drops below 5% across all
+  5 sources
+- No regression on family_macro_f1 or joint_miss_rate baseline
+- "Tests pass (.venv/bin/python -m pytest tests/ -v) \u2014 full suite green, not\
+  \ just the contamination test"
+- Lint clean (ruff check . --exclude .claude/worktrees)
+test_plan:
+- "tests/test_negative_corpus.py::TestPIIContaminationSweep \u2014 both [business]\
+  \ and [prose] cases"
+- 'tests/test_gliner_engine.py: add regression cases for the specific Faker outputs
+  that currently FP'
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

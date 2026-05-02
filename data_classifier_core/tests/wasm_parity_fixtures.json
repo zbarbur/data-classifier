@@ -1,0 +1,50 @@
+[
+  {
+    "id": "github_pat",
+    "text": "export GITHUB_TOKEN=ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789",
+    "expect_entity_types": ["API_KEY"],
+    "notes": "GitHub PAT — regex pass, high-confidence"
+  },
+  {
+    "id": "kv_password",
+    "text": "db_password = \"S3cureP@ss!xyz\"",
+    "expect_entity_types": ["OPAQUE_SECRET"],
+    "notes": "KV pass — 'password' key name triggers OPAQUE_SECRET"
+  },
+  {
+    "id": "pem_key",
+    "text": "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQ...\n-----END RSA PRIVATE KEY-----",
+    "expect_entity_types": ["PRIVATE_KEY"],
+    "notes": "PEM pass — RSA PRIVATE KEY block"
+  },
+  {
+    "id": "aws_access_key",
+    "text": "aws_access_key_id = AKIAIOSFODNN7WBUDPQ3",
+    "expect_entity_types": ["API_KEY"],
+    "notes": "AWS access key ID — regex pass, does not end in EXAMPLE"
+  },
+  {
+    "id": "multiple_secrets",
+    "text": "db_password = \"S3cureP@ss!xyz\"\napi_key = \"ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789\"",
+    "expect_entity_types": ["API_KEY", "OPAQUE_SECRET"],
+    "notes": "Two secrets in one text — dedup must not merge distinct spans"
+  },
+  {
+    "id": "no_secrets",
+    "text": "This is a normal sentence about coding.",
+    "expect_entity_types": [],
+    "notes": "Prose text — no structure, no findings expected"
+  },
+  {
+    "id": "placeholder",
+    "text": "export API_KEY=YOUR_API_KEY_HERE",
+    "expect_entity_types": [],
+    "notes": "Placeholder value — must be suppressed by placeholder filter"
+  },
+  {
+    "id": "url_fp",
+    "text": "homepage = \"https://api.example.com\"",
+    "expect_entity_types": [],
+    "notes": "URL value assigned to a key — FP filter must suppress"
+  }
+]

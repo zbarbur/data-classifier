@@ -31,11 +31,10 @@ returned confidently-wrong single-class predictions on 3/6 fixtures,
 triggered a RED safety-audit verdict, and caused the directive-
 promotion item to be retired.
 
-See the library-wide philosophy memo (research-side location pending
-promotion to spec):
-`../../../data_classifier-research-ops/docs/research/multi_label_philosophy.md`
-on `research/meta-classifier`. Post-Sprint-12 close, promoted to
-`docs/spec/10-multi-label-architecture.md`.
+See the library-wide philosophy spec at
+[`docs/spec/11-multi-label-architecture.md`](../../spec/11-multi-label-architecture.md)
+(canonical location since Sprint 17 promotion; previously lived as a
+research memo on `research/meta-classifier`).
 
 **Practical implications for the Intent readiness track:**
 
@@ -101,17 +100,20 @@ Alternatives to consider: flat 10-intent (spec default), flat 4-intent
 
 ### Stage 1 — Corpus acquisition
 
-- **Status:** 🟡 unblocked — can start immediately, zero dependencies
-- **Blocks:** Stages 3-6
+- **Status:** ✅ COMPLETE 2026-04-17 (3/4 corpora; LMSYS deferred)
+- **Blocks (resolved):** Stages 3-6
 
-Download and stage raw prompt corpora under clean licenses:
+Downloaded and staged via DVC (`data/` + GCS `gs://data-classifier-datasets`):
 
-- **WildChat-1M** (`allenai/WildChat-1M`) — CC0, real ChatGPT conversations, 1M samples
-- **LMSYS-Chat-1M** (`lmsys/lmsys-chat-1m`) — research use, real LMSYS arena conversations
-- **Dolly-15K** (`databricks/databricks-dolly-15k`) — CC-BY-SA 3.0, crowdsourced instructions with `category` field
-- **OASST** (`OpenAssistant/oasst1` + `oasst2`) — Apache 2.0, multi-turn assistant conversations
+- **WildChat-1M** (`allenai/WildChat-1M`) — CC0, 1M samples, 6.7 GB — ✅ already tracked
+- **Dolly-15K** (`databricks/databricks-dolly-15k`) — CC-BY-SA 3.0, 15,011 rows, 7.2 MB — ✅ tracked
+  - 8 categories: brainstorming, classification, closed_qa, creative_writing, general_qa, information_extraction, open_qa, summarization
+- **OASST2** (`OpenAssistant/oasst2`) — Apache 2.0, 135,174 rows (13,162 root prompts), 101 MB — ✅ tracked
+  - OASST2 is a superset of OASST1; only OASST2 tracked
+  - Top languages: en 47%, es 27%, ru 9%, zh 4%, de 4%
+- **LMSYS-Chat-1M** (`lmsys/lmsys-chat-1m`) — ⏸ **deferred**: gated dataset, requires HF access approval + research-use license
 
-Target location: `corpora/prompt_analysis/` (new directory in this worktree).
+All datasets registered in `data_classifier/datasets.py` `_HF_REGISTRY` and loadable via `load_local_or_remote()`.
 
 ### Stage 2 — Dolly bootstrap labeling
 

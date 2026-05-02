@@ -1,0 +1,54 @@
+title: "Port 7 EU validators to Rust \u2014 Sprint 16 parity (blocks v0.17.0 tag)"
+status: backlog
+priority: P0
+category: feature
+sprint_target: null
+created: 2026-05-01
+updated: 2026-05-01
+depends_on: []
+tags: []
+goal: "Port the 7 EU government-ID validators added in Sprint 16 (Python) to the Rust\
+  \ unified detector for cross-runtime parity. Blocks the v0.17.0 release tag \u2014\
+  \ sprint17/main can merge the unified WASM detector without these (B3 plan), but\
+  \ the published release must be parity-clean per feedback_two_paths_architecture."
+complexity: M
+technical_specs:
+- "File: data_classifier_core/src/secret_detector/validators/ \u2014 add 7 new Rust\
+  \ modules (or extend existing checksum module) mirroring data_classifier/engines/validators.py\
+  \ implementations"
+- 'Verify byte-identical behavior: same fixture set passes both Python luhn_strip_check-style
+  functions and the Rust ports for every (valid, invalid) pair'
+- "File: data_classifier_core/patterns/unified_patterns.json + data_classifier/clients/browser/assets/unified_patterns.json\
+  \ \u2014 wire validator references for the 7 EU GovID types"
+- "File: data_classifier/__init__.py + pyproject.toml \u2014 version stays at 0.17.0\
+  \ throughout (no further bump needed); v0.17.0 git tag pushed only after this item\
+  \ closes + Cloud Build dry-run passes"
+- Reference docs/research/meta_classifier/sprint17_router_suppression_decomposition.md
+  and sprint17 handover for context on why this was deferred
+description: ''
+acceptance_criteria:
+- 'All 7 validators ported to Rust with checksum logic byte-identical to Python: german_steuerid,
+  french_nir, spanish_dni, spanish_nie, italian_codice_fiscale, dutch_bsn, austrian_svnr'
+- Each validator has positive (valid checksum) + negative (invalid checksum) Rust
+  unit tests; cargo test green
+- Cross-runtime parity script (scripts/cross_runtime_parity.sh or equivalent) covers
+  all 7 EU validator types, Python and Rust agree on checksum verdict for each fixture
+- "Browser parity gate \u226587% maintained or improved"
+- ruff check . clean, pytest tests/ -v all green, cargo test --no-default-features
+  green
+- Cloud Build dry-run passes against the branch before v0.17.0 tag is pushed (per
+  feedback_dry_run_release_pipelines)
+test_plan:
+- 'Rust crate: cargo test --no-default-features green with new validator unit tests'
+- 'Cross-runtime parity: existing scripts/cross_runtime_parity.sh extended to assert
+  Python and Rust agree on the 7 EU validators across (valid, invalid) fixture pairs'
+- "Family benchmark: no regression vs the honest sprint17 baseline (joint_miss_rate\
+  \ metric if landed by then, else family_macro_f1 \u2265 0.9542 LIVE)"
+- 'Manual: gcloud builds triggers run --branch=sprint17/main (or wherever the tag-target
+  branch is) succeeds before tag push'
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

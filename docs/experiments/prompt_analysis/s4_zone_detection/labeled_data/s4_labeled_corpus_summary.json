@@ -1,0 +1,20 @@
+{
+  "total_records": 1705,
+  "positives": 1405,
+  "negative_samples": 300,
+  "block_counts": {
+    "type_code": 1233,
+    "type_structured_data": 516,
+    "type_cli_shell": 43,
+    "type_natural_language": 5
+  },
+  "method_counts": {
+    "method_syntax_score": 1187,
+    "method_xml_heuristic": 396,
+    "method_csv_heuristic": 50,
+    "method_fenced": 56,
+    "method_shell_heuristic": 41,
+    "method_yaml_heuristic": 66,
+    "method_json_parse": 1
+  }
+}

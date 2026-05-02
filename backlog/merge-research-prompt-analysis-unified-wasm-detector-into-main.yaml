@@ -1,0 +1,97 @@
+title: Merge research/prompt-analysis unified WASM detector into main
+status: done
+priority: P1
+category: feature
+sprint_target: 17
+created: 2026-04-28
+updated: 2026-05-02
+depends_on: []
+tags:
+- wasm,browser,merge,rust,eu-validators,parity
+goal: Merge research/prompt-analysis (unified Rust/WASM detector for browser scanner
+  v2, ~140 commits ahead of main) into sprint17/main, port 7 EU validators to Rust,
+  and restore browser parity to >=87% with no regression on the canonical family benchmark.
+complexity: L
+technical_specs:
+- 'Delivery model: research/prompt-analysis session prepares a PR against sprint17/main
+  with conflicts resolved, EU validators ported to Rust, and benchmarks run locally.
+  Sprint17/main owner becomes PR reviewer (validate ACs, re-run gates, accept/reject).
+  This distributes conflict-resolution to the session that wrote the 140 commits rather
+  than reconstructing context post-hoc.'
+- "File: data_classifier/scan_text.py \u2014 resolve merge conflicts; preserve S15\
+  \ 3-pass pipeline (regex/orchestrator/diversity) and S16 evidence-overlap dedup\
+  \ + within-family specificity sort; integrate WASM-side scan_text refactors from\
+  \ research/prompt-analysis."
+- "File: data_classifier/validators.py \u2014 resolve merge conflicts; preserve all\
+  \ 7 S16 EU validators (Python side) and any S15 SWIFT_BIC additions; mirror the\
+  \ same checksum logic in the Rust crate."
+- "Directory: data_classifier/clients/browser/ \u2014 pull Rust crate + WASM build\
+  \ pipeline from research/prompt-analysis; run npm run release to rebuild WASM artifacts;\
+  \ ensure dist/ output is reproducible."
+- "File: data_classifier/clients/browser/src/validators.rs (or equivalent Rust module)\
+  \ \u2014 port the 7 S16 EU validators with checksum logic identical to the Python\
+  \ implementations; add unit tests with valid + invalid fixtures per validator."
+- "File: scripts/ci_browser_parity.sh \u2014 verify continues to pass post-merge;\
+  \ update only if the WASM scanner output schema changed (document any change in\
+  \ the merge commit body)."
+- "File: data_classifier/patterns/__init__.py \u2014 if GitHub push protection trips\
+  \ on merged secret-fixture content, re-apply the XOR encoding pattern documented\
+  \ in feedback_xor_fixture_pattern memory."
+- "File: pyproject.toml + data_classifier/__init__.py \u2014 bump version 0.16.0 ->\
+  \ 0.17.0; CHANGELOG.md adds Sprint 17 entry summarizing the merge + EU validators\
+  \ in Rust."
+description: "Merge the research/prompt-analysis branch (~140 commits ahead of main)\
+  \ which contains the unified Rust/WASM detector for the browser scanner v2. Resolves\
+  \ the Sprint 16 known gap: 7 EU validators (german_steuerid, french_nir, spanish_dni,\
+  \ spanish_nie, italian_codice_fiscale, dutch_bsn, austrian_svnr) need Rust ports;\
+  \ browser scanner needs unification with Python detection logic; scan_text FP filter\
+  \ parity gap (Sprint 15 P0) is subsumed or closed by this merge. Conflict surface\
+  \ is large: scan_text.py and validators.py were heavily edited in S15 (3-pass pipeline,\
+  \ diversity boost, SWIFT_BIC) and S16 (evidence-overlap dedup, EU validators, specificity\
+  \ sort). Strict acceptance gates against S16 baselines: shadow.cross_family_rate\
+  \ \u2264 0.3139, family_macro_f1 \u2265 0.8305 SHADOW / \u2265 0.9732 LIVE, browser\
+  \ parity \u2265 87%."
+acceptance_criteria:
+- 'Merge clean: no unresolved conflicts in scan_text.py, validators.py, or data_classifier/clients/browser/;
+  merge commit lands on sprint17/main.'
+- 'Python test suite green: .venv/bin/python -m pytest tests/ -v passes (>=2,405 tests,
+  0 failures, only previously-known skips/xfails).'
+- 'Lint clean: ruff check . --exclude .claude/worktrees && ruff format --check . --exclude
+  .claude/worktrees produces zero diffs and zero warnings.'
+- 'Browser parity restored: bash scripts/ci_browser_parity.sh reports >=87% (S16 baseline).'
+- '7 EU validators ported to Rust: DEFERRED to follow-up item port-7-eu-validators-to-rust-sprint-16-parity-blocks-v0-17-0-tag
+  (P0). Blocks the v0.17.0 tag but does NOT block the merge (B3 plan).'
+- "Family benchmark: PR-vs-sprint17/main delta within \xB10.005 on every metric (PR\
+  \ makes no detection-quality changes). Verified 2026-04-30 \u2014 apples-to-apples\
+  \ \u0394 \u2248 0 across LIVE and SHADOW paths. Note: cross_family_rate vs S16 is\
+  \ not a meaningful gate \u2014 see docs/research/meta_classifier/sprint17_router_suppression_decomposition.md."
+- 'Integration ready (MERGE gate met when above pass): PR can merge to sprint17/main.'
+- 'v0.17.0 release readiness (TAG gate, deferred): tag push is held until the EU validator
+  port item closes AND Cloud Build dry-run (gcloud builds triggers run --branch=sprint17/main)
+  passes. pyproject.toml + data_classifier/__init__.py stay at 0.17.0 until then;
+  no published wheel until the tag.'
+test_plan:
+- 'tests/: full pytest via .venv/bin/python -m pytest tests/ -v passes; new EU-validator-Rust-port
+  tests added to the Rust crate test suite.'
+- 'scripts/ci_browser_parity.sh: parity >=87% with no regression on the existing 87%
+  baseline; report any new validator gaps in handover.'
+- 'tests/benchmarks/family_accuracy_benchmark.py: DATA_CLASSIFIER_DISABLE_ML=1 .venv/bin/python
+  -m tests.benchmarks.family_accuracy_benchmark --compare-to docs/research/meta_classifier/sprint16_family_benchmark.json
+  passes with shadow.cross_family_rate <= 0.3139 and family_macro_f1 >= 0.8305.'
+- 'Rust crate test suite: cd data_classifier/clients/browser && cargo test (or npm-driven
+  equivalent) passes; 7 EU validators each have valid-checksum and invalid-checksum
+  cases.'
+- 'Browser scanner fixture suite: 455 prompts / 24 credential findings (S2 baseline)
+  still match expected outputs post-merge.'
+- 'Pre-tag release dry-run: gcloud builds triggers run --branch=sprint17/main succeeds
+  before pushing v0.17.0 tag (per feedback_dry_run_release_pipelines).'
+notes: "Coordination: 2026-04-28 \u2014 research/prompt-analysis session will prepare\
+  \ the merge PR. The 7 strict ACs above are the receiving criteria. Brief sent separately\
+  \ includes S16 baselines (shadow.cross_family_rate <= 0.3139, family_macro_f1 >=\
+  \ 0.8305 SHADOW / >= 0.9732 LIVE, browser parity >= 87%) and the 7 EU validators\
+  \ required for Rust port."
+phase: review
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

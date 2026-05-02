@@ -102,10 +102,16 @@ Before closing any sprint:
        python -m tests.benchmarks.family_accuracy_benchmark \
        --out /tmp/bench.predictions.jsonl \
        --summary /tmp/bench.summary.json \
-       --compare-to docs/research/meta_classifier/sprint12_family_benchmark.json
+       --compare-to docs/research/meta_classifier/sprint17_family_benchmark.json
    ```
-   The `shadow.overall.family.cross_family_rate` metric must not
-   regress from the committed baseline without a written
-   justification in the sprint handover. See
-   `tests/benchmarks/README.md` for the full explanation of Tier 1
-   vs Tier 2 scoring.
+   The **`system.overall.joint_miss_rate`** metric is the headline
+   sprint gate (introduced Sprint 17). It captures the system-level
+   miss rate when *neither* LIVE nor SHADOW lands in the right
+   family — invariant to corpus shape composition and to router
+   suppression policy. Must not regress from the committed baseline
+   without written justification. The legacy
+   `shadow.overall.family.cross_family_rate` is retained for
+   audit-trail continuity but mostly tracks router-suppression rate;
+   see `docs/research/meta_classifier/sprint17_router_suppression_decomposition.md`
+   for the analysis. See `tests/benchmarks/README.md` for Tier 1 vs
+   Tier 2 scoring.

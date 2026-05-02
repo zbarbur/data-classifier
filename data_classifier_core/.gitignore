@@ -1,0 +1,5 @@
+/target/
+/pkg/
+*.so
+*.dylib
+*.pyd

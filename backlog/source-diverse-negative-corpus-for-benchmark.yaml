@@ -1,15 +1,34 @@
 title: Source diverse NEGATIVE corpus for benchmark
-status: backlog
+status: done
 priority: P1
 category: feature
-sprint_target: null
+sprint_target: 17
 created: 2026-04-18
-updated: 2026-04-18
+updated: 2026-05-02
 depends_on: []
-tags: []
-goal: ''
-complexity: null
-technical_specs: []
+tags:
+- corpus,benchmark,negative,fp-resistance,ground-truth
+goal: Expand the NEGATIVE corpus from 90 SecretBench values to 5+ structurally-distinct
+  sources with >=100 values each (>=500 total), so binary-PII / NEGATIVE-F1 metrics
+  reflect real FP-resistance rather than corpus homogeneity (Sprint 14 binary-PII-gate
+  RED verdict).
+complexity: M
+technical_specs:
+- "Directory: tests/benchmarks/corpora/negative/ \u2014 add 5 source loaders (one\
+  \ per category); each emits a normalized iterable of NEGATIVE-labeled values with\
+  \ source-id metadata."
+- "File: tests/benchmarks/family_accuracy_benchmark.py \u2014 wire new sources into\
+  \ the NEGATIVE pool; preserve 90-value SecretBench slice for backwards-compat reporting\
+  \ alongside the expanded pool."
+- "NEW file: docs/research/negative_corpus_sources.md \u2014 license + provenance\
+  \ + extraction script reference for each of the 5 sources; this is the contract\
+  \ for the next person who adds a 6th source."
+- "File: data_classifier/datasets.py + DVC/GCS \u2014 register each new corpus per\
+  \ the reference_dvc_gcs_datasets pattern; runbook update in docs/process/dataset_management.md\
+  \ if the upload flow needs new steps."
+- "NEW file: tests/benchmarks/test_negative_corpus.py \u2014 per-source smoke tests\
+  \ (load succeeds, size >= 100, optional PII-leak sweep against the regex registry\
+  \ to catch contamination)."
 description: "Current NEGATIVE pool is 90 values from SecretBench (after reclassification),\
   \ resampled into 450 shards. Too small and too homogeneous. Need 5+ structurally-distinct\
   \ NEGATIVE sources with 100+ values each: (1) config files without secrets (PORT=8080,\
@@ -18,10 +37,35 @@ description: "Current NEGATIVE pool is 90 values from SecretBench (after reclass
   \ counts), (5) prose without PII (documentation text). The binary PII gate RED verdict\
   \ (Sprint 14 research) showed 3 corpora encoding 3 unrelated concepts of NEGATIVE\
   \ \u2014 need coherent definition + diverse sourcing."
-acceptance_criteria: []
-test_plan: []
+acceptance_criteria:
+- 'NEGATIVE corpus contains >=5 structurally-distinct sources with >=100 values each
+  (>=500 values total) covering: (a) config without secrets (PORT=8080, DEBUG=true),
+  (b) code without PII (function defs, imports), (c) generic business data (product
+  names, SKUs), (d) numeric non-PII (measurements, scores, counts), (e) prose without
+  PII (documentation text).'
+- Each source has a provenance entry in docs/research/negative_corpus_sources.md (origin,
+  license, extraction method, sample count).
+- 'Sources comply with project license posture: no AGPL (per feedback_trufflehog_excluded);
+  MIT/Apache 2.0/CC0/CC-BY-4.0 only.'
+- NEGATIVE F1 measured on the new corpus and reported in the sprint handover; no regression
+  below the S15 NEGATIVE F1 1.000 baseline on the existing slice.
+- Corpus integrated into tests/benchmarks/family_accuracy_benchmark.py via the existing
+  loader pattern (DVC/GCS or local pre-loaded per reference_dvc_gcs_datasets).
+- 'Tests pass: .venv/bin/python -m pytest tests/ -v'
+- 'Lint clean: ruff check . --exclude .claude/worktrees && ruff format --check . --exclude
+  .claude/worktrees'
+test_plan:
+- 'tests/benchmarks/test_negative_corpus.py: 5 per-source loader tests pass; each
+  verifies >=100 values, source-id metadata present.'
+- 'PII-contamination sweep: each NEGATIVE value passed through the regex engine; any
+  source with >5% positive hits is rejected as contaminated and replaced.'
+- 'tests/benchmarks/family_accuracy_benchmark.py: full benchmark run with expanded
+  NEGATIVE pool reports NEGATIVE-F1 and overall family_macro_f1 in the handover; results
+  compared against S16 baseline.'
+- 'License audit: docs/research/negative_corpus_sources.md reviewed; CI grep guard
+  rejects new sources without provenance entries (or filed as follow-up if scope-creep).'
 notes: ''
-phase: null
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

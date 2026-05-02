@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Zone Detector WASM Benchmark</title>
+  <style>
+    body { font-family: monospace; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+    h1 { font-size: 1.4em; }
+    pre { background: #f5f5f5; padding: 16px; overflow-x: auto; border-radius: 4px; }
+    button { padding: 8px 16px; font-size: 14px; cursor: pointer; margin: 4px; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #status { color: #666; margin: 8px 0; }
+    .pass { color: #2a7; } .fail { color: #c33; }
+  </style>
+</head>
+<body>
+  <h1>Zone Detector — WASM Benchmark</h1>
+  <p>Runs the full zone detection pipeline on 647 reviewed prompts from the WildChat corpus.</p>
+  <div>
+    <button id="btnLoad" onclick="loadAll()">1. Load WASM + Data</button>
+    <button id="btnBench" onclick="runBenchmark()" disabled>2. Run Benchmark</button>
+    <button id="btnParity" onclick="runParity()" disabled>3. Verify Parity</button>
+  </div>
+  <p id="status">Ready</p>
+  <pre id="output"></pre>
+
+<script type="module">
+  import wasmInit, { init_detector, detect, detect_zones_with_patterns } from '../pkg/data_classifier_core.js';
+
+  let wasmReady = false;
+  let corpus = null;
+  let patternsJson = null;
+
+  window.loadAll = async function() {
+    const status = document.getElementById('status');
+    const out = document.getElementById('output');
+
+    try {
+      status.textContent = 'Loading WASM module...';
+      const t0 = performance.now();
+      await wasmInit();
+      const wasmTime = performance.now() - t0;
+
+      status.textContent = 'Loading corpus + patterns...';
+      const t1 = performance.now();
+      const [corpusResp, patternsResp] = await Promise.all([
+        fetch('corpus_subset.json'),
+        fetch('patterns_compact.json'),
+      ]);
+      corpus = await corpusResp.json();
+      const patterns = await patternsResp.json();
+      patternsJson = JSON.stringify(patterns);
+      const dataTime = performance.now() - t1;
+
+      // Initialize detector ONCE (compiles ~100 regex patterns)
+      status.textContent = 'Compiling detector patterns...';
+      const t2 = performance.now();
+      const ok = init_detector(patternsJson);
+      const initTime = performance.now() - t2;
+
+      wasmReady = ok;
+      document.getElementById('btnBench').disabled = false;
+      document.getElementById('btnParity').disabled = false;
+
+      out.textContent = [
+        `WASM module loaded in ${wasmTime.toFixed(0)}ms`,
+        `Corpus: ${corpus.length} prompts loaded in ${dataTime.toFixed(0)}ms`,
+        `Detector initialized in ${initTime.toFixed(0)}ms (regex compilation)`,
+        `WASM size: ~1.6MB (pre gzip)`,
+        '',
+        'Ready to benchmark.',
+      ].join('\n');
+      status.textContent = 'Loaded — click "Run Benchmark"';
+    } catch (e) {
+      status.textContent = 'Error: ' + e.message;
+      out.textContent = e.stack || e.message;
+    }
+  };
+
+  window.runBenchmark = function() {
+    if (!wasmReady || !corpus) return;
+    const status = document.getElementById('status');
+    const out = document.getElementById('output');
+    document.getElementById('btnBench').disabled = true;
+
+    status.textContent = 'Running benchmark...';
+
+    // Use setTimeout to let the UI update before blocking
+    setTimeout(() => {
+      try {
+        // Warmup run (1 prompt)
+        detect(corpus[0].text, corpus[0].prompt_id);
+
+        // Timed run — uses pre-initialized detector (no re-compilation)
+        const t0 = performance.now();
+        let totalBlocks = 0;
+        for (const rec of corpus) {
+          const resultJson = detect(rec.text, rec.prompt_id);
+          const result = JSON.parse(resultJson);
+          totalBlocks += (result.blocks || []).length;
+        }
+        const elapsed = performance.now() - t0;
+        const throughput = (corpus.length / (elapsed / 1000)).toFixed(0);
+
+        // Second run
+        const t1 = performance.now();
+        for (const rec of corpus) {
+          detect(rec.text, rec.prompt_id);
+        }
+        const elapsed2 = performance.now() - t1;
+        const throughput2 = (corpus.length / (elapsed2 / 1000)).toFixed(0);
+
+        // Third run
+        const t2 = performance.now();
+        for (const rec of corpus) {
+          detect(rec.text, rec.prompt_id);
+        }
+        const elapsed3 = performance.now() - t2;
+        const throughput3 = (corpus.length / (elapsed3 / 1000)).toFixed(0);
+
+        out.textContent = [
+          '=== WASM Benchmark (647 prompts, 3 runs) ===',
+          `  Run 1: ${elapsed.toFixed(0)}ms  (${throughput} prompts/sec)`,
+          `  Run 2: ${elapsed2.toFixed(0)}ms  (${throughput2} prompts/sec)`,
+          `  Run 3: ${elapsed3.toFixed(0)}ms  (${throughput3} prompts/sec)`,
+          `  Total blocks detected: ${totalBlocks}`,
+          '',
+          '=== Comparison ===',
+          `  Python:            ~252 prompts/sec`,
+          `  Rust native:       ~320 prompts/sec`,
+          `  WASM (this run):   ~${throughput2} prompts/sec`,
+          '',
+          `  WASM/Python ratio: ${(throughput2/252).toFixed(2)}x`,
+          `  WASM/Native ratio: ${(throughput2/320).toFixed(2)}x`,
+        ].join('\n');
+        status.textContent = 'Benchmark complete';
+      } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+        out.textContent = e.stack || e.message;
+      }
+      document.getElementById('btnBench').disabled = false;
+    }, 50);
+  };
+
+  window.runParity = function() {
+    if (!wasmReady || !corpus) return;
+    const status = document.getElementById('status');
+    const out = document.getElementById('output');
+    document.getElementById('btnParity').disabled = true;
+
+    status.textContent = 'Running parity check...';
+
+    setTimeout(() => {
+      try {
+        let withBlocks = 0;
+        let withoutBlocks = 0;
+        let totalBlocks = 0;
+        const results = [];
+
+        for (const rec of corpus) {
+          const resultJson = detect(rec.text, rec.prompt_id);
+          const result = JSON.parse(resultJson);
+          const blocks = result.blocks || [];
+          if (blocks.length > 0) {
+            withBlocks++;
+          } else {
+            withoutBlocks++;
+          }
+          totalBlocks += blocks.length;
+          results.push({ prompt_id: rec.prompt_id, block_count: blocks.length });
+        }
+
+        // Expected from Python baseline:
+        // TP=290 + FP=5 = 295 prompts with blocks
+        // FN=13 + TN=339 = 352 prompts without blocks
+        const expectedWith = 295;
+        const expectedWithout = 352;
+        const withMatch = withBlocks === expectedWith;
+        const withoutMatch = withoutBlocks === expectedWithout;
+
+        out.textContent = [
+          '=== WASM Parity Check (647 prompts) ===',
+          `  Prompts with blocks:    ${withBlocks} (expected: ${expectedWith}) ${withMatch ? 'MATCH' : 'MISMATCH'}`,
+          `  Prompts without blocks: ${withoutBlocks} (expected: ${expectedWithout}) ${withoutMatch ? 'MATCH' : 'MISMATCH'}`,
+          `  Total blocks detected:  ${totalBlocks}`,
+          '',
+          withMatch && withoutMatch
+            ? '  PARITY: PASS — WASM matches Python and Rust native'
+            : '  PARITY: CHECK — counts differ, investigate per-prompt',
+        ].join('\n');
+        status.textContent = 'Parity check complete';
+      } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+        out.textContent = e.stack || e.message;
+      }
+      document.getElementById('btnParity').disabled = false;
+    }, 50);
+  };
+</script>
+</body>
+</html>

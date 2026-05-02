@@ -1,0 +1,82 @@
+title: "Regenerate wildchat_eval via Rust path + deprecate pure-Python TextScanner"
+status: backlog
+priority: P1
+category: chore
+sprint_target: 17
+created: 2026-04-28
+updated: 2026-04-28
+depends_on:
+  - merge-research-prompt-analysis-unified-wasm-detector-into-main
+tags: [parity, scan_text, wildchat, deprecation, unified_detector]
+goal: |
+  Collapse the three-way Python/PyO3/WASM split into a two-way Rust-only
+  split (PyO3 native + WASM, both byte-identical via the shared crate)
+  by regenerating the wildchat_eval baseline through the Rust path and
+  deprecating the pure-Python TextScanner.
+complexity: M
+description: |
+  Today there are THREE detection implementations in the repo:
+    1. WASM — built from data_classifier_core/ (browser bundle)
+    2. PyO3 native — same Rust crate, called from Python via
+       `from data_classifier_core import UnifiedDetector`
+    3. Pure-Python TextScanner — older codebase in
+       data_classifier/scan_text.py + data_classifier/engines/secret_scanner.py
+
+  The Sprint 17 promotion PR keeps all three. scan_text() prefers (2) when
+  the Rust extension is importable; otherwise falls back to (3).
+
+  Problem: the wildchat-parity gate (scripts/ci_browser_parity.sh ->
+  tests/e2e/wildchat-parity.spec.js) compares WASM (1) vs the corpus
+  produced by scripts/build_wildchat_eval.py, which directly instantiates
+  TextScanner (3) — bypassing the Rust path entirely. So the test
+  measures a JS-vs-pure-Python diff, not WASM-vs-Rust-core. The 87% S16
+  threshold and the few remaining divergences (e.g. JS finding hf_*
+  tokens that Python misses, Python false-positiving on f-string
+  placeholders that JS correctly rejects) are artifacts of this
+  inter-engine drift, NOT of the unified detector itself.
+
+  Cross-runtime parity (scripts/cross_runtime_parity.sh) already proves
+  WASM == PyO3 native byte-for-byte on 14 + 8 fixtures.
+
+  Plan:
+    1. Update build_wildchat_eval.py to call data_classifier.scan_text.scan_text()
+       (which uses _scan_text_rust when available) instead of instantiating
+       TextScanner directly. Add an explicit assertion that _RUST_AVAILABLE
+       is True before regenerating, so the baseline is always Rust-derived.
+    2. Re-encode + re-commit data/wildchat_eval/wildchat_eval.jsonl
+       (XOR-encoded prompt_xor field is already in place — see
+       feedback_xor_fixture_pattern memory).
+    3. Tighten the wildchat-parity threshold from 0.85 → 0.99 (or remove
+       the test once it's redundant with cross_runtime_parity.sh).
+    4. Mark TextScanner deprecated: add DeprecationWarning at instantiation,
+       point callers at scan_text.scan_text(), schedule removal for v0.18.0
+       or whichever release is one cycle after Rust-everywhere lands.
+technical_specs:
+  - "File: scripts/build_wildchat_eval.py — replace `TextScanner()` instantiation with `scan_text.scan_text(text)` calls; add `assert _RUST_AVAILABLE` guard"
+  - "File: data/wildchat_eval/wildchat_eval.jsonl — regenerate (large, may need DVC tracking; check existing pattern for similarly-sized fixtures)"
+  - "File: data_classifier/clients/browser/tests/e2e/wildchat-parity.spec.js — bump `expect(agreementRate).toBeGreaterThanOrEqual(0.85)` → `0.99`; update header comment to reflect Rust-vs-Rust comparison"
+  - "File: data_classifier/scan_text.py — add DeprecationWarning to TextScanner.__init__"
+  - "File: CHANGELOG.md — note the TextScanner deprecation in the next release"
+  - "Optional: delete tests/e2e/wildchat-parity.spec.js entirely once cross-runtime parity is judged sufficient (would also obsolete the 47 MB eval corpus)"
+acceptance_criteria:
+  - "scripts/build_wildchat_eval.py refuses to run when Rust extension is unavailable"
+  - "Regenerated wildchat_eval.jsonl committed (or DVC-tracked) with prompt_xor still XOR-encoded"
+  - "wildchat-parity threshold ≥ 0.99 (post-regen agreement rate must support this)"
+  - "TextScanner.__init__ emits DeprecationWarning"
+  - "All existing gates remain green (ruff, pytest, cross-runtime parity, browser parity)"
+test_plan:
+  - "Run scripts/build_wildchat_eval.py from a venv with data_classifier_core installed; verify _RUST_AVAILABLE assertion holds"
+  - "Run bash scripts/ci_browser_parity.sh; agreement must be ≥ 0.99"
+  - "pytest -W error::DeprecationWarning tests/test_scan_text.py — verify DeprecationWarning is emitted on TextScanner construction"
+notes: |
+  Filed during Sprint 17 promotion review when investigating the 3
+  divergent prompts in the wildchat-parity test (1751, 2074, 2975). The
+  divergences split as: 2 cases where WASM is more accurate than
+  pure-Python (rejecting f-string placeholders, catching hf_* tokens),
+  1 case where pure-Python is arguably more accurate. Once Rust is the
+  ground truth, those divergences become non-issues.
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

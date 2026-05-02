@@ -1,0 +1,43 @@
+title: Promote summarise_shards minimum-count check to hard assertion in build_shards
+status: backlog
+priority: P1
+category: feature
+sprint_target: 18
+created: 2026-05-02
+updated: 2026-05-02
+depends_on: []
+tags: []
+goal: Replace the silent-empty-list pattern across 9 corpus loader sites with a single
+  hard assertion in build_shards(). Currently any missing fixture file logs a warning
+  and returns []; the benchmark proceeds with partial corpus and the metric looks
+  fine. This caused the Sprint 17 measurement artifact.
+complexity: S
+technical_specs:
+- "File: tests/benchmarks/meta_classifier/shard_builder.py \u2014 add MIN_SHARDS_PER_CORPUS\
+  \ dict and assertion at the end of build_shards"
+- "Files (informational, no code change): tests/benchmarks/corpus_loader.py:352, 473,\
+  \ 551, 597, 666, 673, 900, 953, 1001 \u2014 all 9 silent return [] sites; the assertion\
+  \ at the aggregator level is the canonical fix"
+- "Sibling backlog item: backlog/fail-loud-benchmark-fixture-loader.yaml shipped Sprint\
+  \ 17 \u2014 this item is the final loud-failure layer above it"
+description: ''
+acceptance_criteria:
+- 'tests/benchmarks/meta_classifier/shard_builder.py emits a hard assertion at end
+  of build_shards: ''expected N shards, got M (missing corpora: [...])'' that fails
+  the benchmark run'
+- Per-corpus minimum counts pinned in a constants table (e.g. NEMOTRON_MIN=1500, OPENPII_MIN=2000)
+  so future corpus additions follow the same pattern
+- Existing 9 silent return [] sites in corpus_loader.py keep the warnings (operational
+  visibility) but the build_shards aggregator fails loudly
+- Tests pass and lint clean
+test_plan:
+- 'tests/test_shard_builder.py: test that build_shards raises AssertionError when
+  a known corpus directory is renamed during run'
+- 'Manual: rename one corpus dir, run benchmark, confirm it fails with actionable
+  message'
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

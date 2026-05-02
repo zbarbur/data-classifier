@@ -1,0 +1,68 @@
+title: "Port 7 EU validators (DE/FR/ES/IT/NL/AT) from Python to Rust — Sprint 16 parity"
+status: backlog
+priority: P0
+category: feature
+sprint_target: 17
+created: 2026-04-28
+updated: 2026-04-28
+depends_on:
+  - merge-research-prompt-analysis-unified-wasm-detector-into-main
+tags: [rust, wasm, validators, eu, parity, sprint16_followup]
+goal: |
+  Port the 7 EU validators added to data_classifier/validators.py during
+  Sprint 16 (2026-04-25 → 2026-04-27) to the Rust crate so the unified
+  WASM detector matches Python validation behavior. This was deferred
+  from the Sprint 17 promotion PR (option B in delivery planning) to
+  unblock the merge — handled here as a focused follow-up.
+complexity: M
+description: |
+  The Sprint 17 promotion PR (research/prompt-analysis → sprint17/main)
+  ships the unified Rust/WASM detector with the existing Rust validator
+  set. Sprint 16 added these 7 EU validators on the Python side that
+  need mirror implementations in Rust:
+
+    - german_steuerid — iterative mod-10/11 (11-digit ID)
+    - french_nir — 97 - base % 97 (15-digit ID with check)
+    - spanish_dni — mod-23 letter (8 digits + letter)
+    - spanish_nie — prefix + mod-23 (X/Y/Z + 7 digits + letter)
+    - italian_codice_fiscale — odd/even position tables (16 chars)
+    - dutch_bsn — 11-check, weights [9,8,7,6,5,4,3,2,-1]
+    - austrian_svnr — check digit at position 4 (10 digits)
+
+  Until this lands, the WASM detector emits these entity types using
+  pattern-only matching (no checksum validation), which permits
+  format-valid but checksum-invalid false positives in the browser.
+  Python path is unaffected — it has the validators.
+
+  Reference Python implementations: data_classifier/validators.py
+  (search for the function names above, all added in Sprint 16).
+technical_specs:
+  - "File: data_classifier_core/src/validators/eu.rs (new module) — one function per validator with the same name conventions used in Python"
+  - "File: data_classifier_core/src/validators/mod.rs — re-export the new functions; wire into existing validator dispatch"
+  - "File: data_classifier_core/src/lib.rs — ensure new validators are reachable from the FFI surface used by PyO3 + WASM"
+  - "Tests: data_classifier_core/tests/eu_validators.rs — positive + negative checksum fixtures per validator (5+ valid, 5+ invalid each)"
+  - "Cross-validate against Python: bash scripts/ci_browser_parity.sh must show ≥ 87% post-merge (S16 baseline) and improve when this lands"
+  - "WASM rebuild: cd data_classifier_core && wasm-pack build --target web --release ; cd data_classifier/clients/browser && npm run build"
+  - "No version bump for this item — folds into the Sprint 17 release that v0.17.0 covers"
+acceptance_criteria:
+  - All 7 validators ported to Rust with checksum logic identical to the Python implementations
+  - "Per-validator unit tests in Rust: ≥5 positive + ≥5 negative fixtures each, including realistic checksum-failure cases"
+  - cargo test --release passes 100% on data_classifier_core
+  - bash scripts/ci_browser_parity.sh ≥ 87% (S16 baseline; expect uplift once Rust validators reject checksum-invalid false positives)
+  - WASM artifacts rebuilt; data_classifier/clients/browser/dist updated; bundle size delta documented in PR
+  - "Differential test: pick 50 inputs per entity type (mix of valid, invalid-format, valid-format-invalid-checksum), assert Python validators.py and Rust validators agree byte-for-byte on accept/reject"
+test_plan:
+  - "data_classifier_core/tests/eu_validators.rs — per-validator pos/neg checksum fixtures"
+  - "Cross-runtime parity: bash scripts/cross_runtime_parity.sh — WASM ↔ Rust native byte-identical"
+  - "Browser parity: bash scripts/ci_browser_parity.sh — ≥ 87%"
+  - "Python ↔ Rust differential on 50 inputs per entity type — must agree on accept/reject"
+notes: |
+  Filed when option B was chosen for the Sprint 17 promotion PR — defer
+  the Rust port to keep the merge moving. Receiving owner of sprint17/main
+  is aware: the merge PR explicitly notes Rust EU validators are not
+  included and links here.
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

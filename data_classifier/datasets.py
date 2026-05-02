@@ -25,6 +25,8 @@ _HF_REGISTRY: dict[str, str] = {
     "nemotron_pii": "nvidia/Nemotron-PII",
     "gretel_en": "gretelai/gretel-pii-masking-en-v1",
     "gretel_finance": "gretelai/gretel-pii-finance-multilingual",
+    "dolly_15k": "databricks/databricks-dolly-15k",
+    "oasst2": "OpenAssistant/oasst2",
 }
 
 # Project root → data/ directory.  Works from any worktree because

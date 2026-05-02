@@ -1,0 +1,91 @@
+title: "Promote prompt-analysis research → main: zone-detector v2 + browser unified WASM + scan pipeline + DVC archive"
+status: backlog
+priority: P0
+category: feature
+sprint_target: 17
+created: 2026-04-28
+updated: 2026-04-28
+depends_on: []
+tags: [promotion, prompt_analysis, zone_detector, browser_poc, wasm, dvc]
+goal: |
+  Land 129 commits from research/prompt-analysis onto main as one Sprint 17
+  PR. Covers four logical pieces that have been iterating together:
+    1. Zone Detector v2 (Rust crate data_classifier_core) — full
+       partitioning pipeline with format/structural/syntax/data/prose
+       detectors; PyO3 + WASM bindings.
+    2. Browser unified WASM client — replaces Sprint 14 v1 JS-regex
+       scanner with the Rust unified detector for byte-identical
+       WASM ↔ native parity.
+    3. Scan pipeline + WildChat archive — scripts/scan_wildchat_unified.py
+       processed 1.94M prompts; 81k structural-candidate slice +
+       3.5 GB DVC-backed archive at gs://data-classifier-datasets.
+    4. Validation infrastructure — fresh-reviewed s4 gold + IoU-based
+       block-level scorer, exposes label noise in the original s4
+       labeled corpus (1158 prompts had no GT despite obvious code).
+complexity: L
+description: |
+  Branch state: research/prompt-analysis is 129 commits ahead of main,
+  zero behind. All gates green:
+    - ruff check + ruff format --check: clean
+    - pytest tests/ -q: 2497 passed, 3 skipped, 1 xfailed, 1 xpassed in 35s
+      (DATA_CLASSIFIER_DISABLE_ML=1 — branch does not modify ML model
+      code so ML-active tests skip themselves cleanly)
+    - cross-runtime parity (WASM ↔ Rust native): 14 + 8 fixtures pass
+    - family benchmark LIVE path: family_macro_f1 0.9393, multilabel
+      0.9319, cross_family_rate 0.1282 — healthy
+    - family benchmark SHADOW path: not validated (needs ML;
+      out-of-scope for this branch — separate gate-run on a non-
+      throttled machine if reviewers want it)
+    - WildChat scan: 1,943,027 prompts at 2924 prompts/sec, 0 errors
+
+  Detector quality (validated against fresh-reviewed 50-prompt gold +
+  8-prompt problem slice): code F1 0.917, code recall 0.917, pure-prose
+  100%, overall F1 0.748 (overall is dragged by sparse types like
+  config/data/markup, not by core code/prose detection).
+
+  Known deferred bug: structural detector aggregates braces across
+  prose boundaries (bug class #4 from validation work). Surfaces on
+  large mixed prompts. Not a blocker — file separately if it bites.
+technical_specs:
+  - "Branch: research/prompt-analysis (149 commits, 0 behind main)"
+  - "Approach: single sprint17 integration branch off main; PR research/prompt-analysis → sprint17/<branch>"
+  - "Logical pieces (likely separate review passes within the one PR):"
+  - "  - data_classifier_core/* — Rust crate (zone detector v2, secret detector, structural/syntax/format/data/prose pipeline)"
+  - "  - data_classifier/clients/browser/* — unified WASM client + scanner.esm/worker.esm pipeline"
+  - "  - scripts/scan_wildchat_unified.py + split_scan_candidates.py — scan + archive splitter"
+  - "  - data/wildchat_unified/all_prompts.jsonl.dvc — DVC pointer to 3.5 GB GCS archive"
+  - "  - docs/experiments/prompt_analysis/s4_zone_detection/v2/* — Python wrapper around Rust core"
+  - "  - tests/test_zone_v2/* — 156 tests, 0.29s; covers Python wrapper + Rust integration"
+  - "Disclosure for PR description:"
+  - "  - DATA_CLASSIFIER_DISABLE_ML=1 used for pytest + family benchmark (research branch does not touch ML code)"
+  - "  - Shadow-path family benchmark gate (CLAUDE.md sprint-completion criterion) unverified — needs ML-active rerun"
+  - "  - New per-file ruff ignores added for research dirs, consistent with existing prompt_analysis/tools/* pattern"
+  - "  - Bug class #4 (structural detector across prose) deferred"
+acceptance_criteria:
+  - PR opened and merged from research/prompt-analysis → sprint17/<branch> → main
+  - All gates that ran clean on the source branch must run clean on the integration branch
+  - Shadow-path family benchmark validated (or written justification for why not, per CLAUDE.md sprint-completion gate)
+  - .dvc tracking file in main; full all_prompts.jsonl pullable via dvc pull on a fresh checkout
+  - Sprint 17 handover notes which detector quality numbers became the new baseline
+test_plan:
+  - "ruff check . + ruff format --check . on the integration branch — both clean"
+  - "DATA_CLASSIFIER_DISABLE_ML=1 .venv/bin/python -m pytest tests/ -q — 2497+ passed"
+  - "bash scripts/cross_runtime_parity.sh — 14 + 8 fixtures pass, exit 0"
+  - "Family benchmark LIVE path — no regression vs current main baseline"
+  - "Family benchmark SHADOW path with ML extras installed — cross_family_rate must not regress vs sprint12 baseline (0.0044)"
+  - "dvc pull data/wildchat_unified/all_prompts.jsonl on a fresh worktree — must succeed"
+  - "Browser smoke: load data_classifier/clients/browser/dist on a sample fixture, verify scanner.esm + worker.esm + WASM all wire together"
+notes: |
+  Out of scope for this PR (file separately if needed):
+    - Bug class #4: structural detector across prose boundaries
+    - Sprint 16 main-track items (evidence-overlap dedup, EU validators,
+      ADDRESS recall, within-family specificity) — those land via
+      separate sprint16/main-track promotion, not this branch
+    - ML-deps install ergonomics — uv 4.0 has a torch extraction throttle
+      on macOS that made install impractical here; track as separate
+      dev-experience item
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

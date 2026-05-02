@@ -1,98 +1,74 @@
-title: >-
-  Promote multi-label architecture memo from research/meta-classifier to
-  docs/spec/ -- close the orphaned-promotion gap from Sprint 12 close
-status: backlog
+title: Promote multi-label architecture memo from research/meta-classifier to docs/spec/
+  -- close the orphaned-promotion gap from Sprint 12 close
+status: done
 priority: P2
 category: docs
 sprint_target: 17
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-05-02
 depends_on: []
 tags:
-  - architecture
-  - spec
-  - multi-label
-  - research-promotion
-  - cleanup
-goal: >-
-  Promote docs/research/multi_label_philosophy.md (research/meta-classifier
-  branch, 402 lines) to docs/spec/11-multi-label-architecture.md on main,
-  completing the self-described promotion plan in the memo's own header
-  (which targeted Sprint 12 close-out and never executed). The memo is the
-  canonical statement of the library-wide multi-label commitment that drives
-  M4d Phase 3, the M4e dual-report harness, the Sprint 14 directive flip, and
-  the prompt-analysis branch's Stage 0/3/4/5 multi-label requirements -- but
-  it currently lives only on the research branch, leaving the architectural
-  truth unanchored on main. Spec slot 10 was claimed post-Sprint-12 by
-  10-ml-architecture-exploration.md, so the new home is slot 11. Promotion
-  involves three branches- (1) sprint17/main adds the spec doc + updates the
-  cross-reference in docs/experiments/prompt_analysis/queue.md; (2)
-  research/meta-classifier deletes the source memo to prevent
-  two-copies-after-next-sync drift; (3) backlog YAML for
-  gated-meta-classifier-architecture-explicit-credential-gate-specialized-stage-2-classifiers-q8-continuation
-  gets the section-5 retirement pointer fix the memo flags as an open
-  follow-up.
+- architecture
+- spec
+- multi-label
+- research-promotion
+- cleanup
+goal: Promote docs/research/multi_label_philosophy.md (research/meta-classifier branch,
+  402 lines) to docs/spec/11-multi-label-architecture.md on main, completing the self-described
+  promotion plan in the memo's own header (which targeted Sprint 12 close-out and
+  never executed). The memo is the canonical statement of the library-wide multi-label
+  commitment that drives M4d Phase 3, the M4e dual-report harness, the Sprint 14 directive
+  flip, and the prompt-analysis branch's Stage 0/3/4/5 multi-label requirements --
+  but it currently lives only on the research branch, leaving the architectural truth
+  unanchored on main. Spec slot 10 was claimed post-Sprint-12 by 10-ml-architecture-exploration.md,
+  so the new home is slot 11. Promotion involves three branches- (1) sprint17/main
+  adds the spec doc + updates the cross-reference in docs/experiments/prompt_analysis/queue.md;
+  (2) research/meta-classifier deletes the source memo to prevent two-copies-after-next-sync
+  drift; (3) backlog YAML for gated-meta-classifier-architecture-explicit-credential-gate-specialized-stage-2-classifiers-q8-continuation
+  gets the section-5 retirement pointer fix the memo flags as an open follow-up.
 complexity: S
 technical_specs:
-  - >-
-    NEW file on sprint17/main- docs/spec/11-multi-label-architecture.md.
-    Copy from research/meta-classifier:docs/research/multi_label_philosophy.md
-    with these edits- (a) header rewritten from research-side framing to a
-    clean spec preamble recording promotion provenance and decision date,
-    (b) evidence-base citation drops the sprint12/main qualifier and uses
-    relative path ../research/meta_classifier/sprint12_safety_audit.md,
-    (c) section-5 superseded_by_memo pointer changes from spec slot 10 to
-    spec slot 11, (d) section-5 paragraph "Until then, point at the
-    research-side location" deleted as obsolete, (e) Summary table flips two
-    "To-do for Sprint 12 close" rows -- promotion becomes Done, retirement
-    YAML pointer fix stays Open follow-up.
-  - >-
-    EDIT on sprint17/main- docs/experiments/prompt_analysis/queue.md lines
-    34-38. Replace the worktree-relative cross-reference and the
-    "promoted to docs/spec/10-multi-label-architecture.md" note with a
-    single line pointing at docs/spec/11-multi-label-architecture.md plus a
-    promotion-provenance note.
-  - >-
-    DELETE on research/meta-classifier- docs/research/multi_label_philosophy.md.
-    Removes the source memo per its own self-described promotion instructions.
-    Without this, the next main to research/meta-classifier sync produces two
-    copies of the same content and starts drift.
-  - >-
-    EDIT on sprint17/main- backlog/gated-meta-classifier-architecture-explicit-credential-gate-specialized-stage-2-classifiers-q8-continuation.yaml.
-    Section-5 retirement pointer fix per the memo's own to-do- add status
-    retired, retired_on 2026-04-16, superseded_by list, supersede_reason, and
-    superseded_by_memo docs/spec/11-multi-label-architecture.md. See section-5
-    of the memo for the exact YAML payload.
-description: ""
+- NEW file on sprint17/main- docs/spec/11-multi-label-architecture.md. Copy from research/meta-classifier:docs/research/multi_label_philosophy.md
+  with these edits- (a) header rewritten from research-side framing to a clean spec
+  preamble recording promotion provenance and decision date, (b) evidence-base citation
+  drops the sprint12/main qualifier and uses relative path ../research/meta_classifier/sprint12_safety_audit.md,
+  (c) section-5 superseded_by_memo pointer changes from spec slot 10 to spec slot
+  11, (d) section-5 paragraph "Until then, point at the research-side location" deleted
+  as obsolete, (e) Summary table flips two "To-do for Sprint 12 close" rows -- promotion
+  becomes Done, retirement YAML pointer fix stays Open follow-up.
+- EDIT on sprint17/main- docs/experiments/prompt_analysis/queue.md lines 34-38. Replace
+  the worktree-relative cross-reference and the "promoted to docs/spec/10-multi-label-architecture.md"
+  note with a single line pointing at docs/spec/11-multi-label-architecture.md plus
+  a promotion-provenance note.
+- DELETE on research/meta-classifier- docs/research/multi_label_philosophy.md. Removes
+  the source memo per its own self-described promotion instructions. Without this,
+  the next main to research/meta-classifier sync produces two copies of the same content
+  and starts drift.
+- EDIT on sprint17/main- backlog/gated-meta-classifier-architecture-explicit-credential-gate-specialized-stage-2-classifiers-q8-continuation.yaml.
+  Section-5 retirement pointer fix per the memo's own to-do- add status retired, retired_on
+  2026-04-16, superseded_by list, supersede_reason, and superseded_by_memo docs/spec/11-multi-label-architecture.md.
+  See section-5 of the memo for the exact YAML payload.
+description: ''
 acceptance_criteria:
-  - >-
-    docs/spec/11-multi-label-architecture.md exists on sprint17/main with the
-    adapted header (no research-side framing, no promotion-action to-do).
-  - >-
-    All references to the memo on sprint17/main point at
-    docs/spec/11-multi-label-architecture.md, not the research-side path or
-    the never-claimed slot-10 path.
-  - research/meta-classifier:docs/research/multi_label_philosophy.md is deleted.
-  - >-
-    Next main to research/meta-classifier sync produces a single copy of the
-    spec at the spec path. Verify by inspecting the post-sync tree.
-  - >-
-    backlog/gated-meta-classifier-architecture-explicit-credential-gate-specialized-stage-2-classifiers-q8-continuation.yaml
-    carries the four section-5 fields and superseded_by_memo points at the
-    spec path.
-  - Spec doc passes the markdown chunks of ruff format (no markdown regressions).
+- docs/spec/11-multi-label-architecture.md exists on sprint17/main with the adapted
+  header (no research-side framing, no promotion-action to-do).
+- All references to the memo on sprint17/main point at docs/spec/11-multi-label-architecture.md,
+  not the research-side path or the never-claimed slot-10 path.
+- research/meta-classifier:docs/research/multi_label_philosophy.md is deleted.
+- Next main to research/meta-classifier sync produces a single copy of the spec at
+  the spec path. Verify by inspecting the post-sync tree.
+- backlog/gated-meta-classifier-architecture-explicit-credential-gate-specialized-stage-2-classifiers-q8-continuation.yaml
+  carries the four section-5 fields and superseded_by_memo points at the spec path.
+- Spec doc passes the markdown chunks of ruff format (no markdown regressions).
 test_plan:
-  - >-
-    Run grep -r "multi_label_philosophy\|10-multi-label" docs/ backlog/ on
-    sprint17/main. Expect zero hits (no leftover stale references).
-  - >-
-    Three-branch verification- check out sprint17/main,
-    research/meta-classifier, research/prompt-analysis. Confirm the spec doc
-    lives only on main, the source memo is gone from research/meta-classifier,
-    and the cross-reference on prompt-analysis queue.md points at the spec
-    path (or naturally inherits the fix via the next main to research sync).
-notes: ""
-phase: backlog
+- Run grep -r "multi_label_philosophy\|10-multi-label" docs/ backlog/ on sprint17/main.
+  Expect zero hits (no leftover stale references).
+- Three-branch verification- check out sprint17/main, research/meta-classifier, research/prompt-analysis.
+  Confirm the spec doc lives only on main, the source memo is gone from research/meta-classifier,
+  and the cross-reference on prompt-analysis queue.md points at the spec path (or
+  naturally inherits the fix via the next main to research sync).
+notes: ''
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

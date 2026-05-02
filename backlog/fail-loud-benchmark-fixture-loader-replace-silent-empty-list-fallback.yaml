@@ -1,0 +1,47 @@
+title: "Fail-loud benchmark fixture loader \u2014 replace silent empty-list fallback"
+status: backlog
+priority: P1
+category: bug
+sprint_target: null
+created: 2026-05-01
+updated: 2026-05-01
+depends_on: []
+tags: []
+goal: Replace silent fallback in tests/benchmarks/meta_classifier/shard_builder.py:_load_raw_records
+  with fail-loud behavior so missing corpus fixtures cannot silently undermeasure
+  benchmark quality.
+complexity: S
+technical_specs:
+- "File: tests/benchmarks/meta_classifier/shard_builder.py \u2014 change _load_raw_records\
+  \ to raise FileNotFoundError with regen instructions, or refactor to a fixture-registry\
+  \ that validates presence at startup"
+- "File: tests/benchmarks/family_accuracy_benchmark.py \u2014 add startup-time check\
+  \ that all expected fixtures are present, with one error listing every missing file"
+- "File: tests/benchmarks/corpus_loader.py \u2014 same pattern for any other silent-fallback\
+  \ IO"
+- 'Decide: DVC the fixtures (~30MB total) or document a regen script. The reference_dvc_gcs_datasets
+  infra already exists; fixture samples are good candidates'
+- "File: docs/process/dataset_management.md \u2014 add a 'benchmark fixtures' section\
+  \ once the regen path is decided"
+description: ''
+acceptance_criteria:
+- _load_raw_records raises FileNotFoundError (not returns []) when a registered corpus
+  fixture is missing
+- Error message names the missing path AND the regen command (download / DVC pull
+  / sync script)
+- Per-corpus pool functions document which fixtures are required
+- Family benchmark fails fast with a clear error if invoked without a complete fixture
+  set
+- tests/test_corpus_loader.py covers the missing-file path
+- ruff check . clean, pytest tests/ -v all green
+test_plan:
+- 'tests/test_corpus_loader.py: add test_missing_fixture_raises_with_actionable_error'
+- 'tests/test_corpus_loader.py: add test_full_fixture_set_validates_at_startup'
+- 'Manual: rm one fixture, run family_accuracy_benchmark, confirm clear error with
+  regen instructions'
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

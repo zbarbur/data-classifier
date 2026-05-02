@@ -1,0 +1,49 @@
+title: "Lift CONTACT recall in free_text_heterogeneous shape \u2014 333-shard joint\
+  \ miss"
+status: backlog
+priority: P1
+category: feature
+sprint_target: null
+created: 2026-05-01
+updated: 2026-05-01
+depends_on: []
+tags: []
+goal: Recover the 333 CONTACT shards (62.5% of suppressed CONTACT) where neither LIVE
+  regex nor SHADOW meta-classifier currently produces a family-level prediction. Largest
+  single concrete recall hole on the honest S17 baseline.
+complexity: M
+technical_specs:
+- 'Investigate: per-value-gliner-aggregation (Sprint 13, done) is the existing free_text_heterogeneous
+  handler. Either extend its CONTACT coverage or add a CONTACT-specific path.'
+- 'Concrete shapes to fix: emails embedded in mixed prose (gretel_finance corpus heavy
+  hitter), phone numbers with embedded prose context (nemotron heavy hitter).'
+- "File: tests/benchmarks/family_accuracy_benchmark.py \u2014 confirm CONTACT joint-miss\
+  \ count drop in summary output"
+- "File: data_classifier/orchestrator/orchestrator.py or new handler \u2014 likely\
+  \ path is per-value GLiNER aggregation already shipped"
+- 'Verify: run the diagnostic at /Users/guyguzner/Projects/data_classifier/.claude/<TBD>/router_decomp.py
+  for before/after numbers'
+description: ''
+acceptance_criteria:
+- "CONTACT free_text_heterogeneous joint-miss count drops from 333 to <100 on the\
+  \ same family-benchmark corpus (target \u226570% reduction)"
+- "Overall LIVE CONTACT family_macro_f1 lifts from 0.7621 to \u22650.85 (recall lift,\
+  \ precision must not drop below 0.85)"
+- Joint miss rate (introduced by sibling backlog item) drops from 7.6% to <5% on the
+  same benchmark
+- "No regression on other-family LIVE F1s above \xB10.01"
+- "ruff check . clean, full pytest green, browser parity \u226587%"
+test_plan:
+- 'tests/test_orchestrator.py: add 5 free_text_heterogeneous CONTACT fixtures (email-in-prose,
+  phone-in-prose, multi-value, mixed-language, with-context-fields)'
+- "Run family benchmark before/after \u2014 assert 333\u2192<100 joint-miss for CONTACT\
+  \ family"
+- "Manual: pull 10 samples from /tmp/main_full.bench.predictions.jsonl filtered to\
+  \ (ground_truth_families=['CONTACT'], shadow_suppressed_by_router=true, predicted_family\
+  \ not in ground_truth_families); confirm fix detects \u22657/10"
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
