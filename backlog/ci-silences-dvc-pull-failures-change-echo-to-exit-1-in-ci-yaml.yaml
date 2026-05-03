@@ -32,7 +32,7 @@ test_plan:
   status and message points at corpora.dvc'
 - '.github/workflows/ci.yaml lint: gh workflow view --yaml passes'
 notes: ''
-phase: build
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
