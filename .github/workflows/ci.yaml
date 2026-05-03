@@ -29,16 +29,22 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -e ".[dev,meta]"
 
+      - name: Authenticate to GCS for DVC
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCS_SA_KEY }}
+
       - name: Install DVC
         run: uv pip install --system 'dvc[gs]'
 
       - name: Pull test fixtures from DVC
-        # GCS auth requires Workload Identity Federation or a service account key.
-        # Add google-github-actions/auth step with secrets.GCS_SA_KEY or
-        # secrets.WIF_PROVIDER before enabling this in CI.
-        # For now, fixtures are skipped on CI runners without GCS credentials;
-        # tests that require corpus fixtures are marked accordingly.
-        run: dvc pull tests/fixtures/corpora.dvc || echo "DVC pull skipped (no GCS credentials on this runner)"
+        run: |
+          dvc pull tests/fixtures/corpora.dvc || {
+            echo "::error::DVC pull failed. Tests require corpus fixtures from gs://data-classifier-datasets."
+            echo "::error::Verify GCS_SA_KEY secret has read access to the bucket."
+            echo "::error::See docs/process/dataset_management.md#ci-setup for setup instructions."
+            exit 1
+          }
 
       - name: Ruff check
         run: ruff check .
@@ -206,11 +212,22 @@ jobs:
       - name: Install Python dependencies
         run: uv pip install --system -e ".[dev]"
 
+      - name: Authenticate to GCS for DVC
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCS_SA_KEY }}
+
       - name: Install DVC
         run: uv pip install --system 'dvc[gs]'
 
       - name: Pull test fixtures from DVC
-        run: dvc pull tests/fixtures/corpora.dvc || echo "DVC pull skipped (no GCS credentials on this runner)"
+        run: |
+          dvc pull tests/fixtures/corpora.dvc || {
+            echo "::error::DVC pull failed. Tests require corpus fixtures from gs://data-classifier-datasets."
+            echo "::error::Verify GCS_SA_KEY secret has read access to the bucket."
+            echo "::error::See docs/process/dataset_management.md#ci-setup for setup instructions."
+            exit 1
+          }
 
       - name: Run browser parity check
         run: ./scripts/ci_browser_parity.sh

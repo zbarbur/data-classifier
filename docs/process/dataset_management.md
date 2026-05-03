@@ -129,16 +129,68 @@ The helper maintains a registry mapping local names to HuggingFace identifiers:
 
 ---
 
-## CI considerations
+## CI Setup
 
-- **Unit tests** use fixtures (`tests/fixtures/`), NOT DVC datasets. CI does not
-  need `dvc pull`.
-- **Family accuracy benchmark** (`tests/benchmarks/`) uses fixture corpora
-  (samples bundled in the repo). No DVC dependency.
-- **Research scripts** (`scripts/s0_*.py`, `scripts/s2_*.py`) DO need DVC data.
-  These run locally, not in CI.
-- If a future CI job needs dataset access: add `dvc pull data/<name>.dvc` to the
-  CI workflow with GCS credentials via secret.
+CI pulls DVC fixtures (`tests/fixtures/corpora.dvc`) using a GCS service-account
+key stored as the `GCS_SA_KEY` GitHub secret. Two jobs require this auth:
+`lint-and-test` (Python tests across 3 versions) and `browser-parity` (Vitest
++ Playwright). DVC pull failure is fail-loud — CI exits 1 with an actionable
+error, no silent skipping.
+
+### One-time setup
+
+```bash
+# 1. Create a read-only service account for CI
+gcloud iam service-accounts create dvc-ci-reader \
+  --display-name="DVC CI Reader" \
+  --project=dag-bigquery-dev
+
+# 2. Grant read access to the dataset bucket
+gcloud projects add-iam-policy-binding dag-bigquery-dev \
+  --member="serviceAccount:dvc-ci-reader@dag-bigquery-dev.iam.gserviceaccount.com" \
+  --role="roles/storage.objectViewer"
+
+# 3. Generate a JSON key (one-shot; do not commit)
+gcloud iam service-accounts keys create ~/dvc-ci-key.json \
+  --iam-account=dvc-ci-reader@dag-bigquery-dev.iam.gserviceaccount.com
+
+# 4. Upload to GitHub repo secrets
+gh secret set GCS_SA_KEY < ~/dvc-ci-key.json
+
+# 5. Delete the local key (no long-term storage on dev box)
+rm ~/dvc-ci-key.json
+```
+
+### How CI uses the key
+
+The workflow runs `google-github-actions/auth@v2` before `Install DVC`. The
+auth action exports `GOOGLE_APPLICATION_CREDENTIALS` so `dvc pull`
+authenticates automatically. If `dvc pull` fails — missing secret, network
+issue, revoked key, bucket permission change — the job exits 1 with an error
+message naming the likely cause.
+
+### Future hardening: WIF
+
+Workload Identity Federation removes the long-lived JSON key entirely.
+Tracked as future infrastructure work; not in scope until SA keys become a
+compliance pain point.
+
+### Local development
+
+Local development uses `gcloud auth application-default login` (not the CI
+service account). Project IAM grants Storage Object Viewer to authenticated
+Google accounts.
+
+### Tests that depend on DVC fixtures
+
+- **Family accuracy benchmark** (`tests/benchmarks/family_accuracy_benchmark.py`)
+  — uses both bundled samples AND DVC-tracked corpora. Runs in `lint-and-test`.
+- **Browser parity** (`scripts/ci_browser_parity.sh`) — compares JS scanner
+  output against Python on DVC-tracked WildChat samples.
+- **Research scripts** (`scripts/s0_*.py`, `scripts/s2_*.py`) — need DVC data
+  but run locally, not in CI.
+- Most unit tests in `tests/test_*.py` use bundled `tests/fixtures/` and do
+  NOT need DVC. They still run on every CI invocation.
 
 ---
 

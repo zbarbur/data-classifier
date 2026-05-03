@@ -4,7 +4,7 @@ priority: P0
 category: bug
 sprint_target: 18
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-03
 depends_on: []
 tags: []
 goal: Make CI fail loudly when dvc pull cannot fetch corpus fixtures, instead of silently
@@ -32,7 +32,7 @@ test_plan:
   status and message points at corpora.dvc'
 - '.github/workflows/ci.yaml lint: gh workflow view --yaml passes'
 notes: ''
-phase: plan
+phase: build
 design_reviewed: false
 code_reviewed: false
 comments: []
