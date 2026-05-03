@@ -1,0 +1,59 @@
+title: "GLiNER PERSON_NAME over-fires on determiner-led common-noun phrases \u2014\
+  \ fixes negative_corpus prose contamination test"
+status: doing
+priority: P0
+category: bug
+sprint_target: 18
+created: 2026-05-03
+updated: 2026-05-03
+depends_on: []
+tags: []
+goal: Stop GLiNER PERSON_NAME from firing on determiner-led common-noun phrases (e.g.
+  'A worker', 'An incoming event', 'The handler'). Test test_source_contamination_below_ceiling[prose]
+  currently fails at 37.0% contamination (ceiling 5%); 7 of first 10 offenders are
+  PERSON_NAME hits on Faker programmatic prose, not real person names.
+complexity: M
+technical_specs:
+- "File: data_classifier/engines/gliner_engine.py:740-802 _hits_to_findings \u2014\
+  \ candidate site for span-level post-filter that rejects PERSON_NAME hits whose\
+  \ matched text starts with determiners ('A ', 'An ', 'The ', 'Each ', 'Every ',\
+  \ 'Some ', 'No ', 'Any ', 'All ')"
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 alternate site for shape-aware\
+  \ suppression of PERSON_NAME on free-text-heterogeneous columns"
+- 'Diagnostic: dump full span text + raw GLiNER score for prose-source FPs to verify
+  the determiner pattern holds (not just confidence)'
+- "Sister item: organization-fp-from-gliner-fires-on-faker-business-names \u2014 covers\
+  \ the [business] failure (different label, different fix)"
+- 'Reference: prose corpus source is Faker .bs() / programmatic templates in tests/benchmarks/negative_corpus.py'
+description: "Discovered during Sprint 18 spike on item #2 (organization-fp-from-gliner).\
+  \ The diverse NEGATIVE corpus prose source (Faker programmatic prose like 'A worker\
+  \ transforms the response body...', 'An incoming event validates the routing table...')\
+  \ triggers GLiNER PERSON_NAME at confidences 0.59-0.92 \u2014 the model is treating\
+  \ determiner-led common nouns ('A worker', 'An incoming event', 'The handler', 'Each\
+  \ consumer') as person names. Test test_source_contamination_below_ceiling[prose]\
+  \ currently fails at 37.0% contamination (ceiling 5%). Sister item to organization-fp-from-gliner\
+  \ (which covers ORGANIZATION FP on Faker catch_phrase, [business] test). Filed via\
+  \ spec-deviation discovery per feedback_diagnostic_spike_before_execute memory."
+acceptance_criteria:
+- tests/test_negative_corpus.py::TestPIIContaminationSweep::test_source_contamination_below_ceiling[prose]
+  passes (<5% contamination)
+- PERSON_NAME FP rate on the new diverse-negative prose source drops below 5%
+- "Real PERSON_NAME values (e.g. 'John Smith', 'Maria Garc\xEDa') still detected \u2014\
+  \ no recall regression on family benchmark"
+- No regression on family_macro_f1 or joint_miss_rate baseline (commit before/after
+  measurements)
+- "Tests pass (.venv/bin/python -m pytest tests/ -v) \u2014 full suite green"
+- Lint clean (ruff check . --exclude .claude/worktrees)
+test_plan:
+- "tests/test_negative_corpus.py::TestPIIContaminationSweep::test_source_contamination_below_ceiling[prose]\
+  \ \u2014 must pass after fix"
+- "tests/test_gliner_engine.py: regression cases \u2014 'A worker processes the payload'\
+  \ must NOT match PERSON_NAME, 'John Smith arrived' MUST still match PERSON_NAME"
+- 'Manual: family-accuracy benchmark before/after; commit summary.json showing no
+  recall loss on real PERSON_NAME corpora'
+notes: ''
+phase: plan
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

@@ -1,0 +1,27 @@
+title: "ORGANIZATION missing from ENTITY_TYPE_TO_FAMILY taxonomy map \u2014 singleton\
+  \ fallback fires 18\xD7 per test run"
+status: backlog
+priority: P2
+category: bug
+sprint_target: null
+created: 2026-05-03
+updated: 2026-05-03
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: 'data_classifier/core/taxonomy.py:167 emits ''family_for: no family mapping
+  for entity_type=ORGANIZATION; using singleton.'' on every ORGANIZATION finding.
+  ORGANIZATION needs an explicit family mapping in ENTITY_TYPE_TO_FAMILY. Discovered
+  during Sprint 18 spike on organization-fp-from-gliner item; fires repeatedly during
+  test_negative_corpus runs. Not blocking, but warning noise hurts signal-to-noise
+  on real failures.'
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []

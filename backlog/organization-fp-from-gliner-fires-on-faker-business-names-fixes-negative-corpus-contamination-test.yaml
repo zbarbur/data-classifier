@@ -5,45 +5,51 @@ priority: P0
 category: bug
 sprint_target: 18
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-03
 depends_on: []
 tags: []
-goal: "Stop GLiNER's ORGANIZATION label from over-firing on synthetic business names\
-  \ (Faker catch_phrase, bs). Tests test_source_contamination_below_ceiling[business]\
-  \ and [prose] currently fail at 12.0% / 11.3% contamination respectively (ceiling\
-  \ 5%). The diverse NEGATIVE corpus shipped Sprint 17 surfaces a real GLiNER FP \u2014\
-  \ fix the FP, not the corpus."
+goal: 'Stop GLiNER''s ORGANIZATION label from over-firing on synthetic business names
+  (Faker catch_phrase, bs). Test test_source_contamination_below_ceiling[business]
+  currently fails at 12.0% contamination (ceiling 5%) with offenders like ''Realigned
+  actuating superstructure'' tagged ORGANIZATION at raw scores up to 0.98. Scope narrowed
+  Sprint 18 spike (2026-05-03): [prose] failure is a different bug (PERSON_NAME on
+  common nouns) handed off to sister item gliner-person-name-over-fires-on-determiner-led-common-noun-phrases.'
 complexity: M
 technical_specs:
-- "File: data_classifier/engines/gliner_engine.py:55-119 \u2014 ORGANIZATION label\
-  \ is registered with category=PII, sensitivity=MEDIUM. Investigate suppression rules:\
-  \ column-shape gate (already shipped), confidence threshold tightening, or ORGANIZATION\
-  \ \u2192 low-precision-label downgrade"
-- "File: data_classifier/orchestrator/orchestrator.py \u2014 likely candidate for\
-  \ shape-aware suppression of ORGANIZATION on free-text-heterogeneous shapes"
-- "File: tests/test_negative_corpus.py \u2014 confirm test still asserts the right\
-  \ ceiling after fix"
-- 'Diagnostic: run the contamination test with -v to see which exact business/prose
-  strings trip GLiNER, then design suppression rule'
+- "File: data_classifier/engines/gliner_engine.py:740-802 _hits_to_findings \u2014\
+  \ candidate for ORG-specific confidence cap when count==1 and column has no PII-context\
+  \ name signal"
+- "File: data_classifier/orchestrator/orchestrator.py \u2014 candidate for shape-aware\
+  \ suppression of ORGANIZATION on free-text-heterogeneous + 1-value-no-context columns"
+- "Diagnostic finding: raw GLiNER ORG scores reach 0.98 on Faker catch_phrase outputs\
+  \ \u2014 a confidence-threshold-only fix is insufficient, must include shape OR\
+  \ column-name gating"
+- "Sister item: gliner-person-name-over-fires-on-determiner-led-common-noun-phrases\
+  \ \u2014 fixes [prose] failure separately (different label, different determiner-led-span\
+  \ post-filter)"
+- 'Follow-up filed P2: organization-missing-from-entity-type-to-family-taxonomy-map
+  (separate bug surfaced during spike)'
 description: ''
 acceptance_criteria:
 - tests/test_negative_corpus.py::TestPIIContaminationSweep::test_source_contamination_below_ceiling[business]
   passes (<5% contamination)
-- tests/test_negative_corpus.py::TestPIIContaminationSweep::test_source_contamination_below_ceiling[prose]
-  passes (<5% contamination)
-- ORGANIZATION FP rate on the new diverse-negative corpus drops below 5% across all
-  5 sources
-- No regression on family_macro_f1 or joint_miss_rate baseline
-- "Tests pass (.venv/bin/python -m pytest tests/ -v) \u2014 full suite green, not\
-  \ just the contamination test"
+- ORGANIZATION FP rate on the diverse-negative [business] source drops below 5%
+- "Real ORGANIZATION values (e.g. 'Microsoft', 'Stanford University') still detected\
+  \ \u2014 no recall regression on family benchmark"
+- No regression on family_macro_f1 or joint_miss_rate baseline (commit before/after
+  measurements)
+- Tests pass (.venv/bin/python -m pytest tests/ -v) when both this and sister ticket
+  gliner-person-name-over-fires-on-determiner-led-common-noun-phrases land together
 - Lint clean (ruff check . --exclude .claude/worktrees)
 test_plan:
-- "tests/test_negative_corpus.py::TestPIIContaminationSweep \u2014 both [business]\
-  \ and [prose] cases"
-- 'tests/test_gliner_engine.py: add regression cases for the specific Faker outputs
-  that currently FP'
+- "tests/test_negative_corpus.py::TestPIIContaminationSweep::test_source_contamination_below_ceiling[business]\
+  \ \u2014 must pass after fix"
+- "tests/test_gliner_engine.py: regression cases \u2014 'Realigned actuating superstructure'\
+  \ must NOT match ORGANIZATION; 'Microsoft' MUST still match ORGANIZATION"
+- 'Manual: family-accuracy benchmark before/after; commit summary.json showing no
+  ORG recall loss on real-org corpora'
 notes: ''
-phase: plan
+phase: build
 design_reviewed: false
 code_reviewed: false
 comments: []
