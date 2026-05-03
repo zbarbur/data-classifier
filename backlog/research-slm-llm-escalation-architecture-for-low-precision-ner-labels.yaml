@@ -1,0 +1,40 @@
+title: "Research: SLM\u2192LLM escalation architecture for low-precision NER labels"
+status: backlog
+priority: P3
+category: feature
+sprint_target: null
+created: 2026-05-03
+updated: 2026-05-03
+depends_on: []
+tags: []
+goal: ''
+complexity: null
+technical_specs: []
+description: "Future-phase research item. Replace hand-crafted SLM suppression rules\
+  \ (count==1 ORG guard, determiner-led PERSON_NAME filter, etc.) with an LLM second-opinion\
+  \ escalation layer for cases where SLM (GLiNER) precision is known unreliable or\
+  \ confidence is borderline.\n\nRationale: Sprint 18 item organization-fp-from-gliner\
+  \ stop-gap (column-name + ORG-suffix gate) and its sister PERSON_NAME determiner-led-span\
+  \ filter are narrow rules that won't generalize to FP classes we haven't anticipated.\
+  \ An LLM escalation pre-filtered by uncertainty-band gating could replace them with\
+  \ semantic judgment.\n\nSpike candidates:\n1. Per-finding LLM verification on borderline\
+  \ GLiNER confidence (e.g. 0.5-0.8 band)\n2. Per-column LLM context inference when\
+  \ column_name is generic (no PII signal)\n3. Meta-cascade \u2014 LLM votes only\
+  \ on findings the current cascade flags as low-precision\n\nConstraints:\n- Cost/latency\
+  \ budget \u2014 cannot call LLM on every finding; must pre-filter\n- Evidence trail\
+  \ \u2014 LLM judgments need to be logged for audit/reproducibility\n- Fallback \u2014\
+  \ must degrade cleanly when LLM is unavailable (network, quota)\n- Multi-label compatibility\
+  \ \u2014 must not break the Sprint 14 directive flip\n\nTriggered by: Sprint 18\
+  \ spike on GLiNER ORG/PERSON FPs revealed Faker buzzword and common-noun-phrase\
+  \ failure modes that hand-crafted rules will keep missing piecemeal. User explicitly\
+  \ flagged 2026-05-03 as future-phase architectural direction.\n\nSee: memory project_future_slm_to_llm_escalation.md\
+  \ for the full architectural rationale and how-to-apply guidance for current-phase\
+  \ fixes (keep stop-gaps narrow, surface escalation candidates, etc.)."
+acceptance_criteria: []
+test_plan: []
+notes: ''
+phase: null
+design_reviewed: false
+code_reviewed: false
+comments: []
+images: []
