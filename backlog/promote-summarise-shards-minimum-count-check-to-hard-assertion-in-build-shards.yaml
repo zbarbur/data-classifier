@@ -4,7 +4,7 @@ priority: P1
 category: feature
 sprint_target: 18
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-04
 depends_on: []
 tags: []
 goal: Replace the silent-empty-list pattern across 9 corpus loader sites with a single
@@ -36,7 +36,7 @@ test_plan:
 - 'Manual: rename one corpus dir, run benchmark, confirm it fails with actionable
   message'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []

@@ -4,7 +4,7 @@ priority: P1
 category: bug
 sprint_target: 18
 created: 2026-05-01
-updated: 2026-05-02
+updated: 2026-05-04
 depends_on: []
 tags: []
 goal: Replace silent fallback in tests/benchmarks/meta_classifier/shard_builder.py:_load_raw_records
@@ -40,7 +40,7 @@ test_plan:
 - 'Manual: rm one fixture, run family_accuracy_benchmark, confirm clear error with
   regen instructions'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
