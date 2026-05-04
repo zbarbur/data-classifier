@@ -129,6 +129,38 @@ The helper maintains a registry mapping local names to HuggingFace identifiers:
 
 ---
 
+## Benchmark fixtures (DVC-tracked)
+
+The family-accuracy and meta-classifier benchmarks load **pre-flattened
+sample JSONs** from `tests/fixtures/corpora/`. These are not the raw
+HuggingFace datasets — they are post-ETL extracts produced by
+`scripts/download_corpora.py` and pinned to specific shapes the
+`shard_builder` expects. The full set is required; partial fixture
+loads silently undermeasure the benchmark and have caused at least
+one historical measurement artifact (Sprint 17).
+
+| File | Source corpus | Used by |
+|---|---|---|
+| `gretel_en_sample.json` | `gretelai/gretel-pii-masking-en-v1` | `_gretel_en_pool`, `load_gretel_en_corpus` |
+| `gretel_finance_sample.json` | `gretelai/gretel-pii-finance-multilingual` | `_gretel_finance_pool`, `load_gretel_finance_corpus` |
+| `nemotron_sample.json` | `nvidia/Nemotron-PII` | `_nemotron_pool`, `load_nemotron_corpus` |
+| `openpii_1m_sample.json` | `ai4privacy/pii-masking-300k` (1M variant) | `_openpii_1m_pool`, `load_openpii_1m_corpus` |
+| `secretbench_sample_v2.json` | SecretBench v2 export | `_credential_corpus_pool('secretbench')` |
+| `gitleaks_fixtures.json` | gitleaks-tuned positives + TN | `_credential_corpus_pool('gitleaks')`, `load_gitleaks_corpus` |
+| `detect_secrets_fixtures.json` | hand-curated detect_secrets positives | `_credential_corpus_pool('detect_secrets')`, `load_detect_secrets_corpus` |
+
+The canonical regen path is `dvc pull tests/fixtures/corpora.dvc`.
+Local-only alternative when GCS auth is unavailable:
+`python scripts/download_corpora.py --all`.
+
+The shard builder enforces presence at startup via
+`tests.benchmarks.meta_classifier.shard_builder.verify_required_fixtures()`,
+which raises a single `FileNotFoundError` listing every missing file.
+The internal `_load_raw_records` helper also raises `FileNotFoundError`
+on the per-call path — silent `[]` fallbacks were retired in Sprint 18.
+
+---
+
 ## CI Setup
 
 CI pulls DVC fixtures (`tests/fixtures/corpora.dvc`) using a GCS service-account

@@ -68,7 +68,7 @@ from pathlib import Path
 from data_classifier import FAMILIES, classify_columns, family_for, load_profile
 from data_classifier.events.emitter import CallbackHandler, EventEmitter
 from tests.benchmarks.meta_classifier.build_training_data import _build_synthetic_pool
-from tests.benchmarks.meta_classifier.shard_builder import build_shards
+from tests.benchmarks.meta_classifier.shard_builder import build_shards, verify_required_fixtures
 
 try:
     from data_classifier.events.types import MetaClassifierEvent
@@ -717,6 +717,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    verify_required_fixtures()
     print(f"Building synthetic pool and shards (seed={args.seed})...", file=sys.stderr)  # noqa: T201
     profile = load_profile("standard")
     synthetic_pool = _build_synthetic_pool()

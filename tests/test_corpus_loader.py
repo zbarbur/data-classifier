@@ -1078,3 +1078,77 @@ class TestNemotronLuhnFilter:
             )
         finally:
             fixture_path.unlink(missing_ok=True)
+
+
+# ── Sprint 18: fail-loud benchmark fixture loader ─────────────────────────
+
+
+class TestSprint18FailLoudFixtureLoader:
+    """Sprint 18 item: shard_builder._load_raw_records must raise on missing
+    fixture files instead of silently returning ``[]``.  See
+    backlog/fail-loud-benchmark-fixture-loader-...yaml.
+    """
+
+    def test_load_raw_records_raises_on_missing_file(self, tmp_path: Path) -> None:
+        from tests.benchmarks.meta_classifier.shard_builder import _load_raw_records
+
+        missing = tmp_path / "absent_corpus.json"
+        with pytest.raises(FileNotFoundError) as excinfo:
+            _load_raw_records(missing)
+        msg = str(excinfo.value)
+        assert "absent_corpus.json" in msg, "Error must name the missing path"
+        assert "dvc pull" in msg, "Error must point at the regen command"
+        assert "dataset_management.md" in msg, "Error must reference the runbook"
+
+    def test_load_raw_records_loads_present_file(self, tmp_path: Path) -> None:
+        from tests.benchmarks.meta_classifier.shard_builder import _load_raw_records
+
+        records = [{"entity_type": "EMAIL", "value": "a@b.com"}]
+        path = tmp_path / "present.json"
+        path.write_text(json.dumps(records))
+        loaded = _load_raw_records(path)
+        assert loaded == records
+
+    def test_verify_required_fixtures_passes_with_full_set(self, tmp_path: Path) -> None:
+        from tests.benchmarks.meta_classifier.shard_builder import (
+            REQUIRED_FIXTURES,
+            verify_required_fixtures,
+        )
+
+        for name in REQUIRED_FIXTURES:
+            (tmp_path / name).write_text("[]")
+        verify_required_fixtures(fixtures_dir=tmp_path)
+
+    def test_verify_required_fixtures_lists_every_missing_file(self, tmp_path: Path) -> None:
+        from tests.benchmarks.meta_classifier.shard_builder import (
+            REQUIRED_FIXTURES,
+            verify_required_fixtures,
+        )
+
+        present = REQUIRED_FIXTURES[0]
+        (tmp_path / present).write_text("[]")
+        with pytest.raises(FileNotFoundError) as excinfo:
+            verify_required_fixtures(fixtures_dir=tmp_path)
+        msg = str(excinfo.value)
+        for missing_name in REQUIRED_FIXTURES[1:]:
+            assert missing_name in msg, f"Aggregate error must list every missing fixture: {missing_name}"
+        assert present not in msg, "Present fixture must not appear in the missing list"
+        assert "dvc pull" in msg, "Aggregate error must include regen hint"
+
+    def test_required_fixtures_match_real_pool_paths(self) -> None:
+        """REQUIRED_FIXTURES must align with the actual fixture filenames the
+        pool functions reference, otherwise the preflight skips a real
+        dependency.  This test is a structural drift guard.
+        """
+        from tests.benchmarks.meta_classifier.shard_builder import REQUIRED_FIXTURES
+
+        expected = {
+            "gretel_en_sample.json",
+            "gretel_finance_sample.json",
+            "nemotron_sample.json",
+            "openpii_1m_sample.json",
+            "secretbench_sample_v2.json",
+            "gitleaks_fixtures.json",
+            "detect_secrets_fixtures.json",
+        }
+        assert set(REQUIRED_FIXTURES) == expected

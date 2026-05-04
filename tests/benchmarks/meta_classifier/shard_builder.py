@@ -82,6 +82,25 @@ NAMED_COLUMN_NAME_FMT: str = "{corpus}_{type_lower}"
 #: Credential corpora: CREDENTIAL positives + NEGATIVE rows.
 _CREDENTIAL_CORPORA: tuple[str, ...] = ("secretbench", "gitleaks", "detect_secrets")
 
+#: Per-corpus minimum shard counts enforced at the end of ``build_shards``.
+#:
+#: Sprint 18 item: surfaces fixture truncation / loader-filter regressions
+#: that would otherwise produce a healthy-looking partial benchmark (the
+#: Sprint 17 measurement-artifact failure mode).  Values pinned at ~67%
+#: of the observed healthy run (see ``docs/process/dataset_management.md``)
+#: — wide enough to absorb RNG-driven bucket variance, tight enough to
+#: catch a single missing or empty fixture file.
+MIN_SHARDS_PER_CORPUS: dict[str, int] = {
+    "nemotron": 1500,
+    "gretel_en": 1200,
+    "gretel_finance": 1200,
+    "openpii_1m": 700,
+    "secretbench": 400,
+    "gitleaks": 400,
+    "detect_secrets": 100,
+    "diverse_negative": 100,
+}
+
 
 # ── Structural presence detection (multi-label ground truth) ──────────────
 
@@ -190,9 +209,66 @@ class ShardSpec:
 # ── Pool extraction ────────────────────────────────────────────────────────
 
 
+# ── Required fixture registry (Sprint 18 item: fail-loud loader) ─────────
+#
+# Every fixture file used by the pool functions below.  ``_load_raw_records``
+# raises ``FileNotFoundError`` against this list rather than returning an
+# empty list, so a missing fixture cannot silently cause the benchmark to
+# undermeasure.
+#: Fixture filenames required by the shard builder, relative to ``_FIXTURES_DIR``.
+REQUIRED_FIXTURES: tuple[str, ...] = (
+    "gretel_en_sample.json",
+    "gretel_finance_sample.json",
+    "nemotron_sample.json",
+    "openpii_1m_sample.json",
+    "secretbench_sample_v2.json",
+    "gitleaks_fixtures.json",
+    "detect_secrets_fixtures.json",
+)
+
+#: Hint surfaced in fail-loud errors so operators know how to regenerate
+#: missing fixtures.  Kept in one place so future doc-path moves stay in sync.
+_REGEN_HINT = (
+    "Regenerate with: `dvc pull tests/fixtures/corpora.dvc`\n"
+    "(requires GCS auth — see docs/process/dataset_management.md#ci-setup).\n"
+    "Local-only alternative: `python scripts/download_corpora.py --all`."
+)
+
+
+def verify_required_fixtures(fixtures_dir: Path | None = None) -> None:
+    """Assert every fixture in ``REQUIRED_FIXTURES`` exists under ``fixtures_dir``.
+
+    Sprint 18 item: surfaces every missing fixture in one error rather than
+    failing on the first.  Callers should invoke this once at benchmark
+    startup before any pool-extraction code runs.
+
+    Raises:
+        FileNotFoundError: When one or more required fixtures are absent.
+            Message lists every missing path plus the regen command.
+    """
+    base = fixtures_dir if fixtures_dir is not None else _FIXTURES_DIR
+    missing = [str(base / name) for name in REQUIRED_FIXTURES if not (base / name).exists()]
+    if not missing:
+        return
+    listing = "\n".join(f"  - {p}" for p in missing)
+    raise FileNotFoundError(f"{len(missing)} benchmark corpus fixture(s) missing:\n{listing}\n\n{_REGEN_HINT}")
+
+
 def _load_raw_records(path: Path) -> list[dict]:
+    """Load a JSON corpus fixture or fail loudly.
+
+    Sprint 18 item: previously returned ``[]`` for missing files.  Silent
+    fallbacks let the benchmark proceed with partial corpus data and
+    surface healthy-looking metrics — the failure mode behind the
+    Sprint 17 measurement artifact.  The file is now considered required;
+    operators are pointed at the regen command rather than to a
+    swallowed warning in benchmark logs.
+
+    Raises:
+        FileNotFoundError: With the missing path and regen command.
+    """
     if not path.exists():
-        return []
+        raise FileNotFoundError(f"Benchmark corpus fixture missing: {path}\n\n{_REGEN_HINT}")
     with path.open(encoding="utf-8") as f:
         return json.load(f)
 
@@ -842,11 +918,47 @@ def build_shards(
         assert shard.column_id not in seen, f"duplicate column_id: {shard.column_id}"
         seen.add(shard.column_id)
 
+    # Sprint 18 item: hard floor on per-corpus shard counts.  The
+    # ``corpus_loader`` sites still log warnings on missing files so
+    # operators see *which* fixture vanished — but the aggregator
+    # refuses to return a partial-corpus build that would silently
+    # measure 80% of reality.
+    _assert_per_corpus_minimums(shards)
+
     # Annotate multi-label ground truth families via structural
     # presence detection on sample values.
     annotate_shard_families(shards)
 
     return shards
+
+
+def _assert_per_corpus_minimums(shards: list[ShardSpec]) -> None:
+    """Raise ``AssertionError`` if any corpus undershoots its minimum.
+
+    Walks ``MIN_SHARDS_PER_CORPUS`` and compares to the observed shard
+    count per corpus.  Reports every under-floor corpus in a single
+    error so an operator sees the full picture rather than fixing one
+    fixture at a time.
+    """
+    from collections import Counter
+
+    per_corpus: Counter[str] = Counter(s.corpus for s in shards)
+    deficits: list[tuple[str, int, int]] = []
+    for corpus, minimum in MIN_SHARDS_PER_CORPUS.items():
+        actual = per_corpus.get(corpus, 0)
+        if actual < minimum:
+            deficits.append((corpus, minimum, actual))
+    if not deficits:
+        return
+    listing = "\n".join(f"  - {corpus}: expected ≥{minimum}, got {actual}" for corpus, minimum, actual in deficits)
+    raise AssertionError(
+        f"build_shards undershot per-corpus minimums for {len(deficits)} corpus/corpora:\n"
+        f"{listing}\n\n"
+        "Likely causes: corpus fixture missing or truncated, or a loader "
+        "filter (e.g. Luhn drop, language filter) rejected most rows.\n"
+        "Re-pull fixtures: `dvc pull tests/fixtures/corpora.dvc` "
+        "(see docs/process/dataset_management.md#benchmark-fixtures-dvc-tracked)."
+    )
 
 
 def annotate_shard_families(shards: list[ShardSpec]) -> None:
@@ -915,10 +1027,13 @@ __all__ = [
     "SYNTHETIC_ONLY_TYPES",
     "SYNTH_SHARDS_BACKED",
     "SYNTH_SHARDS_SYNTHETIC_ONLY",
+    "MIN_SHARDS_PER_CORPUS",
+    "REQUIRED_FIXTURES",
     "ShardSpec",
     "annotate_shard_families",
     "build_real_corpus_shards",
     "build_shards",
     "build_synthetic_shards",
     "summarise_shards",
+    "verify_required_fixtures",
 ]
