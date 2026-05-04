@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from typing import Any
 
 from data_classifier.config import load_engine_config
@@ -130,6 +131,38 @@ _ENTITY_METADATA: dict[str, dict[str, Any]] = {
 
 # Default confidence threshold for GLiNER2 predictions
 _DEFAULT_GLINER_THRESHOLD = 0.50
+
+# ── Sprint 18 stop-gap: count==1 ORGANIZATION FP guard ──────────────
+# GLiNER fires high-confidence ORGANIZATION on Faker catch_phrase
+# buzzwords like "Quality-focused secondary alliance" (raw scores up to
+# 0.98) when a column has no contextual signal. Multi-row columns are
+# saved by avg-confidence aggregation in _hits_to_findings, but
+# count==1 columns bypass that safeguard. This rule requires either
+# a column-name signal OR a value-side structural suffix before
+# accepting count==1 ORG findings.
+#
+# This is a STOP-GAP, not the endgame: the proper fix is the LLM
+# escalation layer tracked as backlog item
+# `research-slm-llm-escalation-architecture-for-low-precision-ner-labels`
+# (P3, no sprint target). When that ships, this guard should be
+# removed cleanly. See MEMORY:project_future_slm_to_llm_escalation
+# for the architectural rationale.
+#
+# Deliberately narrow per memory guidance "don't over-tune SLM
+# suppression breadth": leaks to legitimate single-token org names
+# in unnamed columns (e.g., "Microsoft" alone in column "value")
+# are tolerated as future-LLM-escalation territory.
+_ORG_CONTEXT_NAMES_RE = re.compile(
+    r"\b(company|org|organization|organisation|vendor|client|"
+    r"customer|account|institution|agency|firm|corporation|"
+    r"provider|publisher|employer)\b|_name$",
+    re.IGNORECASE,
+)
+_ORG_SUFFIX_RE = re.compile(
+    r"\b(inc\.?|llc|corp\.?|corporation|ltd\.?|co\.?|gmbh|ag|sa|nv|bv|s\.r\.l|"
+    r"plc|company|incorporated|university|institute|academy)\b",
+    re.IGNORECASE,
+)
 
 # Separator used when concatenating sample values
 _SAMPLE_SEPARATOR = " ; "
@@ -766,6 +799,18 @@ class GLiNER2Engine(ClassificationEngine):
 
             if confidence < min_confidence:
                 continue
+
+            # Sprint 18 stop-gap: count==1 ORG guard. See module-level
+            # _ORG_CONTEXT_NAMES_RE / _ORG_SUFFIX_RE for full rationale.
+            # Multi-row Faker FPs are already suppressed by the
+            # avg-confidence aggregation above; this rule only kicks in
+            # when count == 1 (the test case + low-context production
+            # shape). Removable when the LLM escalation layer ships.
+            if entity_type == "ORGANIZATION" and count == 1:
+                matched_text = hits[0][0] if hits else ""
+                column_name = column.column_name or ""
+                if not _ORG_CONTEXT_NAMES_RE.search(column_name) and not _ORG_SUFFIX_RE.search(matched_text):
+                    continue
 
             # Build evidence
             matched_texts = [text for text, _ in hits[:max_evidence_samples]]

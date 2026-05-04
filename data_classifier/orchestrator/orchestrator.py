@@ -633,6 +633,7 @@ class Orchestrator:
                             per_value_spans,
                             n_samples=sampled,
                             column_id=column.column_id,
+                            column_name=column.column_name or "",
                         )
                         result = _union_findings(result, aggregated)
                         sampled_row_count = sampled

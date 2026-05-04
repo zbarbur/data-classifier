@@ -1501,3 +1501,179 @@ class TestDemographicRemoval:
         from data_classifier.engines.gliner_engine import GLINER_LABEL_TO_ENTITY
 
         assert "DEMOGRAPHIC" not in GLINER_LABEL_TO_ENTITY.values()
+
+
+class TestSprint18OrganizationGuard:
+    """Sprint 18 stop-gap: count==1 ORGANIZATION FP guard.
+
+    GLiNER fires high-confidence ORG on Faker catch_phrase strings like
+    "Quality-focused secondary alliance" (raw scores up to 0.98). For
+    count==1 columns the avg-confidence aggregation can't dilute the
+    signal, so we require column-name OR in-value structural-suffix
+    corroboration before accepting the finding.
+
+    Removable when the LLM escalation layer ships (see backlog item
+    research-slm-llm-escalation-architecture). Until then, this guard
+    is the sole protection on the count==1 / no-context shape.
+    """
+
+    def test_faker_catch_phrase_dropped_when_no_context(self, engine_with_mock, mock_gliner_model):
+        """Faker catch_phrase value with col=value must produce no ORG finding."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {"organization": [("Quality-focused secondary alliance", 0.98)]}
+        )
+        col = ColumnInput(
+            column_id="t",
+            column_name="value",
+            sample_values=["Quality-focused secondary alliance"],
+        )
+        findings = engine_with_mock.classify_column(col)
+        org = [f for f in findings if f.entity_type == "ORGANIZATION"]
+        assert org == [], f"Expected ORG suppressed, got {[(f.entity_type, f.confidence) for f in org]}"
+
+    def test_org_kept_when_column_name_signals_org(self, engine_with_mock, mock_gliner_model):
+        """col=company_name preserves ORG even with one sample."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"organization": [("Microsoft", 0.95)]})
+        col = ColumnInput(
+            column_id="t",
+            column_name="company_name",
+            sample_values=["Microsoft"],
+        )
+        findings = engine_with_mock.classify_column(col)
+        org = [f for f in findings if f.entity_type == "ORGANIZATION"]
+        assert len(org) == 1, (
+            f"Expected ORG kept on col=company_name, got {[(f.entity_type, f.confidence) for f in findings]}"
+        )
+
+    def test_org_kept_when_value_has_corp_suffix(self, engine_with_mock, mock_gliner_model):
+        """Value with `Inc.` suffix passes the suffix gate even with col=value."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"organization": [("Apple Inc.", 0.95)]})
+        col = ColumnInput(
+            column_id="t",
+            column_name="value",
+            sample_values=["Apple Inc."],
+        )
+        findings = engine_with_mock.classify_column(col)
+        org = [f for f in findings if f.entity_type == "ORGANIZATION"]
+        assert len(org) == 1
+
+    def test_org_kept_when_value_has_university_suffix(self, engine_with_mock, mock_gliner_model):
+        """`University` token is in the suffix allow-list."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {"organization": [("Stanford University", 0.95)]}
+        )
+        col = ColumnInput(
+            column_id="t",
+            column_name="value",
+            sample_values=["Stanford University"],
+        )
+        findings = engine_with_mock.classify_column(col)
+        org = [f for f in findings if f.entity_type == "ORGANIZATION"]
+        assert len(org) == 1
+
+    def test_known_collateral_microsoft_alone_is_dropped(self, engine_with_mock, mock_gliner_model):
+        """Documented collateral: single-token ORG without col-name signal is dropped.
+
+        This is the deliberate cost of the stop-gap; LLM escalation will recover it.
+        """
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"organization": [("Microsoft", 0.95)]})
+        col = ColumnInput(
+            column_id="t",
+            column_name="value",
+            sample_values=["Microsoft"],
+        )
+        findings = engine_with_mock.classify_column(col)
+        org = [f for f in findings if f.entity_type == "ORGANIZATION"]
+        assert org == [], "Expected Microsoft alone (col=value) to be dropped — collateral per design"
+
+    def test_org_kept_when_count_greater_than_one(self, engine_with_mock, mock_gliner_model):
+        """Multi-row ORG findings are not subject to the count==1 guard.
+
+        The avg-confidence aggregation already protects against multi-row
+        Faker FPs (different code path); count>=2 ORG findings flow through
+        unchanged.
+        """
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {"organization": [("Microsoft", 0.95), ("Apple", 0.95), ("Google", 0.95)]}
+        )
+        col = ColumnInput(
+            column_id="t",
+            column_name="value",
+            sample_values=["Microsoft", "Apple", "Google"],
+        )
+        findings = engine_with_mock.classify_column(col)
+        org = [f for f in findings if f.entity_type == "ORGANIZATION"]
+        assert len(org) == 1, f"Expected multi-row ORG kept, got {findings}"
+
+    def test_non_org_entity_types_unaffected(self, engine_with_mock, mock_gliner_model):
+        """Guard only applies to ORGANIZATION; other labels (EMAIL, PHONE, etc.) bypass."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"email": [("user@example.com", 0.95)]})
+        col = ColumnInput(
+            column_id="t",
+            column_name="value",
+            sample_values=["user@example.com"],
+        )
+        findings = engine_with_mock.classify_column(col)
+        email = [f for f in findings if f.entity_type == "EMAIL"]
+        assert len(email) == 1
+
+
+class TestSprint18OrgGuardRegexPatterns:
+    """Direct unit tests for the regex helpers used by the count==1 ORG guard."""
+
+    def test_org_context_names_matches_expected_tokens(self):
+        from data_classifier.engines.gliner_engine import _ORG_CONTEXT_NAMES_RE
+
+        for name in [
+            "company_name",
+            "company",
+            "vendor",
+            "client",
+            "customer",
+            "organization",
+            "organisation",
+            "Org",
+            "agency",
+            "firm",
+            "corporation",
+            "publisher",
+            "employer",
+            "account",
+            "any_name",  # _name$ suffix anchor
+        ]:
+            assert _ORG_CONTEXT_NAMES_RE.search(name), f"Expected {name!r} to match"
+
+    def test_org_context_names_rejects_generic_columns(self):
+        from data_classifier.engines.gliner_engine import _ORG_CONTEXT_NAMES_RE
+
+        for name in ["value", "field", "field_1", "data", "col_3", "x", ""]:
+            assert not _ORG_CONTEXT_NAMES_RE.search(name), f"Expected {name!r} NOT to match"
+
+    def test_org_suffix_matches_expected_tokens(self):
+        from data_classifier.engines.gliner_engine import _ORG_SUFFIX_RE
+
+        for value in [
+            "Apple Inc.",
+            "Apple Inc",
+            "Acme LLC",
+            "Globex Corp.",
+            "Foo Ltd",
+            "Stanford University",
+            "MIT Institute",
+            "Acme Corporation",
+            "GmbH suffix",
+            "Acme Co.",
+        ]:
+            assert _ORG_SUFFIX_RE.search(value), f"Expected {value!r} to match suffix"
+
+    def test_org_suffix_rejects_faker_buzzwords(self):
+        from data_classifier.engines.gliner_engine import _ORG_SUFFIX_RE
+
+        for value in [
+            "Quality-focused secondary alliance",
+            "Realigned actuating superstructure",
+            "Cloned eco-centric standardization",
+            "Triple-buffered fault-tolerant alliance",
+            "Multi-layered disintermediate help-desk",
+        ]:
+            assert not _ORG_SUFFIX_RE.search(value), f"Expected {value!r} NOT to match suffix"
