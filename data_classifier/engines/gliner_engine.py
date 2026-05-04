@@ -164,6 +164,65 @@ _ORG_SUFFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
+# ── Sprint 18 stop-gap: count==1 PERSON_NAME common-noun FP filter ──
+# Sister item to the ORG guard. GLiNER fires PERSON_NAME on lowercase
+# common nouns embedded in template prose like "A worker transforms..."
+# — the matched span is just "worker" (lowercase, single token).
+# Real person names ("John Smith", "Maria García", "李明") are
+# capitalized or use non-cased scripts. An all-lowercase matched span
+# on PERSON_NAME is a near-perfect signal of common-noun confusion.
+#
+# Same removable-stop-gap rationale as _ORG_CONTEXT_NAMES_RE: replaced
+# by LLM escalation layer (see backlog item
+# research-slm-llm-escalation-architecture-for-low-precision-ner-labels).
+#
+# Documented collateral: casual lowercase real names in chat ("my
+# friend bob said...") would be dropped. Rare in production data,
+# acceptable per memory project_future_slm_to_llm_escalation.
+# Determiners that precede common nouns in English template prose.
+# A PERSON_NAME span starting with one of these followed by a
+# lowercase word ('A worker', 'The handler') is almost certainly a
+# common-noun FP, not a real name.
+_PERSON_NAME_DETERMINERS: tuple[str, ...] = (
+    "A ",
+    "An ",
+    "The ",
+    "Each ",
+    "Every ",
+    "Some ",
+    "No ",
+    "Any ",
+    "All ",
+    "This ",
+    "That ",
+)
+
+
+def _is_lowercase_common_noun_person_span(span: str) -> bool:
+    """True if the matched span is a common-noun FP candidate.
+
+    Catches two forms GLiNER returns on template prose:
+      - ``'worker'`` — entirely lowercase single token
+      - ``'A worker'`` — determiner-led with lowercase head noun
+
+    str.islower() returns True iff there's at least one cased
+    character and all cased characters are lowercase. Spans in
+    non-cased scripts (Arabic, Chinese, Hebrew) therefore return
+    False and pass through, as do capitalized names like
+    ``'John Smith'`` or ``'Maria García'``.
+    """
+    if not span:
+        return False
+    if span.islower():
+        return True
+    for det in _PERSON_NAME_DETERMINERS:
+        if span.startswith(det):
+            rest = span[len(det) :]
+            if rest and rest[0].islower():
+                return True
+    return False
+
+
 # Separator used when concatenating sample values
 _SAMPLE_SEPARATOR = " ; "
 
@@ -810,6 +869,19 @@ class GLiNER2Engine(ClassificationEngine):
                 matched_text = hits[0][0] if hits else ""
                 column_name = column.column_name or ""
                 if not _ORG_CONTEXT_NAMES_RE.search(column_name) and not _ORG_SUFFIX_RE.search(matched_text):
+                    continue
+
+            # Sprint 18 stop-gap: PERSON_NAME common-noun guard.
+            # See _is_lowercase_common_noun_person_span for rationale.
+            # Drops findings where ALL matched spans are common-noun FPs
+            # (lowercase single words like 'worker', 'caller'; or
+            # determiner-led like 'A worker', 'The handler'). Mixed
+            # findings (some real names + some FPs) pass through and
+            # defer to LLM escalation. Removable when the LLM
+            # escalation layer ships.
+            if entity_type == "PERSON_NAME":
+                span_texts = [text for text, _ in hits]
+                if span_texts and all(_is_lowercase_common_noun_person_span(s) for s in span_texts):
                     continue
 
             # Build evidence

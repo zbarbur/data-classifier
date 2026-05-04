@@ -49,6 +49,7 @@ def aggregate_per_value_spans(
         _ENTITY_METADATA,
         _ORG_CONTEXT_NAMES_RE,
         _ORG_SUFFIX_RE,
+        _is_lowercase_common_noun_person_span,
     )
 
     rows_with_type: dict[str, int] = {}
@@ -86,6 +87,16 @@ def aggregate_per_value_spans(
             spans = sample_texts.get(entity_type, [])
             sample_text = spans[0] if spans else ""
             if not _ORG_CONTEXT_NAMES_RE.search(column_name) and not _ORG_SUFFIX_RE.search(sample_text):
+                continue
+
+        # Sprint 18 stop-gap: PERSON_NAME common-noun guard mirroring
+        # gliner_engine._hits_to_findings. Drops findings where ALL
+        # contributing spans are common-noun FPs (lowercase or
+        # determiner-led). Same removable-stop-gap rationale (LLM
+        # escalation layer).
+        if entity_type == "PERSON_NAME":
+            spans = sample_texts.get(entity_type, [])
+            if spans and all(_is_lowercase_common_noun_person_span(s) for s in spans):
                 continue
         metadata = _ENTITY_METADATA.get(entity_type, {})
         findings.append(

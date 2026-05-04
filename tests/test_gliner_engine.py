@@ -1677,3 +1677,121 @@ class TestSprint18OrgGuardRegexPatterns:
             "Multi-layered disintermediate help-desk",
         ]:
             assert not _ORG_SUFFIX_RE.search(value), f"Expected {value!r} NOT to match suffix"
+
+
+class TestSprint18PersonNameGuard:
+    """Sprint 18 stop-gap: PERSON_NAME common-noun FP guard.
+
+    Sister to the ORG guard. GLiNER fires PERSON_NAME on lowercase
+    common nouns and determiner-led common nouns embedded in template
+    prose ('A worker transforms...' → matched span 'worker' or
+    'A worker'). Real names are capitalized; lowercase or
+    determiner-led-lowercase spans are FPs.
+    """
+
+    def test_lowercase_single_word_dropped(self, engine_with_mock, mock_gliner_model):
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("worker", 0.85)]})
+        col = ColumnInput(column_id="t", column_name="value", sample_values=["Each consumer transforms the request"])
+        findings = engine_with_mock.classify_column(col)
+        assert [f for f in findings if f.entity_type == "PERSON_NAME"] == []
+
+    def test_determiner_led_span_dropped(self, engine_with_mock, mock_gliner_model):
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("A worker", 0.90)]})
+        col = ColumnInput(column_id="t", column_name="value", sample_values=["A worker transforms the response body"])
+        findings = engine_with_mock.classify_column(col)
+        assert [f for f in findings if f.entity_type == "PERSON_NAME"] == []
+
+    def test_all_spans_common_noun_dropped(self, engine_with_mock, mock_gliner_model):
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {"person": [("consumer", 0.85), ("caller", 0.80)]}
+        )
+        col = ColumnInput(
+            column_id="t",
+            column_name="value",
+            sample_values=["Each consumer normalizes... without blocking the caller."],
+        )
+        findings = engine_with_mock.classify_column(col)
+        assert [f for f in findings if f.entity_type == "PERSON_NAME"] == []
+
+    def test_real_capitalized_name_kept(self, engine_with_mock, mock_gliner_model):
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("John Smith", 0.90)]})
+        col = ColumnInput(column_id="t", column_name="value", sample_values=["John Smith"])
+        findings = engine_with_mock.classify_column(col)
+        persons = [f for f in findings if f.entity_type == "PERSON_NAME"]
+        assert len(persons) == 1
+
+    def test_non_cased_script_kept(self, engine_with_mock, mock_gliner_model):
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("李明", 0.88)]})
+        col = ColumnInput(column_id="t", column_name="value", sample_values=["李明"])
+        findings = engine_with_mock.classify_column(col)
+        persons = [f for f in findings if f.entity_type == "PERSON_NAME"]
+        assert len(persons) == 1
+
+    def test_titled_name_kept(self, engine_with_mock, mock_gliner_model):
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions({"person": [("Mr. John Smith", 0.85)]})
+        col = ColumnInput(column_id="t", column_name="value", sample_values=["Mr. John Smith"])
+        findings = engine_with_mock.classify_column(col)
+        persons = [f for f in findings if f.entity_type == "PERSON_NAME"]
+        assert len(persons) == 1
+
+    def test_mixed_real_and_fp_spans_kept(self, engine_with_mock, mock_gliner_model):
+        """Mixed findings (real + FP spans) pass through; defer to LLM escalation."""
+        mock_gliner_model.predict_entities.return_value = _gliner_predictions(
+            {"person": [("John Smith", 0.90), ("worker", 0.75)]}
+        )
+        col = ColumnInput(
+            column_id="t",
+            column_name="value",
+            sample_values=["John Smith asked the worker to send the email."],
+        )
+        findings = engine_with_mock.classify_column(col)
+        persons = [f for f in findings if f.entity_type == "PERSON_NAME"]
+        assert len(persons) == 1
+
+
+class TestSprint18PersonNameSpanHelper:
+    """Direct unit tests for _is_lowercase_common_noun_person_span."""
+
+    def test_lowercase_single_word(self):
+        from data_classifier.engines.gliner_engine import _is_lowercase_common_noun_person_span as fn
+
+        for s in ["worker", "consumer", "handler", "validator", "caller"]:
+            assert fn(s) is True
+
+    def test_determiner_led_lowercase(self):
+        from data_classifier.engines.gliner_engine import _is_lowercase_common_noun_person_span as fn
+
+        for s in [
+            "A worker",
+            "An incoming event",
+            "The handler",
+            "Each consumer",
+            "Every validator",
+            "This worker",
+            "That handler",
+        ]:
+            assert fn(s) is True
+
+    def test_capitalized_name_passes(self):
+        from data_classifier.engines.gliner_engine import _is_lowercase_common_noun_person_span as fn
+
+        for s in ["John Smith", "Maria García", "Wei Zhang", "Mr. John Smith", "Dr. García", "John"]:
+            assert fn(s) is False
+
+    def test_non_cased_script_passes(self):
+        from data_classifier.engines.gliner_engine import _is_lowercase_common_noun_person_span as fn
+
+        for s in ["李明", "محمد", "Σωκράτης"]:
+            assert fn(s) is False
+
+    def test_determiner_capitalized_head_passes(self):
+        """'The Rock' (determiner + capitalized head) should NOT be filtered."""
+        from data_classifier.engines.gliner_engine import _is_lowercase_common_noun_person_span as fn
+
+        assert fn("The Rock") is False
+        assert fn("A Smith") is False
+
+    def test_empty_passes(self):
+        from data_classifier.engines.gliner_engine import _is_lowercase_common_noun_person_span as fn
+
+        assert fn("") is False
