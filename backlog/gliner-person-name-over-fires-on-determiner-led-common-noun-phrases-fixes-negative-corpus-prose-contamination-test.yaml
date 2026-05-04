@@ -5,7 +5,7 @@ priority: P0
 category: bug
 sprint_target: 18
 created: 2026-05-03
-updated: 2026-05-03
+updated: 2026-05-04
 depends_on: []
 tags: []
 goal: Stop GLiNER PERSON_NAME from firing on determiner-led common-noun phrases (e.g.
@@ -52,7 +52,7 @@ test_plan:
 - 'Manual: family-accuracy benchmark before/after; commit summary.json showing no
   recall loss on real PERSON_NAME corpora'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
