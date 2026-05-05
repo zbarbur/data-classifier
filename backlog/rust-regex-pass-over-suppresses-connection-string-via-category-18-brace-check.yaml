@@ -4,7 +4,7 @@ priority: P1
 category: bug
 sprint_target: 18
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-05
 depends_on: []
 tags: []
 goal: Stop Rust unified detector from dropping high-confidence connection_string regex
@@ -39,7 +39,7 @@ test_plan:
   \ gate \u2014 feeds {database} placeholder text at conf 0.9 (must keep) and conf\
   \ 0.5 (must drop)"
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
