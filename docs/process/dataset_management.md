@@ -159,6 +159,47 @@ which raises a single `FileNotFoundError` listing every missing file.
 The internal `_load_raw_records` helper also raises `FileNotFoundError`
 on the per-call path — silent `[]` fallbacks were retired in Sprint 18.
 
+## WildChat labeled evaluation set (DVC-tracked)
+
+`data/wildchat_labeled_eval/labeled_set.jsonl` is the locked regression
+corpus used by `tests/test_wildchat_labeled_regression.py`. It carries
+the full 3,515-prompt WildChat credential corpus (XOR-encoded) joined
+with **334 human-reviewed prompts** from the Sprint 14/15
+`prompt_reviewer.py` web tool — 425 finding-level TP verdicts and
+549 FP verdicts.
+
+Per-row schema:
+
+| Field | Description |
+|---|---|
+| `prompt_id` | Stable id matching `data/wildchat_eval/wildchat_eval_v2.jsonl` |
+| `prompt_xor` | Base64-XOR-encoded prompt text (per repo policy — never commit cleartext WildChat secrets) |
+| `scanner_findings` | Snapshot of `scan_text` output at build time |
+| `old_findings` | Historical findings from the v2 GT build |
+| `human_verdicts` | `{finding_idx: "tp"\|"fp"}` from manual review (None for unreviewed rows) |
+| `label` | Row-level summary: `TP_REVIEWED` / `FP_REVIEWED` / `MIXED_REVIEWED` / `UNREVIEWED_POSITIVE` / `UNREVIEWED_NEGATIVE` |
+| `reviewed` | bool |
+
+Regenerate locally:
+
+```bash
+.venv/bin/python scripts/build_wildchat_labeled.py
+dvc add data/wildchat_labeled_eval
+dvc push data/wildchat_labeled_eval.dvc
+git add data/wildchat_labeled_eval.dvc data/.gitignore
+```
+
+Pull on a fresh checkout / CI:
+
+```bash
+dvc pull data/wildchat_labeled_eval.dvc
+```
+
+The regression test (`tests/test_wildchat_labeled_regression.py`)
+auto-skips when the labeled set is absent. CI hydrates it via the
+existing `dvc pull tests/fixtures/corpora.dvc` path; this corpus
+lives at the repo level (`data/`), not the test fixtures level.
+
 ---
 
 ## CI Setup

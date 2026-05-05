@@ -81,6 +81,39 @@ echo ""
 node scripts/wasm_parity_test.mjs
 
 # ---------------------------------------------------------------------------
+# 4. Optional: labeled-eval regression sweep (Sprint 18)
+# ---------------------------------------------------------------------------
+#
+# Pass `--labeled` to also run the WildChat labeled-eval regression
+# tests.  Skipped by default because the labeled set (~48 MB) is
+# DVC-tracked and may not be hydrated on every dev box.
+
+LABELED_FLAG=""
+for arg in "$@"; do
+  if [ "$arg" = "--labeled" ]; then LABELED_FLAG="1"; fi
+done
+
+if [ -n "$LABELED_FLAG" ]; then
+  echo ""
+  echo -e "${BOLD}>> [4/4] Labeled-eval regression sweep${RESET}"
+  echo ""
+
+  if [ ! -f "data/wildchat_labeled_eval/labeled_set.jsonl" ]; then
+    echo "     labeled_set.jsonl not found — pulling via dvc..."
+    dvc pull data/wildchat_labeled_eval.dvc || {
+      fail "dvc pull failed.  Run: dvc pull data/wildchat_labeled_eval.dvc"
+      exit 1
+    }
+  fi
+
+  if [ -x ".venv/bin/python" ]; then
+    .venv/bin/python -m pytest tests/test_wildchat_labeled_regression.py -v
+  else
+    python -m pytest tests/test_wildchat_labeled_regression.py -v
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Done
 # ---------------------------------------------------------------------------
 
