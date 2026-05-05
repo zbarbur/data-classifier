@@ -5,7 +5,7 @@ priority: P0
 category: feature
 sprint_target: 18
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-05
 depends_on: []
 tags: []
 goal: Add a production-parity ML-enabled benchmark variant alongside the canonical
@@ -39,7 +39,7 @@ test_plan:
 - 'Manual: run both --ml-active and default mode, diff the joint_miss_by_family table
   to confirm ML contributes (LIVE-only-miss recovers some shards via GLiNER)'
 notes: ''
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
