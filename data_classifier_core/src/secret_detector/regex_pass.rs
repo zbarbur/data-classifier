@@ -208,8 +208,14 @@ impl RegexPass {
                     }
                 }
 
-                // FP filter
-                if fp_filters::value_is_obviously_not_secret(value_trimmed, 0.6) {
+                // FP filter — pass the pattern's confidence so high-precision
+                // patterns can bypass the generic Category 18 brace-syntax
+                // suppression (see fp_filters::HIGH_CONFIDENCE_BYPASS_THRESHOLD).
+                if fp_filters::value_is_obviously_not_secret_at_confidence(
+                    value_trimmed,
+                    0.6,
+                    pattern.confidence,
+                ) {
                     continue;
                 }
 

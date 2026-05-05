@@ -117,13 +117,51 @@ lazy_re!(re_url_encoded, r"%[0-9A-Fa-f]{2}.*%[0-9A-Fa-f]{2}");
 // Main entry point
 // ---------------------------------------------------------------------------
 
+/// Match-confidence at or above which the Category 18 brace-syntax filter
+/// is bypassed.
+///
+/// Sprint 18 item: high-confidence scheme-anchored patterns like
+/// `connection_string` (conf 0.9) carry their own context discriminator —
+/// a `mysql://...` prefix means the body almost certainly isn't a Python
+/// f-string, so the generic `{expr}` suppression in Category 18 was over-
+/// firing on legitimate URI placeholders like `{database}`.  The threshold
+/// is set just below the connection_string confidence (0.9) and above
+/// generic loose-pattern confidences (0.7-0.8) so the suppression keeps
+/// protecting the noisy patterns without silencing the precise ones.
+///
+/// Architectural context: Python has a two-stage pipeline (regex_engine
+/// runs only stopwords + validator, secret_scanner runs the FP filters).
+/// Rust merged both into `regex_pass` running every gate on every match,
+/// which made this Category 18 over-fire detectable.  Confidence-aware
+/// gating restores the spirit of the Python staging without rewiring.
+pub(crate) const HIGH_CONFIDENCE_BYPASS_THRESHOLD: f64 = 0.85;
+
 /// Returns `true` if `value` is obviously *not* a secret/credential.
 ///
 /// This is the union of all false-positive suppression rules from both the
 /// Python `secret_scanner.py` and the JS `scanner-core.js` implementations.
 /// A return value of `true` means the value should be suppressed (not reported
 /// as a secret).
+///
+/// Backwards-compatible entry point — equivalent to calling
+/// [`value_is_obviously_not_secret_at_confidence`] with `match_confidence = 0.0`.
+/// Use the at-confidence variant from `regex_pass` so per-pattern confidence
+/// can bypass Category 18 (see [`HIGH_CONFIDENCE_BYPASS_THRESHOLD`]).
 pub fn value_is_obviously_not_secret(value: &str, prose_threshold: f64) -> bool {
+    value_is_obviously_not_secret_at_confidence(value, prose_threshold, 0.0)
+}
+
+/// Confidence-aware variant of [`value_is_obviously_not_secret`].
+///
+/// Behaves identically except Category 18 (brace-delimited expressions) is
+/// skipped when `match_confidence >= HIGH_CONFIDENCE_BYPASS_THRESHOLD`.
+/// Pass the matching pattern's `confidence` field to opt high-precision
+/// patterns out of the generic `{expr}` filter.
+pub fn value_is_obviously_not_secret_at_confidence(
+    value: &str,
+    prose_threshold: f64,
+    match_confidence: f64,
+) -> bool {
     // ---- Category 1: Configuration values ----
     let v_lower = value.to_lowercase();
     let v_trimmed = v_lower.trim();
@@ -361,7 +399,17 @@ pub fn value_is_obviously_not_secret(value: &str, prose_threshold: f64) -> bool 
     // ---- Category 18: Brace-delimited expressions ----
     // Python f-string / template expressions with matching braces: {expr}
     // Catches {list(...)}, {data.key}, etc. — but NOT ${...} (already caught above)
-    if value.contains('{') && value.contains('}') && !value.contains("${") {
+    //
+    // Sprint 18 item: bypass for high-confidence patterns. Scheme-anchored
+    // patterns like connection_string (mysql://, postgres://, etc.) carry
+    // enough discriminative context that {database}-style URI placeholders
+    // are legitimate value bodies, not Python f-string templates.  See
+    // HIGH_CONFIDENCE_BYPASS_THRESHOLD for the rationale.
+    if match_confidence < HIGH_CONFIDENCE_BYPASS_THRESHOLD
+        && value.contains('{')
+        && value.contains('}')
+        && !value.contains("${")
+    {
         return true;
     }
 
@@ -839,6 +887,64 @@ mod tests {
     #[test]
     fn test_brace_template() {
         assert!(value_is_obviously_not_secret("{data.user.name}", 0.6));
+    }
+
+    // Sprint 18: Category 18 confidence-aware bypass — connection_string
+    // (conf 0.9) keeps URI placeholder values; generic patterns (conf < 0.85)
+    // continue to suppress them.
+    #[test]
+    fn test_brace_kept_at_high_confidence() {
+        assert!(!value_is_obviously_not_secret_at_confidence(
+            "mysql://{user}:{pass}@{host}/{database}",
+            0.6,
+            0.9
+        ));
+    }
+    #[test]
+    fn test_brace_dropped_at_low_confidence() {
+        assert!(value_is_obviously_not_secret_at_confidence(
+            "{database}",
+            0.6,
+            0.5
+        ));
+    }
+    #[test]
+    fn test_brace_dropped_at_threshold_minus_epsilon() {
+        // Confidence just below the 0.85 cutoff still suppresses braces.
+        assert!(value_is_obviously_not_secret_at_confidence(
+            "{config.value}",
+            0.6,
+            0.84
+        ));
+    }
+    #[test]
+    fn test_brace_kept_at_exactly_threshold() {
+        // Confidence at exactly 0.85 bypasses Category 18.
+        assert!(!value_is_obviously_not_secret_at_confidence(
+            "postgres://{user}@{host}/{db}",
+            0.6,
+            HIGH_CONFIDENCE_BYPASS_THRESHOLD
+        ));
+    }
+    #[test]
+    fn test_legacy_wrapper_preserves_old_behavior() {
+        // value_is_obviously_not_secret(...) (no confidence) must keep
+        // dropping brace values — that's what every existing test asserts.
+        assert!(value_is_obviously_not_secret(
+            "mysql://{user}:{pass}@{host}/{database}",
+            0.6
+        ));
+    }
+    #[test]
+    fn test_high_confidence_bypass_does_not_skip_other_categories() {
+        // Even at high confidence, URLs (Cat 2) and config values (Cat 1)
+        // still suppress.  Only Cat 18 is gated on confidence.
+        assert!(value_is_obviously_not_secret_at_confidence(
+            "https://example.com",
+            0.6,
+            0.95
+        ));
+        assert!(value_is_obviously_not_secret_at_confidence("true", 0.6, 0.95));
     }
 
     // Category 19: Comma-separated lists (HTTP headers)

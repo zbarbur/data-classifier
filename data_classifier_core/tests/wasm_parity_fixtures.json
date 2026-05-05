@@ -46,5 +46,17 @@
     "text": "homepage = \"https://api.example.com\"",
     "expect_entity_types": [],
     "notes": "URL value assigned to a key — FP filter must suppress"
+  },
+  {
+    "id": "connection_string_uri_placeholder",
+    "text": "engine = create_engine('mysql+pymysql://{user}:{pass}@{host}/{database}')",
+    "expect_entity_types": ["API_KEY"],
+    "notes": "Sprint 18: connection_string regex (conf 0.9) must not be suppressed by Category 18 brace check on URI placeholder values like {database} (case 2975 in browser parity)"
+  },
+  {
+    "id": "low_confidence_brace_template_dropped",
+    "text": "Authorization: Bearer {your_token_here}",
+    "expect_entity_types": [],
+    "notes": "Sprint 18 invariant: brace-syntax templates without a high-confidence anchor pattern continue to be suppressed by Category 18"
   }
 ]
