@@ -95,23 +95,48 @@ Before closing any sprint:
 2. `ruff format --check .` — zero diffs
 3. `pytest tests/ -v` — all green
 4. GitHub Actions CI passing on main
-5. **Family accuracy benchmark** — run and attach the resulting
-   `summary.json` to the sprint handover doc:
+5. **Family accuracy benchmark** — run BOTH variants and attach the
+   resulting `summary.json` files to the sprint handover doc.
+
+   **Variant A — ML-disabled (fast, ~30s):**
    ```
    DATA_CLASSIFIER_DISABLE_ML=1 \
        python -m tests.benchmarks.family_accuracy_benchmark \
        --out /tmp/bench.predictions.jsonl \
        --summary /tmp/bench.summary.json \
-       --compare-to docs/research/meta_classifier/sprint17_family_benchmark.json
+       --compare-to docs/research/meta_classifier/sprint18_family_benchmark.json
    ```
-   The **`system.overall.joint_miss_rate`** metric is the headline
-   sprint gate (introduced Sprint 17). It captures the system-level
-   miss rate when *neither* LIVE nor SHADOW lands in the right
-   family — invariant to corpus shape composition and to router
-   suppression policy. Must not regress from the committed baseline
-   without written justification. The legacy
-   `shadow.overall.family.cross_family_rate` is retained for
-   audit-trail continuity but mostly tracks router-suppression rate;
-   see `docs/research/meta_classifier/sprint17_router_suppression_decomposition.md`
+
+   **Variant B — ML-active (slower, ~10min on standard dev box):**
+   ```
+   python -m tests.benchmarks.family_accuracy_benchmark \
+       --ml-active \
+       --out /tmp/bench_ml.predictions.jsonl \
+       --summary /tmp/bench_ml.summary.json
+   ```
+
+   Headline gate metrics:
+
+   * **`system.overall.joint_miss_rate`** (Variant A, introduced
+     Sprint 17) — system-level miss rate with ML engines off, fast
+     enough to gate every sprint. Invariant to corpus shape
+     composition and router suppression.
+   * **`system.overall.joint_miss_rate_ml_active`** (Variant B,
+     introduced Sprint 18) — same metric but with GLiNER2/ONNX live.
+     Catches ML-only regressions invisible to Variant A (the Sprint 17
+     ORGANIZATION FP was one such regression). Slower so it runs once
+     per sprint at close-out.
+
+   Neither metric may regress from the committed baseline without
+   written justification. The Sprint 18 baseline lives at
+   `docs/research/meta_classifier/sprint18_family_benchmark.json` and
+   carries both fields side-by-side (`system.overall.joint_miss_rate`
+   from Variant A and `system_ml_active.overall.joint_miss_rate_ml_active`
+   from Variant B).
+
+   The legacy `shadow.overall.family.cross_family_rate` is retained
+   for audit-trail continuity but mostly tracks router-suppression
+   rate; see
+   `docs/research/meta_classifier/sprint17_router_suppression_decomposition.md`
    for the analysis. See `tests/benchmarks/README.md` for Tier 1 vs
    Tier 2 scoring.

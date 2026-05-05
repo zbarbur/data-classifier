@@ -177,6 +177,72 @@ def test_joint_miss_multilabel_ground_truth():
     assert result["live_only_miss_count"] == 1
 
 
+class TestSprint18MLActiveBenchmarkVariant:
+    """Sprint 18 item: --ml-active produces a joint_miss_rate_ml_active
+    field instead of joint_miss_rate so the merged sprint baseline can
+    carry both metrics unambiguously.  Runs the benchmark CLI as a
+    subprocess (env-var contract requires fresh import).
+    """
+
+    def _run(self, *flags: str, limit: int = 30) -> dict:
+        import json
+        import subprocess
+        import sys
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            preds = tmp_path / "preds.jsonl"
+            summary = tmp_path / "summary.json"
+            cmd = [
+                sys.executable,
+                "-m",
+                "tests.benchmarks.family_accuracy_benchmark",
+                "--out",
+                str(preds),
+                "--summary",
+                str(summary),
+                "--limit",
+                str(limit),
+                *flags,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            assert result.returncode == 0, f"benchmark CLI failed: {result.stderr}"
+            return json.loads(summary.read_text())
+
+    def test_default_run_emits_joint_miss_rate(self) -> None:
+        summary = self._run()
+        assert summary["ml_active"] is False
+        sysov = summary["system"]["overall"]
+        assert "joint_miss_rate" in sysov
+        assert "joint_miss_rate_ml_active" not in sysov
+        assert isinstance(sysov["joint_miss_rate"], float)
+
+    def test_ml_active_run_emits_joint_miss_rate_ml_active(self) -> None:
+        summary = self._run("--ml-active")
+        assert summary["ml_active"] is True
+        sysov = summary["system"]["overall"]
+        assert "joint_miss_rate_ml_active" in sysov
+        assert "joint_miss_rate" not in sysov
+        # Field must be a populated number — never None or missing.
+        assert isinstance(sysov["joint_miss_rate_ml_active"], (int, float))
+        assert 0.0 <= sysov["joint_miss_rate_ml_active"] <= 1.0
+
+    def test_ml_active_summary_preserves_other_joint_miss_fields(self) -> None:
+        """Renaming joint_miss_rate must not lose the count, n, or decomposition fields."""
+        summary = self._run("--ml-active")
+        sysov = summary["system"]["overall"]
+        for required in (
+            "joint_miss_count",
+            "n_shards_excluding_negative",
+            "live_only_miss_count",
+            "shadow_only_miss_count",
+            "both_correct_count",
+        ):
+            assert required in sysov, f"ML-active summary missing field: {required}"
+
+
 def test_joint_miss_decomposition_by_family_and_shape():
     """joint_miss_by_family and joint_miss_by_shape decompose the misses."""
     from tests.benchmarks.family_accuracy_benchmark import _compute_joint_miss_metrics

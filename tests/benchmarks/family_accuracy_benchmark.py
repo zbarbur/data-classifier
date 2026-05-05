@@ -58,17 +58,35 @@ documented exception, which is why each ``print`` carries an explicit
 
 from __future__ import annotations
 
-import argparse
-import json
+# Sprint 18 item: ML mode must be set BEFORE any data_classifier import
+# triggers the GLiNER loader.  Detect ``--ml-active`` from argv early so
+# the env var lands before the module-level imports below; the rest of
+# the benchmark reads ``_ML_ACTIVE`` for output-shape decisions.
+import os
 import sys
-import time
-from collections import defaultdict
-from pathlib import Path
 
-from data_classifier import FAMILIES, classify_columns, family_for, load_profile
-from data_classifier.events.emitter import CallbackHandler, EventEmitter
-from tests.benchmarks.meta_classifier.build_training_data import _build_synthetic_pool
-from tests.benchmarks.meta_classifier.shard_builder import build_shards, verify_required_fixtures
+_ML_ACTIVE: bool = "--ml-active" in sys.argv
+if _ML_ACTIVE:
+    # Explicit override — beats any env-var the caller may have set.
+    # The ML-active gate is the whole point of this flag.
+    os.environ["DATA_CLASSIFIER_DISABLE_ML"] = "0"
+else:
+    # Preserve historical default: ML disabled unless the caller
+    # explicitly set otherwise.  Mirrors the legacy behavior of
+    # ``build_training_data`` before its setdefault was scoped to
+    # ``__main__`` (Sprint 18).
+    os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
+
+import argparse  # noqa: E402
+import json  # noqa: E402
+import time  # noqa: E402
+from collections import defaultdict  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from data_classifier import FAMILIES, classify_columns, family_for, load_profile  # noqa: E402
+from data_classifier.events.emitter import CallbackHandler, EventEmitter  # noqa: E402
+from tests.benchmarks.meta_classifier.build_training_data import _build_synthetic_pool  # noqa: E402
+from tests.benchmarks.meta_classifier.shard_builder import build_shards, verify_required_fixtures  # noqa: E402
 
 try:
     from data_classifier.events.types import MetaClassifierEvent
@@ -535,6 +553,24 @@ def _compute_joint_miss_metrics(predictions: list[dict]) -> dict:
     }
 
 
+def _maybe_rename_joint_miss(metrics: dict) -> dict:
+    """Rename ``joint_miss_rate`` → ``joint_miss_rate_ml_active`` under ML mode.
+
+    Sprint 18 item: the ML-active benchmark variant emits a distinct
+    field name so the merged sprint baseline JSON can carry both
+    metrics side-by-side without ambiguity.  All other fields
+    (joint_miss_count, live_only_miss_count, etc.) keep their names —
+    the consumer reads ``ml_active`` at the top level of the summary
+    to disambiguate semantic meaning.
+    """
+    if not _ML_ACTIVE:
+        return metrics
+    renamed = dict(metrics)
+    if "joint_miss_rate" in renamed:
+        renamed["joint_miss_rate_ml_active"] = renamed.pop("joint_miss_rate")
+    return renamed
+
+
 def _compare_to(current: dict, previous_path: Path) -> dict:
     """Produce a delta summary against a previously-saved summary JSON."""
     try:
@@ -571,13 +607,19 @@ def _compare_to(current: dict, previous_path: Path) -> dict:
                 }
 
     # System-level joint miss delta — the headline gate metric.
+    # Sprint 18: handle both legacy ``joint_miss_rate`` and the
+    # ML-active variant ``joint_miss_rate_ml_active``.  Use whichever
+    # key the current summary carries (asymmetry — comparing
+    # ML-disabled vs ML-active baselines is meaningless and the gate
+    # tracks each mode separately).
     cur_sys = current.get("system", {}).get("overall", {})
     prev_sys = previous.get("system", {}).get("overall", {})
     if cur_sys and prev_sys:
+        rate_field = "joint_miss_rate_ml_active" if "joint_miss_rate_ml_active" in cur_sys else "joint_miss_rate"
         deltas["system"] = {
             "overall": {
-                "joint_miss_rate": round(
-                    cur_sys.get("joint_miss_rate", 0) - prev_sys.get("joint_miss_rate", 0),
+                rate_field: round(
+                    cur_sys.get(rate_field, 0) - prev_sys.get(rate_field, 0),
                     4,
                 ),
                 "joint_miss_count": cur_sys.get("joint_miss_count", 0) - prev_sys.get("joint_miss_count", 0),
@@ -646,9 +688,13 @@ def _print_report(summary: dict) -> None:
     # ── SYSTEM-level joint miss (sprint gate metric) ─────────────────────
     system_overall = summary.get("system", {}).get("overall", {})
     if system_overall:
-        print("SYSTEM (joint miss across LIVE + SHADOW, NEGATIVE excluded):", file=sys.stderr)  # noqa: T201
+        # Field name is ``joint_miss_rate_ml_active`` when ML was on, else
+        # ``joint_miss_rate`` (Sprint 18 item — see _maybe_rename_joint_miss).
+        rate_field = "joint_miss_rate_ml_active" if "joint_miss_rate_ml_active" in system_overall else "joint_miss_rate"
+        ml_label = "  (ML-active variant)" if rate_field == "joint_miss_rate_ml_active" else ""
+        print(f"SYSTEM (joint miss across LIVE + SHADOW, NEGATIVE excluded):{ml_label}", file=sys.stderr)  # noqa: T201
         print(  # noqa: T201
-            f"  joint_miss_rate:    {system_overall['joint_miss_rate']:.4f}  "
+            f"  {rate_field}:    {system_overall[rate_field]:.4f}  "
             f"({system_overall['joint_miss_count']}/{system_overall['n_shards_excluding_negative']} shards)",
             file=sys.stderr,
         )
@@ -715,6 +761,16 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Optional previous summary.json to diff against; produces a deltas section in the new summary.",
     )
+    parser.add_argument(
+        "--ml-active",
+        action="store_true",
+        help=(
+            "Run with GLiNER2/ONNX engines active (sets DATA_CLASSIFIER_DISABLE_ML=0 "
+            "before imports).  Produces system.overall.joint_miss_rate_ml_active in the "
+            "summary instead of joint_miss_rate.  Sprint 18 sprint-gate companion to the "
+            "default ML-disabled run — catches GLiNER/ONNX regressions that the fast gate misses."
+        ),
+    )
     args = parser.parse_args(argv)
 
     verify_required_fixtures()
@@ -766,6 +822,7 @@ def main(argv: list[str] | None = None) -> int:
     summary: dict = {
         "n_shards": len(predictions),
         "n_families": len(FAMILIES),
+        "ml_active": _ML_ACTIVE,
         "live": {
             "overall": _build_tiered(predictions, "predicted"),
         },
@@ -773,7 +830,7 @@ def main(argv: list[str] | None = None) -> int:
             "overall": _build_tiered(predictions, "shadow_predicted"),
         },
         "system": {
-            "overall": _compute_joint_miss_metrics(predictions),
+            "overall": _maybe_rename_joint_miss(_compute_joint_miss_metrics(predictions)),
         },
     }
     for mode in ("named", "blind"):
@@ -781,7 +838,7 @@ def main(argv: list[str] | None = None) -> int:
         if subset:
             summary["live"][mode] = _build_tiered(subset, "predicted")
             summary["shadow"][mode] = _build_tiered(subset, "shadow_predicted")
-            summary["system"][mode] = _compute_joint_miss_metrics(subset)
+            summary["system"][mode] = _maybe_rename_joint_miss(_compute_joint_miss_metrics(subset))
 
     if args.compare_to is not None:
         summary["delta_vs_previous"] = _compare_to(summary, args.compare_to)

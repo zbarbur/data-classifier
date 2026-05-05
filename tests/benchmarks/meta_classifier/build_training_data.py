@@ -30,9 +30,20 @@ from __future__ import annotations
 
 # NB: set environment BEFORE importing data_classifier — the GLiNER loader
 # checks this on module import.
+#
+# Sprint 18 item: the env-var setdefault was previously unconditional at
+# module load, which made the default look like a hard ML disable to
+# importers.  It's now scoped to ``__main__`` so callers (notably
+# ``family_accuracy_benchmark`` with ``--ml-active``) can pre-set the
+# variable to ``"0"`` and import this module without the toggle being
+# silently rewritten.  ``setdefault`` was already a no-op when the
+# caller had set the variable, but moving it under ``__main__`` makes
+# the contract explicit: the CLI entry point owns the default; library
+# importers control their own ML mode.
 import os
 
-os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
+if __name__ == "__main__":
+    os.environ.setdefault("DATA_CLASSIFIER_DISABLE_ML", "1")
 
 import argparse  # noqa: E402
 import json  # noqa: E402
