@@ -4,7 +4,7 @@ priority: P1
 category: feature
 sprint_target: 18
 created: 2026-04-18
-updated: 2026-05-02
+updated: 2026-05-05
 depends_on: []
 tags: []
 goal: Lock in Sprint 14 manual review of 3,515 WildChat credential prompts as a DVC-tracked
@@ -69,7 +69,7 @@ test_plan:
 notes: 'Deferred from S17 to S18 (2026-04-28): WildChat GT labels are detection-output-dependent.
   The S17 WASM merge changes detection behavior; doing GT review pre-merge would tie
   labels to deprecated outputs. Reviewing post-merge means labels reflect what ships.'
-phase: plan
+phase: review
 design_reviewed: false
 code_reviewed: false
 comments: []
